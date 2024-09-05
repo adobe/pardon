@@ -30,13 +30,13 @@ async function resolveCollection(
 
   return "docs";
 }
-
+console.log('href', href)
 if (typeof href === "string" && /^[/]/.test(href)) {
   const resolvedCollection = await resolveCollection(collection);
   const entry = await getEntry(resolvedCollection, href.slice(1));
 
   data = entry?.data;
-  href = import.meta.env.BASE_URL + href;
+  href = (import.meta.env.BASE_URL) + href.slice(import.meta.env.BASE_URL.endsWith('/') ? 1 : 0);
 }
 ---
 

@@ -19,8 +19,8 @@ import solid from "@astrojs/solid-js";
 
 // https://astro.build/config
 export default defineConfig({
-  site: process.env.SITE_ORIGIN ?? undefined,
-  base: process.env.SITE_ROOT ?? undefined,
+  site: process.env.SITE_ORIGIN,
+  base: process.env.SITE_ROOT ?? '/',
   output: "static",
   integrations: [
     starlight({
