@@ -1,0 +1,407 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Scripting
+description: How to write scripts
+next: false
+prev: false
+server: products
+---
+
+import {
+  FileTree,
+  Icon,
+  Tabs,
+  TabItem,
+  Code,
+} from '@astrojs/starlight/components';
+
+import {
+  CollectionLinkCard,
+  Exercises,
+  ExerciseItem,
+  ExerciseItemPrompt,
+  FlexyCodeGrid,
+  IconicCode,
+  PardonPlayground,
+  ProductsView,
+  SolidIcon,
+} from '@components';
+
+import {
+  serviceAndPingAndProductsWithConfigurableScriptAuth,
+  serviceWithAutoCost,
+  serviceWithOrderingAndGetMatching,
+} from'@pardon/products-collections'
+
+import "@components/inline-icon.pcss"
+
+This tutorial expands on Pardon scripting.
+Defining scripts and importing them into collections,
+as well as exporting them.
+
+The exercies here requires that some products are created,
+if you haven't created any, you can follow the Steps
+in the first exercise in the dataflow tutorial to make a few.
+
+<CollectionLinkCard href="/intro/dataflow" />
+
+## Scripts
+
+Pardon scripts are javascript/typescript ECMA script modules (`esm` / `esmodule`).
+Consider our example service, we'll be adding an example-helper.ts support script.
+
+<FileTree>
+- example/
+  - service.yaml
+  - **example-helper.ts**
+  - products/
+    - list.https
+    - ...
+</FileTree>
+
+We'll have this script provide a "serviceToken", using a slow connection to an
+authorization server with a timeout: and we are also appending a time-based value so
+we can see the result changing.
+
+```ts title="example/example-helper.ts"
+export async function serviceToken(env: string) {
+  await new Promise((resolve) => setTimeout(resolve, 700));
+
+  return `service-token-${env}-${`${Date.now()}`.slice(-5)}`
+}
+```
+
+To use this script from an template expression, we'll use `export` and `import`.
+
+<Tabs>
+  <TabItem label="export">
+In order to import from 'pardon:example', as in
+```ts
+import { serviceToken } from 'pardon:example';
+```
+we need to define what the `example` collection exports.
+This is one line in the `service.yaml`:
+
+```http title="example/service.yaml" ins={1}
+export: ./example-helper.ts
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+mixin:
+  - pardon:example/auth.mix.https
+```
+  </TabItem>
+  <TabItem label="import">
+Then we can import named values from the 
+```http title="example/auth.mix.https" ins={1-3} ins="serviceToken(env)"
+import:
+  pardon:example:
+    - serviceToken
+config:
+  authorization: token
+>>>
+ANY //
+Authorization: {{ @auth = serviceToken(env) }}
+```
+  </TabItem>
+</Tabs>
+
+<PardonPlayground values secrets={'shown'} config={serviceAndPingAndProductsWithConfigurableScriptAuth} example={`
+GET https://example.com/products
+`}>
+Feel free to experiment with the usual `env=stage`/`env=prod` changes,
+(notice that pardon takes a moment to update now.)
+</PardonPlayground>
+
+The imported scripts are loaded through the node-module import mechanism
+and may import other dependencies (including npm-installed packages).
+
+:::note
+The key `pardon:example` is a pardon-relative import.  You can import
+external packages too, for instance if you want to customize
+your `User-Agent` based on [`os.platform()`](https://nodejs.org/docs/latest/api/os.html#osplatform) you could do this
+
+<div class="[&_.copy]:!hidden">
+```http title="example/user-agent.mix.https"
+import:
+  node:os: os
+>>>
+ANY //
+User-Agent: {{= `pardon/1.0 (${os.platform()})` }}
+```
+</div>
+
+The non-listed import form is equivalent to
+
+<div class="[&_.copy]:!hidden">
+```js
+import * as os from 'node:os'
+```
+</div>
+:::
+
+## pardon-in-pardon
+
+We've got a new requirement, the business wants our ordering
+system to be available to the front-end, and we'll need to do
+some validation:
+
+The price of products change frequently, and when a customer
+places an order, the price on the screen might not match the price in 
+the system: so we need to send the price-on-the-screen and check 
+if it's still correct.
+
+That's fair, but also totally annoying for the backend developers
+on the order system who have to add more data to every request and 
+make sure it's correct.
+
+Well, pardon supports making pardon requests in scripts, and using the
+results in expressions.  (We could techincally put this code in an
+expression, but it's more readable to put non-trivial code in scripts).
+
+To demonstrate this, first we need to define how to get this data from our
+`products/get` endpoint:
+
+<Tabs>
+  <TabItem label="extract product data" icon="">
+```http title="example/products/get.https"
+>>>
+GET https://example.com/products/{{product}}
+
+<<<
+200 OK
+
+{
+  "name": "{{?name}}",
+  "price": "{{?price}}"
+}
+```
+  </TabItem>
+  <TabItem label="use output in a script">
+
+Then we can make a helper function that could extract the name
+and price from the product respones.
+
+For the following exercise, we'll be using the following script:
+
+```ts title="example/products/products-helper.ts"
+import { pardon } from 'pardon';
+
+export async function price({ product, env }: { product: string, env: string }) {
+  const {
+    inbound: {
+      values: { price }
+    }
+  } = await pardon({ product, env })`https://example.com/products/{{product}}`();
+
+  return price;
+}
+```
+
+:::note
+This price script isn't editable here (it's hacked into the demo system).
+:::
+  </TabItem>
+</Tabs>
+
+<PardonPlayground response data values='product=P1001' secrets='shown' editor='example/products/get.https' example={`
+GET https://example.com/products/{{product}}
+`} config={{ ...serviceWithOrderingAndGetMatching, 'example/products/config.yaml': '' }}>
+<Exercises>
+  <ExerciseItem label='Dynamic data'
+    prompt="See what is returned in values.">
+  
+  Confirm the data extracted for products `P1001`, `P1002`, etc...
+
+  </ExerciseItem>
+  <ExerciseItem label='Script integration'
+    prompt="Integrate a script.">
+
+This is a multi-step process, first we can define the script as the export
+of `pardon:example/products`, to do this, we'll make a few changes:
+
+<Tabs>
+  <TabItem label="1. Setup export">
+First we add a `config.yaml` in products
+to define its export.
+<IconicCode name="editor" titled>
+```yaml title="example/products/config.yaml" ins={1}
+export: ./products-helper.ts
+```
+:::note
+Be sure to edit the `example/products/config.https` file here.
+:::
+</IconicCode>
+  </TabItem>
+  <TabItem label="2. Use in expression">
+
+Next we import the `info` method inside the endpoint we'd like to
+use it from and add.
+
+<IconicCode name="editor" titled>
+```http title="example/orders/create.https" ins={1-3} ins=" = price({ product, env })"
+import:
+  pardon:example/products:
+    - price
+>>>
+POST https://example.com/orders
+
+{
+  "cart": [{
+    "product": "{{items.product}}",
+    "quantity": number("{{items.quantity=1}}"),
+    "cost": "{{items.cost = price({ product, env })}}"
+  }]
+}
+```
+:::note
+Be sure to edit the `example/orders/create.https` file here.
+:::
+</IconicCode>
+  </TabItem>
+  <TabItem label="3. Make the Call">
+
+Set the input data.
+<IconicCode name="setting">
+```
+items=[{ product: P1001 }, { product: P1002 }]
+```
+</IconicCode>
+
+And select the correct endpoint:
+<IconicCode name="pencil">
+```
+POST https://example.com/orders
+```
+</IconicCode>
+
+And now we automatically pass the `price` as `cost`
+in the requests.
+
+</TabItem>
+</Tabs>
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+:::tip
+We have to be careful with having different
+names for our functions since the `items.cost` value
+and our `price` function share a namespace (`cost` and `price`).
+
+As in javascript module imports can use `as` to rename imports in
+pardon as well.
+<div class="[&_.copy]:!hidden">
+```yaml ins=/ as.*/
+import:
+  pardon:example/products:
+    - price as productPrice
+```
+</div>
+:::
+
+We have one more thing to fix, though.  The `price` is per-unit
+but the `cost` needs to be the `price` multiplied by the `quantity` for each item.
+
+<PardonPlayground response data values='items=[{ product: P1001 }, { product: P1003 }]'
+  secrets='shown' editor='example/orders/create.https' example={`
+POST https://example.com/orders
+`} config={serviceWithAutoCost}>
+<Exercises>
+  <ExerciseItem label="setup quantities"
+    prompt="Assign quantities to order items">
+First let's set some quantity on these products:
+<IconicCode name="setting">
+```text ins=/, quantity: \d+/
+items=[
+  { product: P1001, quantity: 15 },
+  { product: P1003, quantity: 15 }
+]
+```
+Notice the costs are not updated yet.
+</IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="multiply"
+    prompt="multiply the price by quantity to get the cost">
+
+Here we need to `await` the result since it's an asynchronous request,
+and then multiply by the `quantity`. (otherwise Javascript attempts to multiply
+a `Promise` by a `number` and that simply doesn't work.)
+
+<IconicCode name="editor" titled>
+```http title="example/orders/create.https" ins=".await * quantity"
+import:
+  ../products/products-helper.ts:
+    - price
+>>>
+POST https://example.com/orders
+
+{
+  "cart": [{
+    "product": "{{items.product}}",
+    "quantity": number("{{items.quantity=1}}"),
+    "cost": "{{items.cost = await price({ product, env }) * quantity}}"
+  }]
+}
+```
+</IconicCode>
+
+Now the costs are multiplied by the quantities.
+
+:::tip
+In pardon JavaScript, we can also write:
+```js
+price({ product, env }).await * quantity
+```
+
+This doesn't help us in this example, but
+it's a tiny additonal feature of Pardon-script.
+```js 
+productInfo({ product, env }).await.price
+/* or */
+(await productInfo({ product, env })).price
+```
+:::
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+With this kind of scriptable data flow, we can
+use pardon to automate the toil of computing some
+fields so we focus on the data we care about.
+
+(Remember we can always provide a cost value directly
+to skip the script.)
+
+{/*
+TODO
+
+Explain data files, as related to layering?
+*/}
+
+## Next Steps
+
+We're ready to start descripting testcases and collection layering.
+Layering allows a base collection structure to be extended with
+team-specific mixins and defaults, allowing the use of an API to
+be described differently from the definition.
+
+<CollectionLinkCard href="/intro/layers" />
+
+These next two sections are functionally independent, but
+pardon tests leverage collections and layering collections
+allows us to share collection layers and operational
+needs.
+
+<CollectionLinkCard href="/intro/testcases" />

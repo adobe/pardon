@@ -1,0 +1,125 @@
+{
+  "name": "pardon",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "internal",
+  "bin": {
+    "pardon": "./dist/main.mjs",
+    "pardon-runner": "./dist/runner.mjs",
+    "pardon-server": "./dist/server.mjs"
+  },
+  "engines": {
+    "node": ">= 16"
+  },
+  "files": [
+    "package.json",
+    "exports.d.ts",
+    "LICENSE",
+    "dist/"
+  ],
+  "types": "./exports.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/api.js",
+      "types": "./dist/types/api.d.ts"
+    },
+    "./runtime": {
+      "import": "./dist/runtime.js",
+      "types": "./dist/types/runtime.d.ts"
+    },
+    "./running": {
+      "import": "./dist/running.js",
+      "types": "./dist/types/running.d.ts"
+    },
+    "./playground": {
+      "import": "./dist/playground.js",
+      "types": "./dist/types/playground.d.ts"
+    },
+    "./init": {
+      "import": "./dist/init.js",
+      "types": "./dist/types/init.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/utils.js",
+      "types": "./dist/types/utils.d.ts"
+    },
+    "./formats": {
+      "import": "./dist/formats.js",
+      "types": "./dist/types/formats.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing.js",
+      "types": "./dist/types/testing.d.ts"
+    },
+    "./features/remember": {
+      "import": "./dist/features/remember.js",
+      "types": "./dist/types/features/remember.d.ts"
+    },
+    "./features/trace": {
+      "import": "./dist/features/trace.js",
+      "types": "./dist/types/features/trace.d.ts"
+    },
+    "./database": {
+      "import": "./dist/database.js",
+      "types": "./dist/types/database.d.ts"
+    },
+    "./internals": {
+      "import": "./dist/internals.js",
+      "types": "./dist/types/internals.d.ts"
+    },
+    "./loader": "./dist/loader.js"
+  },
+  "scripts": {
+    "build": "rollup --config",
+    "test": "node --stack-trace-limit=100 --test --expose-gc --import tsx/esm tests/*/*.ts",
+    "test:watch": "node --stack-trace-limit=100 --test --expose-gc --watch --import tsx/esm tests/*/*.ts",
+    "test:only": "node --stack-trace-limit=100 --test --test-only --expose-gc --import tsx/esm tests/*/*.ts",
+    "test:watch:only": "node --stack-trace-limit=100 --test --test-only --expose-gc --watch --import tsx/esm tests/*/*.ts",
+    "lint": "eslint src tests",
+    "postlint": "tsc --noEmit --module Node16 src/entry/main/cli/index.ts src/entry/testing/cli/index.ts src/modules/loader.ts",
+    "prepare": "patch-package"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.1.0",
+    "@eslint/js": "^9.8.0",
+    "@rollup/plugin-commonjs": "^26.0.1",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/better-sqlite3": "^7.6.5",
+    "@types/http-proxy": "^1.17.14",
+    "@types/node": "^22.1.0",
+    "@types/split": "^1.0.5",
+    "@types/whatwg-mimetype": "^3.0.2",
+    "@typescript-eslint/eslint-plugin": "^8.0.1",
+    "acorn": "^8.10.0",
+    "acorn-walk": "^8.3.2",
+    "eslint": "^9.8.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-headers": "^1.1.2",
+    "eslint-plugin-prettier": "^5.0.1",
+    "glob": "^11.0.0",
+    "globals": "^15.9.0",
+    "http-proxy": "^1.18.1",
+    "node-fetch": "^3.3.2",
+    "patch-package": "^8.0.0",
+    "postcss-load-config": "^6.0.1",
+    "prettier": "^3.2.5",
+    "rollup": "^4.17.2",
+    "rollup-plugin-dts": "^6.1.0",
+    "rollup-plugin-esbuild": "^6.1.0",
+    "rollup-plugin-generate-package-json": "^3.2.0",
+    "rollup-plugin-hashbang": "^3.0.0",
+    "split": "^1.0.1",
+    "ts-morph": "^23.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "whatwg-mimetype": "^4.0.0",
+    "yaml": "^2.3.2"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.1.2"
+  },
+  "overrides": {
+    "node-gyp": "^10"
+  }
+}

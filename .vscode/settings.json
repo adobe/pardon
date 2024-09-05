@@ -1,0 +1,22 @@
+{
+  "javascript.preferences.importModuleSpecifierEnding": "js",
+  "typescript.preferences.importModuleSpecifierEnding": "js",
+  "files.exclude": {
+    "**/.DS_Store": true,
+    "**/.git": true,
+    "**/build": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/out": true
+  },
+  "sqlite.setupDatabase": {
+    "./pardon.db": { "sql": ["PRAGMA foreign_keys = ON;"] }
+  },
+  "explorer.openEditors.sortOrder": "editorOrder",
+  "explorer.sortOrder": "type",
+  "explorer.excludeGitIgnore": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "editor.renderFinalNewline": "off",
+  "files.insertFinalNewline": true,
+  "editor.formatOnSave": true
+}

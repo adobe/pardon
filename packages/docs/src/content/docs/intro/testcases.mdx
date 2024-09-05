@@ -1,0 +1,866 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Testcases
+description: Using pardon for tests
+next: false
+---
+
+import {
+  TestcasePlayground,
+  FlexyCodeGrid,
+  Exercises,
+  ExerciseItem,
+  SolidIcon,
+} from '@components';
+import { Icon, Tabs, TabItem, FileTree } from '@astrojs/starlight/components';
+
+## Tests
+
+Tests build on top of collections and use additional "sequence" https files.
+These are a similar format but used as scripts for running a sequence of request/responses,
+(rather than as templates for a single request response.)
+
+Pardon's test system executes _trials_.  Trials can be organized in _gamuts_ (similar to
+how `it("should", ...)` or `test(...)`  tests from other frameworks can be organized with `describe` blocks).
+
+To illustrate the concept, let's consdier a test setup for confirming `ping` works.
+In addition to our collection, we need an overall script for configuring the test system,
+a test, and a sequence to execute.
+
+<FileTree>
+- tests/service.test.ts
+- sequences/ping.flow.https
+- pardon.test.ts
+- ...
+- pardonrc.yaml
+- collection/...
+</FileTree>
+
+These files 
+ - define the trials/sequences to run, and
+ - configure the test environment
+
+<Tabs>
+  <TabItem label="example.test.ts">
+The trials have parameterized names.  The name specifies where
+the output of each trial execution should go, they have to be unique.
+
+Here we're using `%env/ping` so we can run this trial in multiple envs at once.
+Also, the report output will go into directories according to the environment they were run in.
+```js title="example.test.ts"
+import { trial, executeFlow } from 'pardon/testing'
+
+trial("%env/ping", () => execute("ping.flow"));
+```
+  </TabItem>
+  <TabItem label="sequences/example-ping.flow.https">
+Here we define that we expect `ping` to reply with `pong`.
+The context lists what `environment` values should be picked up to configure the request.
+(env configures whether this ping should be configured for `stage` or `prod`, or perhaps `local`).
+
+```http
+context:
+  - env
+  - port? # support overriding the port for env=local
+>>>
+https://example.com/ping
+
+<<<
+200 OK
+
+pong
+```
+  </TabItem>
+  <TabItem label="pardon.test.ts">
+Configures the test overall, this uses Pardon's
+testcase generation framework and generates the initial set
+of cases for pardon to run.
+
+```js title="example.test.ts"
+export default {
+  opening(({ defi, each })) {
+    defi("env", each("stage", "prod"), "local");
+  }
+}
+```
+(`defi` here is defaulting running tests with `env`
+set to both `stage` and `prod`, but also allows `local`)
+  </TabItem>
+</Tabs>
+
+
+## Sequences: Units and Flows
+
+Pardon's test engine is built to flow data as naturally as possible:
+Tests accept a single argument, the "environment", which is
+used/modified by executing sequences of requests.
+
+Units and flows are both seqeunces, pardon considers units as idempotent.
+
+The syntax for unit and flow files is basically the same as the collection
+endpoint and mixin https files, but initial yaml schema and
+the overall semantics are different.
+
+```http title="sequences/ping.flow.https" {1-3}
+context:
+  - env
+  - port?
+>>>
+https://example.com/ping
+
+<<<
+200 OK
+
+pong
+```
+
+Unlike an endpoint or mixin, the requests and responses here are not "alternatives
+for making a single request", but rather a list of requests to make (with
+control flow and retry limits included).
+
+So this flow specifies the following steps.
+
+```ts
+const { env, port } = environment;
+const { inbound } = pardon({ env, port })`https://example.com/ping`();
+... match inbound against the responses and assert at least one matches ...
+```
+
+Additionally we can name responses...
+
+<Tabs>
+  <TabItem label='name response outcome'>
+```http title="sequences/ping.flow.https" ins=/(?<=<<< )pong/
+context:
+  - env
+  - port?
+>>>
+https://example.com/ping
+
+<<< pong
+200 OK
+
+pong
+
+<<< other
+200 OK
+
+{{other}}
+```
+  </TabItem>
+  <TabItem label='use response outcome'>
+```ts
+import { cases, trial } from 'pardon/testing';
+import assert from 'node:assert';
+
+trial("%env/ping", () => {
+  const { outcome, other } = await execute("ping.flow");
+
+  assert.equal(outcome, "pong");
+});
+```
+  </TabItem>
+</Tabs>
+
+### Naming requests to script sequences
+
+We can name requests, too.  If there's a request name that matches an outcome name
+we run that request next.  An unnamed outcome goes to the "next" request in the list.
+We can also specify retry limits and delays along with requests and 
+responses, respectively.
+
+As an example, some services expose async resources that we need to poll
+for when they become ready. This example specifies two requests and their
+respective response matching behavior
+
+```http ins=/(?<=<<< |>>> )success.*/ del=/(?<=<<< |>>> )waiting.*/ {1-11,13-24}
+>>>
+POST ...
+
+<<< success
+200 OK
+
+{ status: "done" }
+
+<<< waiting +10s
+
+{ status: "processing" }
+
+>>> waiting / 10
+GET ...
+
+<<< success
+200 OK
+
+{ status: "done" }
+
+<<< waiting +5s
+200 OK
+
+{ status: "processing" }
+```
+
+This sequence starts with a `POST` request, matching the response status
+to `done` or `processing`, in the case of done the outcome is `success` and
+as there's no request named `success` we are done.
+
+If the outcome is `waiting`, we wait 10 seconds, and then proceed to run the GET request:
+again we match the status of the result, waiting 5 more seconds
+for each `processing` response.
+
+Because the GET request is named `waiting / 10`, we would poll the resource at most 10 times before giving up.
+
+### Using sequences in sequences
+
+Each sequence is run sequentially, but they can rely on any number of sequences to run before,
+and these are run in parallel.
+
+Imagine we want to find pre-defined products named `"pen"` and `"pencil"`, we could
+define a unit that searches the products list and returns the id as `product` in the environment.
+
+We could define a `find-product.unit.https` sequence.  Making it a `unit`
+means that the result (given the inputs) would be cached/reused across
+tests in the test run.
+
+```http title="sequences/find-product.unit.https"
+context:
+  - env
+  - port?
+  - name
+>>>
+GET https://example.com/products?name={{name}}
+
+<<<
+200 OK
+
+mux([
+  "id": "{{product}}""
+])
+```
+
+Using this sequence we can define a flow to order pens and pencils.
+First we would `use` the `find-product.unit` twice and map
+the response product id value, and then we can use those values.
+
+```http title="sequences/order-pens-and-pencils.flow.https"
+context:
+  - env
+  - port?
+use:
+  - sequence: find-product.unit
+    context:
+      - env
+      - port?
+      - name = 'pencils'
+    provides:
+      - product: pencils
+
+  - sequence: find-product.unit
+    context:
+      - env
+      - port?
+      - name = 'pens'
+    provides:
+      - product: pens
+>>>
+POST https://example.com/orders
+
+{
+  "cart": [
+    { "product": "{{pens}}", "quantity": 2 },
+    { "product": "{{pencils}}", "quantity": 3 }
+  ]
+}
+
+<<<
+200 OK
+
+{
+  "id": "{{order}}"
+}
+```
+
+The pardon test runner would execute the `find-product.unit` calls
+in parallel.
+
+:::tip
+The above is illustrative of the flow/uses system but in this case
+it's arguably more scalable to externalize this in the test script;
+for example the following code would be easier to reuse for other cases.
+
+```ts
+const [pens, pencils] = (await Promise.all(
+  ['pens', 'pencils'].map(name => execute('find-product.unit', { name }))
+)).map((result) => result.product);
+
+execute('order.flow', { cart: [
+  { product: pencils, quantity: 5 },
+  { product: pens, quantity: 1 },
+] })
+```
+
+The order.flow could be something like this:
+
+```http title="sequences/order.flow.https"
+context:
+  - env
+  - port?
+  - cart
+>>>
+POST https://example.com/orders
+
+{
+  cart: [
+    {
+      product: "{{cart.product}}",
+      quantity: "{{cart.quantity}}"
+    }
+  ]
+}
+```
+:::
+
+## Parameterized Testcases
+
+Suppose we need to run tests for different products, we can
+use `cases` / `set` to apply some values to the `environment` the test starts with.
+
+<FlexyCodeGrid>
+```js
+cases(({ set }) => {
+  set("env", "stage");
+  set("name", "pens");
+})
+```
+<Icon name="right-arrow" class="place-self-center grow-0" />
+```js
+environments = [{
+  env: "stage",
+  name: "pens"
+}]
+```
+</FlexyCodeGrid>
+
+This updates the initially single initial test environment.
+
+To run 3 cases, instead of defining three separete tests, we can use `each`
+to generate three environments instead:  The `each` operator here forks
+the current environment, defining an environment-per-product (multiplying the
+number of trials defined.)
+
+<FlexyCodeGrid>
+```js ins={4-5,7-8}
+cases(({ set }) => {
+  set("env", "stage");
+
+  each(
+    set("name", "pencils"),
+    set("name", "pens"),
+    set("name", "markers"),
+  );
+});
+```
+<Icon name="right-arrow" class="place-self-center grow-0" />
+```js ins={2-3} ins={8-9}
+environments = [{
+  env: "stage",
+  name: "pencils"
+}, {
+  env: "stage",
+  name: "pens"
+}, {
+  env: "stage",
+  anme: "markers"
+}]
+```
+</FlexyCodeGrid>
+
+If we would like to configure production tests as well,
+we can use run the tests with `stage` and `prod` each,
+(this expands our 3 tests into 6, with a single change)!
+
+<FlexyCodeGrid>
+```js ins={2,4,5}
+cases(({ set }) => {
+  each(
+    set("env", "stage"),
+    set("env", "prod"),
+  );
+
+  each(
+    set("name", "pencils"),
+    set("name", "pens"),
+    set("name", "markers"),
+  );
+})
+```
+<Icon name="right-arrow" class="place-self-center grow-0" />
+```js ins={11-12,14-15,17-18}
+environments = [{
+  env: "stage",
+  name: "pencils"
+}, {
+  env: "stage",
+  name: "pens"
+}, {
+  env: "stage",
+  name: "markers"
+}, {
+  env: "prod",
+  name: "pencils"
+}, {
+  env: "prod",
+  name: "pens"
+}, {
+  env: "prod",
+  name: "markers"
+}]
+```
+</FlexyCodeGrid>
+
+As you can see, the test cases generated are a "cartesian product" of the sets in
+each `each`.
+
+We should explore this behavior interactively.
+
+<TestcasePlayground example={`
+set("env", "stage");
+set("name", "pens");
+`}>
+<Exercises>
+  <ExerciseItem
+    label="each product"
+    prompt="configure three products">
+BTW, `each` can be used outside multiple `set()` calls,
+or applied to values, and it's easier to type here.
+```js ins=/each[(][^)]*[)]/
+set("env", "stage");
+set("name", each("pencils", "pens", "markers"));
+```
+  </ExerciseItem>
+  <ExerciseItem
+    label="each env"
+    prompt="configure two environments">
+Try applying each to the `env` value as well.
+```js ins=/each[(]"stage"[^)]*[)]/
+set("env", each("stage", "prod"));
+set("name", each("pencils", "pens", "markers"));
+```
+  </ExerciseItem>
+  <ExerciseItem
+    label="object syntax"
+    prompt="switch to a single set call">
+We can also use object syntax for the `set` call, to
+set multiple key-value pairs together.
+
+:::note
+The order of the fields here affects the order of the result.
+Try swapping the `name` and `env` fields here while watching the output.
+:::
+```js ins={2,3}
+set({
+  env: each("stage", "prod"),
+  name: each("pencils", "pens", "markers"),
+});
+```
+  </ExerciseItem>
+</Exercises>
+</TestcasePlayground>
+
+Feel free to use this to explore.
+
+
+# TMTOWTDI 
+
+_(there's more than one way to do it)_
+
+The testcase methods can be called multiple ways, to support
+a broad range of expressions.
+
+For instance, `each` and `set` have multiple ways they can be called:
+
+Set can be called with an object to assign multiple values at once.
+
+<FlexyCodeGrid>
+```ts
+set("a", "b");
+set("c", "d");
+```
+<SolidIcon name="equiv" />
+```ts
+set({
+  a: "b",
+  c: "d"
+})
+```
+</FlexyCodeGrid>
+
+We can also pass lambdas to `each`, evaluating the environment across different
+paths.
+
+<FlexyCodeGrid>
+```ts
+each(
+  () => {
+    set("a", "b");
+    set("c", "d");
+  },
+  () => {
+    set("a", "x");
+    set("c", "y");
+  },
+);
+```
+<SolidIcon name="equiv" />
+```ts
+each(
+  set({ a: "b", c: "d" }),
+  set({ a: "x", c: "y" }),
+);
+```
+</FlexyCodeGrid>
+
+We can use `each()` as a "value" passed to `set`, also
+so these are also equivalent
+<FlexyCodeGrid>
+```ts
+each(
+  set("a", "b"),
+  set("a", "x"),
+);
+```
+<SolidIcon name="equiv" />
+```ts
+set("a", each("b", "x"));
+```
+</FlexyCodeGrid>
+
+However to get the combination of values we had before using a single `set` we
+need to introduce `robin`, which evaluates once but in a round-robin fashion.
+
+<FlexyCodeGrid>
+```ts
+each(
+  set({ a: "b", c: "d" }),
+  set({ a: "x", c: "y" }),
+);
+```
+<SolidIcon name="equiv" />
+```ts
+set({
+  a: each("b", "x"),
+  c: robin("d", "y"),
+});
+```
+</FlexyCodeGrid>
+
+In contrast, two `each` statements will produce 4 results:
+<FlexyCodeGrid>
+```ts
+set({
+  a: each("b", "x"),
+  c: each("d", "y"),
+});
+```
+<SolidIcon name="equiv" />
+```ts
+each(
+  set({ a: "b", c: "d" }),
+  set({ a: "b", c: "y" }),
+  set({ a: "x", c: "d" }),
+  set({ a: "x", c: "y" })
+);
+```
+</FlexyCodeGrid>
+
+The full set of test case helpers are
+
+- `set` - applies values to the environment.
+- `def` - applies defaults to the environment.
+- `defi` - applies default to a single value and filters unknown values.
+- `unset` - removes values from the environement.
+- `each(...)` - forks the environment by being different values or via different actions.
+- `repeat(n)` - clones the environment into n copies.
+- `robin` - behaves differently each successive evaluation (as a value or as an action).
+- `fi` - `fi`lter or `if` (backwards), can introduce conditionals or select environments.
+- `stop(...)` - essentially `fi(...).then(if(false))`
+- `fun` - defines a `fun`ction, can be called with `exe`.  Functions can be used as actions or values.
+- `exe` - `exe`cutes a `fun`ction.
+- `counter` - creates a counter that increments each evaluation.
+- `format` - builds a format string using the current environment.
+- `unique` - filters out duplicate environments.
+- `local` - creates a local context: `local(...).export(...)` evaluates actions in `export` without producing the values from `local`.
+- `skip` - discards the first n environments.
+- `take` - takes n environments (discards the rest).
+- `smoke` - skips environments that are semi-redundant according to some criteria
+- `shuffle` - shuffles the order of the testcases, usually used with smoke.
+- `sort` - sorts environments
+- `debug` - prints the "current" environment(s).
+
+### Configuring Trials
+
+A trial is registered with a parameterized name.  (The name is used as an output
+path for the test report.).  A test file might be structured as a `cases` + `trial`.
+
+```ts title="products.test.ts"
+import { cases, trial } from 'pardon/testing';
+
+cases(({ set }) => {
+  set({
+    env: "stage",
+    name: "pencils",
+  });
+})
+
+trial("%env/get-product-%name", ({ env, name }) => {
+  /* ... */
+});
+```
+
+which declares the single trial `stage/get-product-pencils`,
+with the environment `{ env: "stage", name: "pencils" }`.
+
+Let's experiment with this structure to get a feel for it.
+
+<TestcasePlayground mode="trials" example={`
+cases(({ set }) => {
+  set({ env: "stage", name: "pencils" });
+});
+
+trial("%env/get-product-%name", ({ env, name }) => {
+  /* ... */
+});
+`.trim()}>
+<Exercises>
+  <ExerciseItem
+    label="env expansion"
+    prompt="expand the cases by env">
+Here we can see the environments which would be passed into each named trial.
+```js ins="each" ins=/each[(][^)]*[)]/
+cases(({ set, each }) => {
+  set({
+    env: each("stage", "prod"),
+    name: "pencils"
+  });
+});
+
+trial("%env/get-product-%name", ({ env, name }) => {
+  /* ... */
+});
+```
+  </ExerciseItem>
+  <ExerciseItem
+    label="products expansion"
+    prompt="expand the cases by products">
+    Again, we expand the cases per environment.
+```js ins=/each[(]"pencils[^)]*[)]/
+cases(({ set, each }) => {
+  set({
+    env: each("stage", "prod"),
+    product: each("pencils", "pens", "markers")
+  });
+});
+
+trial("%env/get-product-%name", ({ env, name }) => {
+  /* ... */
+});
+```
+  </ExerciseItem>
+</Exercises>
+</TestcasePlayground>
+
+### Conditional Configuration
+
+We can omit particular configurations with `fi()` (read as either *fi*lter, or backwards `if`) and `stop()`.
+
+Starting with our 6 cases, we can add `stop({ env: "prod", name: "pens" })` to remove
+the production test cases involving `pens`.
+
+<TestcasePlayground mode="trials" example={`
+cases(({ set, each }) => {
+  set({
+    env: each("stage", "prod"),
+    name: each("pencils", "pens", "markers")
+  });
+});
+
+trial("%env/get-product-%name", ({ env, name }) => {
+  /* ... */
+});
+`.trim()}>
+<Exercises>
+  <ExerciseItem
+    label="customizing environments"
+    prompt="exclude an unsupported products">
+    We're not selling product `pens` until testing is complete in `stage`,
+    so let's add a `stop` command which discards environments which match
+    the values provided.
+
+    Observe that the `prod` + `pens` testcase is no longer shown.
+```js ins="stop" ins={7}
+cases(({ set, each, stop }) => {
+  set({
+    env: each("stage", "prod"),
+    name: each("pencils", "pens", "markers")
+  });
+
+  stop({ env: 'prod', name: "pens" });
+});
+
+trial("%env/get-product-%name", ({ env, name }) => {
+  /* ... */
+});
+```
+  </ExerciseItem>
+</Exercises>
+</TestcasePlayground>
+
+:::note
+Alternatively we can say
+```js
+stop(({ name, env }) => name === "pens" && env === "prod");
+```
+to check the environment value manually with a computation,
+or we can use `fi` similarly, as in
+```js
+fi(({ name, env }) => name !== "pens" || env !== "prod");
+```
+or we can use `fi(key, value).then(stop(...))` to make the stop conditional on an earlier condition
+```js
+fi("env", "prod").then(stop("name", "pens"))
+```
+or we can stop `name=pens` when `env` unless env is `stage` (note the `else` instead of `then`).
+```js
+fi("env", "stage").else(stop("name", "pens"))
+```
+Try it out!
+:::
+
+## Trials
+
+Our service testing is not likely going to be so uniform that we want a single
+`cases` configuration for the entire test run.
+
+Often we'll have our environment config in one place (actually we can move this to a
+common config location), and we can define our trials in gamuts.
+
+```js title="products-and-categories.test.ts"
+cases(({ set, each }) => {
+  set("env", each("stage", "prod"));
+});
+
+gamut(() => {
+  cases(({ set, each }) => {
+    set("name", each("pencils", "pens"));
+  });
+
+  trial("%env/get-product-%name", () => { 
+    /*...*/
+  });
+});
+```
+
+This gives us tools to organize the case configs hierarically.
+
+There are many utilities defining transforms of the test case(s):
+ - `fi(...).then().else()` and `stop` for conditionals and termination.
+ - `def` and `defi` to default and default-filter values.
+ - `counter` and round-`robin` for producing varying data.
+ - `smoke` for covering a smaller a subset of cases, often preceeded with `shuffle` to remove
+   symmetries.
+ - `uniq` for removing duplicate cases.
+ - `local().export()` for evaluating with temporary values.
+ - `fun` and `exe` for defining functions/values.
+ - `format` for formatting identifying values.
+ - etc...
+
+<TestcasePlayground mode="trials" example={`
+cases(({ each, defi }) => {
+  defi("env", each("stage", "prod"), "local");
+});
+
+gamut("%env", () => {
+  cases(({ set, each }) => {
+    set("name", each("pencils", "pens"));
+  });
+
+  trial("get-product-%name", () => { 
+    /*...*/
+  });
+});
+`.trim()}>
+</TestcasePlayground>
+
+Sometimes we have a large number of tests defined and we don't want to burden
+the system by running all of them all at once all the time.
+
+We can cut down a large test into a smaller "smoke test" by specifying
+which things we want to cover.  Pardon can pseudo-randomized filter down to a
+covering set of tests.
+
+Smoke tests are specified with a "key-list", an optional "per-list", and an optional "shuffle" seed.
+
+The key list looks like one of these... (comma-separated optional max count)
+ - `a,b:2,c` meaning we're smoking a maximum count of `{a:1, b:2, c:1}`, or
+ - `7,a,b,c:2` meaning a maximum count of `{a:7, b:7, c:2}` with a default of 7.
+
+We're counting the number of times we've seen the _value of_ `a`, `b`, or `c` so far,
+and smoke skips tests when we've exeeded _all_ of them.
+
+The optional "per list" looks like
+ - `%x,y,z` meaning the count is segregated per values of `x,y,` and `z`.
+
+And the shuffle is just `~2` or some other number, with a value of `~0` for not applying the shuffle.
+
+Understandably, this is best understood by experience:
+
+<TestcasePlayground smoker={["", "name", "2,env,name", "name%env", "2,name%env", "name:2~0", "env:3,name:2", "env:3,name:2~0"]} example={`
+set({
+  env: each("stage", "prod"),
+  name: each("pencils", "pens", "markers"),
+  case: each(..."abcd"),
+  subcase: each(..."xyzw"),
+});
+`}>
+<Exercises>
+  <ExerciseItem label="Smoke testing"
+    prompt="experiment with smoke tests">
+  </ExerciseItem>
+</Exercises>
+</TestcasePlayground>
+
+If no `%per` specification is present, the default is per-trial, you can also
+use `%trial` to be ex.
+
+<TestcasePlayground mode="trials" smoker={["", "name", "name%trial", "env", "subcase%trial,env"]} example={`
+cases(({ set, each })=> {
+  set({
+    env: each("stage", "prod"),
+    name: each("pencils", "pens", "markers"),
+    case: each(..."abc"),
+    subcase: each(..."xyz"),
+  });
+})
+
+trial("%env/order-%name-%case-%subcase", () => { /* ... */ });
+trial("%env/return-%name-%case-%subcase", () => { /* ... */ });
+`}>
+<Exercises>
+  <ExerciseItem label="Smoke testing"
+    prompt="experiment with smoke tests">
+Try setting the smoke specification to...
+ - `name` - at least one test per `name`,
+ - `name%trial` - at least 1 tests for each `name`, counted per `env` (note how this distributes better than `2,name,env` above).
+
+  </ExerciseItem>
+</Exercises>
+</TestcasePlayground>

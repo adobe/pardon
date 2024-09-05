@@ -1,0 +1,4 @@
+>>>
+PUT https://example.com/products/{{product}}
+
+{}

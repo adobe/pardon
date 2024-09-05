@@ -1,0 +1,14 @@
+>>>
+POST https://example.com/products
+Content-Type: application/json
+
+{
+  "name": "{{name}}"
+}
+
+<<<
+200 OK
+
+{
+  "id": "{{product}}"
+}

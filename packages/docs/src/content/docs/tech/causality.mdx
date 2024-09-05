@@ -1,0 +1,211 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Tech - Promise Causality
+description: A "blockedchain", of sorts?
+prev: false
+---
+
+import "@components/inline-icon.pcss";
+import { SolidIcon } from "@components";
+
+Node's the async_hooks API has been "experimental" since it was introducted 
+in Node 8.
+
+<div class="p-2 border-2 border-solid dark:border-neutral-600 border-neutral-300 rounded-sm">
+{/* directly adapted from https://nodejs.org/docs/latest/api/async_hooks.html (v22.3.0) */}
+<div class="bg-orange-700 rounded-sm px-3 py-2 text-white [&_code]:!bg-transparent [&_.href]:underline">
+<span class='href'>Stability: 1</span> - Experimental. Please migrate away from this API, if you can.
+We do not recommend using the <span class='href'><code>createHook</code></span>, <span class='href'><code>AsyncHook</code></span>, and
+<span class='href'><code>executionAsyncResource</code></span> APIs as they have usability issues, safety risks,
+and performance implications. Async context tracking use cases are better
+served by the stable <span class='href'><code>AsyncLocalStorage</code></span> API. If you have a use case for
+<code>createHook</code>, <code>AsyncHook</code>, or <code>executionAsyncResource</code> beyond the context
+tracking need solved by <span class='href'><code>AsyncLocalStorage</code></span> or diagnostics data currently
+provided by <span class='href'>Diagnostics Channel</span>, please open an issue at
+<span class='href'>{'https'}://github.com/nodejs/node/issues</span> describing your use case so we can
+create a more purpose-focused API.
+</div>
+</div>
+
+We're using it anyway. <span class='inline-icon'><SolidIcon name="wink" /></span>
+
+## Ordering Causality
+
+Other http frameworks provide a single thread of execution, and a global
+environment object which is used to configure each request and response in turn.
+
+With Pardon, we offer the same ergonomics of a "global object", but the behavior
+is stable across promises:  only awaited "assignments" to the "global object" are
+seen.
+
+The base of this is a tracking system that understands
+"what happened" to reach a certain point.
+
+In a single threaded usage, `track(value)` looks like it pushes a value
+onto a list and `awaited()` returns that list.
+
+```js
+const {
+  track,
+  awaited
+} = tracker();
+
+track('a');
+awaited(); // ['a']
+
+track('b');
+track('c');
+awaited(); // ['a', 'b', 'c']
+```
+
+However if we have some asynchronous processes that track values,
+we won't see them get tracked until we we `await` those promises.
+
+```js
+const { track, awaited } = tracker();
+
+async function f() { await randomDelay(); track('f'); };
+async function g() { await randomDelay(); track('g'); };
+
+const pf = f();
+const pg = g();
+
+awaited() // []
+
+const ppg = randomDelay().then(async () => { await pg; awaited(); /* ['g'] */});
+const ppgf = randomDelay().then(async () => { await pg; await pf; awaited(); /* ['g', 'f'] */});
+
+await pf;
+
+awaited(); // ['f']
+
+await pg;
+
+awaited(); // ['f', 'g']
+
+// further awaits of ppg/ppgf here will not change the result.
+```
+
+Notice that `awaited()` above can return any combination of `'f'` and/or `'g'`
+in any order: depending on the order they were awaited,... rather than 
+the order the `track` calls were executed.
+
+This might feel a bit weird, but it is _stable_, as the `awaited()` result is
+based on the shape of the code, rather than the unstable order of execution.
+
+We use this to track assignments to a global environment value as
+well as tracking the requests that comprise a particular test.
+
+## How this Tracks
+
+The tracked values are stored in nodes of an execution graph maintained
+with the `async_hooks` API NodeJS offers but tells us not to use.
+
+The nodes of the execution graph have two links:
+- the `init` link is for the context in which the promise is created, and
+- the `trigger` link is to the promise that preceeds the execution.
+
+The creation of this a node looks something like this:
+
+```ts ins="promise" del=/trigger(?=[.])/
+function init(trigger: Promise<unknown>) {
+  return promise = trigger.then(() => { ... });
+}
+```
+
+Note that `trigger` is in general a still-pending operation,
+(as is `promise`, of course), while `init` is the context when
+the `promise` was created, so awaiting the promise will include
+tracked values from inside `init` (and wherever the function was called),
+and then the values that were tracked in the course of whatever `trigger`
+is waiting for.
+
+Calling `awaited()` collects tracked values by searching this graph.
+
+:::caution
+Another leak in the abstraction is that `async function`s are
+not run entirely async.
+
+In the following kind of case:
+```js
+async function hello() { 
+  track('world');
+  ...
+}
+
+hello(); // not awaited
+
+awaited(); // ['world']
+```
+
+Calling `hello()` results in the `'world'` value being tracked, without awaiting the promise,
+because NodeJS runs the body of an `async` function synchronously
+as far as it can.  (Similarly `new Promise(() => { ... })`
+executes synchronously as well, while
+`Promise.resolve().then(() => { ... })` is executed asynchronously).
+:::
+
+## Garbage
+
+Like all non-trivial abstractions, this one leaks: Memory.
+
+Obviously, the values in the `awaited()` list are "referenced" by the
+promises that carry them, but that reference is implemented by a graph
+of the execution of all the promises.
+
+The graph _is_ garbage-collected along with promises, as much as possible,
+but  we have two helpers to cut the graph for correctness and
+better garbage collection, respectively.
+
+ - `shared(() => { ... })` cuts the graph into the execution of `...`.
+ - `disconnected(() => { ... })` cuts the graph leaving the execution `...`.
+
+Both of these methods immediately execute their function and
+return a promise for its result.
+
+### Shared Execution
+
+`shared` should be used to wrap the creation of promises that are
+reused.  
+
+Consider the following,...
+```js
+function getAuthToken() { 
+  return authTokenPromise ??= fetchAuthToken();
+}
+```
+in this case the `authTokenPromise` will inherit the tracked values
+leading to the first call of `fetchAuthToken()` only.  This introduces
+a race condition as the tracked results of `getAuthToken()` would
+depend on who called it first.  Additioanlly the `fetchAuthToken()` function
+would have access to the `awaited()` values of its first caller.
+
+To fix this, we use `shared` to disconnect the execution graph leading into the call.
+
+```js
+function getAuthToken() { 
+  return authTokenPromise ??= shared(() => fetchAuthToken());
+}
+```
+
+Inside `fetchAuthToken()` the `awaited()` list will be clear.
+Any values tracked inside `fetchAuthToken()` can still be awaited from the `authTokenPromise`.
+
+### Disconnected Execution
+
+The `disconnected` helper does the opposite: it prevents awaited values
+from escaping the `disconnected(() => { ... })` boundary. This is meant
+to be more of a garbage-collector hint than a behavioral mechanism.
+
+For instance, when running hundreds of test cases we don't want the 
+async graphs to pile up in memory, and `disconnected` applied to
+the right places does the trick here.

@@ -1,0 +1,9 @@
+config:
+  pathname:
+    env:
+      local: /admin/{{version}}/{{...path}}
+      stage: /{{version}}/admin/{{...path}}
+defaults:
+  version: v1
+>>>
+POST https://basic-stage.example.io/{{version}}/admin/{{...path}}

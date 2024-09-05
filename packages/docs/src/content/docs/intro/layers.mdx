@@ -1,0 +1,209 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Collection Layering
+description: How to organize collections across teams
+next: false
+prev: false
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+import {
+  SolidIcon,
+  PardonPlayground,
+  Exercises,
+  ExerciseItem,
+  IconicCode,
+  FlexyCodeGrid,
+  CollectionLinkCard
+} from '@components';
+import '@components/inline-icon.pcss';
+
+import { simpleLayers } from '@pardon/layers-collections.ts';
+
+## Stacking layers
+
+In pardon, we have collections which are organized by services, 
+and the endpoints are organized within these directories.
+The design invites version controlled and broad sharing,
+but that, in turn, limits what kind of specifics can go into the
+collection.
+
+For instance, where to source credentials for the same services differs
+across teams, and also perhaps some other defaults and patterns of use.
+
+To support easy inter-team, intra-team, and personal (or other) patterns
+of use, a Pardon application context references one or more collection
+layers and composes them.
+
+For example, let's add a layer to the base `service.yaml` of our example service.
+
+<Tabs>
+  <TabItem label="base">
+  The base configuration defines production and staging endpoints,
+  which is fine for sharing, but what about the developers of the service
+  testing locally on their machines?
+```http title=".../common/collection/example/service.yaml" {3-5}
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+```
+  </TabItem>
+  <TabItem label="dev-team">
+  We can extend the configuration with another option.
+  Because the config structure is based on maps, there's really only one
+  way for this to be interpreted. <span class="inline-icon"><SolidIcon name="wink" class="text-lg"/></span>
+  
+  With this Now `env=local` will configure any call
+  to go to `http://localhost:8080`.
+```http title=".../dev/collection/example/service.yaml" ins={3-4}
+config:
+  origin:
+    env:
+      local: http://localhost:8080
+```
+  </TabItem>
+</Tabs>
+
+With targetted overrides, we can define additional configurations,
+update defaults, and add or customize mixins.
+
+<PardonPlayground
+  editor="/extension/example/service.yaml"
+  values
+  data
+  example="https://example.com/ping"
+  layers={simpleLayers.layers}
+  config={{
+    ...simpleLayers.config,
+    '/extension/example/service.yaml': `
+`.trim() }}>
+<Exercises>
+  <ExerciseItem label="env=local"
+    prompt="extend the configuration with a local env">
+
+    Let's try this out! First, we extend the our
+    service configuration with a local environment:
+    <IconicCode titled name="editor">
+```http title="/extension/example/service.yaml" ins={1-4}
+config:
+  origin:
+    env:
+      local: http://localhost:8080
+```
+    </IconicCode>
+
+    Then we can configure the request for local
+    <IconicCode name="setting">
+```
+env=local
+```
+    </IconicCode>
+    You can also try setting the URL to `http://localhost:8080/ping`
+    instead, as always, feel free to experiment.
+  </ExerciseItem>
+  <ExerciseItem label="flexible port"
+    prompt="allow flexibility with the port">
+    We don't need to choose `:8080` as our port here.
+    It's nice that `env=local` works by itself, but maybe we're running
+    a service on 8080 and we'd like to use `port=8081` one
+    time.
+
+    As you might expect, we can do this with a default port number variable.
+    <IconicCode titled name="editor">
+```http title="/extension/example/service.yaml" ins=/[{][{].*}}/
+config:
+  origin:
+    env:
+      local: http://localhost:{{port=8080}}
+```
+    </IconicCode>
+
+    Then we can configure the request for local
+    <IconicCode name="setting">
+```
+env=local port=8081
+```
+    </IconicCode>
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+### Disambiguating requests
+
+The above `http://localhost:8080/ping` request is unambiguous
+in the context of a single example service, a developer will
+likely be running more than one from time to time, and
+perhaps the rules (headers) for calling these services
+differs a little bit.
+
+Pardon will happily call `env=local` + `https://example.com/ping` 
+but will be confused by `http://localhost:8080/ping` without additional context.
+
+The following exercises should help clarify this situation.
+Here we've defined another `sample` service that also
+takes the `x-sample: true` header for its ping endpoint.
+
+<PardonPlayground
+  values
+  example="GET https://example.com/ping"
+  layers={simpleLayers.layers}
+  config={{
+    ...simpleLayers.config,
+    ...Object.entries(simpleLayers.config)
+      .reduce((map, [key, value]) => Object.assign(map, {
+        [key.replace('example', 'sample')]: value.replace(/example/g, 'sample')
+      }), {}),
+    '/collection/sample/ping.https': `
+>>>
+GET https://sample.com/ping
+x-sample: true
+    `.trim()
+  }}>
+<Exercises>
+  <ExerciseItem label="service=..."
+    prompt="Disambiguate an ambiguous request.">
+    Try changing the request to a localhost ping, observe
+    that pardon doesn't quite know how to handle it.
+    <IconicCode name="pencil">
+```
+http://localhost:1337/ping
+```
+    </IconicCode>
+    To help pardon out, specify a `service` value (<span class="inline-icon"><SolidIcon name="setting"/></span>)
+<FlexyCodeGrid centered>
+```text "service" ins="example"
+service=example
+```
+```text "service" ins="sample"
+service=sample
+```
+</FlexyCodeGrid>
+    Doing this gives pardon the missing context it needs.
+    (`endpoint=example/ping` also works, `action=ping` does not help here).
+  </ExerciseItem>
+  {/* other exercises? */}
+</Exercises>
+</PardonPlayground>
+
+{/* TODO
+Examples demonstrating how endpoints and mixins stack:
+- How templates compose and any one can reject the mixin or endpoint.
+- How configurations are pre-composed for the context of each of
+the templates (are there cases where that matters?).
+- Script import stacking (not implemented in code yet either).
+- Data import stacking!
+- Pardon context (`.pardonrc.yaml`) definitions and ...
+*/}
+
+<CollectionLinkCard href="/intro/testcases" />

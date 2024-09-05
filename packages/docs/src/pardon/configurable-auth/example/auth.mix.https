@@ -1,0 +1,5 @@
+config:
+  authorization: token
+>>>
+ANY //
+Authorization: {{ @auth = `${env}-auth-token` }}

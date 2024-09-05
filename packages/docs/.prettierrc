@@ -1,0 +1,12 @@
+{
+  "proseWrap": "always",
+  "plugins": ["prettier-plugin-astro", "prettier-plugin-tailwindcss"],
+  "overrides": [
+    {
+      "files": "**/*.mdx",
+      "options": {
+        "parser": "markdown"
+      }
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+>>>
+DELETE https://example.com/products/{{product}}

@@ -1,0 +1,86 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Foresight-Anticipated Questions
+prev: false
+next: false
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components'
+import { Image } from 'astro:assets'
+import PardonIcon from  "@assets/pardon-icon.svg"
+
+<details>
+<summary>Why the name Pardon?</summary>
+
+**"Pardon‽"** was my initial reaction to another HTTP framework's decision
+to delete the collections I had been using locally for years in a bid to
+force me to create an account.
+
+</details>
+
+<details>
+<summary>What's with the icon?</summary>
+
+<Image src={PardonIcon} width={50} alt="Pardon Icon" />
+
+The icon is an interrobang, Merriam-Webster [defines](https://www.merriam-webster.com/dictionary/interrobang)
+the interrobang as
+
+> a punctuation mark ‽ designed for use especially at the end of an exclamatory rhetorical question.
+
+for Pardon, there are two more reasons it was chosen:
+
+ - as an interrobang, it represents the two basic kinds of HTTP requests, e.g., GET (?) and POST (!).
+ - as an image, it looks a "P" for Pardon, LOL.
+
+The design itself is based off of Dav AT's [submission
+to the noun project](https://thenounproject.com/icon/interrobang-6298923/)
+and was reworked into an application icon using Adobe® Illustrator.
+
+</details>
+
+<details>
+<summary>Why isn't this "Frequently Asked Questions"?</summary>
+
+Insufficient sample size to honestly categorize "frequently asked questions" at this point.
+
+</details>
+
+<details>
+<summary>How do I ...?</summary>
+
+There are four possible answers leading to 5 actions to take
+
+|                     | Not Documented      | Documented            |
+|---------------------|---------------------|-----------------------|
+| **Not Implemented** | Clarify / Implement | Improve clarification |
+| **Implemented**     | Document            | Improve documentation |
+
+Help would be appreciated.
+
+</details>
+
+<details>
+<summary>What's the future of this project?</summary>
+
+I don't know.  There's so much more to be done, and yet, it's largely solving
+the problems it set out to solve.
+
+If nothing else, Pardon demonstrates an integration of some templating concepts, a
+concurrency data model (computation dependency tracking used to implement pseudo-global values
+without race conditions), and a language for structured list generation (maybe good for fuzzers?).
+
+It would be great if these concepts will find new usages in other places, but if nothing
+else, this project is solving my needs for a http api-client reqeust framework and I
+sincerely hope it grows to solve yours as well.
+
+</details>

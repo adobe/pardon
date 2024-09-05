@@ -1,0 +1,16 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "exclude": ["**/dist/**", "**/__coverage__/**"],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@layouts/*": ["./src/layouts/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@components/*": ["./src/components/*"],
+      "@components": ["./src/components/index.ts"],
+      "@pardon/*": ["./src/pardon/*"]
+    },
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js"
+  }
+}

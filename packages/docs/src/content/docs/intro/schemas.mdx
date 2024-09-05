@@ -1,0 +1,132 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Schemas
+description: A deeping investigation of Pardon's rendering system
+next: false
+prev: false
+---
+
+import { Tabs, TabItem, Icon, Aside } from '@astrojs/starlight/components';
+import {
+  CollectionLinkCard,
+  Exercises,
+  ExerciseItem,
+  ExerciseItemPrompt,
+  CodeGrid,
+  FlexyCodeGrid,
+  IconicCode,
+  PardonPlayground,
+  SolidIcon,
+} from '@components';
+import {
+  productsExample,
+  productsExampleWithAuth,
+} from'@pardon/templates-collections'
+
+Previously we covered Pardon's templates, and that they are composed into schemas.
+
+<CollectionLinkCard href="/intro/templates" />
+
+Here discuss the process of generating and/or applying a schema to a template 
+and how that resolves to a new schema.
+
+## Schemas
+
+In Pardon, the templates are _not_ "text documents with templating" which are rendered independetly
+of their context and parsed after-the-fact. (As a hall-of-shame example of this, consider 
+the fragility of the helm chart `{{- toYaml .Values.doc | indent 10}}` syntax.)
+
+Templates are treated as _values_ with implict and contextual rules.
+
+Pardon's http/https template files
+ - are parsed to an HTTP object, and
+ - that template is then used to extend a base schema.
+
+### Schema Operations
+
+A schema supports the following major operations:
+
+ - **match** - merges the current schema with a template.
+   The match operation has three submodes, configuring how arrays and patterns are handled.
+
+   - **mix** - treats the template as an abstract schema, patterns are recognized and single element arrays are treated as schemas for the elements of the array (non-1-element arrays are treated as tuples)
+   - **mux** - treats the template as a concrete schema, patterns are still recognized.
+   - **match** - treats the template as a literal, patterns are not recognized.
+
+   Matching can _resolve_ values: when a value overlaps a pattern, the variables in the pattern can be resolved.
+   Some values are not resolved at match time because they're provided by executing (possibly asynchronous) scripts,
+   these values would be evaluated when the schmea is _rendered_.
+
+ - **render** - renders the schema into a resulting value, this is the first time pardon ever considers _evaluating_ any script expressions in templated values.
+   (there are multiple subtypes of render as well, like **preview** that avoids running scripts, but these
+   don't affect how the schema was constructed from templates, so they're not important to cover here).
+
+So, in essence, a schema is produced by **match**ing templates and the "ask"ed request, and it can be
+**render**ed into a request object synthesized from all those resolved inputs and any evaluated scripts.
+
+{/* TODO: explain and emphasize the match=resolve / render=evaluate phases and distinction further */}
+
+## Scopes
+
+### Export Scope Paths
+
+{/* yoinked from templates.mdx, need to reintroduce export scope paths here */}
+
+The following schema and match combination would produce no exported values since `"a"` is 
+scoped to each element of the list.
+<FlexyCodeGrid>
+```js
+{ list: [{
+  a: "{{a}}",
+  b: "{{b=a+1}}"
+}] }
+```
+<Icon name="close"/>
+```js
+{ list: [{
+  a: 10
+}, {
+  a: 20
+}] }
+```
+</FlexyCodeGrid>
+
+In contrast the following schema would be able to export an
+`items` array from the top-level scope.
+<FlexyCodeGrid>
+```js
+{ list: [{
+  a: "{{items.a}}",
+  b: "{{items.b=a+1}}"
+}] }
+```
+<Icon name="close"/>
+```js
+{ list: [{
+  a: 10
+}, {
+  a: 20
+}] }
+```
+<Icon name="right-arrow"/>
+```
+items=[
+  { a=10, b=15 },
+  { a=20, b=25 }
+]
+```
+</FlexyCodeGrid>
+
+:::caution
+The export scope values are (currently) `resolve`-only... they are not available
+in expressions.
+:::

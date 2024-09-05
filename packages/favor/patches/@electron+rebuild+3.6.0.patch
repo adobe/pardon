@@ -1,0 +1,13 @@
+diff --git a/node_modules/@electron/rebuild/lib/module-type/node-gyp/worker.js b/node_modules/@electron/rebuild/lib/module-type/node-gyp/worker.js
+index 3e1c1d7..5b586e6 100644
+--- a/node_modules/@electron/rebuild/lib/module-type/node-gyp/worker.js
++++ b/node_modules/@electron/rebuild/lib/module-type/node-gyp/worker.js
+@@ -25,7 +25,7 @@ process.on('message', async ({ nodeGypArgs, devDir, extraNodeGypArgs, }) => {
+                     });
+                 };
+             }
+-            await (0, util_1.promisify)(nodeGyp.commands[command.name])(command.args);
++            await nodeGyp.commands[command.name](command.args);
+             command = nodeGyp.todo.shift();
+         }
+         process.exit(0);

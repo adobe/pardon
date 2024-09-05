@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+if [ -z "$(git status --porcelain)" ]; then
+  exit 0
+fi
+
+echo "🧐 some files were not in this commit 🧐"
+echo
+git status --short
+echo

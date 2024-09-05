@@ -1,0 +1,59 @@
+/*
+Copyright 2024 Adobe. All rights reserved.
+This file is licensed to you under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+*/
+
+:root {
+  --sl-text-code-sm: var(--sl-text-sm);
+}
+
+.sl-markdown-content code:not(:where(.not-content *)) {
+  @apply px-1;
+}
+
+starlight-tabs {
+  @apply rounded-md light:shadow-lg;
+  & > [role="tabpanel"] {
+    @apply !mt-0 bg-stone-100 p-3 dark:border-0 dark:bg-stone-800 dark:text-stone-200;
+
+    @apply leading-5;
+    @apply rounded-b-lg dark:shadow-[inset_0_0_5px_0] dark:shadow-stone-600;
+  }
+  & > .tablist-wrapper {
+    @apply !my-0 !border-none pb-0;
+  }
+  & > .tablist-wrapper > ul {
+    @apply !my-0 gap-0 !border-none;
+  }
+  & > .tablist-wrapper > ul > * {
+    @apply !my-0 !flex-auto;
+
+    &:first-child > * {
+      @apply rounded-ss-md;
+      @apply light:!shadow-none;
+    }
+    &:last-child > * {
+      @apply rounded-se-md;
+    }
+    & > * {
+      @apply !py-1;
+      @apply shadow-[inset_4px_0_4px_-5px] shadow-neutral-500 dark:shadow-[inset_0_0_5px_0] dark:shadow-stone-600;
+      @apply place-content-center whitespace-nowrap;
+      @apply !border-none;
+
+      &:not([aria-selected="true"]) {
+        @apply place-content-center whitespace-nowrap bg-stone-200 dark:bg-stone-800 dark:!text-stone-300;
+      }
+      &[aria-selected="true"] {
+        @apply border-b-0 bg-stone-300 !font-normal dark:bg-stone-600;
+      }
+    }
+  }
+}

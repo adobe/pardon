@@ -1,0 +1,44 @@
+diff --git a/node_modules/eslint-plugin-headers/lib/comment-formatter.js b/node_modules/eslint-plugin-headers/lib/comment-formatter.js
+index 3e81662..ecfb0d4 100644
+--- a/node_modules/eslint-plugin-headers/lib/comment-formatter.js
++++ b/node_modules/eslint-plugin-headers/lib/comment-formatter.js
+@@ -23,9 +23,9 @@ class CommentFormatter {
+   }
+ 
+   getJsdoc() {
+-    let blockPrefix = this.blockPrefix || `*${this.eol}`;
+-    let blockSuffix = this.blockSuffix || `${this.eol} `;
+-    let linePrefix = this.linePrefix || " * ";
++    let blockPrefix = this.blockPrefix ?? `*${this.eol}`;
++    let blockSuffix = this.blockSuffix ?? `${this.eol} `;
++    let linePrefix = this.linePrefix ?? " * ";
+     let body = this.lines
+       .map((line) => `${linePrefix}${line}`.trimEnd())
+       .join(this.eol);
+@@ -37,7 +37,7 @@ class CommentFormatter {
+       (this.blockPrefix && `//${this.blockPrefix}${this.eol}`) || "";
+     let blockSuffix =
+       (this.blockSuffix && `${this.eol}//${this.blockSuffix}`) || "";
+-    let linePrefix = this.linePrefix || " ";
++    let linePrefix = this.linePrefix ?? " ";
+     const body = this.lines
+       .map((line) => `//${linePrefix}${line}`.trimEnd())
+       .join(this.eol);
+diff --git a/node_modules/eslint-plugin-headers/lib/rules/header-format.js b/node_modules/eslint-plugin-headers/lib/rules/header-format.js
+index 03c5fb3..f9262f2 100644
+--- a/node_modules/eslint-plugin-headers/lib/rules/header-format.js
++++ b/node_modules/eslint-plugin-headers/lib/rules/header-format.js
+@@ -193,10 +193,10 @@ module.exports = {
+ 
+     const formatConfig = {
+       blockPrefix:
+-        context.options[0]["blockPrefix"] || defaultFormat.blockPrefix,
++        context.options[0]["blockPrefix"] ?? defaultFormat.blockPrefix,
+       blockSuffix:
+-        context.options[0]["blockSuffix"] || defaultFormat.blockSuffix,
+-      linePrefix: context.options[0]["linePrefix"] || defaultFormat.linePrefix,
++        context.options[0]["blockSuffix"] ?? defaultFormat.blockSuffix,
++      linePrefix: context.options[0]["linePrefix"] ?? defaultFormat.linePrefix,
+       eol: sourceEol,
+     };
+ 

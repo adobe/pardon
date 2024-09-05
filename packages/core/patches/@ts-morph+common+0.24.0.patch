@@ -1,0 +1,22 @@
+diff --git a/node_modules/@ts-morph/common/dist/typescript.js b/node_modules/@ts-morph/common/dist/typescript.js
+index 714953f..5175e02 100644
+--- a/node_modules/@ts-morph/common/dist/typescript.js
++++ b/node_modules/@ts-morph/common/dist/typescript.js
+@@ -8423,7 +8423,7 @@ var sys = (() => {
+     const platform = _os.platform();
+     const useCaseSensitiveFileNames2 = isFileSystemCaseSensitive();
+     const fsRealpath = !!_fs.realpathSync.native ? process.platform === "win32" ? fsRealPathHandlingLongPath : _fs.realpathSync.native : _fs.realpathSync;
+-    const executingFilePath = __filename.endsWith("sys.js") ? _path.join(_path.dirname(__dirname), "__fake__.js") : __filename;
++    const executingFilePath = typeof __filename === "undefined" ? "." : __filename.endsWith("sys.js") ? _path.join(_path.dirname(__dirname), "__fake__.js") : __filename;
+     const fsSupportsRecursiveFsWatch = process.platform === "win32" || isMacOs;
+     const getCurrentDirectory = memoize(() => process.cwd());
+     const { watchFile: watchFile2, watchDirectory } = createSystemWatchFunctions({
+@@ -8629,7 +8629,7 @@ var sys = (() => {
+       if (platform === "win32" || platform === "win64") {
+         return false;
+       }
+-      return !fileExists(swapCase(__filename));
++      return typeof __filename !== "undefined" && !fileExists(swapCase(__filename));
+     }
+     function swapCase(s) {
+       return s.replace(/\w/g, (ch) => {

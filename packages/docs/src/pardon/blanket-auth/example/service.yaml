@@ -1,0 +1,7 @@
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+mixin:
+  - pardon:example/auth.mix.https

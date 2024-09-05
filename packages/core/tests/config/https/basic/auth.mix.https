@@ -1,0 +1,5 @@
+config:
+  authorization: enabled
+>>>
+ANY //
+Authorization: {{@auth = 'secret-' + env.toUpperCase()}}

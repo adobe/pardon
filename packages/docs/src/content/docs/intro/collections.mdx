@@ -1,0 +1,566 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Collections
+description: An introduction to Pardon collections
+next: false
+prev: false
+---
+
+import {
+  Aside,
+  FileTree,
+  Icon,
+  Steps,
+  Tabs,
+  TabItem,
+} from '@astrojs/starlight/components';
+
+import {
+  CollectionLinkCard,
+  Exercises,
+  ExerciseItem,
+  ExerciseItemPrompt,
+  IconicCode,
+  SolidIcon,
+  PardonPlayground,
+} from '@components';
+
+import {
+  serviceAndPing,
+  serviceAndPingAndProducts,
+  serviceAndPingAndProductsWithAuth,
+  serviceAndPingAndProductsWithConfigurableAuth,
+} from '@pardon/products-collections';
+
+import '@components/inline-icon.pcss';
+
+This tutorial builds on the concepts explained in Pardon Templates,
+
+<CollectionLinkCard href="/intro/templates" />
+
+## Services and Endpoints
+
+A Pardon collection is generally one or more services
+anchored by a `service.yaml` file and with each endpoint
+represented by an `https` (HTTP Schema) file.
+
+Schema files are a sequence of http request and response templates,
+and optionally some additional inline configuration.
+
+A basic collection defining a service and the actions for a products REST API might look like this.
+
+<FileTree>
+- collection
+  - example _the example service_<br/>service="example"
+    - service.yaml _common configuration for all the endpoints_
+    - ping.https _a basic endpoint_<br/>endpoint=example/ping<br/>action=ping
+    - products _we can group related endpoints_
+      - create.https _create a product_<br/>action="create"<br/>endpoint="example/products/create"
+      - get.https _get a product_<br/>action="get"<br/>endpoint="example/products/get"
+      - update.https _update a product_
+      - delete.https _delete a product_
+      - list.https _list products_
+</FileTree>
+
+:::note
+The `service`, `action` and `endpoint` values here can be specified
+to help pardon resolve an ambiguous request, or make a request entirely by key-values
+and templating without any HTTP _ask_ at all.
+:::
+
+When developing a collection, one might start with a `service.yaml` and
+confirm the setup with something like a `ping.https` endpoint.
+
+<Tabs>
+  <TabItem label='service.yaml'>
+The `service.yaml` file contains common specifications like
+`config`, `defaults`, and `mixin`s (which we'll get to later in this tutorial).
+```yaml
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+```
+  </TabItem>
+  <TabItem label='ping.https'>
+And our `ping.https` file specifies how to make the ping call to the service.
+
+```http
+>>>
+GET https://example.com/ping
+```
+  </TabItem>
+</Tabs>
+
+So far, so good: we should be able to build requests for both stage and production origins.
+
+## Input values
+
+The input request is the "most direct" mechanism for getting data into Pardon, but not
+everything can be solved without another layer of indirection! <span class="inline-block translate-y-[10%] text-lg"><SolidIcon name="wink"/></span>
+
+Values can supply data to templates, and can even be used to rewrite
+templates where `config` alternatives are involved.
+
+In these exercises a new input field for values is available to
+explore this mechanism (the <span class='inline-icon'><Icon name="setting" /></span> input). 
+
+<PardonPlayground
+  values
+  example={`GET https://example.com/ping`}
+  config={serviceAndPing}>
+<Exercises>
+  <ExerciseItem label="Values input"
+    prompt="Try setting a value in the values input.">
+
+    `config` choices can be overridden with values.  This allows
+    any request to be easily repurposed to a different environment
+    (in particular, replaying tests).
+    <IconicCode name="setting">
+```properties ins="env=stage"
+env=stage
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Values override"
+    prompt="Override the the request input">
+    Set `env=prod` to override `https://stage.example.com`.
+
+    (try the other way as well).
+    <IconicCode name="setting">
+```properties ins="prod"
+env=prod
+```
+    </IconicCode>
+    <IconicCode name="pencil">
+```http
+GET https://stage.example.com/ping
+```
+    </IconicCode>
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+<div class="pt-5"/>
+:::tip
+When using the `pardon` commandline utility, values can be
+specified with `key=value` syntax anywhere in the arguments.
+
+```bash "env=stage"
+% pardon https://example.com/ping env=stage --http
+curl "https://stage.example.com/ping"
+```
+
+We can also omit any http or URL data and select an endpoint directly
+
+```bash "endpoint=example/ping" 
+% pardon endpoint=example/ping env=stage --http
+GET https://stage.example.com/ping
+```
+:::
+
+### A RESTful resource
+
+The products lifecycle would also defined with https files:
+
+For product creation, this template only defines the `name` field (which makes it mandatory),
+
+```http title="create.https"
+>>>
+POST https://example.com/products
+Content-Type: application/json
+
+{
+  "name": "{{name}}"
+}
+```
+
+Defining the response template instructs pardon to extract the `product` value
+from the response, assuming it matches.
+Equally importantly, it provides a little documentation about the
+shape of the response for humans. We will cover dataflow in a
+later section, as it's more of an advanced topic for scripting.
+
+The REST of the product resources endpoints are specified minimally here, just enough
+to distinguish them from each other.
+
+<Tabs>{/* note: https://github.com/expressive-code/expressive-code/issues/22 would be nice here */}
+  <TabItem label='get.https'>
+Requests info for a single product.
+
+```http title="example/products/get.https"
+>>>
+GET https://example.com/products/{{product}}
+```
+  </TabItem>
+  <TabItem label='update.https'>
+Updates info for a single product.
+
+```http title="example/products/update.https"
+>>>
+PUT https://example.com/products/{{product}}
+Content-Type: application/json
+
+{}
+```
+  </TabItem>
+  <TabItem label='delete.https'>
+Deletes a single product.
+
+```http title="example/products/delete.https"
+>>>
+DELETE https://example.com/products/{{product}}
+```
+  </TabItem>
+  <TabItem label='list.https'>
+Lists products.
+
+```http title="example/products/list.https"
+>>>
+GET https://example.com/products
+```
+  </TabItem>
+</Tabs>
+
+With all this set up we can finally explore how pardon works with a collection of requests.
+
+<PardonPlayground
+  values="env=stage"
+  example={`POST https://example.com/products`}
+  config={serviceAndPingAndProducts}>
+
+<Exercises>
+  <ExerciseItem label="Values input"
+    prompt="Set a value via values." >
+
+    Notice how we can provide the `{{name}}` value here without having to specify
+    a request body at all!
+
+    Many simple requests can be parameterized to take advantage of this abbreviated input mechanism.
+    <IconicCode name="setting">
+```http ins="name=thneed"
+env=stage name=thneed
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Parameterized value"
+    prompt="Add a parameterized query param"
+    icon="puzzle">
+
+In the spirit of progressive enhancement,
+we can add a parameterized value in our input,
+
+    <IconicCode name="pencil">
+```http ins="?type={{type}}"
+GET https://stage.example.com/products?type={{type}}
+```
+    </IconicCode>
+    and then define it.
+    <IconicCode name="setting">
+```http ins="type=pencils"
+env=prod type=pencils
+```
+    </IconicCode>
+    <ExerciseItemPrompt>How can we make supplying the `type` optional?</ExerciseItemPrompt>
+  </ExerciseItem>
+  <ExerciseItem label="No-HTTP usage"
+    prompt="Select the endpoint directly with parameterization.">
+
+    The `service`, `action`, and `endpoint` values can be used
+    to select (or at least dramatically narrow down) which endpoint templates Pardon
+    even attempts to evaluate.
+
+    First, please delete the entire input. We don't need it!
+    <IconicCode name="pencil">
+    <div class="[&_code]:!min-h-5 [&_.copy]:!hidden no-copy">
+```http del=/.*/
+POST https://example.com/products
+```
+    </div>
+    </IconicCode>
+    Then select the endpoint directly.
+    <IconicCode name="setting">
+```http ins="endpoint=example/products/list"
+endpoint=example/products/list
+```
+    </IconicCode>
+    you can try different endpoints, and/or `env=stage` if you like,
+    for the get/update/delete endpoints, you'll need to specify a
+    `product=...` value as well.
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+## Mixins
+
+Oh no. In our rush to add features, we forgot to include authorization headers to call these endpoints:
+the security team took care of this in the gateway on stage, and now all of our endpoints need
+to be updated, and tested.
+
+We want to tell Pardon that this _service_ needs authentication, rather than updating every endpoint.
+We just need to specify a mixin at the service level.
+
+```yaml title="example/service.yaml" {6-7}
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+mixin:
+  - ./auth.mix.https
+```
+
+We're putting it next to our service in the file tree.  But any relative path inside the
+service directory is fine.
+
+<FileTree>
+- collection
+  - example
+    - service.yaml
+    - auth.mix.https
+    - ping.https
+    - products/
+      - create.https
+      - ...
+</FileTree>
+
+The contents look (kind of) like any other https endpoint.
+
+```http title="example/auth.mix.https"
+>>>
+ANY //
+Authorization: {{ @auth = `${env}-auth-token` }}
+```
+
+The special request method `ANY` matches _all_ request methods, and the special value `//` matches _any_ URL.
+(A "mixin" is mixed-in _only if_ it is "compatible" with the request.)
+
+This adds an authorization header to all requests.
+
+<Aside type="tip" title="Redacting secret values">
+
+{/* This doesn't really fit here, but I don't know where else to slot it in. */}
+
+HTTP requests unfortunately contain multiple types of information: information
+that selects an endpoint, information that we want to send to the endpoint,
+and information that we need to send to tell the server who we are.  This last
+category of values are often both security sensitve and (relatively) useless
+for human comprehension, so we tend to redact them.
+
+Template values decorated with `@` are considered secrets, and Pardon knows to keep them
+out of durable locations, and just generally hide them by default.
+
+:::note
+Commonly, we would compute the secret using an imported function.
+
+```http
+Authorization: {{ @auth = makeAccessToken(env) }}
+```
+
+where `makeAccessToken` is an async function exported from a javascript
+(or typescript) file, and it could be implemented by calling another
+pardon endpoint.
+:::
+</Aside>
+
+Let's try it out in stage and confirm all our endpoints are working and have authorization
+applied... (The `@` in `@auth` marks it a secret. You can see the value using the lock button
+in this exercise.).
+
+<PardonPlayground
+  secrets
+  editor
+  example={`GET https://stage.example.com/products`}
+  config={serviceAndPingAndProductsWithAuth} />
+
+:::note
+In the introduction, we described the collection templates as specifying the "bones" of the API call,
+and the input request as the "meat".  Now we're using the template system to add additional information
+to the request which is neither part of the determination of which API endpoint to call, nor is it part
+of the interesting data being sent.  This type of data is more like "feathers".  We're not going to use
+this analogy, I just thought it might be interesting to think about.
+:::
+
+### Mixin-Match
+
+> TL;DR: mixins progressively enhance the input request, but only if they match.
+> 
+> They do not affect whether the endpoint template matches the input request.
+
+Awesome! We've got a security measure applied to our requests.
+And we provided confirmation of all our requests working on stage, so ops rolled
+these changes out to production.
+
+Unfortunately, now alerts are firing because the (oops, only in production!)
+liveness probe hitting `/ping` requires an auth token and is not provisioned to use one.
+We missed this case in staging because our updated collection sent auth
+tokens to _every_ endpoint.
+
+Well, it's not _actually_ an outage, and the fix isn't even on our end (ops is in control of
+removing the Authorization header check from the /ping endpoint),
+but we do want to adjust our collection to align with the deployment.
+
+:::caution
+One option is removing the mixin from service.yaml and including it selectively from every authenticated endpoint.
+
+<Tabs>{/* note: https://github.com/expressive-code/expressive-code/issues/22 would be nice here */}
+  <TabItem label='service'>
+```yaml title="example/service.yaml" del={6-7}
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+mixin:
+  - ./auth.mix.https
+```
+  </TabItem>
+  <TabItem label='create'>
+```http title="example/products/create.https" ins={1,2}
+mixin:
+  - ../auth.mix.https
+>>>
+POST https://example.com/products
+```
+  </TabItem>
+  <TabItem label='get'>
+```http title="example/products/get.https" ins={1,2}
+mixin:
+  - ../auth.mix.https
+>>>
+GET https://example.com/products/{{product}}
+```
+  </TabItem>
+  <TabItem label='update'>
+```http title="example/products/update.https" ins={1,2}
+mixin:
+  - ../auth.mix.https
+>>>
+PUT https://example.com/products/{{product}}
+Content-Type: application/json
+
+{}
+```
+  </TabItem>
+  <TabItem label='delete'>
+```http title="example/products/delete.https" ins={1,2}
+mixin:
+  - ../auth.mix.https
+>>>
+DELETE https://example.com/products/{{product}}
+```
+  </TabItem>
+  <TabItem label='list'>
+```http title="example/products/list.https" ins={1,2}
+mixin:
+  - ../auth.mix.https
+>>>
+GET https://example.com/products
+```
+  </TabItem>
+</Tabs>
+
+but that touches many files.
+As the collection grows, this kind of maintenance would grow as well.
+:::
+
+It is cleaner (in this case, at least) to specify an opt-out for the few
+exceptional endpoints that don't need auth, rather than opting-in.
+To have the mixin supply an opt-out behavior, we can add a `config` section.
+
+```http title="example/auth.mix.https" ins={1-2}
+config:
+  authorization: token
+>>>
+ANY //
+Authorization: {{ @auth = `${env}-auth-token` }}
+```
+
+Just like `origin` in the main request, this `authorization` value needs to match
+(or be not specified) in the input for this mixin to be applicable.
+
+We can then default `authorization` as `none` in our ping endpoint
+(choosing any value _other_ than `token`), which disables the mixin selectively.
+
+```http title="example/ping.https" ins={1-2}
+defaults:
+  authorization: none
+>>>
+GET https://example.com/ping
+```
+This implements the same change in behavior with _two changes_ instead of N+1,
+and provides some additional controls we explore here:
+
+<PardonPlayground
+  secrets
+  values
+  example={`GET https://example.com/products`}
+  config={serviceAndPingAndProductsWithConfigurableAuth} >
+
+<Exercises>
+  <ExerciseItem label="ping"
+    prompt="Set the endpoint to ping.">
+    Notice the authorization header disappears as expected.
+    <IconicCode name="pencil">
+```http ins="ping"
+GET https://example.com/ping
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="pong"
+    prompt="Send authorization to ping anyway?">
+    Override the default `authorization` to force an authenticated ping request!
+    <IconicCode name="setting">
+```properties ins="authorization=token"
+authorization=token
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="disable auth"
+    prompt="Send an unauthenticated request to products.">
+    Override the default `authorization` to force an unauthenticated products request.
+    Why would we do this?  I don't know, maybe for testing?  To assert dominance over our framework?
+    <IconicCode name="setting">
+```properties ins="authorization=token"
+authorization=none
+```
+    </IconicCode>
+    <IconicCode name="pencil">
+```http ins="products"
+GET https://example.com/products
+```
+    </IconicCode>
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+## Collection Layering
+
+To match team structures, collections are defined in layers:
+
+A base layer might define the endpoints, but credentials
+can be defined in another.  Different teams have different
+access to credentials to the same services, so Pardon supports
+separation of concerns and access requirements by allowing
+layers of functionality to be applied.
+
+A root pardon config defines the layers of collections
+to use. We'll need to revisit this in the section on scripting.
+
+## Next Steps
+
+Next we will cover more dataflow mechanisms.
+
+<CollectionLinkCard href="/intro/dataflow"/>
+
+Afterwards we will revisit layering a bit in scripting.

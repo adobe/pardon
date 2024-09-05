@@ -1,0 +1,3 @@
+>>>
+ANY //
+Authorization: {{ @auth = `${env}-auth-token` }}

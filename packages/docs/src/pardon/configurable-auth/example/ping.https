@@ -1,0 +1,4 @@
+defaults:
+  authorization: none
+>>>
+GET https://example.com/ping

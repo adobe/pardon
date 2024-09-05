@@ -1,0 +1,12 @@
+packages/core/dist
+packages/favor/out
+packages/favor/.vite
+packages/favor/electron-static
+packages/docs/dist
+.prettierignore
+.githooks/
+*.patch
+*.svg
+*.mdx
+*.png
+*.https

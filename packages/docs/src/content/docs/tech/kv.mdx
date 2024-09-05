@@ -1,0 +1,73 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: The KV format
+description: Yet-another JSON.
+next: false
+prev: false
+---
+
+import { KvPlayground } from '@components';
+
+The KV format is a key-value text format that's basically JSON without the JavaScript compatibility.
+
+In the KV format a KV _value_ can be
+
+- the keywords `true`, `false` or `null`,
+- a simple value like `hello`, or a quoted string like `"hello"` or `'world'`.
+- a number.
+- an array, starting with `[` and ending with `]`, with a series of comma-separated values (trailing comma allowed).
+- an object, starting with `{` and ending with `}`, with a series of `key=value` fields (key can be a quoted string).  (For compatibility with javascript, `key:value` is also allowed).
+
+A "simple key" is a key which does not need quoting, which means a non-empty key consisting of 
+at most letters, numbers, periods, hyphens.  A simple value can also include slashes.
+
+Key-value data is a sequence of (simple key) `key=value` pairs, terminated by anything
+that doesn't match the format.
+
+```text
+a=b
+c=d
+GET ... # since GET doesn't end with an =, we know it's not part of the KV data.
+```
+
+This format is accepted at the top of any pardon `.http` template and allows
+us to specify values directly in-line with the request.
+
+The main advantages of the KV format are
+
+- less syntax than JSON (quotes can often be elided)
+- trailing commas
+- using `=` inside objects so that object contents can be
+  copied to the top level.
+
+{/*
+# TODO: rewrite kv-fmt.ts so that the following is also supported.
+
+a=b
+list=[1, 2, 3] # maybe even allow for list=[1 2 3] for lists of values?
+things=[
+  name=x p=q, # an array element starting with k=v implies a object
+  a=b c=d # also note no commas between fields here.
+]
+*/}
+
+#### Interactive Parsing Demo
+
+<KvPlayground kv={`
+a=b
+list=[1, 2, 3]
+things=[
+  { name=x, p=q },
+  { a=b, c=d }
+]
+`}>
+</KvPlayground>

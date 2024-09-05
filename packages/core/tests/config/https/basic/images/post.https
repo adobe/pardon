@@ -1,0 +1,15 @@
+>>>
+POST https://basic.example.io/images/
+
+{
+  type: "png",
+  data: base64($data)
+}
+
+>>>
+POST https://basic.example.io/images/
+
+{
+  type: "ascii",
+  data: "{{data}}"
+}

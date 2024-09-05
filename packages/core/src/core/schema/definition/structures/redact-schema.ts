@@ -1,0 +1,46 @@
+/*
+Copyright 2024 Adobe. All rights reserved.
+This file is licensed to you under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+*/
+import {
+  SchematicOps,
+  Schema,
+  defineSchema,
+  executeOp,
+} from "../../core/schema.js";
+
+type RedactSchemaOps<T = unknown> = SchematicOps<T> & {
+  redact(): void;
+  schema(): Schema<T>;
+};
+
+export function redactSchema<T = unknown>(schema: Schema<T>): Schema<T> {
+  return defineSchema<RedactSchemaOps<T>>({
+    merge(context) {
+      const merged = executeOp(schema, "merge", context);
+
+      return merged && redactSchema(merged);
+    },
+    async render(context) {
+      return context.environment.redact({
+        value: await executeOp(schema, "render", context),
+        context,
+        patterns: null,
+      }) as T;
+    },
+    scope(context) {
+      executeOp(schema, "scope", context);
+    },
+    schema() {
+      return schema;
+    },
+    redact() {},
+  });
+}

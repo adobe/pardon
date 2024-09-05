@@ -1,0 +1,65 @@
+/*
+Copyright 2024 Adobe. All rights reserved.
+This file is licensed to you under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+*/
+/*
+ * manually replacing @tailwind base; here for more control:
+ * (avoid the css reset that breaks all the markdown.)
+ */
+:root {
+  --tw-translate-x: 0;
+  --tw-translate-y: 0;
+  --tw-rotate: 0;
+  --tw-skew-x: 0;
+  --tw-skew-y: 0;
+  --tw-scale-x: 1;
+  --tw-scale-y: 1;
+
+  /* Fixing a firefox-only-problem
+   *
+   * tailwindcss-3d + a non-zero z-scale fixes
+   * a tiny shift between animated transitions and the final position.
+   * the number of dots in the a border-dotted border also pops...
+   */
+  /* tailwindcss-3d additions */
+  --tw-skew-z: 0;
+  --tw-translate-z: 0;
+  --tw-scale-z: 2;
+  /* tailwindcss-3d({ legacy: true }) support */
+  --tw-rotate-x: 0;
+  --tw-rotate-y: 0;
+  --tw-rotate-z: 0;
+  --tw-perspective: 0;
+
+  --tw-border-opacity: 1;
+
+  --tw-blur:;
+  --tw-brightness:;
+  --tw-contrast:;
+  --tw-grayscale:;
+  --tw-hue-rotate:;
+  --tw-invert:;
+  --tw-saturate:;
+  --tw-sepia:;
+  --tw-drop-shadow:;
+
+  --tw-backdrop-blur:;
+  --tw-backdrop-brightness:;
+  --tw-backdrop-contrast:;
+  --tw-backdrop-grayscale:;
+  --tw-backdrop-hue-rotate:;
+  --tw-backdrop-invert:;
+  --tw-backdrop-saturate:;
+  --tw-backdrop-sepia:;
+  --tw-backdrop-drop-shadow:;
+}
+
+@tailwind components;
+@tailwind utilities;

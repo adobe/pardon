@@ -1,0 +1,57 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon‽
+hero:
+  tagline: |
+    Pardon is your new favorite HTTP API framework that knows how to say please, remembers things for you,
+    and keeps your secrets.
+  image:
+    file: "@assets/pardon-icon.svg"
+
+prev: false
+next: false
+
+template: splash
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components'
+import { CollectionLinkCard } from '@components';
+import { Image } from 'astro:assets'
+import PardonIcon from  "@assets/pardon-icon.svg"
+
+## What is Pardon
+
+Pardon is a collection of tools for making HTTP requests.
+
+<CardGrid stagger>
+  <Card title="pardon" icon="seti:powershell">
+    The commandline tool: runs requests effortlessly.
+
+    ```bash
+    $ pardon GET https://your.api.here/
+    $ pardon ./call-me-maybe.http
+    ```
+  </Card>
+  <Card title="favor" icon="laptop">
+    The desktop application, for browsing collections and interactive
+    requests.
+  </Card>
+  <Card title="pardon-runner" icon="seti:javascript">
+    A functional pardon-integrated test runner with a modern configuration system.
+  </Card>
+</CardGrid>
+
+Tutorials, guides, and reference materials are under development.
+
+<CollectionLinkCard href="/intro" />
+<CollectionLinkCard disabled href="/guides" />
+<CollectionLinkCard disabled href="/reference" />

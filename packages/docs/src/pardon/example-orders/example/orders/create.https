@@ -1,0 +1,9 @@
+>>>
+POST https://example.com/orders
+
+{
+  cart: [{
+    "product": "{{product}}",
+    "quantity": number("{{quantity=1}}")
+  }]
+}

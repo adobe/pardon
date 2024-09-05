@@ -1,0 +1,8 @@
+config:
+  origin:
+    env:
+      stage: https://basic-stage.example.io
+      prod: https://basic.example.io
+      local: http://localhost:1234
+mixin:
+  - ./auth.mix.https

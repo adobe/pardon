@@ -1,0 +1,9 @@
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+>>>
+GET https://example.com/ping
+Accept: text/plain
+api-key: {{ apikey = (env === "prod" ? "system" : "staging") }}

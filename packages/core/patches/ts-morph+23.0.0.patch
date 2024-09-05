@@ -1,0 +1,13 @@
+diff --git a/node_modules/ts-morph/dist/ts-morph.js b/node_modules/ts-morph/dist/ts-morph.js
+index 5b1e50c..576a361 100644
+--- a/node_modules/ts-morph/dist/ts-morph.js
++++ b/node_modules/ts-morph/dist/ts-morph.js
+@@ -3800,7 +3800,7 @@ class Node {
+             const start = oldNode.getStart(compilerSourceFile, true);
+             const end = oldNode.end;
+             let lastTransformation;
+-            while ((lastTransformation = transformations[transformations.length - 1]) && lastTransformation.start > start)
++            while ((lastTransformation = transformations[transformations.length - 1]) && lastTransformation.start >= start)
+                 transformations.pop();
+             const wrappedNode = compilerFactory.getExistingNodeFromCompilerNode(oldNode);
+             transformations.push({

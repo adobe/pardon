@@ -1,0 +1,40 @@
+#!/usr/bin/env zsh
+
+set -e
+
+function checkRepo() {
+  echo
+if [ "$REPO_OK" = "true" ]; then
+  echo -n "REPO_OK=true ... skipping git repo check"
+  echo
+  return 0
+fi
+
+echo -n "Checking repository is clean..."
+if [ -z "$(git status --porcelain)" ]; then
+  echo "✅︎"
+  echo
+  return 0
+fi
+
+echo "❌"
+echo
+
+echo "-------------------------------------------"
+echo "You may have forgotten to commit some files"
+echo "please stash them first or run with"
+echo "    REPO_OK=true git push ..."
+echo "-------------------------------------------"
+echo
+git status --short
+echo
+
+return 1
+}
+
+function testRepo() {
+  npm run test -- 
+}
+
+checkRepo
+testRepo

@@ -1,0 +1,5 @@
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com

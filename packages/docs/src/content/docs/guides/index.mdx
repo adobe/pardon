@@ -1,0 +1,29 @@
+---
+title: Guides
+description: Some guides for getting things done
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+TBD: we might write guides like this?
+
+<Steps>
+1.
+    Define a helper method a typescript or javascript
+    ```ts title="collections/example/helper.ts"
+    export async function authFor(env: string) {
+      return `auth-for-${env}`;
+    }
+    ```
+2.
+    import the helper method and call it.
+
+    ```http title="collections/example/products.https" ins={1-3} ins=/authFor.*[)]/
+    import:
+      ./helper.ts:
+        - authFor
+    >>>
+    POST https://example.com/products
+    Authorization: {{ @auth = authFor(env) }}
+    ```
+</Steps>

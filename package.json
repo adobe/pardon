@@ -1,0 +1,26 @@
+{
+  "package": "pardon-workspace",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "prepare": "node-git-hooks",
+    "lint": "prettier --check .",
+    "lint-staged": "lint-staged",
+    "postlint": "npm run lint --prefix=packages/core",
+    "prelint": "npm run check --prefix=packages/favor",
+    "test": "npm run test --prefix=packages/core",
+    "format": "npx prettier -w ."
+  },
+  "devDependencies": {
+    "lint-staged": "^15.2.2",
+    "node-git-hooks": "^1.0.7",
+    "prettier-plugin-astro": "^0.14.0",
+    "prettier-plugin-tailwindcss": "^0.6.5",
+    "typescript": "^5.5.2"
+  },
+  "lint-staged": {
+    "packages/core": "prettier -w",
+    "packages/favor": "prettier -w",
+    "packages/docs": "prettier -w"
+  }
+}

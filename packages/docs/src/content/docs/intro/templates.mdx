@@ -1,0 +1,509 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Templates
+description: A quick introduction to Pardon's templates
+next: false
+prev: false
+---
+
+import { Tabs, TabItem, Icon, Aside } from '@astrojs/starlight/components';
+import {
+  CollectionLinkCard,
+  Exercises,
+  ExerciseItem,
+  ExerciseItemPrompt,
+  CodeGrid,
+  FlexyCodeGrid,
+  IconicCode,
+  PardonPlayground,
+  SolidIcon,
+} from '@components';
+import {
+  productsExample,
+  productsExampleWithAuth,
+} from'@pardon/templates-collections'
+
+Pardon's template/schema engine is the foundation of how Pardon understands and builds
+requests.  The engine's main operation is "matching", but the logic includes both
+_conflict detection_ and _progressive enhancement_.
+
+The composition of multiple (compatible) templates forms a "schema"
+But we'll defer the discussion of exactly what schemas represent and how they are composed for [later](./schemas),
+because we can use basic templates without understanding them.
+
+## Templates
+
+Pardon's templates are HTTP-like text, but commonly they represent, in part,
+JSON requests.
+
+But to understand how pardon handles the overall request object we need to first
+look at how it would operate on a single (string) value in a JSON request.
+
+A "simple" pattern (where the entire string is a single interpolated value)
+can match simple values like strings (text), matching these two (in either order)
+would be allowed, and additionally resolve `name` to `"some value"`.
+
+<CodeGrid>
+```text "{{name}}"
+"{{name}}"
+```
+```text /"some value"/
+"some value"
+```
+</CodeGrid>
+
+Pardon also allows simple templates to match numbers as values,
+here we resolve the value `name` to `123` (as a number rather than as a string).
+<CodeGrid>
+```text "{{name}}"
+"{{name}}"
+```
+```text /123/
+123
+```
+</CodeGrid>
+
+We can also have non-simple templates, a non-simple template can also
+break/compose a string (this only makes sense for strings, of course).
+
+<CodeGrid>
+```text del="{{greeting}}" ins="{{planetoid}}"
+"{{greeting}} {{planetoid}}"
+```
+```text del="hello" ins="world"
+"hello world"
+```
+</CodeGrid>
+
+If multiple templates for the same value are combined, Pardon will try
+to resolve everything.  Here `"hello world"` provides a value for the template,
+and so we can resolve both the `"{{value}}"` and the `"{{greeting}} {{planetoid}}"`
+template against that.
+
+(This makes sense because `/^(.*) (.*)$/` can only match one way).
+
+<FlexyCodeGrid centered columns={3}>
+```text del="{{greeting}}" ins="{{planetoid}}"
+"{{greeting}} {{planetoid}}"
+```
+```text /"{{value}}"/
+"{{value}}"
+```
+```text del="hello" ins="world"
+"hello world"
+```
+</FlexyCodeGrid>
+This resolves the three variables as one might expect.
+<FlexyCodeGrid centered>
+```text del=/greeting = \S*/
+greeting = "hello" 
+```
+```text ins=/planetoid = \S*/
+planetoid = "world"
+```
+```text /value = .*/
+value = "hello world"
+```
+</FlexyCodeGrid>
+
+:::note
+The full structure of a `{{...}}` pattern is covered in 
+[./patterns](patterns).
+:::
+
+Attempting to extend/merge an incompatible template fails: Pardon recognizes these conflicts.
+
+<FlexyCodeGrid centered>
+```text del="hello"
+"hello"
+```
+<Icon name="close" />
+```text del="world"
+"world"
+```
+</FlexyCodeGrid>
+
+Pardon would also reject this combination, as the template would match the regular expression `/^(.+) (.+)$/`
+and `"hello"` is missing a space.
+
+<FlexyCodeGrid centered>
+```text del="hello"
+"hello"
+```
+<Icon name="close" />
+```text del="world"
+"{{greeting}} {{planetoid}}"
+```
+</FlexyCodeGrid>
+
+:::tip
+Pardon is smart enough to reject the combination of `"x-{{abc}}"` and `"y-{{pqr}}"` as long as the _different
+part_ is a (not parameterized) incompatible _start_ or _end_ of the pattern.  The patterns `"{{a}}-x-{{b}}"` and `"{{p}}-y-{{q}}"`
+could be compatible (e.g., `"w-x-y-z"` with `a = "w"`, `b = "y-z"`, `p = "w-x"`, and `q = "z"`) and Pardon
+does not attempt to solve the do-these-regular-expressions-match-anything problem in general.
+:::
+
+## Rendering Templates
+
+All by itself, the template `"{{hello}}"` cannot be rendered without
+providing some value for `hello`. If this template were matched against the text `"world"`, then
+`hello` would be resolved to the value `"world"`.
+
+The value for `hello` could also be provided externally as a value.
+
+We can also provide expressions (javascript!) in templates, which will be evaluated if no value could
+be resolved.
+
+<FlexyCodeGrid centered>
+```text "hello" "'world'"
+"{{hello = 'world'}}"
+```
+<Icon name="right-arrow" />
+```text ins=/".*"/
+"world"
+```
+</FlexyCodeGrid>
+
+But these expression-values match as normal, skipping evaluation.
+
+<FlexyCodeGrid centered>
+```text "hello"
+"{{hello = 'world'}}"
+```
+<Icon name="close" />
+```text /".*"/
+"greetings"
+```
+<Icon name="right-arrow" />
+```text ins=/".*"/
+"greetings"
+```
+</FlexyCodeGrid>
+
+Once a value is resolved (through matching or script evaluation), it can
+be referenced in other parts of the same template or as values in scripts.
+
+For example, consider the following template and it's default output
+<FlexyCodeGrid centered>
+```text
+{ a: "{{hello = 'world'}}",
+  A: "{{HELLO = hello.toUpperCase()}}" }
+```
+<Icon name="right-arrow" />
+```text ins=/".*"/
+{ a: "world",
+  A: "WORLD" }
+```
+</FlexyCodeGrid>
+
+If we merge this schema we can get different results
+
+<Tabs>
+<TabItem label="just &quot;a&quot;">
+If we specify the value of `a` we resolve `hello="planet"` which becomes
+and the expression for `A` uses it instead of the default.
+<FlexyCodeGrid centered>
+```text /"[a-z]*"/
+{ a: "planet" }
+```
+<Icon name="right-arrow" />
+```text /"[a-z]*"/ ins=/"[A-Z]*"/
+{ a: "planet", A: "PLANET" }
+```
+</FlexyCodeGrid>
+</TabItem>
+<TabItem label="both">
+Alternatively, we can resolve both values which skips any expression evaluation here.
+<FlexyCodeGrid centered>
+```text
+{ a: "planet",
+A: "jupiter" }
+```
+<Icon name="right-arrow" />
+```text ins=/".*"/
+{ a: "planet",
+  A: "jupiter" }
+```
+</FlexyCodeGrid>
+</TabItem>
+<TabItem label="just &quot;A&quot;">
+If we only specify `A`, then `a` retains its default expression and `A` gets
+overridden.
+<FlexyCodeGrid centered>
+```text
+{ A: "jupiter" }
+```
+<Icon name="right-arrow" />
+```text ins=/".*"/
+{ a: "world",
+  A: "jupiter" }
+```
+</FlexyCodeGrid>
+</TabItem>
+</Tabs>
+
+Pardon can handle any evaluation order that does not result in a cycle
+(including asynchronous / promise expressions).
+
+:::caution
+If a value has multiple options to be resolved or evaluated: first of all that would be weird,...
+but hopefully Pardon is consistent about which option it uses.
+:::
+
+## Exploring a template
+
+Moving on to a (slightly more) real example: a REST API that
+creates products with a name and a price.
+
+```http
+>>>
+POST https://example.com/products
+
+{
+  "name": "{{name}}",
+  "price": "{{price}}"
+}
+```
+
+This is parsed into a structure and applied to a template defined roughly as the following
+
+<FlexyCodeGrid>
+```js
+{
+  method: "{{method}}",
+  url: {
+    origin: "{{origin}}",
+    pathname: "{{pathname}}"
+  },
+  headers: [...],
+  body: ...
+}
+```
+<Icon name="close" />
+```js
+{
+  method: "POST",
+  url: {
+    origin: "https://example.com",
+    pathname: "/products"
+  },
+  headers: [],
+  body: { "name": "{{name}}",
+          "price": "{{price}}" }
+}
+```
+</FlexyCodeGrid>
+
+:::note
+The `body`, `headers`, `pathname` patterns all have their own tweaks.  The body is actually
+a string template that can handle multiple encodings (determined by the first template that
+specifies anything).
+
+For instance, in the pathname `{{x}}` is matched with this regex `/[^/]+/` while `{{...x}}` is matched with `/.*/`,
+and `{{/?}}` at the end of a pathname specifies an optional (trailing) slash.
+:::
+
+Anyway, let's explore how pardon behaves with this template with these quick exercises.
+
+<p/>
+<PardonPlayground example={`
+POST https://example.com/products
+
+{
+  "name": "sample",
+  "price": 9.99
+}`} config={productsExample}>
+
+<Exercises>
+  <ExerciseItem label="Changing values"
+    prompt="Change the values in the body of the request.">
+
+Try updating the name or price values.  Note that since
+price is a javascript number value, the rendering of e.g., `"price": 9.00` will
+become `"price": 9`.
+
+Conversely, providing arrays or objects for these fields will currently confuse Pardon.
+(note: I have not decided if this is a bug or just how things work.)
+
+    <IconicCode name="pencil">
+```http ins="Fez"
+POST https://example.com/products
+
+{
+  "name": "Fez",
+  "price": 9.99
+}
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Adding fields"
+    prompt="Add another field to the request body.">
+
+Other fields can be added freely into the template.
+
+    <IconicCode name="pencil">
+```http ins=/(?<=9),/ ins=/.*description.*/
+POST https://example.com/products
+
+{
+  "name": "Fez",
+  "price": 9.99,
+  "description": "Fezzes are cool"
+}
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Adding queries"
+    prompt="Add a query param to the request url.">
+
+We can also add query params and pardon can integrate it into the request.
+    <IconicCode name="pencil">
+```http ins=/(?<=9),/ ins="?hello=world"
+POST https://example.com/products?hello=world
+
+{
+  "name": "Fez",
+  "price": 9.99
+}
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Adding headers"
+    prompt="Add a header to the request.">
+
+Headers and query params can also be added, the
+base template does not restrict additional data so long
+as the additional data can be merged in.
+
+    <IconicCode name="pencil">
+```http ins={2}
+POST https://example.com/products
+Bowties: also cool
+
+{
+  "name": "Fez",
+  "price": 9.99,
+  "description": "fezzes are cool"
+}
+```
+    </IconicCode>
+
+    <Aside type="caution" title="if you are typing this example out">
+    Same as the HTTP wire protocol, a blank line separates the body from the headers.
+    </Aside>
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+We've covered the basics of how a template supports 
+building a request. Feel free to explore negative cases as well: change the URL path or origin,
+remove fields from the request, etc... and watch for when pardon can no
+longer match the template (<span class="inline-flex relative translate-y-[25%] text-xl"><SolidIcon name="annoyed"/></span>)
+or render it (<span class="inline-flex relative translate-y-[25%] text-xl"><SolidIcon name="unhappy"/></span>).
+
+## Scripted values
+
+Expressions can use other values from the template, either resolved through matching
+or evaluated in other expressions.
+
+For example, since we have a value for `{{name}}` matched by the template, we
+can use the `name` value in an expression for another field.
+
+<PardonPlayground example={`
+POST https://example.com/products
+
+{
+  "name": "pay-by-the-letter",
+  "price": "{{ price = name.length * 10 }}"
+}`}
+config={productsExample}>
+
+<Exercises>
+  <ExerciseItem label="Change value">
+    <ExerciseItemPrompt>Change the name to `"pardon‽"`.</ExerciseItemPrompt>
+
+You can see the `price` value change automatically as
+you add or remove letters from the name value.
+
+    <IconicCode name="pencil">
+```http ins="pardon‽"
+POST https://example.com/products
+
+{
+  "name": "pardon‽",
+  "price": "{{ price = name.length * 10 }}"
+}
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Changing Expressions"
+    prompt="Set the price to a quarter per letter.">
+
+Inflation has dropped the demand for luxury letters: we need
+to make a drastic price-cut to maintain our order flow rates,
+price is now 25 cents a letter.
+
+    <IconicCode name="pencil">
+```http ins="name.length / 4"
+POST https://example.com/products
+
+{
+  "name": "pardon‽",
+  "price": "{{ price = name.length / 4 }}"
+}
+```
+    </IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Adding Computed Fields"
+    prompt="Add another field to the request body.">
+
+That didn't drive orders enough and management is desperate:
+we need to highlight our payment plan offering:
+
+<IconicCode name="pencil">
+```http ins=/(?<=[}]"),/ ins=/.*description.*/ ins=/.*toUpperCase.*/
+POST https://example.com/products
+
+{
+  "name": "pardon‽",
+  "price": "{{ price = name.length*0.25 }}",
+  "description":
+    "{{= `${name.toUpperCase()} for only 4 easy payments of ${price/4}!`}}"
+}
+```
+
+(note that parameter expressions don't need a name, we just start with `{{=`...)
+</IconicCode>
+
+  </ExerciseItem>
+</Exercises>
+
+</PardonPlayground>
+
+{/*
+  * Sharp eyes may notice that the `price` is always a string here, rather than a number.
+  * This is probably a bug?
+  */}
+
+## Next Steps
+
+A thorough discussion of the pattern syntax.
+
+<CollectionLinkCard href="/intro/patterns" />
+
+Exploring a small collection of endpoints for our service example.
+
+<CollectionLinkCard href="/intro/collections" />
+
+An explanation of how templates are composed into schemas.
+
+<CollectionLinkCard href="/intro/schemas" />

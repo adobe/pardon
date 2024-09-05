@@ -1,0 +1,13 @@
+diff --git a/node_modules/solid-js/types/jsx.d.ts b/node_modules/solid-js/types/jsx.d.ts
+index f9e53cf..dcc3e5c 100644
+--- a/node_modules/solid-js/types/jsx.d.ts
++++ b/node_modules/solid-js/types/jsx.d.ts
+@@ -731,7 +731,7 @@ export namespace JSX {
+     contenteditable?: boolean | "plaintext-only" | "inherit" | undefined;
+     contextmenu?: string | undefined;
+     dir?: HTMLDir | undefined;
+-    draggable?: boolean | "false" | "true" | undefined;
++    draggable?: "false" | "true" | undefined;
+     hidden?: boolean | "hidden" | "until-found" | undefined;
+     id?: string | undefined;
+     inert?: boolean | undefined;

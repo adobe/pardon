@@ -1,0 +1,74 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Collections
+description: https files
+next: false
+prev: false
+---
+
+import {
+  FileTree,
+} from '@astrojs/starlight/components';
+
+## The Https format
+
+Pardon's introduces a new format for describing and recording HTTP calls.
+
+The overall syntax is an optional yaml header followed by a sequence of
+requests and responses delimited by lines starting with `>>>` and `<<<` respectively.
+
+Requests look like (optional) KV data, a request starting with an HTTP method and a URL (the
+url may be line-broken before `/`, `?` and `&` characters, since headers should not start with these
+characters.)  Followed by headers, a blank line, and a body.
+
+Responses are similar but instead of the HTTP method and URL, they have a response code and
+(optional) status text.
+
+The semantics of these files is determined by their sub-extension:
+
+<FileTree>
+- endpoint.https is a collection https file, used as a template to match a single request and response.
+- mixin.mix.https is a mixin template meant to extend a collection https file.
+- muxin.mux.https is a mixin template meant to further parameterized a collection https file with a semi-concrete request.
+- sequence.flow.https is a program: executing a sequence of requests one-at-a-time.
+- sequence.unit.https is also a program, but the results are cached.
+- previous.log.https is a record of previous requests and their responses.
+</FileTree>
+
+### Endpoints and Mixins
+
+Endpoints and mixins are evaluated till first-match.  Pardon attempts to find the first match
+of an endpoint against a request, discarding request and response templates along the way.
+Once the first request tempalte is matched, other request options are discarded but 
+all remaining response templates are available to process the response (per environment/mixin).
+
+The response is evaluated through a schema created by the first remaining response template
+from the endpoint and the first match from each of the active mixins.
+
+Responses can have statuses written as `5xx` or `5**` to indicate any 500-series status code, similarly
+`2xx` works as well to cover 200-series responses.
+
+This is how endpoints represent the alternatives of a single request/response interaction.
+
+### Units and Flows
+
+Units and flows (sequences) are executed by the test case-runner.
+These are structured in groupos of request and responses for that group.
+
+In sequences, requests and responses are named and a response matching a request name
+works like a "goto".
+
+### Logs
+
+Logs are simply pairs of requests and their corresponding responses.  We can use these to
+replay requests and maybe compare responses.
+

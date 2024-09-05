@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+set -e
+
+(cd packages/core && npm run lint)
+(cd packages/favor && npm run lint)
+(cd packages/docs && npm run lint)
+
+npm run lint-staged

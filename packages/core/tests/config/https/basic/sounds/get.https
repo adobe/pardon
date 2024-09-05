@@ -1,0 +1,4 @@
+defaults:
+  authorization: disabled
+>>>
+GET https://basic.example.io/sounds/{{sound}}

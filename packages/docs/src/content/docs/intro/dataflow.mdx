@@ -1,0 +1,711 @@
+---
+# Copyright 2024 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Dataflow
+description: How data flows through templates.
+server: products
+next: false
+prev: false
+---
+
+import {
+  Icon,
+  Tabs,
+  TabItem,
+} from '@astrojs/starlight/components';
+
+import {
+  CollectionLinkCard,
+  Exercises,
+  ExerciseItem,
+  ExerciseItemPrompt,
+  FlexyCodeGrid,
+  IconicCode,
+  PardonPlayground,
+  ProductsView,
+  SolidIcon,
+} from '@components';
+
+import {
+  serviceAndPingAndProducts,
+  serviceAndPingAndProductsWithConfigurableAuth,
+  serviceWithOrdering,
+} from'@pardon/products-collections'
+
+import "@components/inline-icon.pcss"
+
+This tutorial covers more details and ways data flows in and out of pardon
+templates.
+
+The material assumes familiarity with concepts introduced in collections (and templates).
+
+<CollectionLinkCard href="/intro/collections" />
+
+## Data matching
+
+In the collections tutorial we introduced product `get`, `update`, and `delete`
+endpoints that required a `{{product}}` identifier.  We will update
+the create products call to tell Pardon (and future consumers of
+this collection), where these identifiers come from.
+
+The `example/products/create` endpoint returns newly created products.
+Let's define a response template with `"id": "{{products}}"` to
+bind the value in the response.
+
+```http title="example/products/create.https" ins={9-14}
+>>>
+POST https://example.com/products
+Content-Type: application/json
+
+{
+  "name": "{{name}}"
+}
+
+<<<
+200 OK
+
+{
+  "id": "{{product}}"
+}
+```
+
+Response templates help pardon help you help your scripts interpret the request.
+
+:::note
+Request and mixin https files can have multiple request and response templates:
+The _first matching request_ and the _first **subsequent** matching_ response
+_in the endpoint and each mixin_ are what pardon uses.
+:::
+
+To see this in action, please can create three products in our system.
+
+Two new features are available in this tutorial:
+  1. making requests
+  2. a data view of the values resolved from the request or response
+
+:::tip
+As we run these new exercises, you can track the products via the
+counter in the lower right of the screen.
+
+You can reset the system with the reset button there too.
+:::
+
+<PardonPlayground response data example={`
+POST https://example.com/products
+
+{
+  "name": "pencils",
+  "price": 2
+}
+`} config={serviceAndPingAndProductsWithConfigurableAuth}>
+  <Exercises>
+    <ExerciseItem label='add pencils'
+          prompt="Add pencils to the product system.">
+       Post the current request with this button.
+
+       Confirm the product count went up by one.  See that the `id` is identified
+       by `"product"` in the response as well.
+    </ExerciseItem>
+    <ExerciseItem label='add pens'
+          prompt="Add pens to the product system.">
+      Replace the input/ask with this and use the same
+      button to reset the control back to request mode.
+    <IconicCode name="pencil">
+```http ins=/"pens"/ ins="3"
+POST https://example.com/products
+
+{
+  "name": "pens",
+  "price": 3
+}
+```
+      </IconicCode>
+    </ExerciseItem>
+    <ExerciseItem label='Add markers'
+          prompt="Add markers to the product system.">
+      <IconicCode name="pencil">
+```http ins=/"markers"/ ins="5"
+POST https://example.com/products
+
+{
+  "name": "markers",
+  "price": 5
+}
+```
+      </IconicCode>
+    </ExerciseItem>
+  </Exercises>
+</PardonPlayground>
+
+### Data Conflicts
+
+Values can be resolved by template matching on the input request,
+or provided by inputs and evaluated in expressions.  We have also
+shown how values can override the input in the case of `config` alternatives
+(like `env=stage` and `env=prod` overriding the endpoint origin).
+
+Before we introduce structured data and scopes, we just tneed to see
+that values can conflict if they are specified to two values.
+
+<PardonPlayground values="name=abc" example={`
+POST https://example.com/products
+
+{
+  "name": "abc"
+}`} config={serviceAndPingAndProductsWithConfigurableAuth}>
+
+Try changing the value of name in either the values or the input request here.
+See how pardon becomes confused
+(<span class="inline-icon"><SolidIcon name="confused"/></span>) if it can't decided what the value is.
+
+</PardonPlayground>
+
+## Data Scopes
+
+Not all requests have such simple `key=value` data.  Now that we have products,
+we'll want to let customers order them, and an order generally has a list.
+
+```http title="example/orders/create.https"
+>>>
+POST https://example.com/orders
+
+{
+  cart: [{
+    "id": "{{product}}",
+    "quantity": number("{{quantity=1}}")
+  }]
+}
+```
+
+Pardon interprets a single element array as a template for each item,
+and then evaluates each item in its own scope.  Let's see how this works here
+
+<PardonPlayground values example={`
+POST https://example.com/orders
+
+{
+  "cart": [
+    { "product": "P1001" }
+  ]
+}
+`} config={serviceWithOrdering}>
+<Exercises>
+<ExerciseItem label="Add an item" prompt="Add a cart item">
+
+Add another item to the list. Notice how the default quantity of 1
+is supplied for both.
+
+  <IconicCode name="pencil">
+```http ins="," ins={6}
+POST https://example.com/orders
+
+{
+  "cart": [
+    { "product": "P1001" },
+    { "product": "P1002" }
+  ]
+}
+```
+  </IconicCode>
+</ExerciseItem>
+<ExerciseItem label="Globals" prompt="Override the default quantity">
+  We can override the default quantity via values.
+  <IconicCode name="setting">
+```http ins=/.*/
+quantity=7
+```
+  </IconicCode>
+</ExerciseItem>
+<ExerciseItem label="Locals" prompt="Override a specific item quantity">
+  We can override the quantity for a specific item in the template
+  <IconicCode name="pencil">
+```http ins=/, "quantity": 3/
+POST https://example.com/orders
+
+{
+  "cart": [
+    { "product": "P1001", "quantity": 3 },
+    { "product": "P1002" }
+  ]
+}
+```
+  </IconicCode>
+</ExerciseItem>
+<ExerciseItem label="Scoped Compute"
+  prompt="">
+  We can use a values in the local scope (or parent scopes).
+  Try setting the quantity to a computation (last digit for the product id)
+  <IconicCode name="pencil">
+```http ins={6-9} "2"
+POST https://example.com/orders
+
+{
+  "cart": [
+    { "product": "P1001", "quantity": 3 },
+    {
+      "product": "P1002",
+      "quantity": "{{= Number(product.slice(-1))}}"
+    }
+  ]
+}
+```
+  </IconicCode>
+  and then try modifying that digit, while keeping an eye on the output.
+</ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+### Structured Values
+
+You might have noticed that we turned off the values output view for the previous
+exercise,... that's because nothing shows up there for scoped values.
+
+To fix this, we can specify export names for interfacing values with our templates.
+
+This means replacing `{{product}}` with `{{items.product}}` and 
+`{{quantity}}` with `{{items.quantity}}` to specify `items` as the export
+name for the scoped values.
+
+<PardonPlayground values editor="example/orders/create.https" data example={`
+POST https://example.com/orders
+
+{
+  "cart": [
+    { "product": "P1001", "quantity": 7 },
+    { "product": "P1002", "quantity": 42 }
+  ]
+}
+`} config={serviceWithOrdering}>
+
+<Exercises>
+  <ExerciseItem label="Bind exports"
+    prompt="Bind scoped data to export values">
+
+Use the editor (<span class="inline-icon"><SolidIcon name="code"/></span>) to bind export values to `items`, notice the
+`items` array appears in the data output.
+
+<IconicCode name="editor" titled>
+```http title="example/orders/create.https" ins="items."
+>>>
+POST https://example.com/orders
+
+{
+  cart: [{
+    "product": "{{items.product}}",
+    "quantity": number("{{items.quantity=1}}")
+  }]
+}
+```
+</IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Pass exports"
+    prompt="Pass exports as input">
+Pardon supports passing the values entirely in terms of
+the `items[]` data.  This can be useful when translating
+data in one format to another.
+
+First we delete the cart from the request
+<IconicCode name="setting">
+```http del={2-8}
+POST https://example.com/orders
+
+{
+  "cart": [
+    { "product": "P1001", "quantity": 7 },
+    { "product": "P1002", "quantity": 42 }
+  ]
+}
+```
+</IconicCode>
+
+And then we pass these values.  Now the request, for better
+or worse, can be specified without any template matching on the body. 
+<IconicCode name="setting">
+```json ins={1-4}
+items=[
+  { product: "P1001", quantity: 7 },
+  { product: "P1002", quantity: 42 }
+]
+```
+</IconicCode>
+  </ExerciseItem>
+  {/*
+  <ExerciseItem label="Rescoping">
+    As it turns out, `items=[{ product: "P1001", quantity: 7 }, { product: "P1002", quantity: 42 }]`
+    is rather long... if we don't care about the order of the items
+    so much, we might want to specify our items as a map.
+<IconicCode name='setting'>
+```
+items={
+  "P1001": { quantity: 7 },
+  "P1002": { quantity: 42 }
+}
+```
+</IconicCode>
+We can do that with the `keyed` template transformer, which 
+matches the `product` field into the `{{key}}` value and scopes
+the items as if it were a map.
+<IconicCode name="editor" titled>
+```http title="example/orders/create.https" ins=/keyed[(].*, / ins=/(?<=}])[)]/ ins="@key"
+>>>
+POST https://example.com/orders
+
+{
+  cart: keyed({ "product": "{{key}}" }, [{
+    "product": "{{items.@key}}",
+    "quantity": number("{{items.quantity=1}}")
+  }])
+}
+```
+Please try experimenting with how this matches the original request
+body and how it renders our input.
+</IconicCode>
+  </ExerciseItem>
+  <ExerciseItem label="Rescoping 2">
+    Quantity was repeated in our previous example, likely
+    in an order flow we would have more than one attribute for
+    items, but ... we could get away with even more?
+<IconicCode name='setting'>
+```
+items={ P1001: 7, P1002: 42 }
+```
+</IconicCode>
+We can do that with the `@value` references.
+<IconicCode name="editor" titled>
+```http title="example/orders/create.https" ins="items."
+>>>
+POST https://example.com/orders ins="@value"
+
+{
+  cart: keyed({ "product": "{{key}}" }, [{
+    "product": "{{items.@key}}",
+    "quantity": number("{{items.@value=1}}")
+  }])
+}
+```
+Please try experimenting with how this matches the original request
+body and how it renders our input.
+</IconicCode>
+  </ExerciseItem>
+  */}
+</Exercises>
+</PardonPlayground>
+
+### Arrays, Mix/Mux and Keyed-scopes
+
+One of the major structural challenges with Pardon is understanding lists/arrays,
+because there's not always lists, are they?
+
+In the previous `example/orders` example, the order of the items is less important
+than the association of the quantity with the product, i.e., 
+logically we would probably want to merge quantity 
+into the element based on the `id` field.
+
+<FlexyCodeGrid>
+```json
+[
+  { id: "P1001" },
+  { id: "P1002" }
+]
+```
+```json
+[{
+  id: "P1002",
+  quantity: 7
+}]
+```
+<Icon name="right-arrow" class="place-self-center grow-0"/>
+```json
+[
+  { id: "P1001" },
+  { id: "P1002", quantity: 7 }
+]
+```
+</FlexyCodeGrid>
+
+Some less desirable alternative behaviors are
+ - failing to match because the ids differ in the first element, or
+ - failing to match because the array lengths differ, or
+ - appending a third element.
+
+(We will see how to achieve the desired behavior later.)
+
+Pardon achieves some of these behaviors through different modes
+when interpreting templates.  The mode we have been using for
+collection templates has been `mix`, which is for specifying
+a schema-like-structure, and the mode we use for
+the request input template is `mux`, which is for templated data.
+
+The primary difference between `mix` and `mux` modes is how they handle 
+arrays.
+
+#### `mix` mode arrays
+In `mix` mode, a non-singular array is treated as a tuple.
+This could be useful when the position of the items is important,
+as well as the number, such as `{ "point": ["{{x}}", "{{y}}", "{{z}}"] }`.
+In this case `x`, `y` and `z` are _not_ scoped as array items.
+
+A singular array, on the other hand, is treated as a template for all
+items, and template values referenced in it are scoped to the item (they
+will _read_ from the outer scope but not resolve into it).
+
+#### `mux` mode arrays
+A `mux` mode array is that length, whatever it is.
+If the template is being applied on top of an existing array field,
+then the behavior is dependent on the base.  If the base specified a tuple,
+the array must match the length of the tuple and the fields will merge pair-wise.
+If the base is a singular array (a template for all items), then the template
+will be merged with each item.
+
+We saw this merging with `{{quantity = 1}}` applying to all items 
+in our ordering example.
+
+#### `keyed` arrays
+
+`keyed` is not a mode, it is an additional layer of structure
+that treats the array as a map based on a resolved key.  (And it is our
+key to achivieving the desired behavior we referenced earlier)
+
+To make an array `keyed` we specify a template for how to resolve the
+key along with the array. e.g., for the `example/products/list` endpoint
+we could specify a `keyed` interpretation.
+
+```http ins=/keyed.*, / ins=/(?<=}])[)]/
+keyed({ id: "{{key}}" }, [{
+  id: "{{product}}",
+  name: "{{name}}",
+  price: "{{price}}"
+}])
+```
+
+{/*
+TODO: explore ts-morph-supported alternative syntaxes like
+
+[{
+  "name": "{{name}}",
+  "price": "{{price}}"
+}].keyed({ "id": "{{key}}" })
+
+or even
+
+[...{ "id": "{{key}}" }, {
+  "name": "{{name}}",
+  "price": "{{price}}"
+}]
+
+alternatively
+
+[{ "id": "{{key}}" }, ...{
+  "name": "{{name}}",
+  "price": "{{price}}"
+}]
+
+or perhaps
+
+{ "id": "{{key}}", ...[{
+  "name": "{{name}}",
+  "price": "{{price}}"
+}]}
+*/}
+
+This makes pardon internally treat this array as a map
+```
+{
+  "P1001": { "id": "P1001", "name": "pencils", "price": 2 },
+  "P1002": { "id": "P1002", "name": "pens", "price": 3 }
+}
+```
+
+so now another array like `[{ "id": "P1003", "name": "markers" }]`
+is clearly a new element based on the `id`.
+
+This mapping also affects export scopes. 
+
+<PardonPlayground response data editor="example/products/list.https" example={`
+GET https://example.com/products
+`}  config={serviceWithOrdering}>
+<Exercises>
+  <ExerciseItem label="match response"
+    prompt="create a response template">
+First let's create a response template that exports the items as
+an array.
+<IconicCode name="setting" titled>
+```http title="example/products/list.https" ins={3-12}
+>>>
+GET https://example.com/products
+
+<<<
+200 OK
+
+[{
+  "id": "{{items.product}}",
+  "name": "{{items.name}}",
+  "price": "{{items.price}}"
+}]
+```
+</IconicCode>
+
+Copy this to the request template and then execute the request to see
+how the response data (<span class="inline-icon"><SolidIcon name="eye"/></span>) changes
+:::note
+you'll need to have some products created first
+:::
+
+  </ExerciseItem>
+  <ExerciseItem label="keyed response"
+    prompt="use keyed on the response to get a map">
+
+    Now let's remove the `{{items.product}}` value and move that to
+    an object key.
+<IconicCode name="setting" titled>
+```http title="example/products/list.https" ins=/keyed.*, / ins=/(?<=}])[)]/
+>>>
+GET https://example.com/products
+
+<<<
+200 OK
+
+keyed({ "id": "{{key}}" }, [{
+  "name": "{{items.name}}",
+  "price": "{{items.price}}"
+}])
+```
+</IconicCode>
+
+Copy this to the request template and the response data (if it's still shown)
+it will update immediately.
+    </ExerciseItem>
+    <ExerciseItem label="super-keyed response"
+    prompt="use @value and multiple outputs">
+
+    Explore changing `items.name` to `names.@value` and `items.price` to `prices.@value`, this
+    declares data exports of direct values in maps (rather than a map of objects).
+
+    See how the data output (<span class="inline-icon"><SolidIcon name="eye"/></span>) changes.
+
+    (is this wise in this case? <span class="inline-icon"><SolidIcon name="shrug"/></span>?)
+<IconicCode name="setting" titled>
+```http title="example/products/list.https" ins=/names[.]@value/ ins=/prices[.]@value/
+>>>
+GET https://example.com/products
+
+<<<
+200 OK
+
+keyed({ "id": "{{key}}" }, [{
+  "name": "{{names.@value}}",
+  "price": "{{price.@value}}"
+}])
+```
+</IconicCode>
+
+Explore here how the data output changes.
+    </ExerciseItem>
+  </Exercises>
+</PardonPlayground>
+
+#### Multi-value `keyed` arrays
+
+Unfortunately (for me), one more variant of keyed arrays is commonplace.
+This is the where there's more than one element for the same key.
+The internal representation is a map to a list, but the way Pardon
+handles this structure is a bit different.
+
+You might think this is a little crazy, but query parameters and headers are both
+commonly represented as structures.
+
+By _default_ query parameters (technically called the `search` portion of
+a request URL) is handled as a simple map, but we can turn on multi-map functionality.
+
+Let's do that here,... just to get a feel for things.
+
+<PardonPlayground editor="example/ping.https" example={`
+GET https://example.com/ping
+`} config={serviceAndPingAndProducts}>
+<Exercises>
+  <ExerciseItem label="two params"
+    prompt="add two query params on the same key">
+Let's update the request with two query params, with the same key
+<IconicCode name="pencil">
+```http ins=/[?].*/
+GET https://example.com/ping?hello=world&hello=earth
+```
+</IconicCode>
+notice that only the last one is produced.
+  </ExerciseItem>
+    <ExerciseItem label="search: multi"
+      prompt="allow multiple query params for the same">
+  Update the endpoint with `search: multi` to enable 
+  multiple query param handling.
+<IconicCode name="code" titled>
+```http title="example/ping.https" ins=/search: multi/
+search: multi
+>>>
+GET https://example.com/ping
+```
+</IconicCode>
+
+Try this again
+<IconicCode name="pencil">
+```http ins=/[?].*/
+GET https://example.com/ping?hello=world&hello=earth
+```
+</IconicCode>
+and now both parameters are produced.
+  </ExerciseItem>
+  <ExerciseItem label="search: multi - merging"
+      prompt="include parameters in the tempalte">
+
+Include one or more query params in the base template
+<IconicCode name="code" titled>
+```http title="example/ping.https" ins=/[?].*/
+search: multi
+>>>
+GET https://example.com/ping?hello=world
+```
+</IconicCode>
+
+And try this again
+<IconicCode name="pencil">
+```http ins=/[?].*/
+GET https://example.com/ping?hello=world&hello=earth
+```
+</IconicCode>
+
+Also try another value, like
+<IconicCode name="pencil">
+```http ins=/venus/
+GET https://example.com/ping?hello=venus&hello=earth
+```
+</IconicCode>
+Or you can use a template and see how that merges
+(it merges with the first one).
+<IconicCode name="editor" titled>
+```http title="example/ping.https" ins=/[?].*/
+search: multi
+>>>
+GET https://example.com/ping?hello={{?greeting}}
+```
+</IconicCode>
+  </ExerciseItem>
+</Exercises>
+</PardonPlayground>
+
+## Next Steps
+
+Alright! That's _an _introduction on dataflow.  We see there's many
+ways to organize collections and conform request and response
+processing to match the data structures that suit them.
+
+The next section will be on integrating scripts, and then
+we'll cover testcases, followed by project layering / organization and sharing.
+
+<CollectionLinkCard href="/intro/scripting" />
