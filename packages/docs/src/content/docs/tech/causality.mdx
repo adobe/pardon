@@ -44,11 +44,11 @@ Other http frameworks provide a single thread of execution, and a global
 environment object which is used to configure each request and response in turn.
 
 With Pardon, we offer the same ergonomics of a "global object", but the behavior
-is stable across promises:  only awaited "assignments" to the "global object" are
-seen.
+is independent of the execution order: since only _awaited_ assignments to the
+global object count.
 
 The base of this is a tracking system that understands
-"what happened" to reach a certain point.
+_what happened_ to reach a certain point, by way of a series of tracked values.
 
 In a single threaded usage, `track(value)` looks like it pushes a value
 onto a list and `awaited()` returns that list.
@@ -96,14 +96,16 @@ awaited(); // ['f', 'g']
 ```
 
 Notice that `awaited()` above can return any combination of `'f'` and/or `'g'`
-in any order: depending on the order they were awaited,... rather than 
-the order the `track` calls were executed.
+in different orders: depending purely on the order they were awaited,
+rather than the order the `track` calls were actually run!
 
-This might feel a bit weird, but it is _stable_, as the `awaited()` result is
-based on the shape of the code, rather than the unstable order of execution.
+This might feel a bit weird at first, but it is _stable_, as the composition/order of the `awaited()`
+values will be based only on the (stable) lexical shape of the code, rather than the
+unstable order of execution.
 
-We use this to track assignments to a global environment value as
-well as tracking the requests that comprise a particular test.
+In tests, we use this to track assignments to a global environment value.
+We also track dependent requests that might be executed via script helpers to
+surface dependent requests in `favor`.
 
 ## How this Tracks
 
@@ -158,18 +160,14 @@ executes synchronously as well, while
 
 Like all non-trivial abstractions, this one leaks: Memory.
 
-Obviously, the values in the `awaited()` list are "referenced" by the
-promises that carry them, but that reference is implemented by a graph
-of the execution of all the promises.
-
-The graph _is_ garbage-collected along with promises, as much as possible,
+The awaited values _are_ garbage-collected along with promises, as much as possible,
 but  we have two helpers to cut the graph for correctness and
 better garbage collection, respectively.
 
- - `shared(() => { ... })` cuts the graph into the execution of `...`.
- - `disconnected(() => { ... })` cuts the graph leaving the execution `...`.
+ - `shared(() => { ... })` drops awaited values going into the execution of `...`.
+ - `disconnected(() => { ... })` drops awaited values leaving the execution of `...`.
 
-Both of these methods immediately execute their function and
+Both of these methods asynchronosuly start executing their function and
 return a promise for its result.
 
 ### Shared Execution
@@ -186,7 +184,7 @@ function getAuthToken() {
 in this case the `authTokenPromise` will inherit the tracked values
 leading to the first call of `fetchAuthToken()` only.  This introduces
 a race condition as the tracked results of `getAuthToken()` would
-depend on who called it first.  Additioanlly the `fetchAuthToken()` function
+depend on who called it first.  Additionally the `fetchAuthToken()` function
 would have access to the `awaited()` values of its first caller.
 
 To fix this, we use `shared` to disconnect the execution graph leading into the call.
