@@ -46,7 +46,8 @@ $ npm run package --prefix=packages/favor # also rebuilds pardon's core
 
 Optionally, you can link the built application as a command-line tool as well.
 ```bash title="optional"
-$ npm link --prefix=packages/core
+$ cd packages/core
+$ npm link .
 # undo this with npm uninstall -g pardon
 ```
 
