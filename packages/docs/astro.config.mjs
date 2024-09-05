@@ -100,6 +100,7 @@ export default defineConfig({
       ],
       components: {
         PageFrame: "@components/starlight/PageFrame.astro",
+        Footer: "@components/starlight/Footer.astro"
       },
     }),
     solid(),
