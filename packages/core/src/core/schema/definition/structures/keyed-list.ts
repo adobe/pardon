@@ -74,10 +74,11 @@ function keyedList<T>(
           key,
           tempContext(context) as SchemaMergingContext<T>,
         ),
-        object: expandTemplate(
-          object,
-          context as unknown as SchemaMergingContext<Record<string, T>>,
-        ),
+        object: expandTemplate(object, {
+          ...context,
+        } as SchemaMergingContext<unknown> as SchemaMergingContext<
+          Record<string, T>
+        >),
         multivalued: false,
       });
     },
@@ -358,15 +359,15 @@ function defineMvKeyedList<T>(self: KeyedListRepresentation<T, true>) {
 }
 
 export function keyed<T>(
-  schema: Template<Partial<T>>,
+  keyTemplate: Template<Partial<T>>,
   structure?: Template<Record<string, T>>,
 ): Schematic<T[]> {
-  return keyedList(schema, structure) as Schematic<T[]>;
+  return keyedList(keyTemplate, structure) as Schematic<T[]>;
 }
 
 keyed.mv = function mv<T>(
-  schema: Template<Partial<NoInfer<T>>>,
+  keyTemplate: Template<Partial<NoInfer<T>>>,
   structure?: Template<Record<string, T[]>>,
 ): Schematic<T[]> {
-  return mvKeyedList(schema, structure) as Schematic<T[]>;
+  return mvKeyedList(keyTemplate, structure) as Schematic<T[]>;
 };

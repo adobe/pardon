@@ -65,7 +65,7 @@ export type Template<R> =
  * Applications:
  *   - changing context modes and applying default expansions.
  *   - wrapping schemas like reference schemas.
- *   - other markup of data.
+ *   - representing variants of structures and relationships not directly implied by a data template.
  */
 export type SchematicOps<T> = {
   expand(context: SchemaMergingContext<T>): Schema<T>;
@@ -103,7 +103,7 @@ export type SchemaOps<T> = {
    *  - returns undefined if the value is incompatible, or
    *  - returns an unmodified copy of the same schematic, often if the value is missing
    *  - returns a modified copy of the current schematic, incorporating the value.
-   *  - throws an execption if the value conflicts in some way
+   *  - throws an execption if the value conflicts in some ugly way
    *
    * The context can also be updated with definitions gleaned from the merge.
    *
@@ -115,6 +115,12 @@ export type SchemaOps<T> = {
    * Rendering evaluates a result of this schema from the current context.
    */
   render(context: SchemaRenderContext): Promise<T | undefined>;
+
+  /**
+   * Resolves the current value.  Only some structures need to support this.
+   * @param context the current merging context
+   */
+  resolve?(context: SchemaContext<T>): T | undefined;
 };
 
 /**
@@ -163,7 +169,7 @@ export type ScopeIndex =
       key?: number;
     };
 
-export type ResolvedValueOptions = { secrets?: boolean };
+export type ResolvedValueOptions = { secrets?: boolean; boxed?: boolean };
 
 export type SchemaScope = {
   clone(context: SchemaContext): SchemaScope;

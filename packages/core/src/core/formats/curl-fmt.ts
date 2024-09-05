@@ -51,7 +51,7 @@ function stringify(
   const url = intoURL(request);
 
   return [
-    `curl ${method !== "GET" ? `--request ${method} ` : ""}${location ? "--location " : ""}${quot(url)}${
+    `curl ${method !== "GET" ? `--request ${method} ` : ""}${location ? "--location " : ""}"${quot(url)}"${
       include ? " --include" : ""
     }`,
     ...headerList(headers).map(

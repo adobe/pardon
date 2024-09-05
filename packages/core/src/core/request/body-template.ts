@@ -10,13 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { syncEvaluation } from "../expression.js";
+import { jsonSchemaTransform, syncEvaluation } from "../expression.js";
 import { Schematic, Template } from "../schema/core/types.js";
+import { datums } from "../schema/definition/datum.js";
 import { base64Encoding } from "../schema/definition/encodings/base64-encoding.js";
 import { jsonEncoding } from "../schema/definition/encodings/json-encoding.js";
 import { textTemplate } from "../schema/definition/encodings/text-encoding.js";
 import { urlEncodedFormTemplate } from "../schema/definition/encodings/url-encoded.js";
-import { scalars } from "../schema/definition/scalars.js";
+import { createNumber } from "../schema/definition/scalar.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { redact } from "../schema/definition/structures/redact.js";
 import { referenceTemplate } from "../schema/definition/structures/reference.js";
@@ -43,22 +44,22 @@ const encodings = {
     return textTemplate(value);
   },
   raw(value: string) {
-    return textTemplate(scalars.antipattern<string>(value));
+    return textTemplate(datums.antipattern<string>(value));
   },
 } satisfies Record<string, (...args: any) => Schematic<string>>;
 
 export type EncodingTypes = keyof typeof encodings;
 
-const bodyGlobals: Record<string, unknown> = {
+export const bodyGlobals = {
   false: false,
   true: true,
   null: null,
   ...encodings,
-  bigint: scalars.bigint,
-  nullish: scalars.null,
-  string: scalars.string,
-  number: scalars.number,
-  bool: scalars.boolean,
+  bigint: <T>(x: Template<T>) => referenceTemplate<bigint>({}).of(x).bigint,
+  nullable: <T>(x: Template<T>) => referenceTemplate({}).of(x).nullable,
+  string: <T>(x: Template<T>) => referenceTemplate<string>({}).of(x).string,
+  number: <T>(x: Template<T>) => referenceTemplate<number>({}).of(x).number,
+  bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).of(x).bool,
   redact,
   mux: muxTemplate,
   mix: mixTemplate,
@@ -67,6 +68,9 @@ const bodyGlobals: Record<string, unknown> = {
   keyed,
   tuple,
   unwrapSingle,
+  $$number(source: string) {
+    return createNumber(source);
+  },
 };
 
 export function evalTemplate(schemaSource: string): Schematic<unknown> {
@@ -84,6 +88,7 @@ export function evalTemplate(schemaSource: string): Schematic<unknown> {
 
       return undefined;
     },
+    transform: jsonSchemaTransform,
   }) as Schematic<unknown>;
 }
 

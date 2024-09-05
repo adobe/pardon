@@ -12,6 +12,8 @@ governing permissions and limitations under the License.
 import { depatternize, patternize } from "../schema/core/pattern.js";
 import { mapObject } from "../../util/mapping.js";
 
+function PardonSearchParams() {}
+
 export function intoSearchParams(
   params:
     | string
@@ -101,7 +103,9 @@ export function intoSearchParams(
     },
   } satisfies URLSearchParams;
 
-  const urlSearchParams = {} as URLSearchParams;
+  const urlSearchParams = Object.create(
+    PardonSearchParams.prototype,
+  ) as URLSearchParams;
 
   Object.defineProperties(
     urlSearchParams,

@@ -9,11 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { scalars } from "./definition/index.js";
 import { createMergingContext } from "./core/context.js";
 import { diagnostic, loc } from "./core/context-util.js";
 import { stubSchema } from "./definition/structures/stub.js";
-import { isScalar } from "./definition/scalar-type.js";
 import { expandArray } from "./definition/arrays.js";
 import { expandObject } from "./definition/objects.js";
 import {
@@ -30,6 +28,8 @@ import {
   isSchema,
   isSchematic,
 } from "./core/schema-ops.js";
+import { datums } from "./definition/datum.js";
+import { isScalar } from "./definition/scalar.js";
 
 export function templateSchematic<
   T,
@@ -62,6 +62,17 @@ export function expandInContext<T>(
 ): Schema<T> {
   const { mode, template } = context;
 
+  if (isScalar(template)) {
+    if (mode === "match") {
+      return expandInContext({
+        ...context,
+        template: datums.antipattern(template),
+      });
+    } else {
+      return expandInContext({ ...context, template: datums.datum(template) });
+    }
+  }
+
   if (Array.isArray(template)) {
     return expandArray(
       context as SchemaMergingContext<T extends unknown[] ? T : never>,
@@ -85,17 +96,6 @@ export function expandInContext<T>(
       return ops.expand(context);
     } else {
       return template as Schema<T>;
-    }
-  }
-
-  if (isScalar(template)) {
-    if (mode === "match") {
-      return expandInContext({
-        ...context,
-        template: scalars.antipattern(template),
-      });
-    } else {
-      return expandInContext({ ...context, template: scalars.any(template) });
     }
   }
 

@@ -22,7 +22,7 @@ export type RedactedOps<T> = SchematicOps<T> & {
   readonly redacted: true;
 };
 
-export function redact<T>(template: Template<T>) {
+export function redact<T>(template?: Template<T>) {
   return defineSchematic<RedactedOps<T>>({
     blend(context, next) {
       const applied = next({ ...context, template });

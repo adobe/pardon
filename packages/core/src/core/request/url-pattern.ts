@@ -20,6 +20,8 @@ type URLTemplate = {
   hash?: string;
 };
 
+function PardonURL() {}
+
 export function parseURL(
   url: string | URL | URLTemplate,
 ):
@@ -125,7 +127,7 @@ export function intoURL(url: string | URL | URLTemplate): URL {
     },
   } satisfies URL;
 
-  const urlObject = {} as URL;
+  const urlObject = Object.create(PardonURL.prototype) as URL;
 
   Object.defineProperties(
     urlObject,

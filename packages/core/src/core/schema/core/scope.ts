@@ -12,8 +12,8 @@ governing permissions and limitations under the License.
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
 import { PardonError } from "../../error.js";
-import { isOptional, isSecret } from "../definition/hinting.js";
-import { isScalar } from "../definition/scalar-type.js";
+import { isNoExport, isOptional, isSecret } from "../definition/hinting.js";
+import { boxScalar, isScalar, unboxObject } from "../definition/scalar.js";
 import { diagnostic, loc } from "./context-util.js";
 import { DEBUG } from "./debugging.js";
 import { isMergingContext } from "./schema.js";
@@ -87,6 +87,7 @@ export class Scope implements SchemaScope, ScopeData {
       Object.values(this.values).filter(
         ({ identifier, path }) =>
           depth === path.length &&
+          !isNoExport(this.declarations[identifier]) &&
           (options?.secrets || !isSecret(this.declarations[identifier])) &&
           !this.importedValues.has(identifier),
       ),
@@ -144,14 +145,19 @@ export class Scope implements SchemaScope, ScopeData {
 
   localValues(options: ResolvedValueOptions): Record<string, unknown> {
     const localValues = mapObject(this.values, {
-      values: ({ value }) => value,
+      values: ({ value }) => (options.boxed ? value : unboxObject(value)),
       select: ({ expr }, key) =>
-        (options?.secrets || !isSecret(expr)) && !this.importedValues.has(key),
+        !isNoExport(expr) &&
+        (options?.secrets || !isSecret(expr)) &&
+        !this.importedValues.has(key),
     });
 
     const exportValues = this.exportValues(options);
 
-    return { ...exportValues, ...localValues };
+    return {
+      ...(options.boxed ? exportValues : unboxObject(exportValues)),
+      ...localValues,
+    };
   }
 
   resolvedValues(
@@ -272,6 +278,8 @@ export class Scope implements SchemaScope, ScopeData {
 
     const current = this.values[name];
 
+    value = boxScalar(value);
+
     // extra fuzzy match because null values might resolve to string "null" + type null, etc...
     if (current) {
       if (
@@ -326,7 +334,7 @@ export class Scope implements SchemaScope, ScopeData {
       path,
       context,
       expr: this.declarations[identifier],
-      ...(DEBUG && { stack: new Error("defined:here") }),
+      ...(DEBUG ? { stack: new Error("defined:here") } : {}),
     };
 
     return value;

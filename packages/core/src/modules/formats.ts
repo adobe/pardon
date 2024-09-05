@@ -46,3 +46,5 @@ export {
   parseSmokeConfig,
   type SmokeConfig,
 } from "../entry/testing/smoking.js";
+
+export { JSON } from "../core/json.js";

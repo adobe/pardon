@@ -16,7 +16,6 @@ import {
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
-import { scalars } from "../../src/core/schema/definition/scalars.js";
 import { mixing } from "../../src/core/schema/template.js";
 import { arrays } from "../../src/core/schema/definition/arrays.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
@@ -24,6 +23,8 @@ import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
 import { keyed } from "../../src/core/schema/scheming.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
+import { bodyGlobals } from "../../src/core/request/body-template.js";
+import { boxObject } from "../../src/core/schema/definition/scalar.js";
 
 describe("schema tests", () => {
   it("should create schemas for basic types", async () => {
@@ -125,22 +126,25 @@ describe("schema tests", () => {
 
   it("should render objects with expressions", async () => {
     const s = mixing({
-      a: scalars.number("{{abc = 1 + 1}}"),
-      b: scalars.number("{{xyz = 2 + 2}}"),
+      a: bodyGlobals.number("{{abc = 1 + 1}}"),
+      b: bodyGlobals.number("{{xyz = 2 + 2}}"),
       c: "{{pqr = abc + xyz}}",
     });
 
-    assert.deepStrictEqual(await executeOp(s, "render", renderCtx(s)), {
-      a: 2,
-      b: 4,
-      c: 6,
-    });
+    assert.deepStrictEqual(
+      await executeOp(s, "render", renderCtx(s)),
+      boxObject({
+        a: 2,
+        b: 4,
+        c: 6,
+      }),
+    );
   });
 
   it("should match objects without all values", async () => {
     const s = mixing({
-      a: scalars.number("{{abc = 1 + 1}}"),
-      b: scalars.number("{{xyz = 2 + 2}}"),
+      a: bodyGlobals.number("{{abc = 1 + 1}}"),
+      b: bodyGlobals.number("{{xyz = 2 + 2}}"),
       c: "{{pqr = abc + xyz}}",
       d: { x: "{{d}}" },
     });
@@ -190,7 +194,7 @@ describe("schema tests", () => {
 
   it("should merge and then render values in scope", async () => {
     const s = mixing({
-      global: scalars.number("{{g = '100'}}"),
+      global: bodyGlobals.number("{{g = '100'}}"),
       a: "{{a = 1}}",
       b: "{{b = 1}}",
       ab: "{{?ab = a + b}}",
@@ -216,16 +220,19 @@ describe("schema tests", () => {
 
     const rendered = await executeOp(merged!, "render", renderCtx(merged!));
 
-    assert.deepStrictEqual(rendered, {
-      global: 100,
-      a: 1,
-      b: 1,
-      ab: 2,
-      list: [
-        { a: 2, b: 3, c: 105, ab: 2 },
-        { a: 5, b: 8, c: 113, ab: 2 },
-      ],
-    });
+    assert.deepStrictEqual(
+      rendered,
+      boxObject({
+        global: 100,
+        a: 1,
+        b: 1,
+        ab: 2,
+        list: [
+          { a: 2, b: 3, c: 105, ab: 2 },
+          { a: 5, b: 8, c: 113, ab: 2 },
+        ],
+      }),
+    );
   });
 
   it("should not allow double definitions", async () => {

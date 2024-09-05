@@ -303,8 +303,10 @@ function mvMergeElements<T>(
           if (match) {
             matched[i] = merge(item, {
               ...itemContext(context, scoped, i),
+              mode: "meld",
               template: prime,
             } as SchemaMergingContext<T>)!;
+
             break;
           }
         } catch (error) {

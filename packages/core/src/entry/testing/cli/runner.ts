@@ -44,7 +44,7 @@ import { notifyFastFailed } from "./failfast.js";
 import { applySmokeConfig, SmokeConfig } from "../smoking.js";
 import * as YAML from "yaml";
 import { cleanObject } from "../../../util/clean-object.js";
-import { KV } from "../../../modules/formats.js";
+import { KV } from "../../../core/formats/kv-fmt.js";
 
 export type TestSetup = {
   test: () => Promise<void>;

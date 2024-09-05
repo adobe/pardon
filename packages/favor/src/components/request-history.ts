@@ -22,6 +22,7 @@ import {
 import { ExecutionOutboundResult } from "../signals/pardon-execution.ts";
 import { HistoryTree } from "./RequestSummaryTree.tsx";
 import { mapObject } from "pardon/utils";
+import { persistJson } from "../util/persistence.ts";
 
 export type Trace = {
   trace: number;
@@ -40,6 +41,7 @@ const [history, setHistory] = makePersisted(
   {
     name: "history",
     storage: localStorage,
+    ...persistJson,
   },
 );
 
@@ -88,7 +90,7 @@ export const { traces } = createRoot(() => {
     });
   });
 
-  const traces = createMemo(() => history().traces);
+  const traces = createMemo(() => history()?.traces ?? {});
 
   return { traces };
 });
@@ -104,7 +106,9 @@ export function traceCurrentRequest(
       const trace = request?.context.trace;
 
       updateActiveTrace((previous) => {
-        setHistory(({ traces }) => {
+        setHistory((prev) => {
+          const { traces = {} } = prev || {};
+
           if (
             typeof previous !== "undefined" &&
             traces[previous] &&

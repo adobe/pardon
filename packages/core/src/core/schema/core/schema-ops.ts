@@ -13,6 +13,7 @@ governing permissions and limitations under the License.
 import { DEBUG } from "./debugging.js";
 import {
   Schema,
+  SchemaContext,
   SchemaMergingContext,
   SchemaOps,
   Schematic,
@@ -24,7 +25,7 @@ import {
  */
 export function executeOp<
   T,
-  Operation extends Exclude<keyof SchemaOps<T>, "merge">,
+  Operation extends Exclude<keyof SchemaOps<T>, "merge" | "resolve">,
 >(
   schema: Schema<T>,
   op: Operation,
@@ -42,6 +43,14 @@ export function executeOp<
   return (schemaOps[op] as SchemaOperation<T, Operation>)(
     ...(args as any),
   ) as ReturnType<SchemaOperation<T, Operation>>;
+}
+
+export function maybeResolve<T>(
+  schema: Schema<T>,
+  context: SchemaContext<T>,
+): T | undefined {
+  const { resolve } = exposeSchema<SchemaOps<T>>(schema);
+  return resolve?.(context);
 }
 
 // ---- internal utility types ----

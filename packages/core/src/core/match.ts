@@ -25,8 +25,8 @@ import { mergeConfigurations } from "../config/collection.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
 import { ProgressiveMatch } from "./progress.js";
 import { Schema, SchemaMergingContext } from "./schema/core/types.js";
-import { isScalar } from "./schema/definition/scalar-type.js";
 import { createEndpointEnvironment } from "./endpoint-environment.js";
+import { isScalar } from "./schema/definition/scalar.js";
 
 function selectEndpoints(
   endpoints: Record<string, LayeredEndpoint>,

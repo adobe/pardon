@@ -9,8 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { JSON } from "../../../json.js";
 import { evalTemplate } from "../../../request/body-template.js";
 import { Schematic, Template } from "../../core/types.js";
+import { createNumber } from "../scalar.js";
 import { EncodingType, encodingTemplate } from "./encoding.js";
 
 const jsonEncodingType: EncodingType<string, unknown> = {
@@ -25,7 +27,13 @@ const jsonEncodingType: EncodingType<string, unknown> = {
     }
 
     if (mode === "match") {
-      return JSON.parse(template);
+      return JSON.parse(template, (_, value, { source }) => {
+        if (typeof value === "number") {
+          return createNumber(source, value);
+        }
+
+        return value;
+      });
     }
 
     return evalTemplate(template);
@@ -39,7 +47,7 @@ const jsonEncodingType: EncodingType<string, unknown> = {
       return JSON.stringify(output, null, 2);
     }
 
-    return JSON.stringify(output);
+    return JSON.stringify(output, null, 0);
   },
 };
 

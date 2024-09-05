@@ -64,7 +64,7 @@ export default function ValuesInput<
     on(value, (value) => {
       try {
         const args = intoArgs(value);
-        const data = extractKVs(args);
+        const data = extractKVs(args, true);
 
         if (props.config) {
           const result = parseArgs({

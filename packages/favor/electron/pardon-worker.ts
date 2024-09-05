@@ -128,7 +128,7 @@ registerSequenceNotificationHooks({
   onSequenceStepStart({ request, values }) {
     const store = currentHttpSequence.getStore()!;
     parentPort!.postMessage(
-      nofun({
+      ship({
         id: "test:event",
         type: "test:step:start",
         step: `${store.key}[${store.stepCount}]`,
@@ -143,7 +143,7 @@ registerSequenceNotificationHooks({
   onSequenceStepEnd({ trace, inbound: { redacted }, outcome, values: result }) {
     const store = currentHttpSequence.getStore()!;
     parentPort!.postMessage(
-      nofun({
+      ship({
         id: "test:event",
         type: "test:step:end",
         step: `${store.key}[${store.stepCount++}]`,
@@ -164,12 +164,12 @@ registerSequenceNotificationHooks({
           key,
           sequence,
           stepCount: 1,
-          values: nofun(values),
+          values: ship(values),
         },
         async () => {
           try {
             parentPort!.postMessage(
-              nofun({
+              ship({
                 id: "test:event",
                 type: "test:sequence:start",
                 run: currentTestRun.getStore(),
@@ -181,7 +181,7 @@ registerSequenceNotificationHooks({
             const result = await callback();
 
             parentPort!.postMessage(
-              nofun({
+              ship({
                 id: "test:event",
                 type: "test:sequence:complete",
                 run: currentTestRun.getStore(),
@@ -192,7 +192,7 @@ registerSequenceNotificationHooks({
             return result;
           } catch (error) {
             parentPort!.postMessage(
-              nofun({
+              ship({
                 id: "test:event",
                 type: "test:sequence:complete",
                 run: currentTestRun.getStore(),
@@ -222,7 +222,7 @@ const tracingHooks = {
 
     return {
       id: "trace:rendering" as const,
-      trace: nofun(payload),
+      trace: ship(payload),
     };
   },
   onRenderComplete({
@@ -248,7 +248,7 @@ const tracingHooks = {
 
     return {
       id: "trace:rendered" as const,
-      trace: nofun(payload as Optional<typeof payload, "secure">),
+      trace: ship(payload as Optional<typeof payload, "secure">),
     };
   },
   onSend({ context: { trace, timestamps, durations } }) {
@@ -261,7 +261,7 @@ const tracingHooks = {
 
     return {
       id: "trace:sent" as const,
-      trace: nofun(payload),
+      trace: ship(payload),
     };
   },
   onResult({
@@ -290,7 +290,7 @@ const tracingHooks = {
 
     return {
       id: "trace:completed" as const,
-      trace: nofun(payload as Optional<typeof payload, "secure">),
+      trace: ship(payload as Optional<typeof payload, "secure">),
     };
   },
   onError(error, stage, trace) {
@@ -311,7 +311,7 @@ async function initializePardonAndLoadSamples(
     traced(
       mapObject(tracingHooks, (fn) => (...args) => {
         disconnected(() => {
-          parentPort!.postMessage(nofun((fn as any)(...args)));
+          parentPort!.postMessage(ship((fn as any)(...args)));
         });
       }) as typeof tracingHooks,
       Date.now(), // should make trace ids unique per run?
@@ -384,7 +384,7 @@ parentPort.on("message", async ({ id, action, args }) => {
 
   try {
     parentPort.postMessage(
-      nofun({
+      ship({
         id,
         status: "fulfilled",
         value: await handling(action)(...args),
@@ -392,7 +392,7 @@ parentPort.on("message", async ({ id, action, args }) => {
     );
   } catch (error) {
     parentPort.postMessage(
-      nofun({
+      ship({
         id,
         status: "rejected",
         reason: String(error?.message ?? error),
@@ -401,16 +401,23 @@ parentPort.on("message", async ({ id, action, args }) => {
   }
 });
 
-function nofun<T>(value: T): T {
+function ship<T>(value: T): T {
   switch (true) {
     case typeof value === "function":
       return undefined;
     case !value || typeof value !== "object":
       return value;
     case Array.isArray(value):
-      return value.map(nofun) as T;
+      return value.map(ship) as T;
+    case value instanceof Number:
+    case value instanceof BigInt:
+      return {
+        $$$type: value instanceof Number ? "number" : "bigint",
+        value: value.valueOf(),
+        source: value["source"],
+      } as T;
     default:
-      return mapObject(value as any, nofun) as T;
+      return mapObject(value as any, ship) as T;
   }
 }
 
@@ -607,11 +614,11 @@ const handlers = {
     );
 
     parentPort!.postMessage(
-      nofun({
+      ship({
         id: "test:event",
         type: "test:run:start",
         run: testRun,
-        tests: nofun(tests),
+        tests: ship(tests),
         input,
       }) satisfies TestStepPayloads["test:run:start"],
     );
@@ -632,7 +639,7 @@ const handlers = {
                 let emitEnv: Record<string, any>;
                 try {
                   parentPort.postMessage(
-                    nofun({
+                    ship({
                       id: "test:event",
                       type: "test:case:start",
                       run: testRun,
@@ -661,7 +668,7 @@ const handlers = {
                   console.info("testcase complete: ", testcase, errors);
 
                   parentPort!.postMessage(
-                    nofun({
+                    ship({
                       id: "test:event",
                       type: "test:case:complete",
                       run: testRun,

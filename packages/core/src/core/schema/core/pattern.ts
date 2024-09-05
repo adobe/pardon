@@ -61,6 +61,10 @@ export type PatternVar = {
 const paramPattern =
   /^([.?!@#:~*/+-]+)?((?:[a-z$_][a-z0-9_$]*)(?:[.][@a-z$_][a-z0-9_$]*)*)?\s*(?:=\s*((?:[^%]|%\s*[^/])*)?)?(?:%\s*([/].*))?$/i;
 
+const literal = /(?:[^{]|[{][^{])+/;
+const squote = /['](?:(?:[^'\\]|[\\].)*)[']/;
+const dquote = /["](?:(?:[^"\\]|[\\].)*)["]/;
+
 function parseRex(rex?: string) {
   if (!rex) return;
 
@@ -73,6 +77,8 @@ function parseRex(rex?: string) {
   return new RegExp(re, flags);
 }
 
+const exprMatcher = re`[$][$]expr[(](${dquote})[)]`;
+
 export function parseVariable(source: string) {
   const match = paramPattern.exec(source.trim());
 
@@ -80,7 +86,11 @@ export function parseVariable(source: string) {
     return null;
   }
 
-  const [, hint, param, expr, rex] = match;
+  let [, hint, param, expr, rex] = match;
+  const exprMatch = expr && exprMatcher.exec(expr); // $$expr("...") encodes source with possible }}
+  if (exprMatch) {
+    expr = JSON.parse(exprMatch[1]);
+  }
 
   return {
     param: param || "",
@@ -396,15 +406,13 @@ function litre(literal: string) {
   return literal.replace(/[[\]()|\\.*^$+&?{]/g, (match) => "\\" + match);
 }
 
-const literal = /(?:[^{]|[{][^{])+/;
-const squote = /['](?:(?:[^'\\]|[\\].)*)[']/;
-const dquote = /["](?:(?:[^"\\]|[\\].)*)["]/;
-
 // this matches
 // - any amount of "not a {", or "{" followed by "not a {" text, to be included literally,
 // - "{{...}}" with potentially quoted strings inside, if the entire pattern is a quoted
 //   string, treat it as a literal.
 const patternmatcher = re.g`(${literal})|[{][{]((?:${squote}|${dquote}|[^"'}]|[}][^"'}])*)[}][}]`;
+const squotematcher = re`^\s*${squote}\s*$`;
+const dquotematcher = re`^\s*${dquote}\s*$`;
 
 function replace(text: string, replacer: Replacer) {
   let index = 0;
@@ -412,10 +420,10 @@ function replace(text: string, replacer: Replacer) {
   return String(text ?? "").replace(
     patternmatcher,
     (match, literal, spec, offset: number) => {
-      if (re`^\s*${squote}\s*$`.test(spec)) {
+      if (squotematcher.test(spec)) {
         literal = new Function(`return ${spec}`)(); // JSON.parse doesn't handle single-quotes
         spec = null;
-      } else if (re`^\s*${dquote}\s*$`.test(spec)) {
+      } else if (dquotematcher.test(spec)) {
         literal = JSON.parse(spec);
         spec = null;
       }

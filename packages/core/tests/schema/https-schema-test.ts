@@ -10,7 +10,6 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { describe, it } from "node:test";
-import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 import {
   createMergingContext,
   createRenderContext,
@@ -25,6 +24,11 @@ import {
 } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
+import {
+  applyTsMorph,
+  jsonSchemaTransform,
+} from "../../src/core/expression.js";
+import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 
 describe("https-schema-tests", () => {
   it("should abc", async () => {
@@ -440,4 +444,95 @@ describe("https-schema-tests", () => {
       }),
     );
   }
+
+  // operator overloading - JSON edition.
+  //   - (...) -> don't transform the contents, this expression is to be evaluated by the pardon render engine
+  //   - /.../ -> anonymous regex match /.../ :: "{{ % /.../ }}"
+  //   - $x = (...) -> bind $x to the variable :: $x.of("{{ = (...) }}")
+  //   - $x % /.../ -> bind $x to the variable with regex /.../ :: $x.of("{{ % /.../ }}")
+  //   - $x = (...) % /.../ -> bind $x to the variable with regex /.../ :: $x.of("{{ = (...) % /.../ }}")
+  //   - $x = ... -> bind $x to the structure :: $x.of(...)
+  //   - $x! -> mark $x required for match :: $x.required
+  //   - void $x -> mark $x optional for match :: $x.optional
+  //   - $x?.$y -> mark $y optional for match :: $x.$y.optional
+
+  const transforms = (testname: string) => ({
+    from: (source: string) => ({
+      to: (expected: string) => {
+        it(testname, () => {
+          const transformed = applyTsMorph(source.trim(), jsonSchemaTransform);
+          assert.equal(transformed, expected.trim());
+        });
+      },
+    }),
+  });
+
+  transforms("parens-to-expressions").from("(a)").to(`
+      "{{ = $$expr(\\"a\\") }}"
+  `);
+
+  transforms("parens-as-assignments")
+    .from("$b = ('hello')")
+    .to(`"{{ b = $$expr(\\"'hello'\\") }}"`);
+
+  transforms("parens-with-noexport-modifier")
+    .from("$b.noexport = ('hello')")
+    .to(`"{{ :b = $$expr(\\"'hello'\\") }}"`);
+
+  transforms("parens-with-redact-modifier")
+    .from("$b.redact = ('hello')")
+    .to(`"{{ @b = $$expr(\\"'hello'\\") }}"`);
+
+  transforms("plus-as-mux").from("+['hello']").to(`mux(['hello'])`);
+  transforms("minus-as-mix").from("-{ d: 'world' }").to(`mix({ d: 'world' })`);
+
+  // todo: create a template that can merge two templates,
+  // maybe
+  //        and("{{ a }}", "{{ b = c }}")
+  transforms("reference-reference")
+    .from("$a = $b = (c)")
+    .to(`$a.of("{{ b = $$expr(\\"c\\") }}")`);
+
+  transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`);
+
+  transforms("regexp-binding").from("$a = /abc/").to(`"{{ a % /abc/ }}"`);
+
+  transforms("regexp-binding-and-value")
+    .from("$a = (x) % /abc/")
+    .to(`"{{ a = $$expr(\\"x\\") % /abc/ }}"`);
+
+  transforms("template-binding")
+    .from("`<<${ $abc }::${ $xyz.$pqr = 100+5 }>>`")
+    .to(`"<<{{ abc }}::{{ xyz.pqr = $$expr(\\"100+5\\") }}>>"`);
+
+  transforms("kv-expr")
+    .from(`[$key, undefined] * [ [$headers.key, $headers.value] ]`)
+    .to("keyed([$key, undefined], [[$headers.key, $headers.value]])");
+
+  transforms("kv-expr")
+    .from(`{ id: $key } ** { id: $map.key, value: $map.value }`)
+    .to("keyed.mv({ id: $key }, { id: $map.key, value: $map.value })");
+
+  transforms("array-with-value")
+    .from(`{ x: [$a.value] }`)
+    .to(`{ x: [$a.value] }`);
+
+  transforms("kv-with-computed-properties").from(
+    `
+{ id: $key } * [{
+  id: $map.key,
+  a: "{{map.value}}",
+  a1: ( value + 1 )
+}]`,
+  ).to(`
+keyed({ id: $key }, [{
+        id: $map.key,
+        a: "{{map.value}}",
+        a1: "{{ = $$expr(\\"value + 1\\") }}"
+    }])
+`);
+
+  transforms("function-calls")
+    .from("form({ x: $a = 10 })")
+    .to('form({ x: $a.of($$number("10")) })');
 });

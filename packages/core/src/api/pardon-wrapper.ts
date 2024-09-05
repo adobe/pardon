@@ -18,7 +18,7 @@ import {
   PardonFetchExecution,
 } from "../core/pardon.js";
 import type { SimpleRequestInit } from "../core/request/fetch-pattern.js";
-import { intoURL } from "../modules/formats.js";
+import { intoURL } from "../core/request/url-pattern.js";
 import { runtimeLoaded } from "../runtime/runtime-resolution.js";
 
 export type PardonOptions = {

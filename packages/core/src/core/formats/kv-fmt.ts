@@ -10,8 +10,15 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { JSON } from "../json.js";
+import {
+  createNumber,
+  isScalar,
+  scalarTypeOf,
+} from "../schema/definition/scalar.js";
+
 /**
- KV format is key=value where value can be in lenient JSON
+KV format is key=value where value can be in lenient JSON
 (quoting strings is optional... only need to quote strings for
 true, false, null, "", strings that look like numbers or
 contain non identifier characters (a-z0-9$_)).
@@ -73,17 +80,17 @@ export const KV: {
           return JSON.parse(token);
         case /^'.*'$/.test(token):
           return JSON.parse(
-            `"${token.slice(1, -1).replace(/\\'|"|\\/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"` })[match]!)}"`,
+            `"${token.slice(1, -1).replace(/\\.|\\'|"|\\/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"` })[match] ?? match)}"`,
           );
         case /^`.*`$/s.test(token):
           return JSON.parse(
-            `"${token.slice(1, -1).replace(/\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match]!)}"`,
+            `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
           );
-        case /^-?(?:[0-9]+[.]?[0-9]*|[0-9]+e[0-9]+|[.]?[0-9]+|0x[0-9A-F]+|0[0-7]*)$/i.test(
+        case /^-?(?:[0-9]+(?:[.][0-9]*)?|[0-9]+e[0-9]+|[.][0-9]+|0x[0-9A-F]+|0[0-7]*)$/i.test(
           token,
         ):
-          return Number(token);
-        case /^-/.test(token):
+          return createNumber(token);
+        case /^[+-]/.test(token):
           throw new Error("invalid numeric: " + token);
         default:
           if (token === "null") {
@@ -440,12 +447,16 @@ export const KV: {
   upto,
 };
 
+function kvTypeof(value: unknown) {
+  return isScalar(value) ? scalarTypeOf(value) : typeof value;
+}
+
 function stringify_(values: unknown, join: string = " ", indent?: number) {
   if (values === "") {
     return '""';
   }
 
-  return values && typeof values === "object" && !Array.isArray(values)
+  return values && kvTypeof(values) === "object" && !Array.isArray(values)
     ? Object.entries(values)
         .filter(([, v]) => v !== undefined && typeof v !== "function")
         .map(([k, v]) => {
@@ -462,14 +473,24 @@ function stringifyValue(v: unknown, limit: number, jindent?: number) {
     ["null", "true", "false", ""].includes(v) ||
     !simpleToken.test(v)
   ) {
-    return linewrappedStringify(v, limit, jindent);
+    return linewrappedStringify(v, jindent);
   }
 
   return v;
 }
 
-function linewrappedStringify(v: unknown, limit: number, jindent?: number) {
-  const text = JSON.stringify(v);
+function linewrappedStringify(v: unknown, jindent?: number) {
+  const text = JSON.stringify(v, (_key, value) => {
+    if (typeof value === "bigint") {
+      return JSON.rawJSON(String(value));
+    }
+
+    if (value instanceof BigInt || value instanceof Number) {
+      return JSON.rawJSON(value["source"] ?? String(value));
+    }
+
+    return value;
+  });
 
   const tokens = tokenize(text);
 

@@ -81,6 +81,7 @@ import KeyValueCopier from "../components/KeyValueCopier.tsx";
 import { makePersisted } from "@solid-primitives/storage";
 import { secureData } from "../components/secure-data.ts";
 import { Text } from "@codemirror/state";
+import { persistJson } from "../util/persistence.ts";
 
 type SubPanelView = "history" | "editor" | "testcases" | "recall" | "samples";
 
@@ -91,7 +92,7 @@ export default function Main(
 ) {
   const [subPanelView, setSubPanelView] = makePersisted(
     createSignal<SubPanelView>("history"),
-    { name: "view" },
+    { name: "view", ...persistJson },
   );
   const [redacted, setRedacted] = createSignal(true);
   const [relock, setRelock] = createSignal(true);
@@ -101,30 +102,32 @@ export default function Main(
 
   const [lastResult, setLastResult] = makePersisted(
     createSignal<ExecutionHistory>(),
-    { name: "result" },
+    { name: "result", ...persistJson },
   );
 
   const [scratchValues, setScratchValues] = makePersisted(
     createSignal<Record<string, unknown>>({}),
-    { name: "scratch" },
+    { name: "scratch", ...persistJson },
   );
 
   const [values, setValues] = makePersisted(createSignal({}), {
     name: "values",
+    ...persistJson,
   });
 
   const [http, setHttp] = makePersisted(
     createSignal<string>(props.manifest.example.request ?? ""),
-    { name: "http" },
+    { name: "http", ...persistJson },
   );
 
   const [globals, setGlobals] = makePersisted(
     createSignal<Record<string, unknown>>({}),
-    { name: "globals" },
+    { name: "globals", ...persistJson },
   );
 
   const [globalExtra, setGlobalExtra] = makePersisted(createSignal(""), {
     name: "globals-extra",
+    ...persistJson,
   });
 
   const [source, updateSource] = createSignal<PardonExecutionSource>({

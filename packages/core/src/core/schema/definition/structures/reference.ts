@@ -18,6 +18,7 @@ import {
   exposeSchematic,
   isSchematic,
   merge,
+  maybeResolve,
 } from "../../core/schema-ops.js";
 import { rescope } from "../../core/context.js";
 import { isMergingContext } from "../../core/schema.js";
@@ -33,22 +34,34 @@ import {
 } from "../../core/types.js";
 import { expandTemplate } from "../../template.js";
 import { stubSchema } from "./stub.js";
-import { RedactedOps } from "./redact.js";
+import { redact, RedactedOps } from "./redact.js";
+import { isSecret } from "../hinting.js";
+import {
+  convertScalar,
+  Scalar,
+  scalarFuzzyTypeOf,
+  ScalarType,
+} from "../scalar.js";
+import { datumTemplate } from "../datum.js";
 
 type ReferenceSchema<T> = {
   refs: Set<string>;
   hint: string;
   schema?: Schema<T>;
+  encoding?: ScalarType;
+  anull?: true;
 };
 
-type ReferenceTemplateOps<T> = SchematicOps<T> & {
+export type ReferenceTemplateOps<T> = SchematicOps<T> & {
   reference(): ReferenceTemplate<T>;
 };
 
 type ReferenceTemplate<T> = {
-  ref: string;
+  ref?: string;
   hint?: string;
   template?: Template<T>;
+  encoding?: Exclude<ScalarType, "null">;
+  anull?: true;
 };
 
 type ReferenceSchematic<T> = Schematic<T> & {
@@ -57,8 +70,24 @@ type ReferenceSchematic<T> = Schematic<T> & {
   readonly value: ReferenceSchematic<T>;
   readonly noexport: ReferenceSchematic<T>;
   readonly optional: ReferenceSchematic<T>;
+  readonly redact: ReferenceSchematic<T>;
+  readonly meld: ReferenceSchematic<T>;
+  readonly string: ReferenceSchematic<string>;
+  readonly bool: ReferenceSchematic<boolean>;
+  readonly number: ReferenceSchematic<number>;
+  readonly bigint: ReferenceSchematic<bigint>;
+  readonly nullable: ReferenceSchematic<T | null>;
   [_: `$${string}`]: ReferenceSchematic<T>;
 };
+
+export function isReferenceSchematic<T>(
+  s: unknown,
+): s is ReferenceSchematic<T> {
+  return (
+    isSchematic<T>(s) &&
+    Boolean(exposeSchematic<ReferenceTemplateOps<T>>(s).reference)
+  );
+}
 
 export function referenceTemplate<T = unknown>(
   reference: ReferenceTemplate<T>,
@@ -66,34 +95,42 @@ export function referenceTemplate<T = unknown>(
   const referenceSchematic = defineSchematic<ReferenceTemplateOps<T>>({
     expand(context) {
       return defineReference({
-        refs: new Set([reference.ref]),
+        refs: new Set([reference.ref].filter(Boolean)),
         hint: reference.hint ?? "",
         schema:
           reference.template !== undefined
             ? expandTemplate(reference.template, context)
             : undefined,
+        encoding: reference.encoding,
+        anull: reference.anull,
       });
     },
     blend(context, next) {
-      const schema = next({ ...context, template: reference.template });
+      let { template } = reference;
+      const hint = new Set([...(reference.hint ?? "")]);
 
-      if (reference.template !== undefined && !schema) {
+      if (isSchematic(template)) {
+        const ops = exposeSchematic<RedactedOps<T>>(template);
+        if (ops.redacted) {
+          hint.add("@");
+        }
+      } else if (isSecret(reference)) {
+        template = redact(template);
+        hint.add("@");
+      }
+
+      const schema = next({ ...context, template });
+
+      if (template !== undefined && !schema) {
         return;
       }
 
-      let autohint = "";
-      if (isSchematic(reference.template)) {
-        const ops = exposeSchematic<RedactedOps<T>>(reference.template);
-        if (ops.redacted) {
-          // apply noexport
-          autohint += "@";
-        }
-      }
-
       return defineReference({
-        refs: new Set([reference.ref]),
-        hint: `${reference.hint ?? ""}${autohint}`,
+        refs: new Set([reference.ref].filter(Boolean)),
+        hint: [...hint].join(""),
         schema,
+        encoding: reference.encoding,
+        anull: reference.anull,
       });
     },
     reference() {
@@ -108,39 +145,83 @@ export function referenceTemplate<T = unknown>(
           target[property] ??
           {
             get noexport() {
-              // use the redacted() schema node for redacting on render,
-              // this is more of a hack to create a variable that's primarily
-              // for internal use by the render (for signing requests, etc...).
               return referenceTemplate({
                 ...reference,
-                hint: `${reference.hint ?? ""}@`,
+                hint: `${reference.hint ?? ""}:`,
               });
             },
             get optional() {
-              // use the redacted() schema node for redacting on render,
-              // this is more of a hack to create a variable that's primarily
-              // for internal use by the render (for signing requests, etc...).
               return referenceTemplate({
                 ...reference,
                 hint: `${reference.hint ?? ""}?`,
               });
             },
-            get value() {
+            get required() {
               return referenceTemplate({
                 ...reference,
-                ref: `${reference.ref}.@value`,
+                hint: `${reference.hint ?? ""}!`,
               });
             },
-            get key() {
+            get meld() {
               return referenceTemplate({
                 ...reference,
-                ref: `${reference.ref}.@key`,
+                hint: `${reference.hint ?? ""}~`,
               });
             },
+            get redact() {
+              return referenceTemplate({
+                ...reference,
+                hint: `${reference.hint ?? ""}@`,
+              });
+            },
+            ...(reference.ref && {
+              get value() {
+                return referenceTemplate({
+                  ...reference,
+                  ref: `${reference.ref}.@value`,
+                });
+              },
+              get key() {
+                return referenceTemplate({
+                  ...reference,
+                  ref: `${reference.ref}.@key`,
+                });
+              },
+            }),
             of(template: Template<T>) {
               return referenceTemplate({
                 ...reference,
                 template,
+              });
+            },
+            get string() {
+              return referenceTemplate({
+                ...reference,
+                encoding: "string",
+              });
+            },
+            get number() {
+              return referenceTemplate({
+                ...reference,
+                encoding: "number",
+              });
+            },
+            get bigint() {
+              return referenceTemplate({
+                ...reference,
+                encoding: "bigint",
+              });
+            },
+            get bool() {
+              return referenceTemplate({
+                ...reference,
+                encoding: "boolean",
+              });
+            },
+            get null() {
+              return referenceTemplate({
+                ...reference,
+                anull: true,
               });
             },
           }[property]
@@ -170,50 +251,89 @@ function extractReference<T>({
 export function defineReference<T = unknown>(
   referenceSchema: ReferenceSchema<T>,
 ): Schema<T> {
-  const { refs, hint, schema } = referenceSchema;
+  const { refs, hint, schema, encoding, anull } = referenceSchema;
 
   return defineSchema<T>({
     merge(context) {
       const info = extractReference(context);
 
       if (info) {
+        let merged = schema;
+
+        if (info.encoding && encoding && info.encoding !== encoding) {
+          return;
+        }
+
         if (info.template !== undefined) {
-          const merged = merge(schema ?? stubSchema(), {
+          merged = merge(schema ?? stubSchema(), {
             ...context,
             template: info.template,
           });
 
-          return (
-            merged &&
-            defineReference({
-              refs: new Set([...refs, info.ref]),
-              hint: `${hint}${info.hint ?? ""}`,
-              schema: merged,
-            })
-          );
+          if (!merged) {
+            return;
+          }
+        }
+
+        if (merged) {
+          tryResolve(merged, context);
         }
 
         return defineReference({
-          refs: new Set([...refs, info.ref]),
+          refs: new Set([...refs, info.ref].filter(Boolean)),
           hint: `${hint}${info.hint ?? ""}`,
-          schema,
+          schema: merged,
+          encoding: info.encoding ?? encoding,
+          anull: info.anull || anull,
         });
+      }
+
+      if (schema) {
+        tryResolve(schema, context);
       }
 
       if (context.template === undefined) {
         return defineReference(referenceSchema);
       }
 
-      const merged = merge(schema ?? stubSchema(), context);
+      if (encoding && !isSchematic(context.template)) {
+        const templateType = scalarFuzzyTypeOf(context, context.template as T);
+        if (
+          templateType &&
+          templateType !== encoding &&
+          !(templateType === "number" && encoding === "bigint")
+        ) {
+          return;
+        }
+      }
+
+      let mergeSchema = schema;
+
+      if (encoding) {
+        mergeSchema = merge(schema ?? stubSchema(), {
+          ...context,
+          template: datumTemplate(
+            context.mode === "match"
+              ? (context.template as T & Scalar)
+              : undefined,
+            {
+              type: encoding,
+            },
+          ) as Schematic<T>,
+        });
+
+        if (!mergeSchema) {
+          return;
+        }
+      }
+
+      const merged = merge(mergeSchema ?? stubSchema(), context);
       if (!merged) {
         return undefined;
       }
 
-      if (
-        context.template !== undefined &&
-        typeof context.template !== "function"
-      ) {
-        defineReferenceValue(context, context.template as T);
+      if (merged) {
+        tryResolve(merged, context);
       }
 
       return defineReference({ ...referenceSchema, schema: merged });
@@ -225,7 +345,7 @@ export function defineReference<T = unknown>(
         // if the schema was a stub, we'll try to derive the value
         // by evaluating the refs.
         if (result !== undefined) {
-          return result;
+          return convertScalar(result, encoding, anull) as T;
         }
       }
 
@@ -238,10 +358,10 @@ export function defineReference<T = unknown>(
 
         defineReferenceValue(context, value);
 
-        return value as T;
+        return convertScalar(value, encoding, anull) as T;
       }
 
-      return undefined!;
+      return anull ? (null as T) : undefined!;
     },
     scope(context) {
       const { scope } = context;
@@ -252,14 +372,16 @@ export function defineReference<T = unknown>(
           expr: null,
           hint,
           source: null,
-          // might we need resolved() { ... } too?
+          resolved(context) {
+            return resolveReference(rescope(context, scope));
+          },
           async rendered(context) {
             return await renderReference(schema, rescope(context, scope));
           },
         });
 
-        if (isMergingContext(context) && context.template !== undefined) {
-          context.scope.define(context, ref, context.template as T);
+        if (!isMergingContext(context)) {
+          scope.resolve(context, ref);
         }
       }
 
@@ -268,6 +390,39 @@ export function defineReference<T = unknown>(
       }
     },
   });
+
+  function tryResolve<T>(schema: Schema<T>, context: SchemaContext<T>) {
+    const resolved = schema && maybeResolve(schema, context);
+
+    if (resolved !== undefined) {
+      for (const ref of refs) {
+        context.scope.define(context, ref, resolved);
+      }
+
+      return resolved;
+    }
+  }
+
+  function resolveReference(context: SchemaContext<unknown>) {
+    const resolved = schema && tryResolve(schema, context);
+    if (resolved !== undefined) {
+      return resolved;
+    }
+
+    for (const ref of refs) {
+      const value = context.scope.resolve(context, ref);
+
+      if (value != undefined) {
+        for (const other of refs) {
+          if (other !== ref) {
+            context.scope.define(context, other, value);
+          }
+        }
+
+        return value.value as T;
+      }
+    }
+  }
 
   async function renderReference(
     schema: Schema<T> | undefined,

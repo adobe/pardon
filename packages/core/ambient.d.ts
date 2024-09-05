@@ -10,5 +10,18 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-// turn this on to capture stack traces into schemas and template objects.
-export const DEBUG = false;
+declare module "core-js-pure/actual/json" {
+  const JSON: Omit<typeof global.JSON, "parse"> & {
+    rawJSON(_: string): any;
+    parse(
+      value: string,
+      receiver?: (
+        key: string,
+        value: any,
+        context: { source: string },
+      ) => unknown,
+    ): any;
+  };
+
+  export default JSON;
+}

@@ -27,7 +27,7 @@ import trace from "../../../features/trace.js";
 import remember from "../../../features/remember.js";
 import { inspect } from "node:util";
 import { mapObject } from "../../../util/mapping.js";
-import { KV } from "../../../modules/formats.js";
+import { KV } from "../../../core/formats/kv-fmt.js";
 
 main()
   .then((code) => process.exit(code))

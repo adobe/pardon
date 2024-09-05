@@ -19,6 +19,7 @@ import MakeRequestButton from "./MakeRequestButton.tsx";
 import { Show } from "solid-js";
 import ResponseView from "./ResponseView.tsx";
 import { setSecureData } from "../../secure-data.ts";
+import { recv } from "../../../util/persistence.ts";
 
 export default function ResponsePanel(props: {
   outbound: ReturnType<ReturnType<typeof executionResource>["outbound"]>;
@@ -53,8 +54,8 @@ export default function ResponsePanel(props: {
       try {
         execution.setExecution("inflight");
 
-        const { secure, ...result } = await window.pardon.continue(
-          execution.value.handle,
+        const { secure, ...result } = recv(
+          await window.pardon.continue(execution.value.handle),
         );
 
         setSecureData((data) => ({ ...data, [result.context.trace]: secure }));

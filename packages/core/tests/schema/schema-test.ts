@@ -12,15 +12,17 @@ governing permissions and limitations under the License.
 import { it } from "node:test";
 import assert from "node:assert";
 
-import { Schema } from "../../src/core/schema/core/schema.js";
 import { mixing } from "../../src/core/schema/template.js";
 import {
   mergeSchema,
   renderSchema,
 } from "../../src/core/schema/core/schema-utils.js";
 import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
-import { KV } from "../../src/modules/formats.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
+import { Schema } from "../../src/core/schema/core/types.js";
+import { KV } from "../../src/core/formats/kv-fmt.js";
+import { JSON } from "../../src/core/json.js";
+import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 
 async function compose(
   testname: string,
@@ -77,10 +79,14 @@ async function compose(
   const resultValues = scope.resolvedValues();
 
   if (last.trim()) {
-    assert.deepStrictEqual(JSON.parse(output as string), JSON.parse(last));
+    assert.deepStrictEqual(
+      JSON.parse(output, (_key, value, { source }) => source ?? value),
+      JSON.parse(last, (_key, value, { source }) => source ?? value),
+    );
   }
+
   if (expected) {
-    assert.deepStrictEqual(resultValues, expected);
+    assert.deepStrictEqual(resultValues, unboxObject(expected));
   }
 
   return { output, values: resultValues };
@@ -644,7 +650,7 @@ map={x={a=[xx,xy]},y={a=[yy,yz]}}
 intent("mv-keyed-list-rendering-by-value")`
 map={x={a=[xx,xy]},y={a=[yy,yz]}}
 keyed.mv({ id: "{{key}}" }, [{
-  "id": "{{map.a.@key}}", // FIXME ... @map.key gets the numeric index of the multivalue scope
+  "id": "{{map.@key}}",
   "a": "{{map.a.@value}}"
 }])
 ---
@@ -684,4 +690,130 @@ mix(["{{array.@value}}"])
 ---
 array=[a,b]
 ["a","b"]
+`();
+
+intent("keyed-new-syntax")`
+headers={a={value=AAA}, b={value=BBB}}
+[$key, undefined] * [
+  [$headers.key, $headers.$value]
+]
+---
+*
+[["a", "AAA"],
+ ["b", "BBB"]]
+`();
+
+intent("keyed-merging-new-syntax")`
+map={ x=xx, y=yy }
+{ id: $key } * [{
+  "id": $map.key,
+  "a": $map.value
+}]
+---
+{ id: $key } * [{
+  "b": $map.value
+}]
+---
+*
+[{ "id": "x", "a": "xx", "b": "xx" },
+ { "id": "y", "a": "yy", "b": "yy" }]
+`();
+
+intent("keyed-merging-new-syntax-expression")`
+map={ x={value=xx}, y={value=yy} }
+{ id: $key } * [{
+  id: $map.key,
+  a: $map.$value,
+  a1: ( value + 1 )
+}]
+---
+*
+[{ "id": "x", "a": "xx", "a1": "xx1" },
+ { "id": "y", "a": "yy", "a1": "yy1" }]
+`();
+
+intent("nested-kv-export")`
+keyed({ id: "{{key}}" }, [{
+  id: "{{map.@key}}",
+  nested: keyed({ id: "{{key}}" }, [{
+    id: "{{map.nested.@key}}",
+    value: "{{map.nested.@value}}"
+  }])
+}])
+---
+[{ id: 'hello', nested: [{ id: 'x', value: 'y' }, { id: 'p', value: 'q' }] }]
+---
+map={ hello={ nested={ x=y, p=q } } }
+[{ "id": "hello", "nested": [
+  { "id": "x", "value": "y" },
+  { "id": "p", "value": "q" }
+]}]
+`();
+
+intent("nested-kv-import")`
+map={ hello={ nested={ x=y, p=q } } }
+keyed({ id: $key }, [{
+  id: $map.key,
+  nested: keyed({ id: $key }, [{
+    id: $map.$nested.key,
+    value: $map.$nested.value
+  }])
+}])
+---
+*
+[{ "id": "hello", "nested": [
+  { "id": "x", "value": "y" },
+  { "id": "p", "value": "q" }
+]}]
+`();
+
+intent("scalar-conversions")`
+{
+  a: $a
+}
+---
+{
+  a: 100,
+  as: string($a),
+  an: number($a),
+  ab: bool($a)
+}
+---
+*
+{
+  "a": 100,
+  "as": "100",
+  "an": 100,
+  "ab": true
+}
+`();
+
+intent.fails("scalar-matching")`
+{
+  a: bool()
+}
+---
+{
+  a: 100
+}
+---
+*
+{
+  "a": true
+}
+`();
+
+intent("bigint")`
+{
+  a: bigint()
+}
+---
+{
+  a: 18051727547282341502540305388584042500
+}
+---
+*
+{
+  "a": 18051727547282341502540305388584042500
+}
 `();

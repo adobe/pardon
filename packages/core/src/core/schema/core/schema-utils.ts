@@ -17,7 +17,6 @@ import {
   SchemaMergeType,
   createMergingContext,
 } from "./context.js";
-import { isScalar, Scalar } from "../definition/scalar-type.js";
 import {
   Schema,
   SchemaMergingContext,
@@ -27,8 +26,9 @@ import {
   Template,
 } from "./types.js";
 import { executeOp, merge } from "./schema-ops.js";
-import { isSecret } from "../definition/hinting.js";
+import { isNoExport, isSecret } from "../definition/hinting.js";
 import { diagnostic } from "./context-util.js";
+import { isScalar, Scalar } from "../definition/scalar.js";
 
 function applySchema<T>(
   context: SchemaMergingContext<T>,
@@ -38,7 +38,7 @@ function applySchema<T>(
     const matchedSchema = merge(schema, context);
 
     if (matchedSchema && context.diagnostics.length) {
-      throw new Error("unreported error");
+      throw new Error("unpropagated error");
     }
 
     return { context, schema: matchedSchema, error: undefined };
@@ -119,6 +119,7 @@ export function unredactedScalarValues(
       ]) => {
         return (
           isScalar(value) &&
+          !isNoExport(expr) &&
           !isSecret(expr) && {
             scope: scopes.map((part) => `:${part}`).join(""),
             ident,

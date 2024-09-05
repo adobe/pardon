@@ -20,7 +20,7 @@ import { ScopedOptions, defineScoped } from "./definition/scoped.js";
 import { mapObject } from "../../util/mapping.js";
 import { PardonError } from "../error.js";
 import { loc } from "./core/context-util.js";
-import { defineSchematic } from "./core/schema-ops.js";
+import { defineSchematic, merge } from "./core/schema-ops.js";
 import {
   Schema,
   SchemaMergingContext,
@@ -76,6 +76,7 @@ function makeKeymapTemplate<T>(
   }>(
     (parsed, item) => {
       const keyCtx = createMergingContext(context, keySchema, item as T);
+      merge(keySchema, keyCtx);
       const lookup = keyCtx.scope.lookup("key");
       const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
 
@@ -94,7 +95,7 @@ function makeKeymapTemplate<T>(
     { values: {} },
   );
 
-  if (context.mode !== "mix" || Object.keys(values).length) {
+  if (context.mode !== "mix" && !archetype) {
     return KeyedList.keyed(
       keyTemplate,
       objects.object(values, archetype) as Schematic<Record<string, T>>,
@@ -121,6 +122,7 @@ function makeMvKeymapTemplate<T>(
   }>(
     (parsed, item) => {
       const keyCtx = createMergingContext(context, keySchema, item as T);
+      merge(keySchema, keyCtx);
       const lookup = keyCtx.scope.lookup("key");
       const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
 

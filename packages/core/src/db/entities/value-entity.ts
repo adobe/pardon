@@ -12,6 +12,7 @@ governing permissions and limitations under the License.
 import { Database, Id } from "../sqlite.js";
 import { arrayIntoObject } from "../../util/mapping.js";
 import { httpOps } from "./http-entity.js";
+import { JSON } from "../../core/json.js";
 
 type InternalValueEntity = {
   http: Id;
@@ -98,6 +99,8 @@ WHERE "http" = :http
       case "number":
       case "boolean":
         return { typeof: jsTypeof, value: JSON.stringify(value) };
+      case "bigint":
+        return { typeof: jsTypeof, value: JSON.rawJSON(String(value)) };
       case "string":
         return { typeof: jsTypeof, value: value as string };
       case "undefined":

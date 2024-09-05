@@ -19,7 +19,6 @@ import {
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { ConfigMapping, ConfigSpace } from "./config-space.js";
 import { globalIdentifier, isGlobalIdentifier } from "./schema.js";
-import { isScalar } from "../definition/scalar-type.js";
 import { indexChain } from "./scope.js";
 import {
   SchemaContext,
@@ -29,6 +28,7 @@ import {
   ValueIdentifier,
 } from "./types.js";
 import { loc } from "./context-util.js";
+import { isScalar } from "../definition/scalar.js";
 
 export type ScriptDataResolver = (
   name: string,
@@ -323,8 +323,10 @@ export function resolveAccess(
   }
 
   const indices = indexChain(context.scope);
+
   if (ident.name.endsWith(".@key")) {
-    return indices[ident.path.length - 1]?.key;
+    const keyIndex = indices.length - ident.path.length;
+    return indices[keyIndex]?.key;
   }
 
   const resolved = ident.path.reduce<unknown>(

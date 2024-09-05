@@ -45,6 +45,7 @@ import { arrayIntoObject } from "pardon/utils";
 import localforage from "localforage";
 import InProgressBanner from "./InProgressBanner.tsx";
 import { displayHttp } from "./display-util.ts";
+import { persistJson, recv } from "../util/persistence.ts";
 
 type TestEvent = any;
 
@@ -53,12 +54,14 @@ const [testEvents, setTestEvents] = makePersisted(
   {
     name: "testrun:events",
     storage: localforage,
+    ...persistJson,
   },
 );
 
 const [testRun, setTestRun] = makePersisted(createSignal<`T${string}`>(), {
   name: "testrun:id",
   storage: localStorage,
+  ...persistJson,
 });
 
 type TestEventForwarder = Parameters<
@@ -131,10 +134,12 @@ export default function TestcaseSystem(props: {
   const [testcases] = createResource(
     () => ({ env: values(), smoke: activeSmokeConfig(), filter: filter() }),
     async ({ env, smoke, filter }) => {
-      return await window.pardon.testcases(env, {
-        smoke,
-        filter,
-      });
+      return recv(
+        await window.pardon.testcases(env, {
+          smoke,
+          filter,
+        }),
+      );
     },
   );
 

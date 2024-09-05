@@ -19,7 +19,7 @@ import {
   urlEncodedFormTemplate,
 } from "../schema/definition/encodings/url-encoded.js";
 import { headersTemplate } from "../schema/definition/encodings/headers-encoding.js";
-import { scalars } from "../schema/definition/scalars.js";
+import { datums } from "../schema/definition/datum.js";
 import { scopedFields } from "../schema/scheming.js";
 import { textTemplate } from "../schema/definition/encodings/text-encoding.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
@@ -151,7 +151,7 @@ export function bodySchema(
       }
 
       try {
-        if (/^[a-z]+(?<!mix|mux)[(]/i.test(source.trim())) {
+        if (/^[a-z]+(?<!^mix|^mux|^match)\s*[(]/i.test(source.trim())) {
           const merged = merge(stubSchema(), {
             ...context,
             template: evalTemplate(`${source}`),
@@ -160,8 +160,9 @@ export function bodySchema(
           return merged && bodySchema(encoding, merged);
         }
       } catch (error) {
-        console.warn(error);
         //... oops?
+        console.warn(error);
+        void error;
       }
 
       try {
@@ -175,8 +176,9 @@ export function bodySchema(
           return merged && bodySchema(encoding, merged);
         }
       } catch (error) {
-        console.warn(error);
         //... oops?
+        console.warn(error);
+        void error;
       }
 
       const effectiveEncoding = encoding ?? "json";
@@ -202,7 +204,7 @@ export function bodyTemplate(encoding?: EncodingTypes): Schematic<string> {
 }
 
 const originTemplate = (base: string) =>
-  scalars.pattern<string>(base, {
+  datums.pattern<string>(base, {
     re: ({ hint }) => {
       switch (true) {
         // origin is defined as `"{{?:origin}}"`
@@ -219,7 +221,7 @@ const originTemplate = (base: string) =>
   });
 
 const pathnameTemplate = (base: string) =>
-  scalars.pattern<string>(base, {
+  datums.pattern<string>(base, {
     re: ({ hint }) => {
       switch (true) {
         case hint?.includes("!/"):
@@ -258,11 +260,11 @@ export function httpsResponseSchema(
 ): Schema<ResponseObject> {
   return mixing<ResponseObject>({
     ...scopedFields("res", {
-      status: scalars.pattern<string>("{{status}}", {
+      status: datums.pattern<string>("{{status}}", {
         re: ({ hint }) => (hint === "?" ? /\d/ : /\d+/),
         type: "number",
       }),
-      statusText: scalars.string("{{?statusText}}"),
+      statusText: datums.datum("{{?statusText}}"),
     }),
     headers: headersTemplate(),
     body: bodyReference(bodyTemplate(encoding)),

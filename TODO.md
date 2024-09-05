@@ -2,23 +2,20 @@
 
 - Developer Experience
 
-  - [ ] npm workspaces, turbopack or nx integration.
+  - [ ] npm workspaces, turborepo or nx integration.
 
 - Release
 
-  - [ ] version 0.1
   - [ ] public npm release
 
 - Importing
 
   - [ ] swagger / OpenAPI (???)
-  - [x] server/proxy
-    - [ ] a proper server/proxy that enhances requests
 
 - Functionality
 
   - [ ] cookie support (cookiejar)
-  - [ ] `npm i` support for linking pardon collections?
+  - [ ] `npm i` support for linking pardon collections? (needs design)
   - [ ] rejecting matches without exceptions, usually,... and better rejection
         reporting. (mostly done)
   - request chaining `*.flow.https` files
@@ -71,7 +68,6 @@ Editing pardon collections in app would be a big development/adoption driver.
 ### Collection unit testing
 
 - [ ] mocking script dependencies
-- [ ] snapshoted resolve and render tests
 
 ### Request searching and value autocompletion
 
@@ -81,6 +77,33 @@ Editing pardon collections in app would be a big development/adoption driver.
       request history)... (partial)
   - [x] by data, directly person-to-person
 
+### Numeric Source Values
+
+Numbers and bigints are now deserialized with source text attached to boxed
+primitives. This works but has some drawbacks w.r.t structuredClone and
+electron's context bridge, which fails to copy properties on boxed primitives.
+(perhaps our own boxes, with correct valueOf and Symbol.toPrimitive overrides
+might work better?)
+
+In scripts, we have choice for numbers to be either be pure
+`typeof x === 'number'` javascript values or they can be boxed objects (
+`Object.assign(Object(123), { source: '123' })` ) decorated with the source
+token text.
+
+Also it would be nice to produce a numeric value that serializes to, e.g.,
+`1.90` instead of `1.9`, (the difference may be important in non-standard JSON
+contexts for specifying, e.g., the _scale_ of a deserialized
+`java.math.BigDecimal`)
+
+The source token would allow scripts to implement semantics on `0.00` or
+maintain the exact value of a bigint e.g., `123456789012345678901234567890`, (at
+the cost of `===` comparisons).
+
+Perhaps primitive values should always be presented to scripts with another
+syntax for source tokens (source tokens might be important to represent as
+richer objects, too, tracking more than just their text value for debugging /
+reporting purposes, to?).
+
 ## Refactor-worthy ideas
 
 The following ideas require more than a bullet-point to record, and will take
@@ -88,39 +111,5 @@ some significant effort...
 
 ### Schema debug view
 
-The schema structure is currently opaque, would be nice to show a display
-version of the structure, (and provide hooks to debug the dataflow through the
-schema nodes).
-
-### $body.of improvements
-
-We could use javascript syntax to implement some patterns by tranforming
-scripts:
-
-```js
-$body.of(json({ ... }))
-// could be written as
-$body == json({
-  ...
-})
-```
-
-and `keyed()`... maybe can be done with syntax too,
-
-```js
-keyed({ "k": "{{key}}" }, [...])
-{ "k", "{{key}}" } * [...] // single value
-
-keyed.mv({ "k": "{{key}}" }, [...])
-{ "k", "{{key}}" } ** [...] // multivalue?
-```
-
-maybe we make mix/mux "easier" with
-
-```js
-mix([ ... ]) /* becoming */ -[...]
-// and
-mux([ ... ]) /* becoming */ +[...]
-```
-
-(certainly this makes things more subtle but removing the trailing `)` is nice!)
+The schema structure is intentionally opaque, but it would be nice to show a
+display version of the structure, ideally debugging/breakpointing evaluation.

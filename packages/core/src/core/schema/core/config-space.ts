@@ -21,9 +21,9 @@ import {
   arePatternsCompatible,
 } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
-import { isScalar } from "../definition/scalar-type.js";
 import { diagnostic } from "./context-util.js";
 import { SchemaMergingContext } from "./types.js";
+import { isScalar } from "../definition/scalar.js";
 
 export type ConfigMapping =
   | string

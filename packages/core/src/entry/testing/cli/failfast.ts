@@ -11,10 +11,8 @@ governing permissions and limitations under the License.
 */
 import { AsyncLocalStorage } from "async_hooks";
 import { PardonHttpExecutionContext } from "../../../features/remember.js";
-import {
-  hookExecution,
-  PardonFetchExecution,
-} from "../../../modules/playground.js";
+import { hookExecution } from "../../../core/execution/execution-hook.js";
+import { PardonFetchExecution } from "../../../core/pardon.js";
 import { PardonError } from "../../../core/error.js";
 import deferred, { Deferred } from "../../../util/deferred.js";
 

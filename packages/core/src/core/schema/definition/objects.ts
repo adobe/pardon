@@ -253,21 +253,25 @@ function objectTemplate<M extends Record<string, unknown>>(
       return { object, scoped, value };
     },
     expand(context) {
-      return defineObject(
-        mergeRepresentation(
-          context,
-          {
-            object: {} as any,
-            scoped,
-            value: stubSchema(),
-          },
-          {
-            object,
-            scoped,
-            value,
-          },
-        )!,
-      ) as Schema<M>;
+      const rep = mergeRepresentation(
+        context,
+        {
+          object: {} as any,
+          scoped,
+          value: stubSchema(),
+        },
+        {
+          object,
+          scoped,
+          value,
+        },
+      );
+
+      if (!rep) {
+        throw diagnostic(context, "failed to expand object template");
+      }
+
+      return defineObject(rep) as Schema<M>;
     },
   });
 }
@@ -327,16 +331,6 @@ export const objects = {
     object: { [K in keyof M]: Template<M[K]> },
     value?: Template<M[keyof M]>,
   ) => {
-    const scopy =
-      (typeof object === "object" &&
-        Object.values(object).filter(
-          (v) => typeof v === "function" && v().scope,
-        )) ||
-      [];
-
-    if (scopy.length) {
-      //throw new Error("schema in object template");
-    }
     return objectTemplate(object, { value, scoped: false });
   },
 
@@ -344,16 +338,6 @@ export const objects = {
     object: { [K in keyof M]: Template<M[K]> },
     value?: Template<M[keyof M]>,
   ) => {
-    const scopy =
-      (typeof object === "object" &&
-        Object.values(object).filter(
-          (v) => typeof v === "function" && v().scope,
-        )) ||
-      [];
-
-    if (scopy.length) {
-      //throw new Error("schema in object template");
-    }
     return objectTemplate(object, { value, scoped: true });
   },
 };

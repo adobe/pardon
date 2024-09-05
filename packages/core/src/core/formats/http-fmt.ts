@@ -49,22 +49,14 @@ function requestObjectStringify({
     ...new Headers(request.headers),
   ]
     .map(([k, v]) => `\n${k}: ${v}`)
-    .join("")}${
-    request.body
-      ? `
-
-${request.body}`
-      : ""
-  }`.trim();
+    .join("")}${request.body ? `\n\n${request.body}` : ""}`.trim();
 }
 
 function responseObjectStringify(response: ResponseObject) {
   const { status, statusText, headers } = response;
   return `${status}${statusText ? ` ${statusText}` : ""}${[...headers.entries()]
     .map(([header, value]) => `\n${header}: ${value}`)
-    .join("")}
-
-${response.body}
+    .join("")}${response.body ? `\n\n${response.body}` : ""}
 `.trim();
 }
 
