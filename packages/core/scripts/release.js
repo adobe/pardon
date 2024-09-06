@@ -6,7 +6,6 @@ import { parseArgs } from "node:util";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -76,8 +75,8 @@ eexec({ dryrun: true })`git hook run pre-push`;
 eexec({ dryrun: true })`git hook run pre-commit`;
 
 exec`npm version ${positionals.length ? positionals.map(quoteArg).join(" ") : "prerelease"}`;
-
 const { version } = JSON.parse(readFileSync("./package.json", "utf-8"));
+exec({ cwd: '../favor' })`npm version ${version}`;
 
 function quoteArg(arg) {
   return `'${arg.replace(/'/g, `'"'"'`)}'`;
