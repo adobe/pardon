@@ -18,9 +18,11 @@ import {
   executeOp,
   isMatchingContext,
   SchemaRenderContext,
+  extractOps,
 } from "../../core/schema.js";
 import { parseScopedIdentifier } from "../../core/scope.js";
 import { expandTemplate, templateTrampoline } from "../../template.js";
+import { RedactOps } from "./redact-schema.js";
 import { stubSchema } from "./stub-schema.js";
 
 type ReferenceOps<T = unknown> = SchematicOps<T> & {
@@ -43,12 +45,23 @@ export function referenceSchema<T = unknown>(
   const schemaDefintion = defineSchema<ReferenceOps<T>>({
     merge(context) {
       const merged = executeOp(schema, "merge", context);
+      let mergedHint = hint;
 
       if (merged && context.stub !== undefined) {
+        if (
+          typeof context.stub === "function" &&
+          extractOps<RedactOps<T>>(context.stub as Schema<T>).redact
+        ) {
+          mergedHint = `${hint}@`;
+        }
+
         context.scope.define(context, reference, context.stub);
       }
 
-      return merged && referenceSchema(reference, { schema: merged, hint });
+      return (
+        merged &&
+        referenceSchema(reference, { schema: merged, hint: mergedHint })
+      );
     },
     async render(context) {
       const value = context.scope.resolve(context, reference);
@@ -127,12 +140,23 @@ export function referenceSchema<T = unknown>(
               return referenceSchema(`${reference}.@key`, { hint, schema });
             },
             of(definition: unknown) {
-              return templateTrampoline((context) =>
-                referenceSchema(reference, {
-                  hint,
-                  schema: expandTemplate(definition, context),
-                }),
-              );
+              return templateTrampoline((context) => {
+                let ofHint = hint;
+
+                const schema = expandTemplate(definition, context);
+
+                if (
+                  typeof schema === "function" &&
+                  extractOps<RedactOps<T>>(schema as Schema<T>).redact
+                ) {
+                  ofHint = `${hint}@`;
+                }
+
+                return referenceSchema(reference, {
+                  hint: ofHint,
+                  schema,
+                });
+              });
             },
           }[property]
         );

@@ -16,13 +16,13 @@ import {
   executeOp,
 } from "../../core/schema.js";
 
-type RedactSchemaOps<T = unknown> = SchematicOps<T> & {
+export type RedactOps<T = unknown> = SchematicOps<T> & {
   redact(): void;
   schema(): Schema<T>;
 };
 
 export function redactSchema<T = unknown>(schema: Schema<T>): Schema<T> {
-  return defineSchema<RedactSchemaOps<T>>({
+  return defineSchema<RedactOps<T>>({
     merge(context) {
       const merged = executeOp(schema, "merge", context);
 

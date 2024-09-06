@@ -335,8 +335,8 @@ export function defineSchema<Ops extends SchematicOps<unknown>>(
  */
 export function extractOps<O extends SchematicOps<unknown>>(
   schema: Schema<OpsValueType<O>>,
-): O {
-  return schema() as O;
+): Partial<O> {
+  return schema() as Partial<O>;
 }
 
 /**
