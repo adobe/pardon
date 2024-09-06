@@ -44,6 +44,10 @@ $ npm install --prefix=packages/favor
 $ npm run package --prefix=packages/favor # also rebuilds pardon's core
 ```
 
+The Pardon application is built into `./packages/favor/out/...`
+(path depends on your plaform, osx and windows should both work,
+have not tested any linux flavors yet.)
+
 Optionally, you can link the built application as a command-line tool as well.
 ```bash title="optional"
 $ cd packages/core
@@ -93,7 +97,9 @@ After running `npm start`, please open a browser to [`http://localhost:3000`] to
 
 ## Open the example workspace
 
-It's time to run the pardon application and set the context to the `example-todo` directory.
+It's time to run the pardon application (find it in `./packages/favor/out/...`) and
+set the context to the `example-todo` directory (setting the context is in the file menu).
+
 If everything went well, you should have
 
 ```
