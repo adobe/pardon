@@ -433,8 +433,8 @@ each `each`.
 We should explore this behavior interactively.
 
 <TestcasePlayground example={`
-set("env", "stage");
-set("name", "pens");
+  set("env", "stage");
+  set("name", "pens");
 `}>
 <Exercises>
   <ExerciseItem
@@ -632,13 +632,13 @@ with the environment `{ env: "stage", name: "pencils" }`.
 Let's experiment with this structure to get a feel for it.
 
 <TestcasePlayground mode="trials" example={`
-cases(({ set }) => {
-  set({ env: "stage", name: "pencils" });
-});
+  cases(({ set }) => {
+    set({ env: "stage", name: "pencils" });
+  });
 
-trial("%env/get-product-%name", ({ env, name }) => {
-  /* ... */
-});
+  trial("%env/get-product-%name", ({ env, name }) => {
+    /* ... */
+  });
 `.trim()}>
 <Exercises>
   <ExerciseItem
@@ -686,16 +686,16 @@ Starting with our 6 cases, we can add `stop({ env: "prod", name: "pens" })` to r
 the production test cases involving `pens`.
 
 <TestcasePlayground mode="trials" example={`
-cases(({ set, each }) => {
-  set({
-    env: each("stage", "prod"),
-    name: each("pencils", "pens", "markers")
+  cases(({ set, each }) => {
+    set({
+      env: each("stage", "prod"),
+      name: each("pencils", "pens", "markers")
+    });
   });
-});
 
-trial("%env/get-product-%name", ({ env, name }) => {
-  /* ... */
-});
+  trial("%env/get-product-%name", ({ env, name }) => {
+    /* ... */
+  });
 `.trim()}>
 <Exercises>
   <ExerciseItem
@@ -763,7 +763,7 @@ gamut(() => {
     set("name", each("pencils", "pens"));
   });
 
-  trial("%env/get-product-%name", () => { 
+  trial("%env/get-product-%name", () => {
     /*...*/
   });
 });
@@ -784,19 +784,19 @@ There are many utilities defining transforms of the test case(s):
  - etc...
 
 <TestcasePlayground mode="trials" example={`
-cases(({ each, defi }) => {
-  defi("env", each("stage", "prod"), "local");
-});
-
-gamut("%env", () => {
-  cases(({ set, each }) => {
-    set("name", each("pencils", "pens"));
+  cases(({ each, defi }) => {
+    defi("env", each("stage", "prod"), "local");
   });
 
-  trial("get-product-%name", () => { 
-    /*...*/
+  gamut("%env", () => {
+    cases(({ set, each }) => {
+      set("name", each("pencils", "pens"));
+    });
+
+    trial("get-product-%name", () => {
+      /*...*/
+    });
   });
-});
 `.trim()}>
 </TestcasePlayground>
 
@@ -824,12 +824,12 @@ And the shuffle is just `~2` or some other number, with a value of `~0` for not 
 Understandably, this is best understood by experience:
 
 <TestcasePlayground smoker={["", "name", "2,env,name", "name%env", "2,name%env", "name:2~0", "env:3,name:2", "env:3,name:2~0"]} example={`
-set({
-  env: each("stage", "prod"),
-  name: each("pencils", "pens", "markers"),
-  case: each(..."abcd"),
-  subcase: each(..."xyzw"),
-});
+  set({
+    env: each("stage", "prod"),
+    name: each("pencils", "pens", "markers"),
+    case: each(..."abcd"),
+    subcase: each(..."xyzw"),
+  });
 `}>
 <Exercises>
   <ExerciseItem label="Smoke testing"

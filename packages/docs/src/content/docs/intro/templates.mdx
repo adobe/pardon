@@ -316,12 +316,13 @@ Anyway, let's explore how pardon behaves with this template with these quick exe
 
 <p/>
 <PardonPlayground example={`
-POST https://example.com/products
+  POST https://example.com/products
 
-{
-  "name": "sample",
-  "price": 9.99
-}`} config={productsExample}>
+  {
+    "name": "sample",
+    "price": 9.99
+  }
+`} config={productsExample}>
 
 <Exercises>
   <ExerciseItem label="Changing values"
@@ -419,12 +420,13 @@ For example, since we have a value for `{{name}}` matched by the template, we
 can use the `name` value in an expression for another field.
 
 <PardonPlayground example={`
-POST https://example.com/products
+  POST https://example.com/products
 
-{
-  "name": "pay-by-the-letter",
-  "price": "{{ price = name.length * 10 }}"
-}`}
+  {
+    "name": "pay-by-the-letter",
+    "price": "{{ price = name.length * 10 }}"
+  }
+`}
 config={productsExample}>
 
 <Exercises>

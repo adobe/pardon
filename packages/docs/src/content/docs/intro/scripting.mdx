@@ -118,7 +118,7 @@ Authorization: {{ @auth = serviceToken(env) }}
 </Tabs>
 
 <PardonPlayground values secrets={'shown'} config={serviceAndPingAndProductsWithConfigurableScriptAuth} example={`
-GET https://example.com/products
+  GET https://example.com/products
 `}>
 Feel free to experiment with the usual `env=stage`/`env=prod` changes,
 (notice that pardon takes a moment to update now.)
@@ -216,7 +216,7 @@ This price script isn't editable here (it's hacked into the demo system).
 </Tabs>
 
 <PardonPlayground response data values='product=P1001' secrets='shown' editor='example/products/get.https' example={`
-GET https://example.com/products/{{product}}
+  GET https://example.com/products/{{product}}
 `} config={{ ...serviceWithOrderingAndGetMatching, 'example/products/config.yaml': '' }}>
 <Exercises>
   <ExerciseItem label='Dynamic data'
@@ -315,8 +315,9 @@ We have one more thing to fix, though.  The `price` is per-unit
 but the `cost` needs to be the `price` multiplied by the `quantity` for each item.
 
 <PardonPlayground response data values='items=[{ product: P1001 }, { product: P1003 }]'
-  secrets='shown' editor='example/orders/create.https' example={`
-POST https://example.com/orders
+  secrets='shown' editor='example/orders/create.https'
+  example={`
+  POST https://example.com/orders
 `} config={serviceWithAutoCost}>
 <Exercises>
   <ExerciseItem label="setup quantities"

@@ -297,6 +297,18 @@ endpoint=example/products/list
     you can try different endpoints, and/or `env=stage` if you like,
     for the get/update/delete endpoints, you'll need to specify a
     `product=...` value as well.
+    :::note
+    This only works for `GET` method endpoints.
+
+    Non-GET endpoints need the `method` specified as well, this
+    adds a little friction to prevent accidental `POST` requests.
+
+<IconicCode name="setting">
+```
+endpoint=example/products/create method=POST name=thneed
+```
+</IconicCode>
+    :::
   </ExerciseItem>
 </Exercises>
 </PardonPlayground>

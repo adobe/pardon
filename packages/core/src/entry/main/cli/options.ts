@@ -123,8 +123,15 @@ export async function processOptions(
     method = args.shift()!;
   }
 
+  if (values.method !== undefined && typeof values.method !== "string") {
+    throw new Error("method should be a string");
+  }
+
   if (!args.length) {
-    return { values, init: { method: method ?? "GET" } };
+    return {
+      values,
+      init: { method: (method ?? values.method ?? "GET") as string },
+    };
   }
 
   const request = await parseMainArgument(args.shift()!);
@@ -138,7 +145,15 @@ export async function processOptions(
     throw new PardonError("http method specified twice");
   }
 
-  request.method ??= method;
+  if (typeof values.method !== "string") {
+    throw new Error("method in values must be a string.");
+  }
+
+  request.method ??= method ?? values.method ?? "GET";
+
+  if (values.method && values.method && values.method !== request.method) {
+    throw new Error("method in input does not match method in request");
+  }
 
   if (data !== undefined && dataRaw !== undefined) {
     throw new Error("both --data and --data-raw should not be specified");
@@ -158,10 +173,6 @@ export async function processOptions(
   for (const header of headers || []) {
     const [key, value] = header.split(/\s*:\s*/, 2).map((s) => s.trim());
     request!.headers.append(key, value);
-  }
-
-  if (!values.endpoint && !values.method) {
-    request.method ??= method ?? "GET";
   }
 
   return { url: intoURL(request), init: request, values };

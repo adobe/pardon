@@ -159,6 +159,16 @@ export const PardonFetchExecution = pardonExecution({
   async match({ context: { url, init, ...context } }) {
     const fetchObject = fetchIntoObject(url, init);
 
+    if (typeof context.values?.method === "string") {
+      fetchObject.method ??= context.values?.method;
+
+      if (context.values?.method !== fetchObject.method) {
+        throw new Error(
+          "specified values method does not match reqeust method",
+        );
+      }
+    }
+
     // pathname undefined in some places is allowed (matches any template),
     // but we want to ensure it's set when matching requests.
     // but allow undefined origin and pathname for undefined URLs matched/rendered only by values.

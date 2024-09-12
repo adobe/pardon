@@ -55,18 +55,24 @@ export default function PardonPlaygroundDataView(
       }
 
       if (response?.result) {
+        const {
+          inbound: { values, secrets },
+        } = response.result;
         return {
-          data: response.result?.inbound,
+          data: { values, secrets },
         };
       }
 
       const { execution } = executionHandle;
 
       try {
-        const request = await execution.outbound;
+        const {
+          request: { values: secrets },
+          redacted: { values },
+        } = await execution.outbound;
 
         return {
-          data: request,
+          data: { values, secrets },
         };
       } catch (error) {
         return {
@@ -106,7 +112,7 @@ export default function PardonPlaygroundDataView(
 
   return (
     <CodeMirror
-      class="max-h-56 overflow-y-auto rounded-md p-2 text-blue-800 dark:bg-stone-700"
+      class="max-h-56 overflow-y-auto rounded-md p-2 text-blue-800 dark:bg-stone-700 dark:text-blue-200"
       classList={{
         "text-yellow-900 dark:text-purple-300": Boolean(!response()),
         "text-green-800 dark:text-green-500": Boolean(response()),

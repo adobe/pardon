@@ -99,12 +99,12 @@ You can reset the system with the reset button there too.
 :::
 
 <PardonPlayground response data example={`
-POST https://example.com/products
+  POST https://example.com/products
 
-{
-  "name": "pencils",
-  "price": 2
-}
+  {
+    "name": "pencils",
+    "price": 2
+  }
 `} config={serviceAndPingAndProductsWithConfigurableAuth}>
   <Exercises>
     <ExerciseItem label='add pencils'
@@ -156,11 +156,12 @@ Before we introduce structured data and scopes, we just tneed to see
 that values can conflict if they are specified to two values.
 
 <PardonPlayground values="name=abc" example={`
-POST https://example.com/products
+  POST https://example.com/products
 
-{
-  "name": "abc"
-}`} config={serviceAndPingAndProductsWithConfigurableAuth}>
+  {
+    "name": "abc"
+  }
+`} config={serviceAndPingAndProductsWithConfigurableAuth}>
 
 Try changing the value of name in either the values or the input request here.
 See how pardon becomes confused
@@ -189,13 +190,13 @@ Pardon interprets a single element array as a template for each item,
 and then evaluates each item in its own scope.  Let's see how this works here
 
 <PardonPlayground values example={`
-POST https://example.com/orders
+  POST https://example.com/orders
 
-{
-  "cart": [
-    { "product": "P1001" }
-  ]
-}
+  {
+    "cart": [
+      { "product": "P1001" }
+    ]
+  }
 `} config={serviceWithOrdering}>
 <Exercises>
 <ExerciseItem label="Add an item" prompt="Add a cart item">
@@ -275,14 +276,14 @@ This means replacing `{{product}}` with `{{items.product}}` and
 name for the scoped values.
 
 <PardonPlayground values editor="example/orders/create.https" data example={`
-POST https://example.com/orders
+  POST https://example.com/orders
 
-{
-  "cart": [
-    { "product": "P1001", "quantity": 7 },
-    { "product": "P1002", "quantity": 42 }
-  ]
-}
+  {
+    "cart": [
+      { "product": "P1001", "quantity": 7 },
+      { "product": "P1002", "quantity": 42 }
+    ]
+  }
 `} config={serviceWithOrdering}>
 
 <Exercises>
@@ -530,7 +531,7 @@ is clearly a new element based on the `id`.
 This mapping also affects export scopes. 
 
 <PardonPlayground response data editor="example/products/list.https" example={`
-GET https://example.com/products
+  GET https://example.com/products
 `}  config={serviceWithOrdering}>
 <Exercises>
   <ExerciseItem label="match response"
@@ -628,7 +629,7 @@ a request URL) is handled as a simple map, but we can turn on multi-map function
 Let's do that here,... just to get a feel for things.
 
 <PardonPlayground editor="example/ping.https" example={`
-GET https://example.com/ping
+  GET https://example.com/ping
 `} config={serviceAndPingAndProducts}>
 <Exercises>
   <ExerciseItem label="two params"
