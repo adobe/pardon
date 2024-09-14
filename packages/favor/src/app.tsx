@@ -14,6 +14,7 @@ import { ErrorBoundary, Show } from "solid-js";
 import Main from "./app/main.tsx";
 import LoadingSplash from "./components/LoadingSplash.tsx";
 import { manifest } from "./signals/pardon-config.ts";
+import "@fontsource/source-code-pro";
 
 function PageLoader(props) {
   return (

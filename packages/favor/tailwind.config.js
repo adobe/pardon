@@ -7,7 +7,7 @@ export default {
   plugins: [corvu],
   theme: {
     fontFamily: {
-      mono: ["Source Code Pro", "Monaco", "monospace"],
+      mono: ["Source Code Pro", "Consolas", "monospace"],
       sans: [
         "Source Code Pro",
         "-apple-system",

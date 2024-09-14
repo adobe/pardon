@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.1",
+    "@fontsource/source-code-pro": "^5.1.0",
     "@solid-primitives/storage": "^4.1.0",
     "better-sqlite3": "^11.1.2",
     "codemirror": "^6.0.1",

@@ -125,7 +125,7 @@ export default function CodeMirror(props: CodeMirrorProps) {
       ".cm-content": {
         caretColor: "var(--text1)",
         fontSize: props.text ?? "12pt",
-        fontFamily: '"Source Code Pro", "Monaco", "monospace"',
+        fontFamily: '"Source Code Pro", "Consolas", monospace',
       },
     }),
   );
