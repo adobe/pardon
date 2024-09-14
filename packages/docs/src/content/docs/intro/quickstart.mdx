@@ -17,7 +17,7 @@ prev: false
 
 [`http://localhost:3000`]: http://localhost:3000
 
-import { FileTree } from '@astrojs/starlight/components';
+import { FileTree, Aside } from '@astrojs/starlight/components';
 import { SolidIcon, CollectionLinkCard } from '@components';
 
 :::tip
@@ -35,14 +35,30 @@ You can use this to demo some workflows.
 ## Installation and Building
 
 To get started with Pardon, first build the Pardon application.
-```bash
+```bash title="building pardon"
 $ git clone https://github.com/adobe/pardon.git
 $ cd pardon
 $ npm install
 $ npm install --prefix=packages/core
 $ npm install --prefix=packages/favor
-$ npm run package --prefix=packages/favor # also rebuilds pardon's core
+$ npm run package --prefix=packages/favor # this also rebuilds pardon's core
 ```
+
+<Aside type="caution" title="Building on Windows">
+<details>
+<summary>When building on windows, instead of using `--prefix`, please `cd` to the various subdirectories.</summary>
+```bash title="powershell or cmd"
+$ git clone https://github.com/adobe/pardon.git
+$ cd pardon
+$ npm install
+$ cd packages/core
+$ npm install
+$ cd ../favor
+$ npm install
+$ npm run package
+```
+</details>
+</Aside>
 
 The Pardon application is built into `./packages/favor/out/...`
 (path depends on your plaform, osx and windows should both work,
