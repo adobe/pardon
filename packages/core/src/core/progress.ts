@@ -9,13 +9,12 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Schema, SchemaMergingContext } from "./schema/core/schema.js";
 import { mergeSchema } from "./schema/core/schema-utils.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
-import { DeepPartial } from "./schema/core/context.js";
+import { Schema, SchemaMergingContext, Template } from "./schema/core/types.js";
 
 export interface ProgressiveMatchData<T> {
-  object: DeepPartial<T>;
+  object: Template<T>;
   schema: Schema<T>;
   context?: SchemaMergingContext<T>;
   values: Record<string, unknown>;
@@ -29,7 +28,7 @@ export interface ProgressiveMatchData<T> {
  * Both the extended schema and the schema with the object matched are returned.
  */
 export class ProgressiveMatch<T> implements ProgressiveMatchData<T> {
-  object: DeepPartial<T>;
+  object: Template<T>;
   schema: Schema<T>;
   context?: SchemaMergingContext<T>;
   values: Record<string, unknown>;

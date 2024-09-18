@@ -9,49 +9,38 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { SchemaError } from "../../core/schema-error.js";
-import {
-  SchematicOps,
-  Schema,
-  defineSchema,
-  Template,
-  executeOp,
-} from "../../core/schema.js";
+import { diagnostic } from "../../core/context-util.js";
+import { defineSchema, executeOp } from "../../core/schema-ops.js";
+import { Schema, Template } from "../../core/types.js";
 import { expandTemplate } from "../../template.js";
-
-export type StubOps<T = unknown> = SchematicOps<T> & {
-  stub(): true;
-  fallback(): Schema<T> | null | undefined;
-};
 
 export function stubSchema<T = any>(
   fallbackSchema?: Schema<T> | null,
 ): Schema<T> {
-  return defineSchema<StubOps<T>>({
+  return defineSchema<T>({
     merge(context) {
-      const { stub } = context;
+      const { template } = context;
 
       if (
-        stub === undefined &&
+        template === undefined &&
         fallbackSchema === null &&
         context.mode === "match"
       ) {
-        throw SchemaError.match.missing(context, {
-          note: "stub:required",
-        });
+        throw diagnostic(context, "required");
       }
 
-      if (stub !== undefined) {
-        return expandTemplate(stub as Template<T>, context);
+      if (template !== undefined) {
+        return expandTemplate(template as Template<T>, {
+          ...context,
+          template: undefined,
+        });
       }
 
       return stubSchema(fallbackSchema);
     },
     async render(context) {
       if (fallbackSchema === null) {
-        throw SchemaError.render.undefined(context, {
-          note: "unresolved stub",
-        });
+        throw diagnostic(context, "required stub");
       }
 
       if (fallbackSchema !== undefined) {
@@ -62,12 +51,6 @@ export function stubSchema<T = any>(
       if (fallbackSchema) {
         return executeOp(fallbackSchema, "scope", context);
       }
-    },
-    fallback() {
-      return fallbackSchema;
-    },
-    stub() {
-      return true;
     },
   });
 }

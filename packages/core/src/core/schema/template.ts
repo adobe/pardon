@@ -9,101 +9,80 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { mapObject } from "../../util/mapping.js";
-import { arrays, scalars, objects } from "./definition/index.js";
+import { scalars } from "./definition/index.js";
+import { createMergingContext } from "./core/context.js";
+import { diagnostic, loc } from "./core/context-util.js";
+import { stubSchema } from "./definition/structures/stub.js";
+import { isScalar } from "./definition/scalar-type.js";
+import { expandArray } from "./definition/arrays.js";
+import { expandObject } from "./definition/objects.js";
 import {
-  Template,
   Schema,
   SchemaMergingContext,
-  defineSchema,
+  SchemaOps,
+  Schematic,
   SchematicOps,
-  extractOps,
-} from "./core/schema.js";
-import { createMergingContext, keyContext } from "./core/context.js";
-import { stubSchema } from "./definition/structures/stub-schema.js";
-import { isScalar } from "./definition/scalars.js";
-import { TrampolineModeOps } from "./scheming.js";
+  Template,
+} from "./core/types.js";
+import {
+  defineSchematic,
+  exposeSchematic,
+  isSchema,
+  isSchematic,
+} from "./core/schema-ops.js";
 
-export type TrampolineOps<T, S> = SchematicOps<T> & {
-  trampoline(context: SchemaMergingContext<T>): Schema<S>;
-};
-
-export function templateTrampoline<
+export function templateSchematic<
   T,
-  S = T,
   E extends Record<string, unknown> = Record<never, never>,
->(trampoline: (context: SchemaMergingContext<T>) => Schema<S>, extension?: E) {
-  return defineSchema<TrampolineOps<T, S>>(
-    Object.assign(
-      {
-        trampoline(context: SchemaMergingContext<T>) {
-          return trampoline(context);
-        },
-        merge() {
-          throw new Error("unbounced trampoline");
-        },
-        render() {
-          throw new Error("unbounced trampoline");
-        },
-        scope() {
-          throw new Error("unbounced trampoline");
-        },
-      },
-      extension ?? {},
-    ),
-  );
+>(
+  expand: (context: SchemaMergingContext<T>) => Schema<T> | Template<T>,
+  extension: E,
+): Schematic<T> {
+  return defineSchematic({
+    expand(context) {
+      const schemaOrTemplate = expand(context);
+
+      if (isSchematic(schemaOrTemplate)) {
+        return expandTemplate(schemaOrTemplate, context) as Schema<T>;
+      } else if (isSchema(schemaOrTemplate)) {
+        return schemaOrTemplate;
+      }
+
+      throw diagnostic(
+        context,
+        "error expanding template schematic, got: " + schemaOrTemplate,
+      );
+    },
+    ...extension,
+  });
 }
 
-export function templateInContext<T>(
+export function expandInContext<T>(
   context: SchemaMergingContext<T>,
 ): Schema<T> {
-  const { mode, stub: template } = context;
+  const { mode, template } = context;
 
   if (Array.isArray(template)) {
-    if (mode === "mix") {
-      // auto arrays of length == 1 are
-      // treated as rules to apply to all
-      // elements.
-      return expandTemplate(
-        arrays.auto(
-          template.map(
-            (item, idx) => expandTemplate(item, keyContext(context, idx))!,
-          ),
-        ) as Template<T>,
-        context,
-      ) as any;
-    }
-
-    // otherwise treat them as a tuple
-    return arrays.tuple(
-      template.map(
-        (item, idx) => expandTemplate(item, keyContext(context, idx))!,
-      ),
-    ) as any;
+    return expandArray(
+      context as SchemaMergingContext<T extends unknown[] ? T : never>,
+    ) as Schema<T>;
   }
 
   if (template && typeof template == "object") {
-    // special case for {}, treat as an untyped stub.
-    // this prevents {} matched with [{...}] from becoming { "0": { ... } }
-    // or being an error.
-    if (Object.keys(template).length === 0) {
-      return stubSchema(objects.object({}));
-    }
-
-    return objects.object(
-      mapObject(
-        template as Record<string, unknown>,
-        (value, key) => expandTemplate(value, keyContext(context, key))!,
-      ),
-    ) as any;
+    return expandObject(
+      context as SchemaMergingContext<
+        T extends Record<string, unknown> ? T : never
+      >,
+    );
   }
 
   if (typeof template === "function") {
-    const ops = extractOps<TrampolineOps<unknown, unknown>>(
-      template as Schema<unknown>,
+    const ops = exposeSchematic<SchematicOps<T> & SchemaOps<T>>(
+      template as Schematic<T>,
     );
-    if (ops.trampoline) {
-      return expandTemplate(ops.trampoline(context) as Template<T>, context);
+
+    if (ops.expand && !ops.render) {
+      return ops.expand(context);
     } else {
       return template as Schema<T>;
     }
@@ -111,9 +90,12 @@ export function templateInContext<T>(
 
   if (isScalar(template)) {
     if (mode === "match") {
-      return scalars.antipattern(template);
+      return expandInContext({
+        ...context,
+        template: scalars.antipattern(template),
+      });
     } else {
-      return scalars.any(template);
+      return expandInContext({ ...context, template: scalars.any(template) });
     }
   }
 
@@ -121,49 +103,30 @@ export function templateInContext<T>(
 }
 
 export function expandTemplate<T>(
-  template: Template<T>,
+  template: Template<T> | undefined,
   context: SchemaMergingContext<T>,
 ): Schema<T> {
-  // sometimes we need to trampoline without losing the context stub
-  if (typeof template === "function") {
-    const ops = extractOps<TrampolineOps<T, unknown>>(template as Schema<T>);
+  if (isSchematic(template)) {
+    const schema = template().expand(context);
+    if (isSchematic(schema)) {
+      const templateKeys = Object.keys(template()).join("/");
+      const schemaKeys = Object.keys(template()).join("/");
 
-    if (ops.trampoline) {
-      return expandTemplate(ops.trampoline(context), context) as Schema<T>;
-    }
-  }
+      console.error(
+        `${loc(context)} expanding template produced a template (${templateKeys}) -> (${schemaKeys})`,
+      );
 
-  // is this good enough?
-  // Okay to just discard the context.stub here if template is passed?
-  return templateInContext({ ...context, stub: template }) as Schema<T>;
-}
-
-export function applyModeTrampoline<T>(
-  context: SchemaMergingContext<T>,
-): SchemaMergingContext<T> {
-  while (typeof context.stub === "function") {
-    const { trampoline, mode, template } = extractOps<
-      SchematicOps<unknown> &
-        Partial<TrampolineModeOps & TrampolineOps<unknown, unknown>>
-    >(context.stub as Schema<T>);
-
-    if (trampoline) {
-      context = {
-        ...context,
-        ...(mode && { mode: mode() }),
-        stub: template?.() as T,
-      };
-      continue;
+      throw new Error("expand produced a template");
     }
 
-    break;
+    return schema;
   }
 
-  return context;
+  return expandInContext({ ...context, template }) as Schema<T>;
 }
 
 // TODO: remove these or can we pass phase in from context at call site?
-export function mixing<T>(template: Template<T>) {
+export function mixing<T>(template: Template<T>): Schema<T> {
   return expandTemplate<T>(
     template,
     createMergingContext(

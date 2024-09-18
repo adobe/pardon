@@ -9,190 +9,384 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { diagnostic } from "../core/context-util.js";
 import {
   keyContext,
   elementScopeContext,
-  diagnostic,
+  tempContext,
 } from "../core/context.js";
 import {
-  SchematicOps,
-  Schema,
   defineSchema,
+  defineSchematic,
   executeOp,
-  SchemaMergingContext,
+  exposeSchematic,
+  merge,
+} from "../core/schema-ops.js";
+import { isMergingContext } from "../core/schema.js";
+import {
+  Schema,
   SchemaContext,
-  SchemaCaptureContext,
+  SchemaMergingContext,
   SchemaRenderContext,
-  extractOps,
+  Schematic,
+  SchematicOps,
   Template,
-} from "../core/schema.js";
-import { SchemaError } from "../core/schema-error.js";
-import { stubSchema } from "./structures/stub-schema.js";
-import { valueId } from "../../../util/value-id.js";
-import { applyModeTrampoline } from "../template.js";
+} from "../core/types.js";
+import { stubSchema } from "./structures/stub.js";
 
-type ArraySchemeOptions<T> = {
-  // disable creating a subscope for each item, for arrays representing tuples or other
-  // non-enumerated data.
-  unscoped?: boolean;
-
-  // multivalue-mode matching, this allows for mismatched array lengths,
-  // matches each new values into the first compatible slot or adds a new one.
-  // used for things like headers where multiple values apply to the same key.
-  multivalue?: boolean;
-
-  // Jackson "UNWRAP_SINGLE_VALUE_ARRAYS" support
+type ArrayRepresentation<T> = {
+  item: Schema<T>;
+  elements?: Schema<T>[];
+  multivalue: boolean;
   lenient?: boolean;
-  // indicates the array was derived from a single value, (and should render as one.)
   single?: boolean;
-
-  // a schema to apply to each item.
-  itemSchema?: Schema<T>;
+  scoped: boolean;
 };
 
-export type ArrayOps<T> = SchematicOps<T | T[]> & {
-  array(): Schema<T> | Schema<T>[];
-  options(): ArraySchemeOptions<T>;
+type ArraySchematic<T> = {
+  array?: Template<T>[];
+  mux?: boolean;
+  item?: Template<T>;
+  multivalue?: boolean;
+  lenient?: boolean;
+  single?: boolean;
+  scoped?: boolean;
 };
 
-function defineArray<T>(
-  array: Schema<T> | Schema<T>[],
-  options: ArraySchemeOptions<T>,
-): Schema<T | T[]> {
-  return defineSchema<ArrayOps<T>>({
+type ArraySchematicOps<T> = SchematicOps<T | T[]> & {
+  array(context: SchemaMergingContext<T | T[]>): ArraySchematic<T>;
+};
+
+function itemContext<C extends SchemaContext>(
+  context: C,
+  scoped: boolean,
+  idx: number,
+) {
+  context = scoped
+    ? elementScopeContext(context, idx)
+    : keyContext(context, idx);
+
+  return context as C extends SchemaMergingContext<infer A>
+    ? A extends Array<infer T>
+      ? SchemaMergingContext<T>
+      : C
+    : C;
+}
+
+function expandInfo<T>(
+  context: SchemaMergingContext<T | T[]>,
+  self: ArrayRepresentation<T>,
+): ArraySchematic<T> | undefined {
+  let template = context.template;
+  let single = false;
+  if (template === undefined) {
+    return undefined;
+  }
+
+  if (typeof template === "function") {
+    const ops = exposeSchematic<ArraySchematicOps<T>>(
+      template as Schematic<T | T[]>,
+    );
+
+    if (!ops.array) {
+      throw diagnostic(context, "merge array with unknown schematic");
+    }
+
+    return ops.array(context);
+  }
+
+  if (self.lenient && !Array.isArray(template)) {
+    template = [template];
+    single = true;
+  }
+
+  if (Array.isArray(template)) {
+    const { multivalue, scoped, lenient } = self;
+
+    return {
+      array: template as Template<T>[],
+      multivalue,
+      scoped,
+      lenient,
+      single,
+    };
+  }
+
+  throw diagnostic(context, "could not merge array with non-array");
+}
+
+// just merges the item template representation
+function mergeRepresentation<T>(
+  context: SchemaMergingContext<T | T[]>,
+  rep: ArrayRepresentation<T>,
+  info?: ArraySchematic<T>,
+): ArrayRepresentation<T> | undefined {
+  if (!info) {
+    return rep;
+  }
+
+  if (rep.scoped !== (info.scoped ?? rep.scoped)) {
+    throw diagnostic(context, "cannot merge scoped and unscoped arrays");
+  }
+
+  if (rep.multivalue !== (info.multivalue ?? rep.multivalue)) {
+    throw diagnostic(context, "cannot merge multivalue and regular arrays");
+  }
+
+  if (info.item !== undefined) {
+    rep = mergeArchtype(context, rep, info.item);
+  }
+
+  if (
+    context.mode === "mix" &&
+    info.array?.length === 1 &&
+    !info.mux &&
+    !rep.multivalue &&
+    !info.single
+  ) {
+    return mergeArchtype(context, rep, info.array[0]);
+  }
+
+  return rep.multivalue
+    ? mvMergeElements(context, rep, info)
+    : mergeElements(context, rep, info);
+}
+
+function mergeArchtype<T>(
+  context: SchemaMergingContext<T | T[]>,
+  rep: ArrayRepresentation<T>,
+  archetype: Template<T>,
+) {
+  const item = merge(rep.item, {
+    ...itemContext(context, rep.scoped, -1),
+    phase: "build",
+    template: archetype,
+  } as SchemaMergingContext<T>);
+
+  if (item === undefined) {
+    throw diagnostic(context, "could not merge archetype");
+  }
+
+  const elements = rep.elements?.map((element, idx) =>
+    merge(element, {
+      ...itemContext(context, rep.scoped, idx),
+      template: archetype,
+    } as SchemaMergingContext<T>),
+  );
+
+  if (elements?.some((v) => v === undefined)) {
+    throw diagnostic(context, "could not merge archetype with elements");
+  }
+
+  return { ...rep, item, elements: elements as Schema<T>[] | undefined };
+}
+
+function mergeElements<T>(
+  context: SchemaMergingContext<T | T[]>,
+  rep: ArrayRepresentation<T>,
+  info: ArraySchematic<T>,
+): ArrayRepresentation<T> | undefined {
+  if (rep.elements && info.array) {
+    if (rep.elements.length !== info.array.length) {
+      throw diagnostic(
+        context,
+        `array: mismatched length: ${rep.elements.length} and ${info.array.length}`,
+      );
+    }
+
+    const mergedElements = rep.elements.map(
+      (scheme, idx) =>
+        merge(scheme, {
+          ...itemContext(context as SchemaMergingContext<T[]>, rep.scoped, idx),
+          template: info.array![idx],
+        })!,
+    );
+
+    if (!mergedElements.every(Boolean)) {
+      return undefined;
+    }
+
+    return {
+      ...rep,
+      elements: mergedElements,
+      single: rep.single && info.single,
+    };
+  }
+
+  const mergedElements = info.array?.map(
+    (element, idx) =>
+      merge(rep.item, {
+        ...itemContext(context as SchemaMergingContext<T[]>, rep.scoped, idx),
+        template: element,
+      })!,
+  );
+
+  if (mergedElements && !mergedElements.every(Boolean)) {
+    return undefined;
+  }
+
+  return {
+    ...rep,
+    elements: mergedElements,
+    single: (!rep.elements || rep.single) && info.single,
+  };
+}
+
+function mvMergeElements<T>(
+  context: SchemaMergingContext<T | T[]>,
+  rep: ArrayRepresentation<T>,
+  info: ArraySchematic<T>,
+): ArrayRepresentation<T> | undefined {
+  const matched: Record<number, Schema<T>> = {};
+  const extra: Template<T>[] = [];
+
+  const scoped = Boolean(rep.scoped || info.scoped);
+
+  if (!scoped) {
+    context = { ...context, mode: "mux" };
+  }
+
+  if (context.mode === "mix" && info.array?.length === 1) {
+    const mergedItem = merge(rep.item ?? stubSchema(), {
+      ...(tempContext(
+        itemContext(context, scoped, -1),
+      ) as SchemaMergingContext<T>),
+      template: info.array[0],
+    });
+
+    if (!mergedItem) {
+      return;
+    }
+
+    const mergedElements = rep.elements?.map((element, idx) =>
+      merge(element, {
+        ...(tempContext(
+          itemContext(context, scoped, idx),
+        ) as SchemaMergingContext<T>),
+        template: info.array![0],
+      }),
+    );
+
+    if (rep.elements && !mergedElements!.every(Boolean)) {
+      return;
+    }
+
+    return {
+      ...rep,
+      item: mergedItem,
+      elements: mergedElements as Schema<T>[],
+      single: rep.single && info.single,
+    };
+  }
+
+  if (info.array) {
+    for (const prime of info.array) {
+      let i = 0;
+      let match: Schema<T> | undefined;
+
+      for (const item of rep.elements ?? []) {
+        if (matched[i]) {
+          i++;
+          continue;
+        }
+
+        try {
+          match = merge(
+            item,
+            tempContext({
+              ...itemContext(context, scoped, -1),
+              mode: "meld",
+              template: prime,
+            }) as SchemaMergingContext<T>,
+          );
+
+          if (match) {
+            matched[i] = merge(item, {
+              ...itemContext(context, scoped, i),
+              template: prime,
+            } as SchemaMergingContext<T>)!;
+            break;
+          }
+        } catch (error) {
+          console.warn("error in trial merging of mv elements", error);
+          // ...
+        }
+        i++;
+      }
+
+      if (!match) {
+        extra.push(prime);
+      }
+    }
+  }
+
+  const items = [
+    ...(rep.elements || []).map((schema, idx) => matched[idx] ?? schema),
+    ...extra.map((item, idx) =>
+      merge(rep.item, {
+        ...itemContext(context, scoped, idx + (rep.elements?.length ?? 0)),
+        template: item,
+      } as SchemaMergingContext<T>),
+    ),
+  ];
+
+  const firstMismatch = items.findIndex((value) => value === undefined);
+
+  if (firstMismatch !== -1) {
+    diagnostic(context, `mismatch in multivalue merge: ${firstMismatch}`);
+    return undefined;
+  }
+
+  return {
+    ...rep,
+    elements: items as Schema<T>[],
+    single: rep.single && info.single,
+  };
+}
+
+function defineArray<T>(self: ArrayRepresentation<T>): Schema<T | T[]> {
+  return defineSchema<T | T[]>({
     scope(context) {
-      const { itemSchema, len } = resolveArrayLength(context);
+      const len = resolveArrayLength(context, self);
+
+      if (
+        isMergingContext(context) &&
+        len === 1 &&
+        self.single &&
+        self.lenient &&
+        !Array.isArray(context.template)
+      ) {
+        const elementContext = {
+          ...itemContext({ ...context, template: undefined }, self.scoped, 0),
+          template: context.template,
+        } as SchemaContext<T>;
+
+        executeOp(self.elements?.[0] ?? self.item, "scope", elementContext);
+
+        return;
+      }
 
       for (let idx = 0; idx < len; idx++) {
         const elementContext = itemContext(
           context,
+          self.scoped,
           idx,
-        ) as SchemaCaptureContext<T>;
+        ) as SchemaContext<T>;
 
-        if (itemSchema) {
-          executeOp(itemSchema, "scope", elementContext);
-        }
-
-        executeOp(arrayElementAt(idx), "scope", elementContext);
+        executeOp(self.elements?.[idx] ?? self.item, "scope", elementContext);
       }
     },
     merge(context) {
-      let { stub } = applyModeTrampoline(context);
-      let single = options.single ?? false;
-
-      // need to test this code path.
-      if (typeof stub === "function") {
-        const ops = extractOps<ArrayOps<T>>(stub as Schema<T[]>);
-
-        if (!ops.array || !ops.options) {
-          // todo: lenient handling here too?
-          diagnostic(context, "array expected");
-
-          return undefined;
-        }
-
-        stub = ops.array() as Template<T> | Template<T[]> as T | T[];
-
-        if (typeof stub === "function" && typeof array === "function") {
-          if (valueId(options) !== valueId(ops.options())) {
-            // TODO: reconcile options better
-            return;
-          }
-
-          const merged = executeOp(array, "merge", {
-            ...itemContext(context, -1),
-            stub,
-          } as SchemaMergingContext<T>);
-
-          return merged && defineArray(merged, options);
-        } else if (
-          Array.isArray(stub) &&
-          Array.isArray(array) &&
-          stub.length === array.length
-        ) {
-          // continue
-        } else {
-          return undefined;
-        }
-      }
-
-      if (stub !== undefined && !Array.isArray(stub)) {
-        if (!options.lenient) {
-          diagnostic(context, "array expected");
-          return undefined;
-        }
-
-        stub = [stub];
-        single = true;
-      }
-
-      if (options.multivalue && Array.isArray(array)) {
-        if (stub !== undefined) {
-          if (Array.isArray(stub)) {
-            return matchMultivalue({
-              ...context,
-              stub,
-            } as SchemaMergingContext<T[]>);
-          } else {
-            return matchMultivalue({
-              ...context,
-              stub: [stub],
-            } as SchemaMergingContext<T[]>);
-          }
-        }
-
-        return matchMultivalue(context as SchemaMergingContext<T[]>);
-      }
-
-      if (Array.isArray(array) && Array.isArray(stub)) {
-        if (stub !== undefined && array.length != stub.length) {
-          throw SchemaError.match.mismatch(context, {
-            note: `length:${array.length} and ${stub.length}`,
-          });
-        }
-
-        const mapped = array.map(
-          (scheme, idx) =>
-            executeOp(
-              scheme,
-              "merge",
-              itemContext(
-                { ...context, stub } as SchemaMergingContext<T[]>,
-                idx,
-              ),
-            )!,
-        );
-
-        if (!mapped.every(Boolean)) {
-          return undefined;
-        }
-
-        return defineArray(mapped, { ...options, single });
-      }
-
-      if (stub === undefined) {
-        return defineArray(array, { ...options, single });
-      }
-
-      const matchedWithTemplate = (stub as T[]).map(
-        (_, idx) =>
-          executeOp(
-            array as Schema<T>,
-            "merge",
-            itemContext({ ...context, stub } as SchemaMergingContext<T[]>, idx),
-          )!,
+      const merged = mergeRepresentation(
+        context,
+        self,
+        expandInfo(context, self),
       );
 
-      return defineArray(
-        matchedWithTemplate.length === 1 && context.mode === "mix"
-          ? matchedWithTemplate[0]
-          : matchedWithTemplate,
-        { ...options, single: single },
-      );
+      return merged && defineArray(merged);
     },
     async render(context) {
-      const { itemSchema, len } = await renderArrayLength(context);
-      void itemSchema; // TODO?
+      const len = await renderArrayLength(context);
 
       const result =
         len === -1
@@ -203,13 +397,13 @@ function defineArray<T>(
                   executeOp(
                     arrayElementAt(idx),
                     "render",
-                    itemContext(context, idx),
+                    itemContext(context, self.scoped, idx),
                   ) as Promise<T>,
               ),
             );
 
       if (result?.every((value) => value !== undefined)) {
-        if (result.length === 1 && options.single) {
+        if (result.length === 1 && self.lenient && self.single) {
           return result[0];
         }
 
@@ -218,121 +412,51 @@ function defineArray<T>(
 
       return undefined;
     },
-    array() {
-      return array;
-    },
-    options() {
-      return options;
-    },
   });
 
-  function itemContext<C extends SchemaContext>(context: C, idx: number) {
-    const { unscoped } = options;
-
-    context = unscoped
-      ? keyContext(context, idx)
-      : elementScopeContext(context, idx);
-
-    return context as C extends SchemaMergingContext<infer A>
-      ? A extends Array<infer T>
-        ? SchemaMergingContext<T>
-        : C
-      : C;
-  }
-
-  function matchMultivalue(context: SchemaMergingContext<T[]>) {
-    const matched: Record<number, Schema<T>> = {};
-    const extra: T[] = [];
-    const { stub } = context;
-
-    if (stub) {
-      for (const prime of stub) {
-        let i = 0;
-        let match: Schema<T> | undefined;
-        for (const item of array as Schema<T>[]) {
-          if (matched[i]) {
-            i++;
-            continue;
-          }
-
-          try {
-            match = executeOp(item, "merge", {
-              ...itemContext(context, -1),
-              stub: prime,
-            });
-
-            if (match) {
-              matched[i] = executeOp(item, "merge", {
-                ...itemContext(context, i),
-                stub: prime,
-              })!;
-              break;
-            }
-          } catch (error) {
-            void error;
-            // ...
-          }
-          i++;
-        }
-
-        if (!match) {
-          extra.push(prime);
-        }
-      }
-    }
-
-    const items = [
-      ...(array as Schema<T>[]).map((schema, idx) => matched[idx] ?? schema),
-      ...extra.map((item, idx) =>
-        executeOp(options.itemSchema ?? stubSchema(null), "merge", {
-          ...keyContext(context, idx + array.length),
-          stub: item,
-        }),
-      ),
-    ];
-
-    if (items.some((value) => value === undefined)) {
-      return undefined;
-    }
-
-    return defineArray<T>(items as Schema<T>[], options);
-  }
-
   function arrayElementAt(idx: number): Schema<T> {
-    return !Array.isArray(array) ? array : (array[idx] ?? stubSchema<T>());
+    const { item, elements } = self;
+    return !elements ? item : elements[idx];
   }
 
-  function resolveArrayLength(context: SchemaCaptureContext<T | T[]>) {
-    const { itemSchema = !Array.isArray(array) ? array : undefined } = options;
+  function resolveArrayLength(
+    context: SchemaContext<T | T[]>,
+    merged: ArrayRepresentation<T>,
+  ) {
+    const { item, elements, scoped } = merged;
 
-    const templateContext = itemContext(context, -1) as SchemaCaptureContext<T>;
+    const templateContext = itemContext(
+      context,
+      scoped,
+      -1,
+    ) as SchemaContext<T>;
 
-    if (itemSchema) {
-      executeOp(itemSchema, "scope", templateContext);
-    }
+    executeOp(item, "scope", templateContext);
 
     const { environment } = context;
 
     const len = Math.max(
-      Array.isArray(array) ? array.length : options.single ? 1 : -1,
+      elements ? elements.length : -1,
       ...((templateContext.scope.index?.struts
         ?.map((strut) => environment.resolve({ context, ident: strut }))
         ?.map((strut) => (Array.isArray(strut) ? strut.length : undefined))
         ?.filter((n) => typeof n === "number") as number[]) || []),
     );
 
-    return { itemSchema, len };
+    return len;
   }
 
   async function renderArrayLength(context: SchemaRenderContext) {
-    const { itemSchema = !Array.isArray(array) ? array : undefined } = options;
-
-    const templateContext = itemContext(context, -1) as SchemaRenderContext;
+    const templateContext = itemContext(
+      context,
+      self.scoped,
+      -1,
+    ) as SchemaRenderContext;
 
     const { environment } = context;
 
     const len = Math.max(
-      Array.isArray(array) ? array.length : options.single ? 1 : -1,
+      self.elements?.length ?? -1,
       ...((
         await Promise.all(
           templateContext.scope.index?.struts.map((strut) =>
@@ -344,39 +468,139 @@ function defineArray<T>(
         .filter((n) => typeof n === "number") as number[]),
     );
 
-    return { itemSchema, len };
+    return len;
   }
 }
 
+function defineArraySchematic<T>(
+  base: (context: SchemaMergingContext<T | T[]>) => ArrayRepresentation<T>,
+  schematic: (context: SchemaMergingContext<T | T[]>) => ArraySchematic<T>,
+) {
+  return defineSchematic<ArraySchematicOps<T>>({
+    array(context) {
+      return schematic(context);
+    },
+    expand(context) {
+      const array = mergeRepresentation(
+        context,
+        base(context),
+        schematic(context),
+      );
+      return defineArray(array!);
+    },
+  });
+}
+
 export const arrays = {
-  auto: <T>(template: Schema<T>[]) =>
-    defineArray<T>(
-      Array.isArray(template) && template.length === 1 ? template[0] : template,
-      { unscoped: template.length !== 1 },
-    ) as Schema<T[]>,
+  auto: <T>(template: Template<T>[]) =>
+    defineArraySchematic<T>(
+      () => ({
+        item: stubSchema(),
+        multivalue: false,
+        scoped: template?.length === 1,
+      }),
+      ({ mode }) =>
+        mode === "mix" && template?.length == 1
+          ? {
+              item: template[0],
+            }
+          : {
+              array: template,
+            },
+    ) as Schematic<T[]>,
+
+  scoped: <T>(template: Template<T>[]) =>
+    defineArraySchematic<T>(
+      () => ({
+        item: stubSchema(),
+        multivalue: false,
+        scoped: true,
+      }),
+      () => ({
+        array: template,
+        mux: true,
+      }),
+    ) as Schematic<T[]>,
 
   // Jackson UNWRAP_SINGLE_VALUE_ARRAYS
-  lenient: <T>(template: Schema<T> | Schema<T>[]) =>
-    defineArray<T>(
-      Array.isArray(template) && template.length == 1 ? template[0] : template,
-      {
+  lenient: <T>(template: Template<T> | Template<T>[]) =>
+    defineArraySchematic<T>(
+      () => ({
+        item: stubSchema(),
+        multivalue: false,
+        scoped: true,
         lenient: true,
-      },
-    ) as Schema<T | T[]>,
+      }),
+      () => ({
+        array: Array.isArray(template)
+          ? (template as Template<T>[])
+          : undefined,
+        item: Array.isArray(template) ? undefined : template,
+        single: !Array.isArray(template),
+      }),
+    ) as Schematic<T | T[]>,
 
-  template: <T>(template: Schema<T>[]) =>
-    defineArray<T>(template, {}) as Schema<T[]>,
+  tuple: <A extends unknown[]>(template: Template<A>) =>
+    defineArraySchematic<A>(
+      () => ({
+        item: stubSchema(),
+        multivalue: false,
+        scoped: false,
+      }),
+      () => ({
+        array: template as Template<A>[],
+        scoped: false,
+        mux: true,
+      }),
+    ) as Schematic<A>,
 
-  tuple: <T>(template: Schema<T>[]) =>
-    defineArray<T>(template, { unscoped: true }) as Schema<T[]>,
+  multivalue: <T>(template: Template<T>[], item?: Template<T>) =>
+    defineArraySchematic<T>(
+      () => ({
+        item: stubSchema(),
+        multivalue: true,
+        scoped: false,
+      }),
+      () => ({
+        array: template,
+        item,
+        multivalue: true,
+        scoped: false,
+      }),
+    ) as Schematic<T[]>,
 
-  multivalue: <T>(
-    template: Schema<T>[],
-    itemSchema: Schema<T> = stubSchema(),
-  ) =>
-    defineArray<T>(template, {
-      multivalue: true,
-      unscoped: true,
-      itemSchema,
-    }) as Schema<T[]>,
+  multiscope: <T>(template: Template<T>[], item?: Template<T>) =>
+    defineArraySchematic<T>(
+      () => ({
+        item: stubSchema(),
+        multivalue: true,
+        scoped: true,
+      }),
+      () => ({
+        array: template,
+        item,
+        multivalue: true,
+        scoped: true,
+      }),
+    ) as Schematic<T[]>,
 };
+
+export function expandArray<T>(
+  context: SchemaMergingContext<T[]>,
+): Schema<T | T[]> {
+  const { mode, template } = context;
+
+  if (!Array.isArray(template)) {
+    throw diagnostic(context, "count not expand non-array");
+  }
+
+  if (mode === "mix") {
+    // auto arrays of length == 1 are
+    // treated as rules to apply to all
+    // elements.
+    return arrays.auto(template)().expand(context);
+  }
+
+  // otherwise treat them as a tuple
+  return arrays.tuple(template)().expand(context) as Schema<T | T[]>;
+}

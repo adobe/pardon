@@ -21,8 +21,9 @@ import {
   arePatternsCompatible,
 } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
-import { SchemaMergingContext } from "./schema.js";
-import { isScalar } from "../definition/scalars.js";
+import { isScalar } from "../definition/scalar-type.js";
+import { diagnostic } from "./context-util.js";
+import { SchemaMergingContext } from "./types.js";
 
 export type ConfigMapping =
   | string
@@ -91,17 +92,19 @@ export class ConfigSpace {
     },
   ) {
     const space = this.configurations(patterns);
-    const { stub } = context;
+    const { template } = context;
 
     // if there's no related configuration for these patterns,
     // mix in the stub pattern and bail.
     if (!space) {
-      if (stub === undefined || !isScalar(stub)) {
+      if (template === undefined || !isScalar(template)) {
         return patterns;
       }
 
       const stubPattern =
-        context.mode === "match" ? patternLiteral(stub) : patternize(stub);
+        context.mode === "match"
+          ? patternLiteral(template)
+          : patternize(template);
 
       if (
         patterns.some((pattern) => !arePatternsCompatible(stubPattern, pattern))
@@ -123,9 +126,15 @@ export class ConfigSpace {
       nature,
     } = space;
 
-    if (stub !== undefined) {
+    if (template !== undefined) {
+      if (typeof template === "function") {
+        diagnostic(context, "config on template of string?");
+      }
+
       const stubPattern =
-        context.mode === "match" ? patternLiteral(stub) : patternize(stub);
+        context.mode === "match"
+          ? patternLiteral(template as string)
+          : patternize(template as string);
       const stubValue = resolve(stubPattern);
 
       if (stubValue) {

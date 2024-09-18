@@ -9,33 +9,32 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Schema } from "../../core/schema.js";
-import { keyed } from "../structures/keyed-list-schema.js";
-import { stubSchema } from "../structures/stub-schema.js";
-import { EncodingType, encodingSchema } from "./encoding-schema.js";
+import { keyed } from "../structures/keyed-list.js";
+import { EncodingType, encodingTemplate } from "./encoding.js";
 import { arrays } from "../arrays.js";
 import { objects } from "../objects.js";
-import { scalars } from "../scalars.js";
+import { Template } from "../../core/types.js";
 
 const headersEncodingType: EncodingType<Headers, [string, string][]> = {
-  decode({ stub }) {
-    return stub !== undefined ? [...stub] : undefined;
+  as: "Headers",
+  decode({ template }) {
+    return template !== undefined ? [...(template as Headers)] : undefined;
   },
   encode(output) {
     return output !== undefined ? new Headers(output) : undefined;
   },
 };
 
-export function headersSchema(
-  schema: Schema<[string, string][]> = keyed.mv<[string, string]>(
-    arrays.tuple([scalars.string("{{key}}"), stubSchema()]) as Schema<
-      [string, string]
-    >,
-    objects.object(
+export function headersTemplate(): Template<Headers> {
+  const template = keyed.mv<[string, string]>(
+    arrays.tuple(["{{key}}", undefined!]) as Template<[string, string]>,
+    objects.object<Record<string, [string, string][]>>(
       {},
-      arrays.multivalue([], arrays.tuple([stubSchema(), stubSchema()])),
-    ) as Schema<Record<string, [string, string][]>>,
-  ),
-): Schema<Headers> {
-  return encodingSchema(headersEncodingType, schema);
+      arrays.multivalue(
+        [],
+        arrays.tuple([undefined! as string, undefined!] as [string, string]),
+      ),
+    ),
+  );
+  return encodingTemplate(headersEncodingType, template);
 }

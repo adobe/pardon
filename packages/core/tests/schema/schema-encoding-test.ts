@@ -12,23 +12,24 @@ governing permissions and limitations under the License.
 import { describe, it } from "node:test";
 import assert from "node:assert";
 
-import { Schema, executeOp } from "../../src/core/schema/core/schema.js";
 import {
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
-import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-schema.js";
-import { base64Encoding } from "../../src/core/schema/definition/encodings/base64-schema.js";
+import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
+import { base64Encoding } from "../../src/core/schema/definition/encodings/base64-encoding.js";
 import { mixing } from "../../src/core/schema/template.js";
-import { urlEncodedFormSchema } from "../../src/core/schema/definition/encodings/url-encoded-schema.js";
+import { urlEncodedFormTemplate as urlEncodedFormTemplate } from "../../src/core/schema/definition/encodings/url-encoded.js";
 import { deepStrictMatchEqual } from "../asserts.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
+import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
+import { Schema } from "../../src/core/schema/core/types.js";
 
 describe("schema json tests", () => {
   it("should parse and render json", async () => {
-    const s = jsonEncoding(
-      mixing({
+    const s = mixing(
+      jsonEncoding({
         b: "{{= 10 + a}}",
         a: "{{a = 10}}",
       }),
@@ -44,9 +45,9 @@ describe("schema json tests", () => {
   });
 
   it("should parse match base64encoded json", async () => {
-    const s = base64Encoding(
-      jsonEncoding(
-        mixing({
+    const s = mixing(
+      base64Encoding(
+        jsonEncoding({
           x: "{{x}}",
           a: "{{a}}",
         }),
@@ -58,33 +59,31 @@ describe("schema json tests", () => {
     );
 
     const ctx = matchContext(s, sample);
-    executeOp(s, "merge", ctx);
+    merge(s, ctx);
 
     deepStrictMatchEqual(ctx.scope.lookup("a"), { value: "abc" });
     deepStrictMatchEqual(ctx.scope.lookup("x"), { value: "xyz" });
   });
 
   it("should parse and match a form", async () => {
-    const singleValueFormEncoding = urlEncodedFormSchema();
+    const singleValueFormEncoding = mixing(urlEncodedFormTemplate({}, false));
 
-    const s = executeOp(
+    const s = merge(
       singleValueFormEncoding,
-      "merge",
       matchContext(singleValueFormEncoding, `a={{= b.toLowerCase()}}&b={{b}}`),
     )!;
 
-    const t = executeOp(
+    const t = merge(
       singleValueFormEncoding,
-      "merge",
       matchContext(singleValueFormEncoding, `a={{= b == b}}&b={{b}}`),
     )!;
 
     const ctx = matchContext(s, "b=BbBb");
-    executeOp(s, "merge", ctx);
+    merge(s, ctx);
     deepStrictMatchEqual(ctx.scope.lookup("b"), { value: "BbBb" });
 
     {
-      const merged = executeOp(s, "merge", matchContext(s, "b=QRST"));
+      const merged = merge(s, matchContext(s, "b=QRST"));
 
       const render = renderCtx(merged!);
       const result = await executeOp(merged!, "render", render);
@@ -94,7 +93,7 @@ describe("schema json tests", () => {
     }
 
     {
-      const merged = executeOp(t, "merge", matchContext(t, "b=qrst"));
+      const merged = merge(t, matchContext(t, "b=qrst"));
 
       const render = renderCtx(merged!);
       const result = await executeOp(merged!, "render", render);
@@ -105,27 +104,32 @@ describe("schema json tests", () => {
   });
 
   it("should support multivalue forms", async () => {
-    const u = urlEncodedFormSchema();
-    const s = mergeSchema(
-      { mode: "mix", phase: "build" },
+    const u = mixing(urlEncodedFormTemplate([]));
+
+    const m = mergeSchema(
+      { mode: "mux", phase: "build" },
       u,
       "a={{x}}&a={{y}}&b=1&b=2&b=3",
       new ScriptEnvironment(),
-    )!.schema!;
+    );
 
-    const ctx = matchContext(s, "a=hello&a=world");
-    const merged = executeOp(s, "merge", ctx);
-
-    deepStrictMatchEqual(ctx.scope.lookup("x"), { value: "hello" });
-    deepStrictMatchEqual(ctx.scope.lookup("y"), { value: "world" });
-
+    const ctx = matchContext(m.schema!, "a=hello&a=world");
+    const merged = merge(m.schema!, ctx);
     const result = await executeOp(merged!, "render", renderCtx(merged!));
+
+    deepStrictMatchEqual(ctx.scope.lookup("x"), {
+      value: "hello",
+    });
+    deepStrictMatchEqual(ctx.scope.lookup("y"), {
+      value: "world",
+    });
+
     assert.match(result!, /a=hello[&]a=world/);
     assert.match(result!, /b=1[&]b=2[&]b=3/);
   });
 
   it("should support missing bodies", async () => {
-    const u = urlEncodedFormSchema();
+    const u = mixing(urlEncodedFormTemplate());
     const s = mergeSchema(
       { mode: "mix", phase: "build" },
       u,
@@ -134,7 +138,7 @@ describe("schema json tests", () => {
     )!.schema!;
 
     const ctx = matchContext(s, undefined);
-    const merged = executeOp(s, "merge", ctx);
+    const merged = merge(s, ctx);
 
     const result = await executeOp(merged!, "render", renderCtx(merged!));
     assert.match(result!, /b=1[&]b=2[&]b=3/);
@@ -143,14 +147,14 @@ describe("schema json tests", () => {
   it("should support multivalue handling", async () => {
     const s = mergeSchema(
       { mode: "mix", phase: "build" },
-      urlEncodedFormSchema(),
+      mixing(urlEncodedFormTemplate()),
       "a={{x}}",
       new ScriptEnvironment(),
     )!.schema!;
 
     const ctx = matchContext(s, "a=hello&a=world");
-    const merged = executeOp(s, "merge", ctx);
-    deepStrictMatchEqual(ctx.scope.lookup("x"), { value: "hello" });
+    const merged = merge(s, ctx);
+    assert.equal(ctx.scope.lookup("x")?.value, "hello");
 
     const result = await executeOp(merged!, "render", renderCtx(merged!));
     assert.match(result!, /a=hello[&]a=world/);

@@ -22,28 +22,33 @@ In the intro documentation, we cover templates and schemas from
 the user's perspective.  Here we will cover the schema system from the
 perspective of the maintainer.
 
-Schemas are the live-object representation of the composition of multiple templates,
-and can represent more than a single template alone.  The common example of this is
-merging the template `string("{{a}}")` with the template `string("x")`.
-which renders to `"x"` and also resolves the value of `a`.
+Schemas represent the composition of templates, merged in one at a time,
+while templates are more of an intermediate representation in the scheme of things.
 
-Schemas are often composed of other schemas: for instance the code/data for an schema
-of a json object basically holds an object of schemas.  Most schemas
-are concerned with delgating values around, with the scalar schema doing
-the work of handling values themselves.
+Templates are represented by a mixture of data and functions that return information
+about the template.  Either way, the template value is ultimately
+interpreted by the schema merging it in, but in most cases (JSON/string data) the
+data is "expanded" using somewhat generic rules for values.
 
-As an example, let's use A <span class="inline-icon"><Icon name="random" /></span> B indicate merging the template 
-A into the schema B.
+E.g., strings (text), numbers, booleans, and null values become scalars, arrays
+and objects become schemas for arrays and objects, and so forth.
 
-For brevity, we'll use `v(x)` to indicate a scalar value that
-has seen `x` as a pattern.  E.g., `v("{{x}}")` is a
-scalar value for the pattern `"{{x}}"`.
+How do our requests and responses (text) become interpreted as a JSON object which can be broken down
+by this system?  We have `jsonEncoding` templates which become schemas which can merge with
+text externally, but will parse it and push the parsed data through to an internal schema.
 
-Merging the value 7 into this value produces a template value
+As an example, let's use the notiation "A <span class="inline-icon"><Icon name="random" /></span> B" to
+indicate merging the template  A into the schema B.
+
+We'll use `v(x)` to indicate a scalar (simple value) schema that
+represents `x`.  E.g., `v("{{x}}")` is a scalar value for the pattern `"{{x}}"`,
+and `v(8)` is a scalar value for the number 8.
+
+Merging the value 7 into this scalar produces a template value
 that is the combination of both:
 <FlexyCodeGrid centered initial>
 ```json
-7
+8
 ```
 <Icon name="random"/>
 ```json
@@ -51,14 +56,18 @@ v("{{x}}")
 ```
 <Icon name="right-arrow"/>
 ```json
-v("{{x}}", 7)
+v("{{x}}", 8)
 ```
 </FlexyCodeGrid>
 
-A schema representing an `object({...})`
-would delegate the merge operation to each of its fields,
-(if it had them).
+The resulting schema represents both the number `8` and the variable `x`, (implying that the value of `x`
+should be bound to the number 8).  If the resulting schema were e.g., `v("a", "b")` this merge fails
+(the schema should add a diagnostic to the context and `return undefined`).
 
+A schema representing an `object({...})`
+would delegate the merge operation to each of its fields by key.
+
+As an example, let's merge 3 fields into an object with two fields.
 <FlexyCodeGrid centered initial>
 ```json
 { 
@@ -116,34 +125,21 @@ object({
 ```
 </FlexyCodeGrid>
 
-In the code, schemas are represented as functions that return objects with methods, there are three
-methods which all schemas support: **scope**, **match**, and **render**, and all of
-them provide other methods as needed to identify themselves and/or expose their representation.
+The resulting object merges the existing fields and adds new fields for the remaining value(s).
 
-At the minimum, a schema should be able to
-- **merge** - with a value, producing another schema that incorporates that value
-- **render** - producing a value compatible with its representation.
-
-(**scope** is a pre-operation for both the merging and rendering operations).
-
-A schema often should be able to **merge** with its own kind,
-since it can break apart / understand its own representation.
-
-We don't expect to be able to merge a scalar schema with another 
-kind of schema like an array or object, because that makes no sense
-in most cases.
+In the code, schemas are currently represented as functions that return objects with methods, with three
+methods which all schemas support: **scope**, **match**, and **render**.
 
 ## Types of Schema Nodes
 
-The core schema node types are
+The important template node types are
 
  - **scalars** (strings, numbers, booleans and null)
  - **objects** and **arrays**
-  - **keyed** / **keyed.mv** represent arrays as objects so they can be merged with more data.
  - **mix** / **mux** change the context mode.
- - **trampolines** is an implementation detail for delaying the evaluation of schemas.
  - **reference** captures any value/node in a schema.
  - **encodings** base64/json/etc... transforms data between formats.
+ - **keyed** / **keyed.mv** represent arrays as objects so they can be merged with more data.
 
 Scalars are actually pretty involved, because of patterns and the interaction of
 defining and/or declaring values used via scripts.
@@ -152,10 +148,6 @@ Arrays have many options, because the rules to define and merge arrays
 are context-dependent.  Sometimes an array of length=1 is an array of length 1, and sometimes it's 
 a template for all the elements of the array. (depending on the context mode)
 Keyed schemas adapt arrays to objects.
-
-Mix and mux schemas change the context's match mode for the current template.  since
-values are evaluated in scripts inside-out but mix and mux apply changes outside-in, trampolines
-exist to invert control.
 
 Another important core schema type is reference that binds a value to any schema node,
 and stub nodes exist as undefined nodes that can become anything through matching.
@@ -167,12 +159,12 @@ non-immutable state should go into the context runtime scope.
 
 ## Schema Operations
 
-Schemas must not only describe their own structure (I am a string, an object, an array)...
-they must also declare their named values (values declared in patterns).
+Schemas operations flow a context object through them, transforming that context contextually.
+Contexts have a key path, and also a scope.  The combination identifies the 
 
-Schemas operations flow context through them, transforming that context contextually.
-Contexts have a key path, and also a scope.  For example, in the schema produced
+For example, in the schema produced
 from this template,
+
 ```json
 {
   x: { a: "{{a}}" },

@@ -33,7 +33,7 @@ import {
   guessContentType,
   httpsRequestSchema,
   httpsResponseSchema,
-} from "./request/https-schema.js";
+} from "./request/https-template.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
 import {
   EndpointConfiguration,
@@ -41,11 +41,11 @@ import {
   LayeredEndpoint,
 } from "../config/collection-types.js";
 import { HttpsResponseStep } from "../core/formats/https-fmt.js";
-import { getContextualValues } from "../modules/playground.js";
-import { Schema, SchemaMergingContext } from "./schema/core/schema.js";
 import { PardonError } from "./error.js";
 import { intoURL, parseURL } from "./request/url-pattern.js";
 import { HTTP, RequestObject } from "./formats/http-fmt.js";
+import { Schema, SchemaMergingContext } from "./schema/core/types.js";
+import { getContextualValues } from "../core/schema/core/context.js";
 
 export type PardonAppContext = Pick<
   AppContext,
@@ -228,9 +228,12 @@ export const PardonFetchExecution = pardonExecution({
     if (matches.length === 1) {
       const [result] = matches;
       if (result.status === "rejected") {
+        let reason = [result.reason].flat()[0];
+        if (reason?.err) {
+          reason = reason.err;
+        }
         throw new PardonError(
-          `error matching ask to endpoint(s)`,
-          result.reason,
+          `error matching ask to endpoint(s): ${reason?.stack ?? reason}`,
         );
       } else if (result.value?.schema === undefined) {
         throw new PardonError(

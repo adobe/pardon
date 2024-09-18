@@ -9,19 +9,21 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Schema, executeOp } from "../../core/schema.js";
 import { intoSearchParams } from "../../../request/search-pattern.js";
 import { arrays } from "../arrays.js";
-import { keyed } from "../structures/keyed-list-schema.js";
-import { stubSchema } from "../structures/stub-schema.js";
-import { EncodingType, encodingSchema } from "./encoding-schema.js";
-import { createMergingContext } from "../../core/context.js";
-import { scalars } from "../scalars.js";
+import { keyed } from "../structures/keyed-list.js";
+import { EncodingType, encodingTemplate } from "./encoding.js";
 import { objects } from "../objects.js";
+import { arrayIntoObject } from "../../../../util/mapping.js";
+import { diagnostic } from "../../core/context-util.js";
+import { Schematic, Template } from "../../core/types.js";
 
 const formEncodingType: EncodingType<string, URLSearchParams> = {
-  decode({ stub }) {
-    return stub !== undefined ? intoSearchParams(`?${stub}`) : undefined;
+  as: "string",
+  decode({ template }) {
+    return template !== undefined
+      ? intoSearchParams(`?${template}`)
+      : undefined;
   },
   encode(output) {
     return output !== undefined ? output.toString().slice(1) : undefined;
@@ -29,8 +31,11 @@ const formEncodingType: EncodingType<string, URLSearchParams> = {
 };
 
 const queryEncodingType: EncodingType<string, URLSearchParams> = {
-  decode({ stub }) {
-    return stub !== undefined ? intoSearchParams(stub) : undefined;
+  as: "string",
+  decode({ template }) {
+    return template !== undefined
+      ? intoSearchParams(template as string)
+      : undefined;
   },
   encode(output) {
     return output !== undefined ? output.toString() : undefined;
@@ -38,87 +43,81 @@ const queryEncodingType: EncodingType<string, URLSearchParams> = {
 };
 
 const urlSearchParamsType: EncodingType<URLSearchParams, [string, string][]> = {
-  decode({ stub }) {
-    return stub !== undefined ? [...stub] : undefined;
+  as: "string",
+  decode(context) {
+    const { template } = context;
+    if (typeof template === "function") {
+      throw diagnostic(context, "unknown template in urlsearchparams");
+    }
+
+    return template !== undefined
+      ? [...(template as URLSearchParams)]
+      : undefined;
   },
   encode(output) {
     return output !== undefined ? intoSearchParams(output) : undefined;
   },
 };
 
-export function urlEncodedSchema({
+export function urlEncodedTemplate({
   params,
   multivalue = typeof params == "string" || Array.isArray(params),
 }: {
   params?: string | Record<string, string> | [string, string][];
   multivalue?: boolean;
-} = {}): Schema<URLSearchParams> {
-  const querySchema = encodingSchema(
+} = {}): Template<URLSearchParams> {
+  const searchParamTemplate = params
+    ? [...intoSearchParams(params).entries()]
+    : [];
+
+  return encodingTemplate(
     urlSearchParamsType,
     multivalue
       ? keyed.mv<[string, string]>(
-          arrays.tuple([scalars.string("{{key}}"), stubSchema()]) as Schema<
-            [string, string]
-          >,
+          arrays.tuple(["{{key}}", undefined!]) as Template<[string, string]>,
           objects.object(
-            {},
-            arrays.multivalue([], arrays.tuple([stubSchema(), stubSchema()])),
-          ) as Schema<Record<string, [string, string][]>>,
+            {} as Record<string, [string, string][]>,
+            arrays.multivalue(
+              searchParamTemplate,
+              arrays.tuple([undefined, undefined]) as unknown as Template<
+                [string, string]
+              >,
+            ),
+          ),
         )
       : keyed<[string, string]>(
-          arrays.tuple([scalars.string("{{key}}"), stubSchema()]) as Schema<
-            [string, string]
-          >,
+          arrays.tuple(["{{key}}", undefined!]) as Template<[string, string]>,
           objects.object(
-            {},
-            arrays.tuple([stubSchema(), stubSchema()]),
-          ) as Schema<Record<string, [string, string]>>,
+            arrayIntoObject(searchParamTemplate, ([k, v]) => ({
+              [k]: [k, v],
+            })),
+          ),
         ),
   );
-
-  if (params === undefined) {
-    return querySchema;
-  }
-
-  const searchParamTemplate = intoSearchParams(params);
-
-  const withTemplate = executeOp(
-    querySchema,
-    "merge",
-    createMergingContext(
-      { mode: "mix", phase: "build" },
-      querySchema,
-      searchParamTemplate,
-    ),
-  );
-
-  if (!withTemplate) {
-    throw new Error("failed to template query params");
-  }
-
-  return withTemplate;
 }
 
 // assume multivalue unless initialized with a {...object}.
-export function urlEncodedFormSchema(
+export function urlEncodedFormTemplate(
   template?: string | Record<string, string> | [string, string][],
-  multivalue: boolean = typeof template !== "object" || Array.isArray(template),
-): Schema<string> {
-  return encodingSchema(
+  multivalue: boolean = typeof template === "undefined" ||
+    typeof template !== "object" ||
+    Array.isArray(template),
+): Schematic<string> {
+  return encodingTemplate(
     formEncodingType,
-    urlEncodedSchema({
+    urlEncodedTemplate({
       params: typeof template === "string" ? `?${template}` : template,
       multivalue,
     }),
   );
 }
 
-export function urlEncodedQuerySchema(
+export function urlEncodedQueryTemplate(
   template?: string | Record<string, string> | [string, string][],
   multivalue?: boolean,
-): Schema<string> {
-  return encodingSchema(
+): Schematic<string> {
+  return encodingTemplate(
     queryEncodingType,
-    urlEncodedSchema({ params: template, multivalue }),
+    urlEncodedTemplate({ params: template, multivalue }),
   );
 }

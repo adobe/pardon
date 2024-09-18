@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { type HttpsSteps } from "../core/formats/https-fmt.js";
-import { type EncodingTypes } from "../core/request/https-schema.js";
+import { EncodingTypes } from "../core/request/body-template.js";
 import { type ConfigMapping } from "../core/schema/core/config-space.js";
 
 export type Config = Record<string, string | ConfigMapping>;

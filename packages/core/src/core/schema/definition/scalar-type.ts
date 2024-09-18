@@ -9,5 +9,19 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-export { httpOps } from "../db/entities/http-entity.js";
-export { valueOps } from "../db/entities/value-entity.js";
+
+export type Scalar = string | number | boolean | bigint | null;
+export type ScalarType = "string" | "number" | "boolean" | "bigint" | "null";
+
+export function isScalar(value: unknown): value is Scalar {
+  switch (typeof value) {
+    case "string":
+    case "number":
+    case "bigint":
+    case "boolean":
+      return true;
+    case "object":
+      return value === null;
+  }
+  return false;
+}

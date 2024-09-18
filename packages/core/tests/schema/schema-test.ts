@@ -9,726 +9,679 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { describe, it } from "node:test";
+import { it } from "node:test";
 import assert from "node:assert";
 
-import { Schema, executeOp } from "../../src/core/schema/core/schema.js";
-import {
-  createMergingContext,
-  createRenderContext,
-} from "../../src/core/schema/core/context.js";
-import { scalars } from "../../src/core/schema/definition/scalars.js";
-import { SchemaError } from "../../src/core/schema/core/schema-error.js";
+import { Schema } from "../../src/core/schema/core/schema.js";
 import { mixing } from "../../src/core/schema/template.js";
-import { arrays } from "../../src/core/schema/definition/arrays.js";
+import {
+  mergeSchema,
+  renderSchema,
+} from "../../src/core/schema/core/schema-utils.js";
+import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
+import { KV } from "../../src/modules/formats.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
-import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
-import { keyed } from "../../src/core/schema/scheming.js";
 
-describe("schema tests", () => {
-  it("should create schemas for basic types", async () => {
-    const s = mixing("abc");
-
-    assert.equal(await executeOp(s, "render", renderCtx(s)), "abc");
-  });
-
-  it("should render expressions", async () => {
-    const s = mixing('abc{{pqr = "xyz"}}');
-
-    assert.equal(await executeOp(s, "render", renderCtx(s)), "abcxyz");
-  });
-
-  it("should render dependent expressions", async () => {
-    const s = mixing('pre{{pqr = "xyz"}}{{abc = pqr.toUpperCase()}}post');
-
-    assert.equal(await executeOp(s, "render", renderCtx(s)), "prexyzXYZpost");
-  });
-
-  it("should render dependent expressions either order", async () => {
-    const s = mixing('pre{{abc = pqr.toUpperCase()}}{{pqr = "xyz"}}post');
-
-    assert.equal(await executeOp(s, "render", renderCtx(s)), "preXYZxyzpost");
-  });
-
-  it("should merge values into templates", async () => {
-    const s = mixing(arrays.multivalue(["xqz", "abc{{z}}"].map(mixing)));
-    const z = executeOp(s, "merge", mixContext(s, ["xq{{z}}"]))!;
-
-    assert.deepEqual(await executeOp(z, "render", renderCtx(z)), [
-      "xqz",
-      "abcz",
-    ]);
-  });
-
-  it("should merge templates into templates into values", async () => {
-    const s = mixing("xq7" as string);
-    const z = executeOp(s, "merge", mixContext(s, "xq{{z}}"))!;
-    const q = executeOp(z, "merge", mixContext(z, "xq{{z}}"))!;
-
-    assert.deepEqual(await executeOp(q, "render", renderCtx(q)), "xq7");
-  });
-
-  it("should merge templates into values", async () => {
-    const s = mixing(arrays.multivalue(["xq{{z}}", "abc{{z}}"].map(mixing)));
-    const z = executeOp(s, "merge", mixContext(s, ["xqz"]))!;
-
-    assert.deepEqual(await executeOp(z, "render", renderCtx(z)), [
-      "xqz",
-      "abcz",
-    ]);
-  });
-
-  it("should render objects", async () => {
-    const s = mixing({
-      a: "b",
-      c: "d",
-    });
-
-    assert.deepStrictEqual(await executeOp(s, "render", renderCtx(s)), {
-      a: "b",
-      c: "d",
-    });
-  });
-
-  it("should match and renders resolved", async () => {
-    const s = mixing({
-      a: "{{x}}",
-    });
-
-    executeOp(s, "merge", mixContext(s, { a: "xyz" }, { x: "xyz" }));
-
-    assert.deepStrictEqual(
-      await executeOp(s, "render", renderCtx(s, { x: "xyz" })),
-      {
-        a: "xyz",
-      },
-    );
-  });
-
-  it("should reject mismatched resolutions", async () => {
-    const s = mixing({
-      a: "{{x}}",
-      b: "{{x}}",
-    });
-
-    assert.throws(
-      () => {
-        const ctx = mixContext(s, { a: "abc", b: "xyz" });
-        executeOp(s, "merge", ctx);
-      },
-      (error) => {
-        assert(error instanceof SchemaError);
-        console.log(error.note);
-        assert(error.note?.startsWith("redefined:x"));
-        return true;
-      },
-    );
-  });
-
-  it("should render objects with expressions", async () => {
-    const s = mixing({
-      a: scalars.number("{{abc = 1 + 1}}"),
-      b: scalars.number("{{xyz = 2 + 2}}"),
-      c: "{{pqr = abc + xyz}}",
-    });
-
-    assert.deepStrictEqual(await executeOp(s, "render", renderCtx(s)), {
-      a: 2,
-      b: 4,
-      c: 6,
-    });
-  });
-
-  it("should match objects without all values", async () => {
-    const s = mixing({
-      a: scalars.number("{{abc = 1 + 1}}"),
-      b: scalars.number("{{xyz = 2 + 2}}"),
-      c: "{{pqr = abc + xyz}}",
-      d: { x: "{{d}}" },
-    });
-    const ctx = mixContext(s, { a: 7, b: 10 } as any);
-    const result = executeOp(s, "merge", ctx);
-    assert(result);
-  });
-
-  it("should match required properties", async () => {
-    const s = mixing({
-      x: { d: "{{!d}}" as string | number },
-    });
-    const ctx = matchContext(s, { a: 7, b: 10 } as any);
-    const result = executeOp(s, "merge", ctx);
-    assert.strictEqual(result, undefined);
-    assert.equal(ctx.diagnostics[0].loc, "|.x.d");
-  });
-
-  it("should mix missing required properties", async () => {
-    const s = mixing({
-      x: { d: "{{!d}}" as string | number },
-    });
-
-    executeOp(s, "merge", mixContext(s, { a: 7, b: 10 } as any));
-  });
-
-  it("should capture values in arrays", () => {
-    const s = mixing({
-      list: [
-        {
-          a: "{{a}}" as string | number,
-          b: "{{b}}" as string | number,
-        },
-      ],
-    });
-
-    executeOp(
-      s,
-      "merge",
-      mixContext(s, {
-        list: [
-          { a: 2, b: 3 },
-          { a: 5, b: 8 },
-        ],
-      }),
-    );
-  });
-
-  it("should merge and then render values in scope", async () => {
-    const s = mixing({
-      global: scalars.number("{{g = '100'}}"),
-      a: "{{a = 1}}",
-      b: "{{b = 1}}",
-      ab: "{{?ab = a + b}}",
-      list: [
-        {
-          a: "{{a}}" as string | number,
-          b: "{{b}}" as string | number,
-          c: "{{c = Number(g) + a + b}}" as string | number,
-          ab: "{{ab}}" as string | number,
-        },
-      ],
-    });
-
-    const merged = executeOp(
-      s,
-      "merge",
-      mixContext(s, {
-        list: [
-          { a: 2, b: 3 },
-          { a: 5, b: 8 },
-        ],
-      }),
-    );
-
-    const rendered = await executeOp(merged!, "render", renderCtx(merged!));
-
-    assert.deepStrictEqual(rendered, {
-      global: 100,
-      a: 1,
-      b: 1,
-      ab: 2,
-      list: [
-        { a: 2, b: 3, c: 105, ab: 2 },
-        { a: 5, b: 8, c: 113, ab: 2 },
-      ],
-    });
-  });
-
-  it("should not allow double definitions", async () => {
-    const s = mixing({
-      xy: "{{x}}123",
-      xx: "{{x}}345",
-    });
-
-    const merged = executeOp(
-      s,
-      "merge",
-      mixContext(s, {
-        xy: "abc123",
-        xx: "abc345",
-      }),
-    )!;
-
-    const result = await executeOp(merged, "render", renderCtx(merged));
-
-    assert.deepEqual(result, { xy: "abc123", xx: "abc345" });
-  });
-
-  it("should match with evaluated values", async () => {
-    let s = mixing({
-      list: [
-        {
-          c: "{{c = p}}",
-          a: "{{p}}:{{qqq}}",
-        },
-      ],
-    });
-
-    s = executeOp(
-      s,
-      "merge",
-      createMergingContext({ mode: "mux", phase: "build" }, s, {
-        list: [
-          {
-            a: "{{a = 'a:a:a'}}:q:q",
-          },
-        ],
-      }),
-    )!;
-
-    const rendered = await executeOp(s, "render", renderCtx(s));
-
-    assert.deepStrictEqual(rendered, {
-      list: [
-        {
-          c: "a:a:a:q",
-          a: "a:a:a:q:q",
-        },
-      ],
-    });
-  });
-
-  it("should match with evaluated values - partial known", async () => {
-    let s = mixing({
-      list: [
-        {
-          c: "{{@c = p}}",
-          a: "{{p}}:{{qqq}}",
-        },
-      ],
-    });
-
-    s = executeOp(
-      s,
-      "merge",
-      muxContext(s, {
-        list: [
-          {
-            a: "{{@a = 'a:a:a'}}:{{qqq = 'q:q'}}",
-          },
-        ],
-      }),
-    )!;
-
-    const rendered = await executeOp(s, "render", renderCtx(s));
-
-    assert.deepStrictEqual(rendered, {
-      list: [
-        {
-          c: "a:a:a",
-          a: "a:a:a:q:q",
-        },
-      ],
-    });
-  });
-
-  // compare with mix
-  it("should match templates as literals", async () => {
-    const schema = mixing({
-      a: "{{a}}",
-    });
-
-    const matchCtx = createMergingContext(
-      { mode: "match", phase: "validate" },
-      schema,
-      {
-        a: "{{abc}}",
-        b: "{{xyz}}",
-      } as any,
-    );
-    const result = executeOp(schema, "merge", matchCtx)!;
-
-    const rendered = await executeOp(result, "render", renderCtx(result));
-
-    assert.deepEqual(rendered, {
-      a: "{{abc}}",
-      b: "{{xyz}}",
-    });
-  });
-
-  it("should bind to structural values", async () => {
-    const schema = mixing({
-      a: ["{{a.item}}"],
-    });
-
-    const matchCtx = createMergingContext(
-      { mode: "match", phase: "validate" },
-      schema,
-      {
-        a: ["x", "y"],
-      } as any,
-    );
-
-    executeOp(schema, "merge", matchCtx)!;
-
-    console.log(matchCtx.scope.subscopes);
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
-      a: [{ item: "x" }, { item: "y" }],
-    });
-  });
-
-  it("should bind to structural values 2", async () => {
-    const schema = mixing({
-      a: [{ item: "{{list.item}}" }],
-    });
-
-    const matchCtx = createMergingContext(
-      { mode: "match", phase: "validate" },
-      schema,
-      {
-        a: [{ item: "x" }, { item: "y" }],
-      } as any,
-    );
-
-    executeOp(schema, "merge", matchCtx)!;
-
-    console.log(matchCtx.scope.subscopes);
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
-      list: [{ item: "x" }, { item: "y" }],
-    });
-  });
-
-  it("should bind to structural values 3", async () => {
-    const schema = mixing({
-      a: [["{{q.sublist.item}}"]],
-    });
-
-    const matchCtx = createMergingContext(
-      { mode: "match", phase: "validate" },
-      schema,
-      {
-        a: [
-          ["x", "y"],
-          ["p", "q", "r"],
-        ],
-      } as any,
-    );
-
-    executeOp(schema, "merge", matchCtx)!;
-
-    console.log(JSON.stringify(matchCtx.scope.resolvedValues(), null, 2));
-
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
-      q: [
-        { sublist: [{ item: "x" }, { item: "y" }] },
-        { sublist: [{ item: "p" }, { item: "q" }, { item: "r" }] },
-      ],
-    });
-  });
-
-  it("should render with structural values", async () => {
-    const schema = mixing({
-      a: [{ item: "{{list.item}}" }],
-    });
-
-    const { schema: mux } = mergeSchema(
-      { mode: "mux", phase: "build" },
-      schema,
-      {
-        a: [{}, {}],
-      } as any,
-    );
-
-    const result = await executeOp(
-      mux!,
-      "render",
-      createRenderContext(
-        mux!,
-        new ScriptEnvironment({
-          input: {
-            list: [{ item: "x" }, { item: "y" }],
-          },
-        }),
-      ),
-    )!;
-
-    assert.deepEqual(result, {
-      a: [{ item: "x" }, { item: "y" }],
-    });
-  });
-
-  it("should render with structural values", async () => {
-    const schema = mixing({
-      a: ["{{list.@value}}"],
-    });
-
-    const result = await executeOp(
-      schema,
-      "render",
-      createRenderContext(
-        schema,
-        new ScriptEnvironment({
-          input: {
-            list: ["a", "b", "c"],
-          },
-        }),
-      ),
-    )!;
-
-    assert.deepEqual(result, {
-      a: ["a", "b", "c"],
-    });
-  });
-
-  it("should export structural values", async () => {
-    const schema = mixing({
-      a: ["{{list.@value}}"],
-    });
-
-    const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
-      a: ["a", "b", "c", "d"],
-    });
-
-    assert.deepEqual(result!.context.scope.resolvedValues(), {
-      list: ["a", "b", "c", "d"],
-    });
-  });
-
-  it("should not export secret structural values", async () => {
-    const schema = mixing({
-      a: ["{{@list.@value}}"],
-    });
-
-    const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
-      a: ["a", "b", "c", "d"],
-    });
-
-    assert.deepEqual(
-      result!.context.scope.resolvedValues({ secrets: false }),
-      {},
-    );
-
-    assert.deepEqual(result!.context.scope.resolvedValues({ secrets: true }), {
-      list: ["a", "b", "c", "d"],
-    });
-  });
-
-  it("should infer structural values length", async () => {
-    const schema = mixing({
-      a: [{ item: "{{a.v}}", ITEM: "{{ = v.toUpperCase() }}" }],
-    });
-
-    const result = await executeOp(
-      schema,
-      "render",
-      createRenderContext(
-        schema,
-        new ScriptEnvironment({
-          input: {
-            a: [{ v: "x" }, { v: "y" }],
-          },
-        }),
-      ),
-    )!;
-
-    assert.deepEqual(result, {
-      a: [
-        { item: "x", ITEM: "X" },
-        { item: "y", ITEM: "Y" },
-      ],
-    });
-  });
-
-  it("should infer deep structural values length", async () => {
-    const schema = mixing({
-      a: [["{{q.sublist.item}}"]],
-    });
-
-    const matchCtx = createMergingContext(
-      { mode: "match", phase: "validate" },
-      schema,
-      {
-        a: [
-          ["x", "y"],
-          ["p", "q", "r"],
-        ],
-      } as any,
-    );
-
-    executeOp(schema, "merge", matchCtx)!;
-
-    console.log(JSON.stringify(matchCtx.scope.resolvedValues(), null, 2));
-
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
-      q: [
-        { sublist: [{ item: "x" }, { item: "y" }] },
-        { sublist: [{ item: "p" }, { item: "q" }, { item: "r" }] },
-      ],
-    });
-  });
-
-  it("should render complex values", async () => {
-    const schema = mixing({
-      a: [["{{q.sublist.item}}"]],
-    });
-
-    const result = await executeOp(
-      schema,
-      "render",
-      createRenderContext(
-        schema,
-        new ScriptEnvironment({
-          input: {
-            q: [
-              { sublist: [{ item: "x" }, { item: "y" }] },
-              { sublist: [{ item: "p" }, { item: "q" }, { item: "r" }] },
-            ],
-          },
-        }),
-      ),
-    )!;
-
-    assert.deepEqual(result, {
-      a: [
-        ["x", "y"],
-        ["p", "q", "r"],
-      ],
-    });
-  });
-
-  it("should render map of headers", async () => {
-    const schema = mixing({
-      a: keyed(
-        ["{{key}}", undefined],
-        [["{{headers.@key}}", "{{headers.value}}"]],
-      ),
-    });
-
-    const result = await executeOp(
-      schema,
-      "render",
-      createRenderContext(
-        schema,
-        new ScriptEnvironment({
-          input: {
-            headers: {
-              a: { value: "AAA" },
-              b: { value: "BBB" },
-            },
-          },
-        }),
-      ),
-    )!;
-
-    assert.deepEqual(result, {
-      a: [
-        ["a", "AAA"],
-        ["b", "BBB"],
-      ],
-    });
-  });
-
-  it("should render a simple map", async () => {
-    const schema = mixing({
-      a: keyed(
-        ["{{key}}", "{{value}}"],
-        [["{{headers.@key}}", "{{headers.@value}}"]],
-      ),
-    });
-
-    const result = await executeOp(
-      schema,
-      "render",
-      createRenderContext(
-        schema,
-        new ScriptEnvironment({
-          input: {
-            headers: {
-              a: "AAA",
-              b: "BBB",
-            },
-          },
-        }),
-      ),
-    )!;
-
-    assert.deepEqual(result, {
-      a: [
-        ["a", "AAA"],
-        ["b", "BBB"],
-      ],
-    });
-  });
-
-  it("should export an object map", async () => {
-    const schema = mixing({
-      a: keyed(
-        ["{{key}}", undefined],
-        [["{{headers.@key}}", "{{headers.value}}"]],
-      ),
-    });
-
-    const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
-      a: [
-        ["a", "AAA"],
-        ["b", "BBB"],
-      ],
-    })?.context;
-
-    assert.deepEqual(result!.scope.resolvedValues(), {
-      headers: {
-        a: { value: "AAA" },
-        b: { value: "BBB" },
-      },
-    });
-  });
-
-  function mixContext<T>(
-    s: Schema<T>,
-    primer: Parameters<typeof createMergingContext<T>>[2],
-    definitions?: Record<string, unknown>,
-  ) {
-    return createMergingContext(
-      { mode: "mix", phase: "validate" },
-      s,
-      primer,
-      new ScriptEnvironment({
-        runtime: { ...builtins, ...definitions },
-      }),
-    );
+async function compose(
+  testname: string,
+  template: TemplateStringsArray,
+  ...substitutons: any[]
+) {
+  const formatted = String.raw(template, substitutons);
+
+  const templates = formatted.split("\n---\n");
+
+  const { [KV.unparsed]: first, ...input } = KV.parse(templates[0], "stream");
+  templates[0] = first ?? "";
+
+  let expected: any;
+  let last = "";
+  const lastTemplate = templates.pop()!.trim();
+
+  if (lastTemplate.startsWith("*")) {
+    last = lastTemplate.slice(1);
+  } else {
+    ({ [KV.unparsed]: last = "", ...expected } = KV.parse(
+      lastTemplate,
+      "stream",
+    ));
   }
 
-  function muxContext<T>(
-    s: Schema<T>,
-    primer: Parameters<typeof createMergingContext<T>>[2],
-    definitions?: Record<string, unknown>,
-  ) {
-    return createMergingContext(
-      { mode: "mux", phase: "build" },
-      s,
-      primer,
-      new ScriptEnvironment({
-        runtime: { ...builtins, ...definitions },
-      }),
-    );
+  const merged = templates.reduce<Schema<string>>(
+    (schema, template, index) => {
+      const merge = mergeSchema(
+        {
+          mode: "mix",
+          phase: index === templates.length - 1 ? "validate" : "build",
+        },
+        schema,
+        template,
+        new ScriptEnvironment({ name: `${testname}/${index}`, input }),
+      );
+      if (merge.schema) {
+        return merge.schema;
+      }
+      throw merge.error || merge.context.diagnostics?.[0] || merge;
+    },
+    mixing(jsonEncoding(undefined)),
+  );
+
+  const {
+    output,
+    context: { scope },
+  } = await renderSchema(
+    merged,
+    new ScriptEnvironment({ name: `${testname}/render`, input }),
+  );
+
+  const resultValues = scope.resolvedValues();
+
+  if (last.trim()) {
+    assert.deepStrictEqual(JSON.parse(output as string), JSON.parse(last));
+  }
+  if (expected) {
+    assert.deepStrictEqual(resultValues, expected);
   }
 
-  function matchContext<T>(
-    s: Schema<T>,
-    primer: Parameters<typeof createMergingContext<T>>[2],
-    definitions?: Record<string, unknown>,
-  ) {
-    return createMergingContext(
-      { mode: "match", phase: "validate" },
-      s,
-      primer,
-      new ScriptEnvironment({
-        runtime: { ...builtins, ...definitions },
-      }),
-    );
-  }
+  return { output, values: resultValues };
+}
 
-  const builtins = {
-    Number,
-    String,
-    Object,
-  };
+/**
+ * call with
+ * ```js
+ * intent(testname)`
+ * input
+ * template
+ * ---
+ * template
+ * ---
+ * result
+ * output
+ * `()
+ *
+ * where input is kv data, templates are interpreted with json encoding (mix)
+ * the result is the kv output, (use "*" to skip comparison), and the output is
+ * plain JSON.  intent.skip, intent.only register the tests with it.skip/it.only and
+ * intent.fails and intent.todo both assert a failure (with different semantics of course).
+ * donot
+ */
+function intent(
+  testname: string,
+  mode?: "only" | "skip" | "fails" | "todo" | "tofail",
+): (
+  ...args: Parameters<typeof compose> extends [string, ...infer template]
+    ? template
+    : never
+) => (
+  expect?: (
+    result: Awaited<ReturnType<typeof compose>>,
+  ) => void | Promise<void>,
+) => void {
+  return (...args) =>
+    (expect) => {
+      const action =
+        mode === "only" ? it["only"] : mode === "skip" ? it["skip"] : it;
+      action(
+        mode === "fails"
+          ? `${testname} (failing)`
+          : mode === "todo"
+            ? `${testname} (todo)`
+            : mode === "tofail"
+              ? `${testname} (tofail)`
+              : testname,
+        async () => {
+          if (mode === "fails" || mode === "todo") {
+            await assert.rejects(
+              async () => {
+                const result = await compose(testname, ...args);
+                await expect?.(result);
+              },
+              (err) => {
+                if (mode === "todo") {
+                  console.warn(`${testname} (todo): fix ${err}`);
+                }
+                return true;
+              },
+            );
+          } else {
+            const result = await compose(testname, ...args);
+            await expect?.(result);
+            if (mode === "tofail") {
+              console.warn(`${testname} (tofail): should throw an error`);
+            }
+          }
+        },
+      );
+    };
+}
 
-  function renderCtx(s: Schema<unknown>, init?: Record<string, string>) {
-    return createRenderContext(
-      s,
-      new ScriptEnvironment({
-        input: init,
-        runtime: builtins,
-      }),
-    );
-  }
-});
+intent["only"] = (testname) => intent(testname, "only");
+intent["skip"] = (testname) => intent(testname, "skip");
+intent["fails"] = (testname) => intent(testname, "fails");
+intent["todo"] = (testname) => intent(testname, "todo");
+intent["tofail"] = (testname) => intent(testname, "tofail");
+
+intent("render-empty-object")`
+{}
+---
+{}
+`();
+
+intent("render-number")`
+27
+---
+27
+`();
+
+intent("merge-number")`
+"{{a}}"
+---
+27
+---
+a=27
+27
+`();
+
+intent("render-primitives")`
+{
+  string: "s",
+  number: 1,
+  boolean: true,
+  false: false,
+  nil: null
+}
+---
+{"string":"s","number":1,"boolean":true,"false":false,"nil":null}
+`();
+
+intent("match-primitives")`
+{
+  string: "s",
+  number: 1,
+  boolean: true,
+  false: false,
+  nil: null
+}
+---
+{
+  string: "{{s}}",
+  number: "{{n}}",
+  boolean: "{{t}}",
+  false: "{{f}}",
+  nil: "{{z}}"
+}
+---
+s=s n=1 t=true f=false z=null
+{"string":"s","number":1,"boolean":true,"false":false,"nil":null}
+`();
+
+intent("null")`
+null
+---
+null
+`();
+
+intent("null-match")`
+null
+---
+"{{z}}"
+---
+z=null
+null
+`();
+
+intent("match-null")`
+"{{z}}"
+---
+null
+---
+z=null
+null
+`();
+
+intent("reference-array")`
+$abc
+---
+["a","b","c"]
+---
+abc=[a,b,c]
+["a","b","c"]
+`();
+
+intent("array-reference-of")`
+$abc.of(["a","b","c"])
+---
+abc=[a,b,c]
+["a","b","c"]
+`();
+
+intent("reference-squashing")`
+$abc.of("hello")
+---
+$xyz
+---
+abc=hello
+xyz=hello
+"hello"
+`();
+
+intent("reference-squashing-of-a")`
+$abc.of($xyz)
+---
+$xyz.of($abc.of("hello"))
+---
+abc=hello
+xyz=hello
+"hello"
+`();
+
+intent("reference-squashing-of-b")`
+$abc.of($xyz).of("hello")
+---
+$xyz.of($abc)
+---
+abc=hello
+xyz=hello
+"hello"
+`();
+
+intent("array-reference")`
+["a","b","c"]
+---
+$abc
+---
+abc=[a,b,c]
+["a","b","c"]
+`();
+
+intent("base64-json")`
+base64(json({}))
+---
+"e30="
+`();
+
+intent("base64-json-enc-dec")`
+{ enc: base64(json($a)), dec: $a }
+---
+{ dec: "hello" }
+---
+a=hello
+{ "enc": "ImhlbGxvIg==", "dec": "hello" }
+`();
+
+intent("base64-json-dec-enc")`
+{ enc: base64(json($a)), dec: $a }
+---
+{ "enc": "ImhlbGxvIg==" }
+---
+a=hello
+{ "enc": "ImhlbGxvIg==", "dec": "hello" }
+`();
+
+intent("json-data-in-out")`
+{ enc: json({ a: '{{a=b+c}}', b: $b }), c: "{{c}}" }
+---
+{ enc: json({ a: '{{a=b+c}}', b: $b }), c: "{{b = 10}}", a: $a }
+---
+a=20
+b=10
+c=10
+{ "enc": "{\"a\":20,\"b\":10}", "c": 10, "a": 20 }
+`();
+
+intent("json-object-order")`
+{ x: json({ a: 1, b: 2 }), y: json({ b: 2, a: 1 }) }
+---
+{ x: json({ a: 1, b: 2 }), y: json({ a: 1, b: 2 }) }
+---
+{ "x": "{\"a\":1,\"b\":2}", "y": "{\"b\":2,\"a\":1}" }
+`();
+
+intent("export-ascope-array-value")`
+{ x: [$a.value] }
+---
+{ x: [1,2,3,"hello"] }
+---
+a=[1,2,3,hello]
+`();
+
+intent("export-ascope-array-reference")`
+{ x: [$a.$item] }
+---
+{ x: [1,2,3,"hello"] }
+---
+a=[{item=1},{item=2},{item=3},{item=hello}]
+`();
+
+intent("export-ascope-array-pattern")`
+{ x: ["{{a.item}}"] }
+---
+{ x: [1,2,3,"hello"] }
+---
+a=[{item=1},{item=2},{item=3},{item=hello}]
+`();
+
+intent("import-ascope-array-pattern")`
+a=[{item=1},{item=2},{item=3},{item=hello}]
+{ x: ["{{a.item}}"] }
+---
+*
+{ "x": [1,2,3,"hello"] }
+`();
+
+intent("import-ascope-array-pattern-computation")`
+a=[{item=1},{item=2},{item=3}]
+{ x: [["{{a.item}}","{{=item*2}}"]] }
+---
+*
+{ "x": [[1,2],[2,4],[3,6]] }
+`();
+
+intent("import-ascope-array-pattern-computation-and-bind-each-element")`
+a=[{item=1},{item=2},{item=3}]
+{ x: [["{{a.item}}","{{=item*2}}"]] }
+---
+{ x: [$each.$value] }
+---
+a=[{item=1}, {item=2}, {item=3}]
+each=[{value=[1,2]}, {value=[2,4]}, {value=[3,6]}]
+{ "x": [[1,2],[2,4],[3,6]] }
+`();
+
+intent("bind-layers")`
+$outer.of(base64($inner.of(json({ a: 10, b: $b }))))
+---
+$outer2.of(base64($inner2.of(json({ b: 20, a: "{{a}}" }))))
+---
+a=10
+b=20
+inner='{"a":10,"b":20}'
+inner2='{"a":10,"b":20}'
+outer=eyJhIjoxMCwiYiI6MjB9
+outer2=eyJhIjoxMCwiYiI6MjB9
+"eyJhIjoxMCwiYiI6MjB9"
+`();
+
+intent("mix-mux-array")`
+["{{x}}"]
+---
+mux(["x"])
+---
+["x"]
+`();
+
+// this is okay because `{{x}}` is in a specific item scope, and
+// x=y is global scope.
+intent("mix-mux-array-with-conflicting-value")`
+x=y
+["{{x}}"]
+---
+mux(["x"])
+---
+["x"]
+`();
+
+intent.fails("mux-mux-array-with-conflicting-value")`
+x=y
+mux(["{{x}}"])
+---
+["x"]
+---
+["xyz"]
+`();
+
+intent("mix-array-input-but-no-strut")`
+x=x
+{ a: ["{{x}}"] }
+---
+{}
+`();
+
+intent.fails("mux-array-no-value")`
+mux(["{{x}}"])
+---
+[]
+`();
+
+intent("mux-array-with-value")`
+mux(["{{x}}"])
+---
+["x"]
+---
+x=x
+["x"]
+`();
+
+intent("mux-array-with-input")`
+x=x
+mux(["{{x}}"])
+---
+["x"]
+---
+x=x
+["x"]
+`();
+
+intent("mux-pattern-with-mix-value")`
+["x"]
+---
+mux(["{{item.x}}"])
+---
+item=[{x=x}]
+["x"]
+`();
+
+/**
+ * this test checks that "ab" defined in the top scope is not evaluated with
+ * the values in the inner scope.
+ */
+intent("referential-consistency")`
+{
+  "a": "{{a = 1}}",
+  "b": "{{b = 2}}",
+  // hidden further prevents the render from triggering in the current scope
+  "ab": hidden("{{ab = a + b}}"),
+  "v": [{
+    "a": "{{a = 10}}",
+    "b": "{{b = 20}}",
+    "ab_here": "{{= a + b}}",
+    "ab_via_scope": "{{= ab}}"
+  }]
+}
+---
+{ v: mux([{}]) }
+---
+*
+{
+  "a": 1,
+  "b": 2,
+  "v": [{
+    "a": 10,
+    "b": 20,
+    "ab_here": 30,
+    "ab_via_scope": 3
+  }] 
+}
+`();
+
+// unwrapSingle is always mix / scoped
+intent("lenient-array-behavior")`
+a=foo
+b=bar
+c=baz
+{
+  "a": unwrapSingle("{{a}}"),
+  "b": mux(unwrapSingle("{{b}}")),
+  "c": unwrapSingle("{{c}}")
+}
+---
+{
+}
+`();
+
+// either {a: ["foo"]} or {a: "foo"} would be acceptable, but let's
+// make sure it doesn't change by surprise.
+intent("lenient-array-behavior-expanded-by-value")`
+a=[foo]
+{
+  "a": unwrapSingle("{{a.@value}}")
+}
+---
+a=[foo]
+{
+  "a": "foo"
+}
+`();
+
+intent("lenient-array-behavior-valued-match-to-array")`
+{
+  "b": unwrapSingle("{{b.@value}}")
+}
+---
+{
+  "b": mux(["bar"])
+}
+---
+b=[bar]
+{
+  "b": ["bar"]
+}
+`();
+
+intent("lenient-array-behavior-valued-match-to-value")`
+{
+  "b": unwrapSingle("{{b.@value}}")
+}
+---
+{
+  "b": "bar"
+}
+---
+b=[bar]
+{
+  "b": "bar"
+}
+`();
+
+intent("lenient-array-behavior-non-unit-case")`
+{
+  "a": unwrapSingle("{{a.@value}}"),
+  "b": unwrapSingle("{{b.@value}}")
+}
+---
+{
+  "a": [1, 2],
+  "b": []
+}
+---
+a=[1,2]
+{
+  "a": [1,2],
+  "b": []
+}
+`();
+
+intent("keyed-list-value-rendering")`
+map={ x=1, y=2 }
+keyed({ id: "{{key}}" }, [{
+  "id": "{{map.@key}}", // should this be implied from the match archetype?
+  "a": "{{map.@value}}"
+}])
+---
+*
+[{ "id": "x", "a": 1 }, { "id": "y", "a": 2 }]
+`();
+
+intent("keyed-list-merging-and-value-rendering")`
+map={ x={ a=1, b=2 }, y={ a=3, b=4 }}
+keyed({ id: "{{key}}" }, [{
+  "id": "{{map.@key}}", // should this be implied from the match archetype?
+  "a": "{{map.a}}"
+}])
+---
+keyed({ id: "{{key}}" }, [{
+  "b": "{{map.b}}"
+}])
+---
+*
+[{ "id": "x", "a": 1, "b": 2 }, { "id": "y", "a": 3, "b": 4 }]
+`();
+
+intent("keyed-list-merging-and-value-rendering-reuse-value")`
+map={ x=xx, y=yy }
+keyed({ id: "{{key}}" }, [{
+  "id": "{{map.@key}}",
+  "a": "{{map.@value}}"
+}])
+---
+keyed({ id: "{{key}}" }, [{
+  "b": "{{map.@value}}"
+}])
+---
+*
+[{ "id": "x", "a": "xx", "b": "xx" },
+ { "id": "y", "a": "yy", "b": "yy" }]
+`();
+
+intent("mv-keyed-list-matching")`
+keyed.mv({ id: "{{key}}" }, [{
+  "id": "{{map.a.@key}}", // should this be implied from the match archetype?
+  "a": "{{map.a.@value}}"
+}])
+---
+[{ "id": "x", "a": "xx" },
+ { "id": "x", "a": "xy" },
+ { "id": "y", "a": "yy" },
+ { "id": "y", "a": "yz" }]
+---
+map={x={a=[xx,xy]},y={a=[yy,yz]}}
+[{ "id": "x", "a": "xx" },
+ { "id": "x", "a": "xy" },
+ { "id": "y", "a": "yy" },
+ { "id": "y", "a": "yz" }]
+`();
+
+intent("mv-keyed-list-rendering-by-value")`
+map={x={a=[xx,xy]},y={a=[yy,yz]}}
+keyed.mv({ id: "{{key}}" }, [{
+  "id": "{{map.a.@key}}", // FIXME ... @map.key gets the numeric index of the multivalue scope
+  "a": "{{map.a.@value}}"
+}])
+---
+*
+[{ "id": "x", "a": "xx" },
+ { "id": "x", "a": "xy" },
+ { "id": "y", "a": "yy" },
+ { "id": "y", "a": "yz" }]
+`();
+
+intent("keyed-tuple-list-mapping")`
+keyed(["{{key}}", undefined],
+[["{{headers.@key}}", "{{headers.value}}"]])
+---
+[["a", "AAA"],
+ ["b", "BBB"]]
+---
+headers={a={value=AAA}, b={value=BBB}}
+[["a", "AAA"],
+ ["b", "BBB"]]
+`();
+
+intent("keyed-tuple-list-value-rendering")`
+headers={a={value=AAA}, b={value=BBB}}
+keyed(["{{key}}", undefined],
+[["{{headers.@key}}", "{{headers.value}}"]])
+---
+*
+[["a", "AAA"],
+ ["b", "BBB"]]
+`();
+
+intent("mix-match")`
+mix(["{{array.@value}}"])
+---
+["a","b"]
+---
+array=[a,b]
+["a","b"]
+`();

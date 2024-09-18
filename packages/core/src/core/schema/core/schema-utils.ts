@@ -10,34 +10,32 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  DeepPartial,
   createPreviewContext,
   createRenderContext,
   createPrerenderContext,
   createPostrenderContext,
   SchemaMergeType,
   createMergingContext,
-  diagnostic,
 } from "./context.js";
+import { isScalar, Scalar } from "../definition/scalar-type.js";
 import {
   Schema,
-  SchemaCaptureContext,
-  SchemaContext,
   SchemaMergingContext,
   SchemaScope,
   SchemaScriptEnvironment,
   ScopeData,
-  executeOp,
-} from "./schema.js";
-import { isScalar, Scalar } from "../definition/scalars.js";
-import { isSecret } from "../../endpoint-environment.js";
+  Template,
+} from "./types.js";
+import { executeOp, merge } from "./schema-ops.js";
+import { isSecret } from "../definition/hinting.js";
+import { diagnostic } from "./context-util.js";
 
 function applySchema<T>(
   context: SchemaMergingContext<T>,
   schema: Schema<T>,
 ): { context: SchemaMergingContext<T>; schema?: Schema<T>; error?: any } {
   try {
-    const matchedSchema = executeOp(schema, "merge", context);
+    const matchedSchema = merge(schema, context);
 
     if (matchedSchema && context.diagnostics.length) {
       throw new Error("unreported error");
@@ -53,11 +51,11 @@ function applySchema<T>(
 export function mergeSchema<T>(
   how: SchemaMergeType,
   schema: Schema<T>,
-  stub: DeepPartial<T>,
+  template: Template<T>,
   environment?: SchemaScriptEnvironment,
 ) {
   return applySchema(
-    createMergingContext(how, schema, stub, environment),
+    createMergingContext(how, schema, template, environment),
     schema,
   );
 }
@@ -104,24 +102,6 @@ export async function previewSchema<T>(
   const output = (await executeOp(schema, "render", context))!;
 
   return { output, context };
-}
-
-export function loc({ environment, scopes, keys }: SchemaContext) {
-  const name = environment?.name?.();
-  return `${name ? `${name}: ` : ""}${scopes.map((s) => `:${s}`).join("")}|${keys
-    .map((k) => `.${k}`)
-    .join("")}`;
-}
-
-export function rescope<T extends SchemaCaptureContext>(
-  context: T,
-  scope: SchemaScope,
-): T {
-  return {
-    ...context,
-    scope: scope.rescope(context.scope),
-    scopes: [...scope.scopePath()],
-  };
 }
 
 export function unredactedScalarValues(

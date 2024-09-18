@@ -10,24 +10,12 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { metaScopeContext, tempContext } from "../core/context.js";
-import {
-  SchematicOps,
-  Schema,
-  defineSchema,
-  SchemaCaptureContext,
-  executeOp,
-  SchemaContext,
-} from "../core/schema.js";
+import { defineSchema, executeOp, merge } from "../core/schema-ops.js";
 import { isLookupValue } from "../core/scope.js";
+import { Schema, SchemaContext } from "../core/types.js";
 
 export type ScopedOptions = {
   field?: boolean;
-};
-
-type ScopedOps<T> = SchematicOps<T> & {
-  scopekey(): Schema<Partial<T>> | string;
-  schema(): Schema<T>;
-  options(): ScopedOptions;
 };
 
 function rescopedContext<C extends SchemaContext>(
@@ -41,8 +29,8 @@ export function defineScoped<T>(
   scopekey: Schema<Partial<T>> | string,
   schema: Schema<T>,
   options: ScopedOptions,
-) {
-  return defineSchema<ScopedOps<T>>({
+): Schema<T> {
+  return defineSchema<T>({
     scope(context) {
       const scope = resolveScope(context, scopekey);
 
@@ -53,7 +41,7 @@ export function defineScoped<T>(
       return executeOp(schema, "scope", rescopedContext(context, scope));
     },
     merge(context) {
-      if (context.stub === undefined) {
+      if (context.template === undefined) {
         return defineScoped(scopekey, schema, options);
       }
 
@@ -63,7 +51,7 @@ export function defineScoped<T>(
         return undefined;
       }
 
-      const match = executeOp(schema, "merge", rescopedContext(context, scope));
+      const match = merge(schema, rescopedContext(context, scope));
       if (!match) {
         return undefined;
       }
@@ -79,20 +67,11 @@ export function defineScoped<T>(
 
       return await executeOp(schema, "render", rescopedContext(context, scope));
     },
-    scopekey() {
-      return scopekey;
-    },
-    schema() {
-      return schema;
-    },
-    options() {
-      return options;
-    },
   });
 }
 
 function resolveScope<T>(
-  context: SchemaCaptureContext<T>,
+  context: SchemaContext<T>,
   scopekey: Schema<T> | string,
 ) {
   if (typeof scopekey === "string") {

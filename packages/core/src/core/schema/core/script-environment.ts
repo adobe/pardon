@@ -18,21 +18,21 @@ import {
 } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { ConfigMapping, ConfigSpace } from "./config-space.js";
+import { globalIdentifier, isGlobalIdentifier } from "./schema.js";
+import { isScalar } from "../definition/scalar-type.js";
+import { indexChain } from "./scope.js";
 import {
-  SchemaCaptureContext,
+  SchemaContext,
   SchemaMergingContext,
   SchemaRenderContext,
   SchemaScriptEnvironment,
   ValueIdentifier,
-  globalIdentifier,
-  isGlobalIdentifier,
-} from "./schema.js";
-import { isScalar } from "../definition/scalars.js";
-import { indexChain } from "./scope.js";
+} from "./types.js";
+import { loc } from "./context-util.js";
 
 export type ScriptDataResolver = (
   name: string,
-  context: SchemaCaptureContext,
+  context: SchemaContext,
 ) => unknown | undefined;
 
 export type ScriptDataEvaluator = (
@@ -42,7 +42,7 @@ export type ScriptDataEvaluator = (
 
 export type ScriptResolver = (
   name: ValueIdentifier,
-  context: SchemaCaptureContext,
+  context: SchemaContext,
 ) => unknown | undefined;
 
 export type ScriptEvaluator = (
@@ -130,7 +130,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     context,
   }: {
     ident: ValueIdentifier;
-    context: SchemaCaptureContext<unknown>;
+    context: SchemaContext<unknown>;
   }): unknown {
     return this.resolver?.(ident, context);
   }
@@ -156,10 +156,10 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     patternize(s: string): PatternRegex;
     resolve(p: Pattern): string | undefined;
   }): Pattern[] | undefined {
-    const { stub } = context;
+    const { template } = context;
 
     // bail if the stub value is not a scalar.
-    if (!isScalar(stub)) {
+    if (!isScalar(template)) {
       return patterns;
     }
 
@@ -167,11 +167,11 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     // not in the root scope, just mix in the stub value
     // and bail.
     if (context.scopes.length) {
-      if (stub !== undefined) {
+      if (template !== undefined) {
         const stubPattern =
           context.mode === "match"
-            ? patternLiteral(String(stub))
-            : patternize(String(stub));
+            ? patternLiteral(String(template))
+            : patternize(String(template));
         if (
           patterns.some(
             (pattern) => !arePatternsCompatible(stubPattern, pattern),
@@ -186,13 +186,13 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     }
 
     return this.space.match(patterns, {
-      context: { ...context, stub: String(stub) },
+      context: { ...context, template: String(template) },
       patternize,
       resolve,
     });
   }
 
-  reconfigurePatterns(context: SchemaCaptureContext, patterns: Pattern[]) {
+  reconfigurePatterns(context: SchemaContext, patterns: Pattern[]) {
     if (context.scope?.scopePath()?.length) {
       return patterns;
     }
@@ -233,7 +233,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     return values;
   }
 
-  init({ context }: { context: SchemaCaptureContext }) {
+  init({ context }: { context: SchemaContext }) {
     const contextualConfiguraiton = arrayIntoObject(
       [...this.space.keys()],
       (key) => {
@@ -268,7 +268,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   }: {
     value: unknown;
     ident: ValueIdentifier;
-    context: SchemaCaptureContext<unknown>;
+    context: SchemaContext<unknown>;
   }): unknown {
     if (isGlobalIdentifier(ident) && !context.scope.parent) {
       return this.space.update(ident.path[0], value);
@@ -316,7 +316,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 export function resolveAccess(
   value: unknown,
   ident: ValueIdentifier,
-  context: SchemaCaptureContext,
+  context: SchemaContext,
 ) {
   if (ident.path.length == 0) {
     return value;
@@ -324,7 +324,7 @@ export function resolveAccess(
 
   const indices = indexChain(context.scope);
   if (ident.name.endsWith(".@key")) {
-    return indices[0]?.key;
+    return indices[ident.path.length - 1]?.key;
   }
 
   const resolved = ident.path.reduce<unknown>(
@@ -335,6 +335,7 @@ export function resolveAccess(
         return undefined;
       } else if (index.key === undefined) {
         index.struts.push({
+          loc: loc(context),
           root: ident.root,
           path: ident.path.slice(0, idx),
           name: ident.path[idx],

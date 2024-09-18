@@ -14,77 +14,177 @@ import {
   mapObject,
   mapObjectAsync,
 } from "../../../util/mapping.js";
-import {
-  SchematicOps,
-  Schema,
-  defineSchema,
-  executeOp,
-  SchemaCaptureContext,
-  SchemaRenderContext,
-  SchemaMergingContext,
-} from "../core/schema.js";
+import { isMergingContext } from "../core/schema.js";
 import { keyContext, fieldScopeContext } from "../core/context.js";
-import { stubSchema } from "./structures/stub-schema.js";
+import { stubSchema } from "./structures/stub.js";
+import {
+  Schema,
+  SchemaContext,
+  SchemaMergingContext,
+  SchemaRenderContext,
+  SchematicOps,
+  Template,
+} from "../core/types.js";
+import {
+  defineSchema,
+  defineSchematic,
+  executeOp,
+  exposeSchematic,
+  merge,
+} from "../core/schema-ops.js";
+import { diagnostic } from "../core/context-util.js";
 
-type ObjectOptions = {
+type ObjectSchematicInfo<M extends Record<string, unknown>> = {
+  object?: { [K in keyof M]: Template<M[K]> };
+  value?: Template<M[keyof M]>;
   scoped?: boolean;
 };
 
-type ObjectOps<M extends Record<string, unknown>> = SchematicOps<M> & {
-  object(): { [K in keyof M]: Schema<M[K]> };
-  valueSchema(): Schema<M[keyof M]>;
-  options(): ObjectOptions;
+type ObjectSchematicOps<M extends Record<string, unknown>> = SchematicOps<M> & {
+  object(): ObjectSchematicInfo<M>;
 };
 
-function defineObject<M extends Record<string, unknown>>(
-  object: {
-    [K in keyof M]: Schema<M[K]>;
-  },
-  valueSchema: Schema<M[keyof M]> = stubSchema(),
-  options: ObjectOptions = {},
+type ObjectRepresentation<M extends Record<string, unknown>> = {
+  object: { [K in keyof M]: Schema<M[K]> };
+  value: Schema<M[keyof M]>;
+  scoped: boolean;
+};
+
+function fieldContext<M extends Record<string, unknown>>(
+  context: SchemaMergingContext<M>,
+  scoped: boolean,
+  key?: string,
+): SchemaMergingContext<M[keyof M]>;
+function fieldContext(
+  context: SchemaRenderContext,
+  scoped: boolean,
+  key?: string,
+): SchemaRenderContext;
+function fieldContext<M extends Record<string, unknown>>(
+  context: SchemaContext<M>,
+  scoped: boolean,
+  key?: string,
+): SchemaContext<M[keyof M]>;
+function fieldContext<M extends Record<string, unknown>>(
+  context: SchemaContext<M>,
+  scoped: boolean,
+  key?: string,
 ) {
-  function fieldContext(context: SchemaCaptureContext<M>, key: string) {
-    return options.scoped
-      ? fieldScopeContext(context, key)
-      : keyContext(context, key);
+  return scoped
+    ? fieldScopeContext(context, key)
+    : keyContext(context, key ?? "{}");
+}
+
+function extractObject<M extends Record<string, unknown>>(
+  context: SchemaMergingContext<M>,
+  scoped?: boolean,
+): ObjectSchematicInfo<M> | undefined {
+  const template = context.template;
+
+  if (template === undefined) {
+    return undefined;
   }
 
-  return defineSchema<ObjectOps<M>>({
-    scope(context) {
-      inflateScope(context);
-      const inflated = inflatedObject(context);
+  if (typeof template === "function") {
+    const ops = exposeSchematic<ObjectSchematicOps<M>>(template);
 
-      for (const [key, value] of Object.entries(inflated)) {
-        executeOp(value, "scope", fieldContext(context, key));
+    if (!ops.object) {
+      throw diagnostic(
+        context,
+        `merge object with unknown schematic: ${Object.keys(ops).join("/")}`,
+      );
+    }
+
+    return ops.object();
+  }
+
+  if (typeof template !== "object") {
+    throw diagnostic(context, "merging object with non-object");
+  }
+
+  if (Array.isArray(template)) {
+    throw diagnostic(context, "merging object with array");
+  }
+
+  return { object: template as M, scoped };
+}
+
+function mergeRepresentation<M extends Record<string, unknown>>(
+  context: SchemaMergingContext<M>,
+  rep: ObjectRepresentation<M>,
+  info?: ObjectSchematicInfo<M>,
+): ObjectRepresentation<M> | undefined {
+  if (info && rep.scoped !== info.scoped && Object.keys(rep.object).length) {
+    throw diagnostic(
+      context,
+      `cannot match a scoped and unscoped object template`,
+    );
+  }
+
+  const scoped = Boolean(rep.scoped || info?.scoped);
+
+  const value =
+    info?.value === undefined
+      ? rep.value
+      : merge(rep.value, {
+          ...fieldContext(context, scoped),
+          phase: "build",
+          template: info?.value,
+        });
+
+  if (!value) {
+    throw diagnostic(context, `could not match archetype value`);
+  }
+
+  const object = inflatedObject(context, { ...rep, scoped, value }, info);
+
+  return (
+    object && {
+      object,
+      value,
+      scoped,
+    }
+  );
+}
+
+function defineObject<M extends Record<string, unknown>>(
+  self: ObjectRepresentation<M>,
+) {
+  return defineSchema<M>({
+    scope(context) {
+      const { scoped, value } = self;
+      if (isMergingContext(context)) {
+        executeOp(
+          value,
+          "scope",
+          fieldContext({ ...context, phase: "validate" }, scoped, undefined),
+        );
+
+        for (const [key, item] of Object.entries(self.object)) {
+          executeOp(item, "scope", fieldContext(context, scoped, key));
+        }
+      } else {
+        inflateScope(context, self);
+
+        const inflated = inflatedObject(context, self);
+
+        for (const [key, value] of Object.entries(inflated!)) {
+          executeOp(value!, "scope", fieldContext(context, scoped, key));
+        }
       }
     },
     merge(context) {
-      const { stub } = context;
-      const inflated = inflatedObject(context);
+      const info = extractObject(context, self.scoped);
+      const mergedSelf = mergeRepresentation(context, self, info);
 
-      const matchedObjectEntries = [
-        ...new Set([...Object.keys(inflated), ...Object.keys(stub || {})]),
-      ].map((key) => {
-        const keymatch = executeOp(
-          object[key] ?? valueSchema,
-          "merge",
-          fieldContext(context, key) as SchemaMergingContext<M[string]>,
-        );
-
-        return [key, keymatch] as const;
-      });
-
-      if (matchedObjectEntries.some(([, v]) => v === undefined)) {
-        return undefined;
+      if (!mergedSelf) {
+        return;
       }
 
-      const matchedObject = arrayIntoObject(matchedObjectEntries, ([k, v]) => ({
-        [k]: v,
-      })) as any;
-
-      return defineObject(matchedObject, valueSchema, options);
+      return defineObject(mergedSelf);
     },
     async render(context) {
+      const { scoped } = self;
       const inflated = await inflateRender(context);
 
       return mapObjectAsync(inflated as Record<string, Schema<M[keyof M]>>, {
@@ -92,7 +192,7 @@ function defineObject<M extends Record<string, unknown>>(
           return executeOp(
             field,
             "render",
-            fieldContext(context, key) as SchemaRenderContext,
+            fieldContext(context, scoped, key) as SchemaRenderContext,
           );
         },
         filter(_key, mapped) {
@@ -100,54 +200,21 @@ function defineObject<M extends Record<string, unknown>>(
         },
       }) as Promise<M>;
     },
-    object() {
-      return object;
-    },
-    valueSchema() {
-      return valueSchema;
-    },
-    options() {
-      return options;
-    },
   });
 
-  function inflateScope(context: SchemaCaptureContext<M>) {
+  function inflateScope(
+    context: SchemaContext<M>,
+    { value }: ObjectRepresentation<M>,
+  ) {
     const inflationSchema = fieldScopeContext(context, undefined);
 
-    executeOp(
-      valueSchema,
-      "scope",
-      inflationSchema as SchemaCaptureContext<M[keyof M]>,
-    );
-  }
-
-  function inflatedObject(context: SchemaCaptureContext<M>) {
-    const inflationSchema = fieldScopeContext(context, undefined);
-
-    return arrayIntoObject(
-      [
-        object,
-        ...(inflationSchema.scope.index?.struts
-          ?.map((strut) => {
-            return context.environment.resolve({
-              context,
-              ident: strut,
-            });
-          })
-          .filter((input) => input !== undefined)
-          .map((input) =>
-            mapObject(input as Record<string, unknown>, () => valueSchema),
-          ) || []),
-      ],
-      (value) => {
-        return value;
-      },
-    );
+    executeOp(value, "scope", inflationSchema as SchemaContext<M[keyof M]>);
   }
 
   async function inflateRender(context: SchemaRenderContext) {
+    const { value, object } = self;
     const inflationSchema = fieldScopeContext(context, undefined);
-    executeOp(valueSchema, "scope", inflationSchema);
+    executeOp(value, "scope", inflationSchema);
 
     return arrayIntoObject(
       [
@@ -164,7 +231,7 @@ function defineObject<M extends Record<string, unknown>>(
         )
           .filter((values) => values !== undefined)
           .map((values) =>
-            mapObject(values as Record<string, unknown>, () => valueSchema),
+            mapObject(values as Record<string, unknown>, () => value),
           ),
       ],
       (value) => {
@@ -174,14 +241,137 @@ function defineObject<M extends Record<string, unknown>>(
   }
 }
 
-export const objects = {
-  object: (
-    object: Record<string, Schema<unknown>>,
-    valueSchema?: Schema<unknown>,
-  ) => defineObject(object, valueSchema, {}),
+function objectTemplate<M extends Record<string, unknown>>(
+  object: { [K in keyof M]: Template<M[K]> },
+  {
+    scoped = false,
+    value,
+  }: { scoped?: boolean; value?: Template<M[keyof M]> } = {},
+) {
+  return defineSchematic<ObjectSchematicOps<M>>({
+    object() {
+      return { object, scoped, value };
+    },
+    expand(context) {
+      return defineObject(
+        mergeRepresentation(
+          context,
+          {
+            object: {} as any,
+            scoped,
+            value: stubSchema(),
+          },
+          {
+            object,
+            scoped,
+            value,
+          },
+        )!,
+      ) as Schema<M>;
+    },
+  });
+}
 
-  scoped: (
-    object: Record<string, Schema<unknown>>,
-    valueSchema?: Schema<unknown>,
-  ) => defineObject(object, valueSchema, { scoped: true }),
+function inflatedObject<M extends Record<string, unknown>>(
+  context: SchemaContext<M>,
+  { object, scoped, value }: ObjectRepresentation<M>,
+  info?: ObjectSchematicInfo<M>,
+) {
+  const inflationContext = {
+    ...fieldContext(context, scoped, undefined),
+    phase: "build",
+  };
+
+  const keys = new Set([
+    ...Object.keys(object),
+    ...Object.keys(info?.object ?? {}),
+    ...(inflationContext.scope.index?.struts
+      ?.map((strut) => {
+        return context.environment.resolve({
+          context,
+          ident: strut,
+        });
+      })
+      .flatMap((data) => Object.keys(data || {})) || []),
+  ]);
+
+  const result = {} as { [K in keyof M]: Schema<M[K]> };
+
+  if (!isMergingContext(context)) {
+    for (const key of keys) {
+      result[key as keyof M] = object[key] ?? value;
+    }
+
+    return result;
+  }
+
+  for (const key of keys) {
+    const merged = merge(object[key] ?? value, {
+      ...fieldContext({ ...context, template: undefined }, scoped, key),
+      template: info?.object?.[key] as Template<M[keyof M]>,
+    });
+
+    if (!merged) {
+      diagnostic(context, `unmatched ${key}`);
+      return undefined;
+    }
+
+    result[key as keyof M] = merged;
+  }
+
+  return result;
+}
+
+export const objects = {
+  object: <M extends Record<string, unknown>>(
+    object: { [K in keyof M]: Template<M[K]> },
+    value?: Template<M[keyof M]>,
+  ) => {
+    const scopy =
+      (typeof object === "object" &&
+        Object.values(object).filter(
+          (v) => typeof v === "function" && v().scope,
+        )) ||
+      [];
+
+    if (scopy.length) {
+      //throw new Error("schema in object template");
+    }
+    return objectTemplate(object, { value, scoped: false });
+  },
+
+  scoped: <M extends Record<string, unknown>>(
+    object: { [K in keyof M]: Template<M[K]> },
+    value?: Template<M[keyof M]>,
+  ) => {
+    const scopy =
+      (typeof object === "object" &&
+        Object.values(object).filter(
+          (v) => typeof v === "function" && v().scope,
+        )) ||
+      [];
+
+    if (scopy.length) {
+      //throw new Error("schema in object template");
+    }
+    return objectTemplate(object, { value, scoped: true });
+  },
 };
+
+export function expandObject<M extends Record<string, unknown>>(
+  context: SchemaMergingContext<M>,
+) {
+  const { mode, template } = context;
+  // special case for {}. treat as an untyped stub.
+  // this prevents {} matched with [{...}] from becoming { "0": { ... } }
+  // or being an error.
+  if (mode !== "match" && Object.keys(template!).length === 0) {
+    return stubSchema(
+      defineObject({ object: {}, value: stubSchema(), scoped: false }),
+    );
+  }
+
+  return objects
+    .object(template! as M)()
+    .expand(context);
+}

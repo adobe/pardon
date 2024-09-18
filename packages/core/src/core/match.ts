@@ -17,16 +17,16 @@ import {
 import { PardonExecutionContext } from "./pardon.js";
 import { mapObject } from "../util/mapping.js";
 import { HttpsResponseStep } from "../core/formats/https-fmt.js";
-import { Schema, SchemaMergingContext } from "./schema/core/schema.js";
 import {
   HttpsRequestObject,
   httpsRequestSchema,
-} from "./request/https-schema.js";
-import { createEndpointEnvironment } from "./endpoint-environment.js";
-import { isScalar } from "./schema/definition/scalars.js";
+} from "./request/https-template.js";
 import { mergeConfigurations } from "../config/collection.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
 import { ProgressiveMatch } from "./progress.js";
+import { Schema, SchemaMergingContext } from "./schema/core/types.js";
+import { isScalar } from "./schema/definition/scalar-type.js";
+import { createEndpointEnvironment } from "./endpoint-environment.js";
 
 function selectEndpoints(
   endpoints: Record<string, LayeredEndpoint>,
@@ -394,7 +394,7 @@ function matchEndpoint(
     if (!match?.schema) {
       return {
         status: "rejected",
-        reason: match?.diagnostics || ["uhoh"],
+        reason: match?.diagnostics,
       };
     }
     return {

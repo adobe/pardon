@@ -36,7 +36,7 @@ export { cases, gamut, trial } from "./testing.js";
 export {
   flushTrialRegistry,
   runRegistrationTask,
-  withBaseGamutConfiguration as withGamutConfiguration,
+  withGamutConfiguration,
 } from "../entry/testing/trial.js";
 export {
   applySmokeConfig,

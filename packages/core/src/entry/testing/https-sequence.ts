@@ -28,7 +28,7 @@ import {
 import {
   httpsRequestSchema,
   httpsResponseSchema,
-} from "../../core/request/https-schema.js";
+} from "../../core/request/https-template.js";
 import { ScriptEnvironment } from "../../core/schema/core/script-environment.js";
 import { definedObject, mapObject } from "../../util/mapping.js";
 import {
@@ -40,7 +40,7 @@ import {
 } from "./sequence.js";
 import { createSequenceEnvironment } from "../../core/unit-environment.js";
 import { PardonAppContext } from "../../core/pardon.js";
-import { stubSchema } from "../../core/schema/definition/structures/stub-schema.js";
+import { stubSchema } from "../../core/schema/definition/structures/stub.js";
 import { AppContext } from "../../core/app-context.js";
 import { intoURL } from "../../core/request/url-pattern.js";
 import {
@@ -49,10 +49,10 @@ import {
   withoutScope,
 } from "../../features/trace.js";
 import { HTTP } from "../../core/formats/http-fmt.js";
-import { Schema, SchemaScope } from "../../core/schema/core/schema.js";
 import { disconnected, tracking } from "../../core/async.js";
 import { checkFastFailed, pendingFastFailure } from "./cli/failfast.js";
 import { TracedResult } from "../../features/trace.js";
+import { Schema, SchemaScope } from "../../core/schema/core/types.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";

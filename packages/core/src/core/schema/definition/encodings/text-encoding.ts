@@ -9,25 +9,25 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { EncodingType } from "./encoding-schema.js";
 
-export type TextBufferEncoding = Exclude<BufferEncoding, "binary">;
+import { Template } from "../../core/types.js";
+import { encodingTemplate, EncodingType } from "./encoding.js";
 
-type EncodingOptions = {
-  inner: TextBufferEncoding;
-  outer: TextBufferEncoding;
+const textEncoder: EncodingType<string, string> = {
+  as: "string",
+  decode({ template, mode }) {
+    if (mode === "match") {
+      return template as string;
+    }
+
+    // FIXME: evaluate template?
+    return template as string;
+  },
+  encode(source) {
+    return source;
+  },
 };
 
-export function bufferEncoding({
-  inner,
-  outer,
-}: EncodingOptions): EncodingType<string, string> {
-  return {
-    encode(output) {
-      return output && Buffer.from(output, inner).toString(outer);
-    },
-    decode({ stub: input }) {
-      return input && Buffer.from(input, outer).toString(inner);
-    },
-  };
+export function textTemplate(template?: Template<string>) {
+  return encodingTemplate(textEncoder, template);
 }

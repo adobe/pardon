@@ -10,15 +10,15 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { evaluation } from "../../expression.js";
-import { rescope } from "./schema-utils.js";
-import {
-  ExpressionDeclaration,
-  SchemaCaptureContext,
-  SchemaRenderContext,
-  ValueIdentifier,
-} from "./schema.js";
+import { rescope } from "./context.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";
+import {
+  ExpressionDeclaration,
+  SchemaContext,
+  SchemaRenderContext,
+  ValueIdentifier,
+} from "./types.js";
 
 export function evaluateIdentifierWithExpression(
   context: SchemaRenderContext,
@@ -126,10 +126,7 @@ function renderIdentifierInExpression(
   });
 }
 
-export function resolveIdentifier(
-  context: SchemaCaptureContext,
-  identifier: string,
-) {
+export function resolveIdentifier(context: SchemaContext, identifier: string) {
   const { scope } = context;
   const resolution = scope.resolve(context, identifier);
 

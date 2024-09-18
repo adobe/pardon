@@ -90,7 +90,7 @@ const gamutHolder = new AsyncLocalStorage<{
   descriptions: TestcaseDescription[];
 }>();
 
-export function withBaseGamutConfiguration<T>(callback: () => T) {
+export function withGamutConfiguration<T>(callback: () => T) {
   return gamutHolder.run(
     {
       name: [],

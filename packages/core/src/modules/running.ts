@@ -21,7 +21,7 @@ export {
 export {
   flushTrialRegistry,
   runRegistrationTask,
-  withBaseGamutConfiguration as withGamutConfiguration,
+  withGamutConfiguration as withGamutConfiguration,
 } from "../entry/testing/trial.js";
 
 export {

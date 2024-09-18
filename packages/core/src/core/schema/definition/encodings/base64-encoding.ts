@@ -9,16 +9,12 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Schema, Template } from "../../core/schema.js";
-import { bufferEncoding } from "./buffer-encoding-schema.js";
-import { encodingSchema, encodingTrampoline } from "./encoding-schema.js";
+import { Template } from "../../core/types.js";
+import { bufferEncoding } from "./buffer-encoding.js";
+import { encodingTemplate } from "./encoding.js";
 
 const base64Encoder = bufferEncoding({ inner: "utf-8", outer: "base64" });
 
-export function base64Encoding(schema: Schema<string>) {
-  return encodingSchema(base64Encoder, schema);
-}
-
-export function base64Trampoline(template?: Template<string>) {
-  return encodingTrampoline(base64Encoder, template);
+export function base64Encoding(template?: Template<string>) {
+  return encodingTemplate(base64Encoder, template);
 }

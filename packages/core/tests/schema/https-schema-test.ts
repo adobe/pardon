@@ -10,8 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { describe, it } from "node:test";
-import { httpsRequestSchema } from "../../src/core/request/https-schema.js";
-import { Schema, executeOp } from "../../src/core/schema/core/schema.js";
+import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 import {
   createMergingContext,
   createRenderContext,
@@ -24,10 +23,14 @@ import {
   mergeSchema,
   renderSchema,
 } from "../../src/core/schema/core/schema-utils.js";
+import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
+import { Schema } from "../../src/core/schema/core/types.js";
 
 describe("https-schema-tests", () => {
   it("should abc", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("json", {
+      search: { multivalue: false },
+    });
 
     const matchingContext = mixContext(jsonBaseSchema, {
       origin: "https://www.example.com",
@@ -45,25 +48,21 @@ describe("https-schema-tests", () => {
       body: '{ "hello": "world", "queryParam": { "a": "{{a=\'100\'}}" } }',
     });
 
-    const httpsPattern = executeOp(jsonBaseSchema, "merge", matchingContext)!;
+    const httpsPattern = merge(jsonBaseSchema, matchingContext)!;
 
-    const extended = executeOp(
-      httpsPattern,
-      "merge",
-      mixContext(httpsPattern, {
-        origin: "https://www.example.com",
-        pathname: "/test",
-        searchParams: intoSearchParams("?hello=world"),
-        headers: new Headers({ hello: "world" }),
-        body: "{}",
-      }),
-    )!;
+    const mctx = mixContext(httpsPattern, {
+      origin: "https://www.example.com",
+      pathname: "/test",
+      searchParams: intoSearchParams("?hello=world"),
+      headers: new Headers({ hello: "world" }),
+      body: "{}",
+    });
+    const extended = merge(httpsPattern, mctx)!;
 
-    const rendered = await executeOp(
-      httpsPattern,
-      "render",
-      renderCtx(httpsPattern),
-    );
+    mctx.scope.lookup("a");
+
+    const rctx = renderCtx(httpsPattern);
+    const rendered = await executeOp(httpsPattern, "render", rctx);
 
     assert((rendered?.searchParams?.has as any)("c", "d"));
     deepMatchEqual(rendered, {
@@ -92,9 +91,8 @@ describe("https-schema-tests", () => {
   it("should something todo", async () => {
     const formBaseSchema = httpsRequestSchema("form");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       formBaseSchema,
-      "merge",
       mixContext(formBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -102,9 +100,8 @@ describe("https-schema-tests", () => {
       }),
     )!;
 
-    const extended = executeOp(
+    const extended = merge(
       httpsPattern,
-      "merge",
       mixContext(httpsPattern, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -123,21 +120,17 @@ describe("https-schema-tests", () => {
   it("should match unwrapped single elements", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
-      jsonBaseSchema,
-      "merge",
-      mixContext(jsonBaseSchema, {
-        origin: "https://www.example.com",
-        pathname: "/test",
-        body: `{
-          "x": unwrapSingle("{{hello}}")
-        }`,
-      }),
-    )!;
+    const hctx = mixContext(jsonBaseSchema, {
+      origin: "https://www.example.com",
+      pathname: "/test",
+      body: `{
+        "x": unwrapSingle("{{hello}}")
+      }`,
+    });
 
-    const {
-      context: { scope },
-    } = mergeSchema(
+    const httpsPattern = merge(jsonBaseSchema, hctx)!;
+
+    const { schema, context } = mergeSchema(
       {
         mode: "match",
         phase: "validate",
@@ -146,22 +139,25 @@ describe("https-schema-tests", () => {
       {
         origin: "https://www.example.com",
         pathname: "/test",
-        body: `{
-        "x": "world"
-      }`,
+        body: `{ "x": "world" }`,
       },
       new ScriptEnvironment(),
     )!;
 
-    assert.equal(scope.subscopes["body.x.0"].values["hello"].value, "world");
+    const rendered = await renderSchema(schema!);
+    console.log(rendered);
+
+    assert.equal(
+      context.scope.subscopes["body.x.0"].values["hello"].value,
+      "world",
+    );
   });
 
   it("should match render missing single elements", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -192,9 +188,8 @@ describe("https-schema-tests", () => {
   it("should match and render nulls", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -225,9 +220,8 @@ describe("https-schema-tests", () => {
   it("should match and render nulls in lenient arrays", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -258,9 +252,8 @@ describe("https-schema-tests", () => {
   it("should match defaulted numbers", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -289,9 +282,8 @@ describe("https-schema-tests", () => {
   it("should match on identical values", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       matchContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -320,9 +312,8 @@ describe("https-schema-tests", () => {
   it("should fail on missing values", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -351,9 +342,8 @@ describe("https-schema-tests", () => {
   it("should fail on missing template values", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -382,9 +372,8 @@ describe("https-schema-tests", () => {
   it("should allow missing optional template values", async () => {
     const jsonBaseSchema = httpsRequestSchema("json");
 
-    const httpsPattern = executeOp(
+    const httpsPattern = merge(
       jsonBaseSchema,
-      "merge",
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
@@ -420,12 +409,12 @@ describe("https-schema-tests", () => {
 
   function mixContext<T>(
     s: Schema<T>,
-    stub: Parameters<typeof createMergingContext<T>>[2],
+    template: Parameters<typeof createMergingContext<T>>[2],
   ) {
     return createMergingContext(
       { mode: "mix", phase: "build" },
       s,
-      stub,
+      template,
       new ScriptEnvironment({
         runtime: builtins,
       }),

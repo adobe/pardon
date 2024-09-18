@@ -9,5 +9,26 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-export { httpOps } from "../db/entities/http-entity.js";
-export { valueOps } from "../db/entities/value-entity.js";
+import { EncodingType } from "./encoding.js";
+
+export type TextBufferEncoding = Exclude<BufferEncoding, "binary">;
+
+type EncodingOptions = {
+  inner: TextBufferEncoding;
+  outer: TextBufferEncoding;
+};
+
+export function bufferEncoding({
+  inner,
+  outer,
+}: EncodingOptions): EncodingType<string, string> {
+  return {
+    as: "string",
+    encode(output) {
+      return output && Buffer.from(output, inner).toString(outer);
+    },
+    decode({ template: input }) {
+      return input && Buffer.from(input as string, outer).toString(inner);
+    },
+  };
+}

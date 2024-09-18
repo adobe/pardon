@@ -34,3 +34,13 @@ export function isOptional({ hint }: Pick<PatternVar, "hint">) {
 export function isRequired({ hint }: Pick<PatternVar, "hint">) {
   return hint?.includes("!");
 }
+
+// matched and generated values will be redacted and not saved.
+export function isSecret({ hint }: { hint?: string | null } = {}) {
+  return hint?.includes("@");
+}
+
+// expression will be evaulated when --offline is passed.
+export function isOffline({ hint }: Pick<PatternVar, "hint"> = {}) {
+  return hint?.includes("~");
+}

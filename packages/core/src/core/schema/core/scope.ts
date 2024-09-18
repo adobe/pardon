@@ -11,25 +11,25 @@ governing permissions and limitations under the License.
 */
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
-import { isSecret } from "../../endpoint-environment.js";
-import { isScalar } from "../definition/scalars.js";
-import { diagnostic } from "./context.js";
-import { SchemaError } from "./schema-error.js";
-import { loc } from "./schema-utils.js";
+import { PardonError } from "../../error.js";
+import { isOptional, isSecret } from "../definition/hinting.js";
+import { isScalar } from "../definition/scalar-type.js";
+import { diagnostic, loc } from "./context-util.js";
+import { DEBUG } from "./debugging.js";
+import { isMergingContext } from "./schema.js";
 import {
-  type ResolvedValueOptions,
-  type ScopeIndex,
-  type ValueIdentifier,
-  type ExpressionDeclaration,
-  type SchemaCaptureContext,
-  type SchemaMergingContext,
-  type SchemaRenderContext,
-  type SchemaScope,
-  type ScopeData,
-  type ValueDeclaration,
-  type ValueDefinition,
-  isMatchingContext,
-} from "./schema.js";
+  ExpressionDeclaration,
+  ResolvedValueOptions,
+  SchemaContext,
+  SchemaMergingContext,
+  SchemaRenderContext,
+  SchemaScope,
+  ScopeData,
+  ScopeIndex,
+  ValueDeclaration,
+  ValueDefinition,
+  ValueIdentifier,
+} from "./types.js";
 
 export class Scope implements SchemaScope, ScopeData {
   parent?: Scope;
@@ -53,13 +53,14 @@ export class Scope implements SchemaScope, ScopeData {
     return new Scope(undefined, []);
   }
 
-  clone(context: SchemaCaptureContext, parent?: Scope) {
+  clone(context: SchemaContext, parent?: Scope) {
     const self = new Scope(parent ?? this.parent, this.path);
 
     self.values = mapObject(
       this.values,
       ({ value, identifier, name, path, context: { scopes } }) => {
-        const { stub, ...deprimed } = context as SchemaMergingContext<unknown>;
+        const { template, ...deprimed } =
+          context as SchemaMergingContext<unknown>;
         return {
           value,
           identifier,
@@ -206,18 +207,15 @@ export class Scope implements SchemaScope, ScopeData {
     const declared = this.declarations[name];
 
     if (!declared) {
-      const declared =
-        (this.declarations[name] =
-        this.declarations[identifier] =
-          {
-            ...declaration,
-            identifier,
-            name,
-            path,
-          });
+      const declared = (this.declarations[name] = {
+        ...declaration,
+        identifier,
+        name,
+        path,
+      });
 
-      if (this.values[identifier]) {
-        this.values[identifier].expr = declared;
+      if (this.values[name]) {
+        this.values[name].expr = declared;
       }
 
       return;
@@ -241,15 +239,16 @@ export class Scope implements SchemaScope, ScopeData {
       // and fix the double declaration upstream?
       // TODO: revisit if we even want to do this, maybe overriding is good?
       if (expr !== declared.expr) {
-        throw SchemaError.incompatible(context, {
-          note: `redefinition of ${identifier} = ${expr}: previously defined @${loc(
+        throw diagnostic(
+          context,
+          `redeclared ${identifier} = (${expr}): previously defined @${loc(
             declared.context,
-          )}`,
-        });
+          )} as (${declared.expr})`,
+        );
       }
     }
 
-    declared.expr = expr;
+    declared.expr ??= expr;
     declared.source = source;
     declared.hint ??= hint || null;
     declared.context = context;
@@ -265,7 +264,7 @@ export class Scope implements SchemaScope, ScopeData {
   }
 
   define<T>(
-    context: SchemaCaptureContext<unknown>,
+    context: SchemaContext<unknown>,
     identifier: string,
     value: T,
   ): T | undefined {
@@ -289,7 +288,7 @@ export class Scope implements SchemaScope, ScopeData {
         return value;
       }
 
-      if (isMatchingContext(context)) {
+      if (isMergingContext(context)) {
         diagnostic(
           context,
           `redefined:${name}=${value} :: previously defined as ${current.value}`,
@@ -299,11 +298,10 @@ export class Scope implements SchemaScope, ScopeData {
         //return undefined;
       }
 
-      throw SchemaError.error(context, {
-        note: `redefined:${name}=${value} :: previously defined as ${
-          current.value
-        } @${loc(current.context)}`,
-      });
+      throw diagnostic(
+        context,
+        `redefined:${name}=${value} :: previously defined as ${current.value}`,
+      );
     }
 
     if (value === undefined) {
@@ -315,18 +313,20 @@ export class Scope implements SchemaScope, ScopeData {
         return value;
       }
 
-      throw SchemaError.error(context, {
-        note: `undefined:${identifier}=${value}`,
-      });
+      const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
+      if (!isOptional({ hint })) {
+        throw diagnostic(context, `undefined:${identifier}`);
+      }
     }
 
-    this.values[name] = /* this.values[identifier] = */ {
+    this.values[name] = {
       identifier,
       value,
       name,
       path,
       context,
       expr: this.declarations[identifier],
+      ...(DEBUG && { stack: new Error("defined:here") }),
     };
 
     return value;
@@ -342,10 +342,15 @@ export class Scope implements SchemaScope, ScopeData {
     return findDefinition(identifier, this);
   }
 
-  resolve(context: SchemaCaptureContext, identifier: string) {
+  resolve(context: SchemaContext, identifier: string) {
     let lookup = this.lookup(identifier);
 
-    if (isLookupExpr(lookup) && lookup.resolved) {
+    if (
+      isLookupExpr(lookup) &&
+      lookup.resolved
+      /* &&
+      !isAbstractContext(context)*/
+    ) {
       this.resolving(context, identifier, lookup.resolved);
       lookup = this.lookup(identifier);
     }
@@ -372,9 +377,11 @@ export class Scope implements SchemaScope, ScopeData {
     identifier: string,
     action: () => Promise<T>,
   ) {
-    const chainError = SchemaError.render.reject(context, {
-      note: `evaluating ${identifier}`,
-    });
+    const location = loc(context);
+    const chainError = Object.assign(
+      new Error(`${location}: evaluating ${identifier}`),
+      { loc: location },
+    );
 
     const ident = parseScopedIdentifier(identifier);
 
@@ -387,19 +394,18 @@ export class Scope implements SchemaScope, ScopeData {
 
     return evaluation.catch((chain) => {
       if (chain.loc === chainError.loc) {
-        chain = SchemaError.render.undefined(context, {
-          note: `${identifier} is undefined`,
-        });
+        chain = diagnostic(context, `${identifier} is undefined`);
       }
+
       chainError.cause = chain;
       throw chainError;
     });
   }
 
   resolving<T>(
-    context: SchemaCaptureContext,
+    context: SchemaContext,
     identifier: string,
-    action: (context: SchemaCaptureContext) => T,
+    action: (context: SchemaContext) => T,
   ) {
     const ident = parseScopedIdentifier(identifier);
 
@@ -444,9 +450,7 @@ export class Scope implements SchemaScope, ScopeData {
 
     this.evaluations[ident.name] = disarm(
       Promise.reject(
-        SchemaError.render.reject(context, {
-          note: `${ident.name}: circular definition`,
-        }),
+        new PardonError(`${loc(context)} ${ident.name}: circular definition`),
       ),
     );
 
@@ -456,12 +460,12 @@ export class Scope implements SchemaScope, ScopeData {
       identifier !== "" ? this.define(context, identifier, value) : value;
 
     if (result === undefined && context.mode !== "prerender") {
-      if (context.mode === "postrender") {
-        console.warn(`failed to define ${identifier}=${value} ?`);
-      } else {
-        throw SchemaError.error(context, {
-          note: `failed to define ${identifier}=${value}`,
-        });
+      if (context.mode !== "postrender") {
+        const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
+
+        if (!isOptional({ hint })) {
+          throw diagnostic(context, `failed to define ${identifier}=${value}`);
+        }
       }
     }
 

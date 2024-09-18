@@ -36,7 +36,7 @@ import {
   HttpsFlowScheme,
   HttpsUnitScheme,
 } from "../../../core/formats/https-fmt.js";
-import { flushTrialRegistry, withBaseGamutConfiguration } from "../trial.js";
+import { flushTrialRegistry, withGamutConfiguration } from "../trial.js";
 import { glob } from "glob";
 import { AppContext } from "../../../core/app-context.js";
 import describeCases, { CaseContext, CaseHelpers } from "../testcases/index.js";
@@ -579,7 +579,7 @@ export async function loadTests(
   const cwd = dirname(testPath);
 
   const configuration = (
-    await withBaseGamutConfiguration(
+    await withGamutConfiguration(
       () => import(testPath, { with: { type: "tests" } }),
     )
   ).default as PardonTestConfiguration;

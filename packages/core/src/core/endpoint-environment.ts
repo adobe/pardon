@@ -12,7 +12,6 @@ governing permissions and limitations under the License.
 import { Configuration, LayeredEndpoint } from "../config/collection-types.js";
 import {
   Pattern,
-  PatternVar,
   isPatternLiteral,
   isPatternRegex,
   patternRender,
@@ -21,14 +20,12 @@ import {
 import { resolveIdentifier } from "./schema/core/evaluate.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
 import { PardonCompiler } from "../runtime/compiler.js";
-import {
-  SchemaCaptureContext,
-  SchemaMergingContext,
-} from "./schema/core/schema.js";
 import { ConfigMapping } from "./schema/core/config-space.js";
 import { arrayIntoObject, mapObject } from "../util/mapping.js";
-import { HttpsRequestObject } from "./request/https-schema.js";
+import { HttpsRequestObject } from "./request/https-template.js";
 import { PardonError } from "./error.js";
+import { SchemaContext, SchemaMergingContext } from "./schema/core/types.js";
+import { isSecret } from "./schema/definition/hinting.js";
 
 function simpleValues(values: Record<string, unknown>): Record<string, string> {
   return mapObject(values, {
@@ -147,7 +144,7 @@ export function createEndpointEnvironment({
 export function resolveDefaults(
   name: string,
   defaults: Record<string, ConfigMapping> | undefined,
-  context: SchemaCaptureContext,
+  context: SchemaContext<unknown>,
 ) {
   let defaulting = defaults?.[name];
   const path = [name];
@@ -232,16 +229,6 @@ function findImport(
 
 function isPatternRedacted(pattern: Pattern) {
   return isPatternRegex(pattern) && pattern.vars.some(isSecret);
-}
-
-// matched and generated values will be redacted and not saved.
-export function isSecret({ hint }: { hint?: string | null } = {}) {
-  return hint?.includes("@") ?? false;
-}
-
-// expression will be evaulated when --offline is passed.
-export function isOffline({ hint }: Pick<PatternVar, "hint"> = {}) {
-  return hint?.includes("~") ?? false;
 }
 
 function resolvedDefaults(

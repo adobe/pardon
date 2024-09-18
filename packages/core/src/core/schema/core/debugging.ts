@@ -9,30 +9,6 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Schema, Template } from "../../core/schema.js";
-import {
-  encodingSchema,
-  encodingTrampoline,
-  EncodingType,
-} from "./encoding-schema.js";
 
-const textEncoder: EncodingType<string, string> = {
-  decode({ stub, mode }) {
-    if (mode === "match") {
-      return stub;
-    }
-
-    return stub;
-  },
-  encode(source) {
-    return source;
-  },
-};
-
-export function textEncoding(schema: Schema<string>) {
-  return encodingSchema(textEncoder, schema);
-}
-
-export function textTrampoline(template: Template<string>) {
-  return encodingTrampoline(textEncoder, template);
-}
+// turn this on to capture stack traces into schemas and template objects.
+export const DEBUG = true;

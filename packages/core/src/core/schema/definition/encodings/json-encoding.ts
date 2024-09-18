@@ -9,24 +9,26 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { evalSchema } from "../../../request/https-schema.js";
-import { Schema, Template } from "../../core/schema.js";
-import {
-  EncodingType,
-  encodingSchema,
-  encodingTrampoline,
-} from "./encoding-schema.js";
+import { evalTemplate } from "../../../request/body-template.js";
+import { Schematic, Template } from "../../core/types.js";
+import { EncodingType, encodingTemplate } from "./encoding.js";
 
-const jsonEncodingType: EncodingType<
-  string,
-  object | number | string | boolean | null
-> = {
-  decode({ mode, stub }) {
-    if (mode === "match") {
-      return JSON.parse(stub!);
+const jsonEncodingType: EncodingType<string, unknown> = {
+  as: "string",
+  decode({ mode, template }) {
+    if ((template ?? "") == "") {
+      return undefined;
     }
 
-    return stub !== undefined ? evalSchema(stub) : undefined;
+    if (typeof template !== "string") {
+      throw new Error("json cannot parse non-string");
+    }
+
+    if (mode === "match") {
+      return JSON.parse(template);
+    }
+
+    return evalTemplate(template);
   },
   encode(output, context) {
     if (output === undefined) {
@@ -41,10 +43,6 @@ const jsonEncodingType: EncodingType<
   },
 };
 
-export function jsonEncoding(schema: Schema<unknown>): Schema<string> {
-  return encodingSchema(jsonEncodingType, schema);
-}
-
-export function jsonTrampoline(template?: Template<unknown>) {
-  return encodingTrampoline(jsonEncodingType, template);
+export function jsonEncoding(template?: Template<unknown>): Schematic<string> {
+  return encodingTemplate(jsonEncodingType, template);
 }

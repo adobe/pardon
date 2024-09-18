@@ -9,27 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import {
-  Schema,
-  SchemaMergingContext,
-  Template,
-  executeOp,
-} from "./core/schema.js";
-import {
-  expandTemplate,
-  mixing,
-  muxing,
-  templateInContext,
-  templateTrampoline,
-} from "./template.js";
-import { stubSchema } from "./definition/structures/stub-schema.js";
-import { redactSchema } from "./definition/structures/redact-schema.js";
-import * as KeyedList from "./definition/structures/keyed-list-schema.js";
-import {
-  createMergingContext,
-  keyContext,
-  tempContext,
-} from "./core/context.js";
+import { expandTemplate, muxing, templateSchematic } from "./template.js";
+import * as KeyedList from "./definition/structures/keyed-list.js";
+import { createMergingContext } from "./core/context.js";
 import { isLookupValue } from "./core/scope.js";
 import { objects } from "./definition/objects.js";
 import { arrays } from "./definition/arrays.js";
@@ -37,91 +19,179 @@ import { patternize } from "./core/pattern.js";
 import { ScopedOptions, defineScoped } from "./definition/scoped.js";
 import { mapObject } from "../../util/mapping.js";
 import { PardonError } from "../error.js";
-import { loc } from "./core/schema-utils.js";
+import { loc } from "./core/context-util.js";
+import { defineSchematic } from "./core/schema-ops.js";
+import {
+  Schema,
+  SchemaMergingContext,
+  Schematic,
+  SchematicOps,
+  Template,
+} from "./core/types.js";
 
-export function redact(templ = stubSchema()) {
-  return redactSchema(mixing(templ));
+function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
+  return (template: Template<T>) =>
+    defineSchematic({
+      blend(context, next) {
+        return next({ ...context, mode, template });
+      },
+      expand(context) {
+        return expandTemplate(template, context);
+      },
+    });
 }
 
-export type TrampolineModeOps = {
-  mode(): SchemaMergingContext<unknown>["mode"];
-  template(): Template<unknown>;
+export function muxTemplate(template: Template<unknown>) {
+  return modeContextBlend("mux")(template);
+}
+
+export function mixTemplate(template: Template<unknown>) {
+  return modeContextBlend("mix")(template);
+}
+
+export function matchTemplate(template: Template<unknown>) {
+  return modeContextBlend("match")(template);
+}
+
+type KeyedTemplate<T, Multivalued extends boolean> = {
+  keyTemplate: Template<T>;
+  valueTemplate: Template<T>[];
+  multivalued: Multivalued;
 };
 
-function modeTrampoline(
-  template: Template<unknown>,
-  mode: SchemaMergingContext<unknown>["mode"],
+export type KeyedTemplateOps<T> = SchematicOps<T[]> & {
+  keyed(context: SchemaMergingContext<T[]>): Schematic<T[]>;
+};
+
+function makeKeymapTemplate<T>(
+  template: KeyedTemplate<T, false>,
+  context: SchemaMergingContext<T[]>,
 ) {
-  return templateTrampoline(
-    (context) => templateInContext({ ...context, stub: template, mode }),
-    {
-      mode() {
-        return mode;
-      },
-      template() {
-        return template;
-      },
-    } satisfies TrampolineModeOps,
+  const { keyTemplate, valueTemplate } = template;
+  const keySchema = muxing(keyTemplate);
+
+  const { values, archetype } = valueTemplate.reduce<{
+    values: Record<string, Template<unknown>>;
+    archetype?: Template<unknown>;
+  }>(
+    (parsed, item) => {
+      const keyCtx = createMergingContext(context, keySchema, item as T);
+      const lookup = keyCtx.scope.lookup("key");
+      const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
+
+      if (field != undefined) {
+        parsed.values[field] = item;
+      } else if (parsed.archetype === undefined) {
+        parsed.archetype = item;
+      } else {
+        throw new PardonError(
+          `${loc(context)}: multiple archetypes found in keyed structure`,
+        );
+      }
+
+      return parsed;
+    },
+    { values: {} },
+  );
+
+  if (context.mode !== "mix" || Object.keys(values).length) {
+    return KeyedList.keyed(
+      keyTemplate,
+      objects.object(values, archetype) as Schematic<Record<string, T>>,
+    );
+  }
+
+  return KeyedList.keyed(
+    keyTemplate,
+    objects.scoped(values, archetype) as Schematic<Record<string, T>>,
   );
 }
 
-export function muxTrampoline(template: Template<unknown>) {
-  return modeTrampoline(template, "mux");
-}
+function makeMvKeymapTemplate<T>(
+  template: KeyedTemplate<T, true>,
+  context: SchemaMergingContext<T[]>,
+) {
+  const { keyTemplate, valueTemplate } = template;
 
-export function mixTrampoline(template: Template<unknown>) {
-  return modeTrampoline(template, "mix");
-}
+  const keySchema = muxing(keyTemplate);
 
-export function matchTrampoline(template: Template<unknown>) {
-  return modeTrampoline(template, "match");
+  const { values, archetype } = valueTemplate.reduce<{
+    values: Record<string, Template<unknown>[]>;
+    archetype?: Template<T[keyof T][]>;
+  }>(
+    (parsed, item) => {
+      const keyCtx = createMergingContext(context, keySchema, item as T);
+      const lookup = keyCtx.scope.lookup("key");
+      const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
+
+      if (field !== undefined) {
+        (parsed.values[field] ??= []).push(item);
+      } else if (parsed.archetype === undefined) {
+        parsed.archetype = item as Template<T[keyof T][]>;
+      } else {
+        throw new PardonError(
+          `${loc(context)}: multiple archetypes found in multi-valued keyed structure`,
+        );
+      }
+
+      return parsed;
+    },
+    { values: {} },
+  );
+
+  if (context.mode !== "mix" || Object.keys(values).length) {
+    const multivalues = mapObject(values, (items) => arrays.multivalue(items));
+
+    return KeyedList.keyed.mv(
+      keyTemplate,
+      objects.object(
+        multivalues,
+        mixTemplate(arrays.multiscope([archetype])),
+      ) as Schematic<Record<string, T[]>>,
+    );
+  }
+
+  const multivalues = mapObject(values, (items) =>
+    arrays.multivalue(items),
+  ) as Record<string, Schematic<T[keyof T][]>>;
+
+  return KeyedList.keyed.mv(
+    keyTemplate,
+    objects.scoped(
+      multivalues,
+      mixTemplate(arrays.multiscope([archetype])),
+    ) as Schematic<Record<string, T[]>>,
+  );
 }
 
 export function keyed<T extends object>(
   keyTemplate: Template<T>,
   valueTemplate: Template<T>[],
 ) {
-  return templateTrampoline((context) => {
-    const keySchema = muxing(keyTemplate);
-
-    const { values, archetype } = valueTemplate.reduce<{
-      values: Record<string, Schema<unknown>>;
-      archetype?: Schema<unknown>;
-    }>(
-      (parsed, item) => {
-        const keyCtx = createMergingContext(context, keySchema, item as T);
-        const lookup = keyCtx.scope.lookup("key");
-        const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
-
-        if (field != undefined) {
-          const itemContext = {
-            ...keyContext(context, field),
-            stub: item as T,
-          };
-          const schema = executeOp(
-            parsed.archetype ?? stubSchema(),
-            "merge",
-            itemContext,
-          );
-          parsed.values[field] = expandTemplate(schema, itemContext);
-        } else if (parsed.archetype === undefined) {
-          parsed.archetype = expandTemplate(item, tempContext(context));
-        } else {
-          throw new PardonError(
-            `${loc(context)}: multiple archetypes found in keyed structure`,
-          );
-        }
-
-        return parsed;
-      },
-      { values: {} },
-    );
-
-    if (context.mode === "mux" || Object.keys(values).length) {
-      return KeyedList.keyed(keySchema, objects.object(values, archetype));
-    }
-
-    return KeyedList.keyed(keySchema, objects.scoped(values, archetype));
+  return defineSchematic<KeyedTemplateOps<T>>({
+    expand(context) {
+      return expandTemplate(
+        makeKeymapTemplate(
+          {
+            keyTemplate,
+            valueTemplate,
+            multivalued: false,
+          },
+          context,
+        ),
+        context,
+      );
+    },
+    keyed(context) {
+      return makeKeymapTemplate(
+        {
+          keyTemplate,
+          valueTemplate,
+          multivalued: false,
+        },
+        context,
+      );
+    },
   });
 }
 
@@ -129,109 +199,77 @@ keyed.mv = function mvkeyed<T extends object>(
   keyTemplate: Template<T>,
   valueTemplate: Template<T>[],
 ) {
-  return templateTrampoline((context) => {
-    const keySchema = muxing(keyTemplate);
-
-    const { values, archetype } = valueTemplate.reduce<{
-      values: Record<string, Schema<unknown>[]>;
-      archetype?: Schema<unknown>;
-    }>(
-      (parsed, item) => {
-        const keyCtx = createMergingContext(context, keySchema, item as T);
-        const lookup = keyCtx.scope.lookup("key");
-        const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
-
-        if (field !== undefined) {
-          const itemContext = {
-            ...keyContext(context, field),
-            stub: item as T,
-          };
-
-          const schema = executeOp(
-            parsed.archetype ?? stubSchema(),
-            "merge",
-            itemContext,
-          );
-
-          (parsed.values[field] ??= []).push(
-            expandTemplate(schema, itemContext),
-          );
-        } else if (parsed.archetype === undefined) {
-          parsed.archetype = expandTemplate(item, tempContext(context));
-        } else {
-          throw new PardonError(
-            `${loc(context)}: multiple archetypes found in multi-valued keyed structure`,
-          );
-        }
-
-        return parsed;
-      },
-      { values: {} },
-    );
-
-    if (context.mode === "mux" || Object.keys(values).length) {
-      const multivalues = mapObject(values, (schemas) => arrays.tuple(schemas));
-
-      return KeyedList.keyed.mv(
-        keySchema,
-        objects.object(multivalues, archetype),
+  return defineSchematic<KeyedTemplateOps<T>>({
+    expand(context) {
+      return expandTemplate(
+        makeMvKeymapTemplate(
+          {
+            keyTemplate,
+            valueTemplate,
+            multivalued: true,
+          },
+          context,
+        ),
+        context,
       );
-    }
-
-    const multivalues = mapObject(values, (schemas) =>
-      arrays.template(schemas),
-    );
-
-    return KeyedList.keyed.mv(
-      keySchema,
-      objects.scoped(multivalues, archetype),
-    );
+    },
+    keyed(context) {
+      return makeMvKeymapTemplate(
+        {
+          keyTemplate,
+          valueTemplate,
+          multivalued: true,
+        },
+        context,
+      );
+    },
   });
 };
 
-export function tuple<T>(template: Template<T>[]): Schema<T[]> {
-  return templateTrampoline((context) =>
-    arrays.tuple(
-      template.map((item, idx) =>
-        expandTemplate(item, keyContext(context, idx)),
-      ),
-    ),
-  );
+export function tuple<T extends unknown[]>(template: T): Template<T> {
+  return arrays.tuple(template);
 }
 
-export function unwrapSingle<T>(template: Template<T>): Schema<T | T[]> {
-  return templateTrampoline((context) =>
-    arrays.lenient(expandTemplate(template, context)),
-  );
+export function unwrapSingle<T>(template: Template<T>): Template<T | T[]> {
+  return arrays.lenient(template);
 }
 
 export function scoped<T>(
   keyTemplate: string | Template<Partial<T>>,
   template: Template<T>,
   options: ScopedOptions = {},
-): Schema<T> {
+): Schematic<T> {
   if (
     typeof keyTemplate !== "string" ||
     !patternize(keyTemplate).vars.find(({ param }) => param === "key")
   ) {
-    return templateTrampoline((context) => {
-      return defineScoped<T>(
-        typeof keyTemplate == "string"
-          ? keyTemplate
-          : expandTemplate(keyTemplate, context),
+    return templateSchematic<T>(
+      (context) => {
+        return defineScoped<T>(
+          typeof keyTemplate == "string"
+            ? keyTemplate
+            : expandTemplate(keyTemplate as Template<T>, context),
+          expandTemplate(template, context),
+          options,
+        );
+      },
+      { type: "scoped" },
+    );
+  }
+
+  return templateSchematic<T>(
+    (context) => {
+      return defineScoped(
+        expandTemplate(
+          keyTemplate,
+          context as SchemaMergingContext<string | T>,
+        ) as Schema<T>,
         expandTemplate(template, context),
         options,
       );
-    });
-  }
-
-  return templateTrampoline((context) => {
-    return defineScoped(
-      expandTemplate(keyTemplate as Template<T>, context),
-      expandTemplate(template, context),
-      options,
-    );
-  });
+    },
+    { type: "scoped" },
+  );
 }
 
 export function scopedFields<M extends object & Record<string, unknown>>(

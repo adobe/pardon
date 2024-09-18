@@ -12,28 +12,29 @@ governing permissions and limitations under the License.
 import { describe, it } from "node:test";
 import assert from "node:assert";
 
-import { Schema, executeOp } from "../../src/core/schema/core/schema.js";
-import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-schema.js";
-import { captureSchema } from "../../src/core/schema/definition/structures/capture-schema.js";
+import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
+import { referenceTemplate } from "../../src/core/schema/definition/structures/reference.js";
+import { mixing } from "../../src/core/schema/template.js";
+import { keyed } from "../../src/core/schema/definition/structures/keyed-list.js";
+import { deepStrictMatchEqual } from "../asserts.js";
+import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
+import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
+import { evalTemplate } from "../../src/core/request/body-template.js";
+import { Schema, Schematic } from "../../src/core/schema/core/types.js";
 import {
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
-import { referenceSchema } from "../../src/core/schema/definition/structures/reference-schema.js";
-import { mixing } from "../../src/core/schema/template.js";
-import { keyed } from "../../src/core/schema/definition/structures/keyed-list-schema.js";
-import { evalSchema } from "../../src/core/request/https-schema.js";
-import { deepStrictMatchEqual } from "../asserts.js";
-import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 
 describe("schema structure", () => {
   it("should render captures / references", async () => {
     const s = mixing({
       computed: "{{= body.toLowerCase()}}",
-      json: referenceSchema<string[]>("json"),
-      body: captureSchema(
-        "body",
-        jsonEncoding(captureSchema("json", mixing(["A", "B", '{{C = "C"}}']))),
+      json: referenceTemplate<string[]>({ ref: "json" }),
+      body: referenceTemplate({ ref: "body" }).of(
+        jsonEncoding(
+          referenceTemplate({ ref: "json" }).of(["A", "B", '{{C = "C"}}']),
+        ),
       ),
     });
 
@@ -51,12 +52,14 @@ describe("schema structure", () => {
   });
 
   it("should capture key-values", async () => {
-    const s = keyed(
-      mixing({ name: evalSchema("$key") }),
-      mixing({
-        hello: { name: "hello", value: "{{hello}}" },
-        world: { name: "world", value: evalSchema("$world") },
-      }),
+    const s = mixing(
+      keyed(
+        { name: evalTemplate("$key") as Schematic<string> },
+        {
+          hello: { name: "hello", value: "{{hello}}" },
+          world: { name: "world", value: evalTemplate("$world") },
+        },
+      ),
     );
 
     const matchCtx = mixContext(s, [
@@ -64,7 +67,7 @@ describe("schema structure", () => {
       { name: "hello", value: "hola" },
     ]);
 
-    const merged = executeOp(s, "merge", matchCtx);
+    const merged = merge(s, matchCtx);
     assert(merged);
     deepStrictMatchEqual(matchCtx.scope.lookup("hello"), { value: "hola" });
     deepStrictMatchEqual(matchCtx.scope.lookup("world"), { value: "earth" });
@@ -74,7 +77,7 @@ describe("schema structure", () => {
     //    const k = keyed(mixing({ name: "{{key}}" }));
 
     const s = mixing(
-      evalSchema(`
+      evalTemplate(`
       keyed({ name: $key }, [{ value: $named.$value }])
     `),
     );
@@ -84,7 +87,7 @@ describe("schema structure", () => {
       { name: "hello", value: "hola" },
     ]);
 
-    const merged = executeOp(s, "merge", matchCtx);
+    const merged = merge(s, matchCtx);
     assert(merged);
     deepStrictMatchEqual(matchCtx.scope.resolvedValues(), {
       named: { hello: { value: "hola" }, world: { value: "earth" } },

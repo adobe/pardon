@@ -13,18 +13,18 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 
 import {
-  Schema,
-  executeOp,
-  SchemaScriptEnvironment,
-} from "../../src/core/schema/core/schema.js";
-import {
-  DeepPartial,
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
-import { httpsRequestSchema } from "../../src/core/request/https-schema.js";
+import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { intoSearchParams } from "../../src/core/request/search-pattern.js";
+import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
+import {
+  Schema,
+  SchemaScriptEnvironment,
+  Template,
+} from "../../src/core/schema/core/types.js";
 
 describe("schema configuration magic", () => {
   it("should render via config", async () => {
@@ -44,7 +44,7 @@ describe("schema configuration magic", () => {
     };
 
     const { schema: archetype, context: archContext } = extend(
-      httpsRequestSchema("json"),
+      httpsRequestSchema("json", { search: { multivalue: true } }),
       {
         origin: "https://example.com",
         pathname: "/v1/thing/{{thing}}",
@@ -94,11 +94,11 @@ describe("schema configuration magic", () => {
 
   function extend<T>(
     s: Schema<T>,
-    template: DeepPartial<T>,
+    template: Template<T>,
     environment: SchemaScriptEnvironment,
   ) {
     const context = mixContext(s, template, environment);
-    const schema = executeOp(s, "merge", context)!;
+    const schema = merge(s, context)!;
 
     return { context, schema };
   }

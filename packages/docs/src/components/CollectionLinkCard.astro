@@ -30,7 +30,7 @@ async function resolveCollection(
 
   return "docs";
 }
-console.log('href', href)
+
 if (typeof href === "string" && /^[/]/.test(href)) {
   const resolvedCollection = await resolveCollection(collection);
   const entry = await getEntry(resolvedCollection, href.slice(1));

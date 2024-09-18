@@ -24,75 +24,90 @@ import {
   patternize,
   patternsMatch,
 } from "../core/pattern.js";
-import { isNonEmpty, isOptional, isRequired } from "./scalar-hinting.js";
+import { isNonEmpty, isOptional, isRequired, isSecret } from "./hinting.js";
 import {
   resolveIdentifier,
   evaluateIdentifierWithExpression,
 } from "../core/evaluate.js";
-import {
-  SchematicOps,
-  defineSchema,
-  SchemaRenderContext,
-  SchemaMergingContext,
-  SchemaCaptureContext,
-  Schema,
-  isMatchingContext,
-  ExpressionDeclaration,
-} from "../core/schema.js";
-import { SchemaError } from "../core/schema-error.js";
+import { isMergingContext } from "../core/schema.js";
 import { isLookupValue, parseScopedIdentifier } from "../core/scope.js";
-import { rescope } from "../core/schema-utils.js";
-import { isSecret } from "../../endpoint-environment.js";
-import { diagnostic } from "../core/context.js";
+import { rescope } from "../core/context.js";
+import {
+  ExpressionDeclaration,
+  Schema,
+  SchemaContext,
+  SchemaMergingContext,
+  SchemaRenderContext,
+  SchematicOps,
+} from "../core/types.js";
+import {
+  defineSchema,
+  defineSchematic,
+  exposeSchematic,
+  isSchema,
+} from "../core/schema-ops.js";
+import { Scalar, ScalarType } from "./scalar-type.js";
+import { diagnostic, isAbstractContext } from "../core/context-util.js";
 
-export type Scalar = string | number | boolean | bigint | null;
-export type ScalarType = "string" | "number" | "boolean" | "bigint" | "null";
-
-export type ScalarOps<T extends Scalar = Scalar> = SchematicOps<T> & {
-  type(): ScalarType | undefined;
-  patterns(): Pattern[];
-};
-
-type ScalarOptions = {
+type ScalarRepresentation = {
+  patterns: Pattern[];
   type?: ScalarType;
-  patterns?: Pattern[];
-  custom: PatternBuilding | null;
+  custom?: PatternBuilding;
 };
 
 const defaultScalarBuilding: PatternBuilding = {
   re: ({ hint }) => (isNonEmpty({ hint }) ? ".+" : ".*"),
 };
 
-function defineScalar<T extends Scalar>(
-  template: T | string | undefined,
-  { type, patterns = [], custom }: ScalarOptions,
-): Schema<T> {
-  if (template !== undefined) {
-    if (typeof template !== "string" && !type) {
-      type = scalarTypeOf(template);
-    }
+function mergeRepresentation<T extends Scalar>(
+  context: SchemaMergingContext<T>,
+  rep: ScalarRepresentation,
+  info?: ScalarSchematicInfo<T>,
+): ScalarRepresentation | undefined {
+  if (info === undefined) {
+    return rep;
+  }
 
-    const pattern = patternize(
-      String(template),
-      custom ?? defaultScalarBuilding,
-    );
+  const { value, literal } = info;
+  let { patterns } = rep;
+  const custom = rep.custom ?? info.custom;
+  const type = rep.type ?? info.type;
 
-    if (pattern.vars.length !== 1 && !type) {
-      type = "string";
-    }
+  const source = String(value);
 
-    if (!patterns?.some((existing) => patternsMatch(pattern, existing))) {
-      patterns = [pattern, ...(patterns || [])];
+  const pattern = literal
+    ? patternLiteral(source)
+    : patternize(source, custom ?? defaultScalarBuilding);
+
+  if (context.mode === "meld" && patterns.length) {
+    if (!isPatternTrivial(pattern)) {
+      if (
+        !patterns?.some(
+          (existing) =>
+            isPatternTrivial(existing) || existing.source === source,
+        )
+      ) {
+        return;
+      }
     }
   }
 
-  patterns = patterns.filter(
-    (p, idx, all) => !all.slice(0, idx).some((q) => patternsMatch(p, q)),
-  );
+  if (!patterns?.some((existing) => patternsMatch(pattern, existing))) {
+    patterns = [pattern, ...(patterns ?? [])];
+  }
 
-  return defineSchema<ScalarOps<T>>({
+  return {
+    custom,
+    patterns,
+    type,
+  };
+}
+
+function defineScalar<T extends Scalar>(self: ScalarRepresentation): Schema<T> {
+  return defineSchema<T>({
     scope(context) {
       const { scope } = context;
+      const { patterns } = self;
 
       // only consider expressions for the last-merged expressive definition.
       const exprPattern = patterns?.find(isPatternExpressive);
@@ -129,7 +144,7 @@ function defineScalar<T extends Scalar>(
         }
 
         return (context) => {
-          return renderAndLookup(rescope(context, scope), param);
+          return renderAndLookup(rescope(context, scope), self, param);
         };
       }
 
@@ -149,7 +164,8 @@ function defineScalar<T extends Scalar>(
             rendered: renderedTrigger(param, pattern),
             resolved(context) {
               return resolveAndLookup(
-                rescope(context, scope) as SchemaCaptureContext<Scalar>,
+                rescope(context, scope) as SchemaContext<Scalar>,
+                self,
                 param,
               );
             },
@@ -175,7 +191,8 @@ function defineScalar<T extends Scalar>(
             rendered: renderedTrigger(param, pattern),
             resolved(context) {
               return resolveAndLookup(
-                rescope(context, scope) as SchemaCaptureContext<Scalar>,
+                rescope(context, scope) as SchemaContext<Scalar>,
+                self,
                 param,
               );
             },
@@ -185,10 +202,19 @@ function defineScalar<T extends Scalar>(
 
       // calling this for the side-effect of populating
       // the scope with values from pattern matching
-      resolveScalar(context, true);
+      if (!isMergingContext(context)) {
+        resolveScalar(context, self, true);
+      }
     },
     merge(context) {
-      const { stub, environment } = context;
+      const { environment } = context;
+      const info = extractScalar(context);
+      const mergedSelf = mergeRepresentation(context, self, info);
+      if (!mergedSelf) {
+        return;
+      }
+
+      const { patterns, type, custom } = mergedSelf;
 
       /*
        * This is where the patterns/values we have get
@@ -199,7 +225,7 @@ function defineScalar<T extends Scalar>(
       const configuredPatterns = environment.match({
         context: {
           ...context,
-          stub,
+          template: info?.value,
         },
         patterns,
         resolve(pattern) {
@@ -211,27 +237,23 @@ function defineScalar<T extends Scalar>(
       });
 
       if (!configuredPatterns) {
-        if (stub !== undefined) {
+        if (info?.value !== undefined) {
           diagnostic(
             context,
-            `incompatible stub ${stub} with ${patterns.map(({ source }) => JSON.stringify(source)).join(", ")}`,
+            `incompatible stub ${info.value} with ${patterns.map(({ source }) => JSON.stringify(source)).join(", ")}`,
           );
           return undefined;
         }
 
-        return defineScalar<T>(undefined, {
-          type,
-          patterns,
-          custom,
-        });
+        // don't give up yet?
+        return defineScalar(mergedSelf);
       }
-
-      const primedType = type ?? scalarTypeOf(stub);
 
       let appraised: Scalar | undefined;
 
       for (const pattern of configuredPatterns) {
         appraised = resolvePattern(context, pattern);
+
         if (appraised !== undefined) {
           break;
         }
@@ -240,7 +262,7 @@ function defineScalar<T extends Scalar>(
       if (
         context.mode === "match" &&
         appraised !== undefined &&
-        stub === undefined
+        info?.value === undefined
       ) {
         const redact = configuredPatterns.some(
           (pattern) =>
@@ -249,14 +271,14 @@ function defineScalar<T extends Scalar>(
 
         diagnostic(
           context,
-          `expected value: ${redact ? "<redacted>" : appraised} = ${redact ? "<redacted>" : stub}`,
+          `expected value: ${redact ? "<redacted>" : appraised} = ${redact ? "<redacted>" : info?.value}`,
         );
 
         return undefined;
       }
 
       if (appraised !== undefined) {
-        appraised = convert(appraised, primedType) as T;
+        appraised = convert(appraised, type) as T;
       }
 
       if (appraised === undefined && context.mode === "match") {
@@ -298,7 +320,13 @@ function defineScalar<T extends Scalar>(
                 return true;
               }
 
-              if (resolveAndLookup(context, variable.param) !== undefined) {
+              if (
+                resolveAndLookup(
+                  context,
+                  self /* or mergedSelf, configuredSelf? */,
+                  variable.param,
+                ) !== undefined
+              ) {
                 return false;
               }
 
@@ -330,187 +358,180 @@ function defineScalar<T extends Scalar>(
         }
       }
 
-      return defineScalar<T>(undefined, {
-        type: primedType,
-        patterns: configuredPatterns,
-        custom,
-      });
+      return defineScalar<T>(mergedSelf);
     },
     async render(context) {
-      return (await renderScalar(context)) as T;
-    },
-    type() {
-      return type;
-    },
-    patterns() {
-      return patterns;
+      return (await renderScalar(context, self)) as T;
     },
   });
+}
 
-  function renderScalar(context: SchemaRenderContext): Promise<T | undefined> {
-    const { scope } = context;
+function renderScalar<T>(
+  context: SchemaRenderContext,
+  self: ScalarRepresentation,
+): Promise<T | undefined> {
+  const { scope } = context;
 
-    return scope.cached(context, () => doRenderScalar(context));
-  }
+  return scope.cached(context, () => doRenderScalar(context, self));
+}
 
-  function resolveScalar(
-    context: SchemaCaptureContext<Scalar>,
-    forScope?: boolean,
-  ): T | undefined {
-    const configuredPatterns =
-      context.mode === "render" ||
-      context.mode === "preview" ||
-      context.mode === "prerender" ||
-      context.mode === "postrender"
-        ? context.environment.reconfigurePatterns(context, patterns)
-        : context.environment.match({
-            patterns,
-            context: context as SchemaMergingContext<string>,
-            resolve(pattern) {
-              return resolvePattern(context, pattern);
-            },
-            patternize(s: string) {
-              return patternize(s, custom ?? defaultScalarBuilding);
-            },
-          });
+function resolveScalar<T extends Scalar>(
+  context: SchemaContext<T>,
+  self: ScalarRepresentation,
+  forScope?: boolean,
+): T | undefined {
+  const { patterns, custom } = self;
 
-    if (!configuredPatterns && forScope) {
-      return;
-    }
-
-    if (!configuredPatterns) {
-      throw SchemaError.error(context, { note: `configuration exhausted` });
-    }
-
-    const result: Scalar | undefined = resolveDefinedPattern(
-      context,
-      configuredPatterns,
-    );
-
-    if (result !== undefined) {
-      const issue = defineMatchesInScope(context, configuredPatterns, result);
-
-      if (issue) {
-        if (isMatchingContext(context)) {
-          diagnostic(context, issue);
-          return undefined;
-        }
-
-        throw SchemaError.error(context, { note: issue });
-      }
-
-      return result as T;
-    }
-  }
-
-  async function doRenderScalar(
-    context: SchemaRenderContext,
-  ): Promise<T | undefined> {
-    const { mode, environment } = context;
-
-    // remap patterns against endpoint config
-    const configuredPatterns = environment.reconfigurePatterns(
-      context,
-      patterns,
-    );
-
-    // if we have exhausted the configuration space, fail.
-    if (!configuredPatterns) {
-      throw SchemaError.render.reject(context, {
-        note: "no valid configurations",
-      });
-    }
-
-    let result: Scalar | undefined;
-
-    // if there's a pattern which is already defined, we can evaluate it
-    const definition = resolveDefinedPattern(context, configuredPatterns);
-    if (definition !== undefined) {
-      result = convert(definition, type);
-    }
-
-    if (mode === "render" || mode === "prerender" || mode === "postrender") {
-      if (result === undefined) {
-        result = convert(
-          (await evaluateScalar(context, configuredPatterns)) as Scalar,
-          type,
-        );
-      }
-
-      if (result === undefined) {
-        if (
-          mode === "prerender" ||
-          mode === "postrender" ||
-          configuredPatterns.some(
-            (pattern) =>
-              isPatternLiteral(pattern) || pattern.vars.every(isOptional),
-          )
-        ) {
-          return undefined;
-        }
-
-        throw SchemaError.render.unevaluated(context, {
-          note: `type=${type}`,
+  const configuredPatterns =
+    context.mode === "render" ||
+    context.mode === "preview" ||
+    context.mode === "prerender" ||
+    context.mode === "postrender"
+      ? context.environment.reconfigurePatterns(context, patterns)
+      : context.environment.match({
+          patterns,
+          context: context as SchemaMergingContext<string>,
+          resolve(pattern) {
+            return resolvePattern(context, pattern);
+          },
+          patternize(s: string) {
+            return patternize(s, custom ?? defaultScalarBuilding);
+          },
         });
-      }
-    }
 
-    if (mode === "preview" && result === undefined) {
-      // TODO: this unfortunately discards any known type here.
-      return configuredPatterns[0].source as T;
-    } else if (result !== undefined) {
-      const issue = defineMatchesInScope(context, configuredPatterns, result);
-
-      if (issue) {
-        throw SchemaError.render.reject(context, { note: issue });
-      }
-    }
-
-    if (result == null) {
-      return result as T;
-    }
-
-    return environment.redact({
-      value: result as T,
-      context,
-      patterns: configuredPatterns,
-    }) as T;
+  if (!configuredPatterns && forScope) {
+    return;
   }
 
-  async function renderAndLookup(context: SchemaRenderContext, param: string) {
-    await renderScalar(context);
-
-    const { scope } = context;
-
-    const lookup = scope.lookup(param);
-
-    if (isLookupValue(lookup)) {
-      return lookup.value;
-    }
+  if (!configuredPatterns) {
+    throw diagnostic(context, `configuration exhausted`);
   }
 
-  function resolveAndLookup(
-    context: SchemaCaptureContext<Scalar>,
-    param: string,
-  ) {
-    if (resolveScalar(context) === undefined) {
-      return undefined;
+  const result: Scalar | undefined = resolveDefinedPattern(
+    context,
+    configuredPatterns,
+  );
+
+  if (result !== undefined) {
+    const issue = defineMatchesInScope(context, configuredPatterns, result);
+
+    if (issue) {
+      if (isMergingContext(context)) {
+        diagnostic(context, `define: ${issue}`);
+        return undefined;
+      }
+
+      throw diagnostic(context, `define: ${issue}`);
     }
 
-    const { scope } = context;
-
-    const lookup = scope.lookup(param);
-
-    if (isLookupValue(lookup)) {
-      return lookup.value;
-    }
+    return result as T;
   }
 }
 
-function fullPatternDefinition(
-  context: SchemaCaptureContext,
-  pattern: Pattern,
+async function doRenderScalar<T>(
+  context: SchemaRenderContext,
+  self: ScalarRepresentation,
+): Promise<T | undefined> {
+  const { mode, environment } = context;
+  const { patterns, type } = self;
+
+  // remap patterns against endpoint config
+  const configuredPatterns = environment.reconfigurePatterns(context, patterns);
+
+  // if we have exhausted the configuration space, fail.
+  if (!configuredPatterns) {
+    throw diagnostic(context, "no valid configurations");
+  }
+
+  let result: Scalar | undefined;
+
+  // if there's a pattern which is already defined, we can evaluate it
+  const definition = resolveDefinedPattern(context, configuredPatterns);
+  if (definition !== undefined) {
+    result = convert(definition, type);
+  }
+
+  if (mode === "render" || mode === "prerender" || mode === "postrender") {
+    if (result === undefined) {
+      result = convert(
+        (await evaluateScalar(context, configuredPatterns)) as Scalar,
+        type,
+      );
+    }
+
+    if (result === undefined) {
+      if (
+        mode === "prerender" ||
+        mode === "postrender" ||
+        configuredPatterns.some(
+          (pattern) =>
+            isPatternLiteral(pattern) || pattern.vars.every(isOptional),
+        )
+      ) {
+        return undefined;
+      }
+
+      throw diagnostic(context, `unevaluated: type=${type}`);
+    }
+  }
+
+  if (mode === "preview" && result === undefined) {
+    // TODO: this unfortunately discards any known type here.
+    return configuredPatterns[0].source as T;
+  } else if (result !== undefined) {
+    const issue = defineMatchesInScope(context, configuredPatterns, result);
+
+    if (issue) {
+      throw diagnostic(context, issue);
+    }
+  }
+
+  if (result == null) {
+    return result as T;
+  }
+
+  return environment.redact({
+    value: result as T,
+    context,
+    patterns: configuredPatterns,
+  }) as T;
+}
+
+async function renderAndLookup(
+  context: SchemaRenderContext,
+  self: ScalarRepresentation,
+  param: string,
 ) {
+  await renderScalar(context, self);
+
+  const { scope } = context;
+
+  const lookup = scope.lookup(param);
+
+  if (isLookupValue(lookup)) {
+    return lookup.value;
+  }
+}
+
+function resolveAndLookup<T extends Scalar>(
+  context: SchemaContext<T>,
+  self: ScalarRepresentation,
+  param: string,
+) {
+  if (resolveScalar(context, self) === undefined) {
+    return undefined;
+  }
+
+  const { scope } = context;
+
+  const lookup = scope.lookup(param);
+
+  if (isLookupValue(lookup)) {
+    return lookup.value;
+  }
+}
+
+function fullPatternDefinition(context: SchemaContext, pattern: Pattern) {
   if (isPatternLiteral(pattern)) {
     return [];
   }
@@ -548,8 +569,8 @@ function convert(value?: Scalar, type?: ScalarType) {
   }
 }
 
-function defineMatchesInScope(
-  context: SchemaCaptureContext<Scalar>,
+function defineMatchesInScope<T extends Scalar>(
+  context: SchemaContext<T>,
   patterns: Pattern[],
   value: Scalar,
 ) {
@@ -563,7 +584,7 @@ function defineMatchesInScope(
     ) {
       const key = pattern.vars[0].param;
       if (key) {
-        scope.define(context, key, value);
+        scope.define(context, key, value as T | null);
         scope.declare(key, {
           context,
           expr: null,
@@ -603,16 +624,13 @@ function defineMatchesInScope(
           continue;
         }
 
-        scope.define(context, key, value);
+        scope.define(context, key, value as T | null);
       }
     }
   }
 }
 
-function findFullyDefinedPattern(
-  context: SchemaCaptureContext,
-  patterns: Pattern[],
-) {
+function findFullyDefinedPattern(context: SchemaContext, patterns: Pattern[]) {
   for (const pattern of patterns) {
     const params = fullPatternDefinition(context, pattern);
     if (params) {
@@ -621,10 +639,7 @@ function findFullyDefinedPattern(
   }
 }
 
-function resolveDefinedPattern(
-  context: SchemaCaptureContext,
-  patterns: Pattern[],
-) {
+function resolveDefinedPattern(context: SchemaContext, patterns: Pattern[]) {
   const definition = findFullyDefinedPattern(context, patterns);
   if (definition) {
     const { params, pattern } = definition;
@@ -697,11 +712,15 @@ async function evaluateScalar(
   }
 }
 
-function resolvePattern(
-  context: SchemaCaptureContext<Scalar>,
+function resolvePattern<T extends Scalar>(
+  context: SchemaContext<T>,
   pattern?: Pattern,
 ) {
   if (!pattern) {
+    return;
+  }
+
+  if (isAbstractContext(context)) {
     return;
   }
 
@@ -722,13 +741,89 @@ function resolvePattern(
   }
 }
 
+type ScalarSchematicInfo<T extends Scalar> = {
+  value: T | string;
+  type?: ScalarType;
+  literal?: boolean;
+  custom?: PatternBuilding;
+};
+
+type ScalarSchematicOps<T extends Scalar> = SchematicOps<T> & {
+  scalar(context: SchemaMergingContext<T>): ScalarSchematicInfo<T>;
+};
+
+function extractScalar<T extends Scalar>(
+  context: SchemaMergingContext<T>,
+): ScalarSchematicInfo<T> | undefined {
+  const template = context.template;
+
+  if (typeof template === "function") {
+    const ops = exposeSchematic<ScalarSchematicOps<T>>(template);
+    if (isSchema(template)) {
+      throw diagnostic(context, `illegal schema`);
+    }
+
+    if (!ops.scalar) {
+      throw diagnostic(
+        context,
+        `merge scalar with unknown schematic (${Object.keys(ops).join("/")})`,
+      );
+    }
+
+    return ops.scalar(context);
+  }
+
+  return template === undefined
+    ? undefined
+    : {
+        value: template as T,
+        literal: context.mode === "match",
+        type: scalarFuzzyTypeOf(context, template as T),
+      };
+}
+
+function schematicTemplate<T extends Scalar>(
+  value: T | string,
+  {
+    type,
+    custom,
+    literal,
+  }: { type?: ScalarType; custom?: PatternBuilding; literal?: true },
+) {
+  return defineSchematic<ScalarSchematicOps<T>>({
+    scalar(context) {
+      return {
+        value,
+        type: type ?? scalarFuzzyTypeOf(context, value),
+        custom,
+        literal,
+      };
+    },
+    expand(context) {
+      return defineScalar(
+        mergeRepresentation(
+          context,
+          {
+            patterns: [],
+          },
+          {
+            value,
+            type: type ?? scalarFuzzyTypeOf(context, value),
+            custom,
+            literal,
+          },
+        ),
+      ) as Schema<T>;
+    },
+  });
+}
+
 export const scalars = {
   any: <T extends Scalar = Scalar>(source: T | string) =>
-    defineScalar<T>(source, { custom: null }),
-  null: (source: string) =>
-    defineScalar<null>(source, { type: "null", custom: null }),
+    schematicTemplate<T>(source, {}),
+  null: (source: string) => schematicTemplate<null>(source, { type: "null" }),
   string: (source: string) =>
-    defineScalar<string>(source, { type: "string", custom: null }),
+    schematicTemplate<string>(source, { type: "string" }),
   pattern: <T extends Scalar = Scalar>(
     source: string,
     {
@@ -737,35 +832,40 @@ export const scalars = {
     }: PatternBuilding & {
       type?: ScalarType;
     },
-  ) => defineScalar<T>(source, { type, custom: { re } }),
+  ) => schematicTemplate<T>(source, { type, custom: { re } }),
   antipattern: <T extends Scalar = Scalar>(source: T) =>
-    defineScalar<T>(undefined, {
+    schematicTemplate<T>(source, {
       type: scalarTypeOf(source),
-      patterns: [patternLiteral(String(source))],
-      custom: null,
+      literal: true,
     }),
   number: (source: string) =>
-    defineScalar<number>(source, { type: "number", custom: null }),
+    schematicTemplate<number>(source, { type: "number" }),
   bigint: (source: string) =>
-    defineScalar<bigint>(source, { type: "bigint", custom: null }),
+    schematicTemplate<bigint>(source, { type: "bigint" }),
   boolean: (source: string) =>
-    defineScalar<boolean>(source, { type: "boolean", custom: null }),
+    schematicTemplate<boolean>(source, { type: "boolean" }),
 };
 
-export function isScalar(value: unknown): value is Scalar {
-  switch (typeof value) {
-    case "string":
-    case "number":
-    case "bigint":
-    case "boolean":
-      return true;
-    case "object":
-      return value === null;
-  }
-  return false;
+function scalarTypeOf(value?: Scalar): ScalarType | undefined {
+  return value === undefined
+    ? undefined
+    : value === null
+      ? "null"
+      : (typeof value as ScalarType);
 }
 
-function scalarTypeOf(value?: Scalar): ScalarType | undefined {
+function scalarFuzzyTypeOf<T extends Scalar>(
+  context: SchemaMergingContext<T>,
+  value?: NoInfer<T> | string,
+): ScalarType | undefined {
+  if (
+    context.mode !== "match" &&
+    typeof value === "string" &&
+    isPatternSimple(patternize(value))
+  ) {
+    return undefined;
+  }
+
   return value === undefined
     ? undefined
     : value === null

@@ -9,37 +9,19 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { applyModeTrampoline } from "../template.js";
-import { loc } from "./schema-utils.js";
-import {
-  Schema,
-  executeOp,
-  SchemaRenderContext,
-  SchemaMergingContext,
-  SchemaContext,
-  SchemaCaptureContext,
-  SchemaScriptEnvironment,
-  SchemaScope,
-  ResolvedValueOptions,
-} from "./schema.js";
+import { executeOp } from "./schema-ops.js";
 import { Scope } from "./scope.js";
 import { ScriptEnvironment } from "./script-environment.js";
-
-export type DereferenceType<
-  M,
-  Parameters extends (string | number)[],
-> = Parameters extends [
-  infer H extends string | number,
-  ...infer Rest extends (string | number)[],
-]
-  ? H extends keyof M
-    ? DereferenceType<M[H], Rest>
-    : H extends number
-      ? M extends (infer O)[]
-        ? O
-        : never
-      : never
-  : M;
+import {
+  ResolvedValueOptions,
+  Schema,
+  SchemaContext,
+  SchemaMergingContext,
+  SchemaRenderContext,
+  SchemaScope,
+  SchemaScriptEnvironment,
+  Template,
+} from "./types.js";
 
 export type KeyedContext<
   C extends SchemaContext,
@@ -55,16 +37,16 @@ export function keyContext<
   Parameters extends (string | number)[],
   O = KeyedContext<C, Parameters>,
 >(context: C, ...keys: Parameters): O {
-  const stub = keys.reduce(
+  const template = keys.reduce(
     (template, key) => template?.[key],
-    (context as SchemaMergingContext<unknown>).stub,
+    (context as SchemaMergingContext<unknown>).template,
   );
 
-  return applyModeTrampoline({
+  return {
     ...context,
-    stub,
+    template,
     keys: [...context.keys, ...keys],
-  } as SchemaMergingContext<unknown>) as O;
+  } as O;
 }
 
 export function metaScopeContext<C extends SchemaContext>(
@@ -111,7 +93,7 @@ export function fieldScopeContext<
 }
 
 export function tempContext<C extends SchemaContext>(context: C): C {
-  const { scope } = context as SchemaCaptureContext;
+  const { scope } = context as SchemaContext;
 
   return { ...context, scope: scope?.tempscope() };
 }
@@ -127,6 +109,7 @@ export function createRenderContext<T>(
     scopes: [],
     environment,
     scope: scope ?? Scope.createRootScope(),
+    diagnostics: [],
   } satisfies SchemaRenderContext;
 
   if (scope) {
@@ -148,6 +131,7 @@ export function createPreviewContext<T>(
     scopes: [],
     environment,
     scope: scope ?? Scope.createRootScope(),
+    diagnostics: [],
   } satisfies SchemaRenderContext;
 
   if (!scope) {
@@ -170,6 +154,7 @@ export function createPrerenderContext<T>(
     scopes: [],
     environment,
     scope: scope ?? Scope.createRootScope(),
+    diagnostics: [],
   } satisfies SchemaRenderContext;
 
   if (!scope) {
@@ -190,6 +175,7 @@ export function createPostrenderContext<T>(
     mode: "postrender",
     keys: [],
     scopes: [],
+    diagnostics: [],
     environment,
     scope: scope ?? Scope.createRootScope(),
   } satisfies SchemaRenderContext;
@@ -203,14 +189,6 @@ export function createPostrenderContext<T>(
   return ctx;
 }
 
-export type DeepPartial<T> =
-  | (T extends object
-      ? {
-          [P in keyof T]?: DeepPartial<T[P]>;
-        }
-      : never)
-  | T;
-
 export type SchemaMergeType = {
   mode: SchemaMergingContext<unknown>["mode"];
   phase: SchemaMergingContext<unknown>["phase"];
@@ -219,7 +197,7 @@ export type SchemaMergeType = {
 export function createMergingContext<T>(
   { mode, phase }: SchemaMergeType,
   schema: Schema<T>,
-  stub: T | DeepPartial<T>,
+  template: Template<NoInfer<T>> | undefined,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
 ): SchemaMergingContext<T> {
   const context = {
@@ -229,18 +207,22 @@ export function createMergingContext<T>(
     scopes: [],
     environment,
     scope: Scope.createRootScope(),
-    stub: stub as T,
+    template,
     diagnostics: [],
   } satisfies SchemaMergingContext<T>;
 
   context.environment.reset();
-  executeOp(schema, "scope", context);
+  executeOp(schema, "scope", {
+    ...context,
+    template: undefined,
+    phase: "build",
+  });
 
-  return applyModeTrampoline(context);
+  return context;
 }
 
 export function getContextualValues(
-  context: SchemaCaptureContext<unknown>,
+  context: SchemaContext<unknown>,
   options: ResolvedValueOptions = {},
 ) {
   return {
@@ -249,23 +231,29 @@ export function getContextualValues(
   };
 }
 
-export function diagnostic(
-  context: SchemaMergingContext<unknown>,
-  error: string | Error,
-) {
-  const location = loc(context);
+export type DereferenceType<
+  M,
+  Parameters extends (string | number)[],
+> = Parameters extends [
+  infer H extends string | number,
+  ...infer Rest extends (string | number)[],
+]
+  ? H extends keyof M
+    ? DereferenceType<M[H], Rest>
+    : H extends number
+      ? M extends (infer O)[]
+        ? O
+        : never
+      : never
+  : M;
 
-  if (typeof error === "string") {
-    const warning = `${location}: ${error}`;
-    error = new Error(`${location}: ${error}`);
-    const [message /* ignore 1 frame */, , ...stack] = error.stack?.split(
-      "\n",
-    ) || [warning];
-    error.stack = [message, ...stack].join("\n");
-  }
-
-  context.diagnostics.push({
-    loc: location,
-    err: error,
-  });
+export function rescope<T extends SchemaContext>(
+  context: T,
+  scope: SchemaScope,
+): T {
+  return {
+    ...context,
+    scope: scope.rescope(context.scope),
+    scopes: [...scope.scopePath()],
+  };
 }

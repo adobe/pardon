@@ -10,21 +10,35 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  SchematicOps,
-  Schema,
   defineSchema,
+  defineSchematic,
   executeOp,
-} from "../../core/schema.js";
+  merge,
+} from "../../core/schema-ops.js";
+import { Schema, SchematicOps, Template } from "../../core/types.js";
+import { expandTemplate } from "../../template.js";
 
-export type RedactOps<T = unknown> = SchematicOps<T> & {
-  redact(): void;
-  schema(): Schema<T>;
+export type RedactedOps<T> = SchematicOps<T> & {
+  readonly redacted: true;
 };
 
-export function redactSchema<T = unknown>(schema: Schema<T>): Schema<T> {
-  return defineSchema<RedactOps<T>>({
+export function redact<T>(template: Template<T>) {
+  return defineSchematic<RedactedOps<T>>({
+    blend(context, next) {
+      const applied = next({ ...context, template });
+      return applied && redactSchema(applied);
+    },
+    expand(context) {
+      return redactSchema(expandTemplate(template, context));
+    },
+    redacted: true,
+  });
+}
+
+function redactSchema<T = unknown>(schema: Schema<T>): Schema<T> {
+  return defineSchema<T>({
     merge(context) {
-      const merged = executeOp(schema, "merge", context);
+      const merged = merge(schema, context);
 
       return merged && redactSchema(merged);
     },
@@ -38,9 +52,5 @@ export function redactSchema<T = unknown>(schema: Schema<T>): Schema<T> {
     scope(context) {
       executeOp(schema, "scope", context);
     },
-    schema() {
-      return schema;
-    },
-    redact() {},
   });
 }
