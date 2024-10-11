@@ -302,7 +302,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
       }
 
       if (appraised !== undefined) {
-        appraised = convertScalar(appraised, type) as T;
+        appraised = convertScalar(appraised, type, { unboxed }) as T;
       }
 
       if (appraised === undefined && context.mode === "match") {
@@ -454,7 +454,7 @@ function resolveScalar<T extends Scalar>(
       throw diagnostic(context, `define: ${issue}`);
     }
 
-    return convertScalar(result, self.type) as T;
+    return convertScalar(result, self.type, { unboxed }) as T;
   }
 }
 
@@ -478,7 +478,7 @@ async function doRenderScalar<T>(
   // if there's a pattern which is already defined, we can evaluate it
   const definition = resolveDefinedPattern(context, configuredPatterns);
   if (definition !== undefined) {
-    result = convertScalar(definition, type);
+    result = convertScalar(definition, type, { unboxed });
   }
 
   if (mode === "render" || mode === "prerender" || mode === "postrender") {
@@ -486,6 +486,7 @@ async function doRenderScalar<T>(
       result = convertScalar(
         (await evaluateScalar(context, configuredPatterns)) as Scalar,
         type,
+        { unboxed },
       );
     }
 

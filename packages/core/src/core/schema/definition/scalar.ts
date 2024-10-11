@@ -32,7 +32,7 @@ export type ScalarType = "string" | "number" | "boolean" | "bigint" | "null";
 export function convertScalar(
   value?: Scalar | unknown,
   type?: ScalarType,
-  anull?: boolean,
+  { anull, unboxed }: { anull?: boolean; unboxed?: boolean } = {},
 ): Scalar | unknown {
   if (value === undefined) {
     return anull ? null : undefined;
@@ -52,7 +52,7 @@ export function convertScalar(
         return createNumber(value["source"]);
       }
 
-      return createNumber(String(value));
+      return unboxed ? Number(value) : createNumber(String(value));
     case "string":
       return String(value);
     case "bigint":
@@ -64,7 +64,11 @@ export function convertScalar(
         return value;
       }
 
-      return value !== undefined ? createBigInt(String(value)) : undefined;
+      return value !== undefined
+        ? unboxed
+          ? BigInt(String(value))
+          : createBigInt(String(value))
+        : undefined;
     default:
       return value;
   }
@@ -113,10 +117,14 @@ export function createNumber(source: string, value?: number) {
   const numberObject = Object.assign(new Number(value ?? source), { source });
 
   if (DEBUG) {
+    const created = new Error("created-at");
     Object.defineProperty(numberObject, "valueOf", {
       value() {
         return Number(value ?? source);
       },
+    });
+    Object.defineProperty(numberObject, "created", {
+      value: created,
     });
   }
 

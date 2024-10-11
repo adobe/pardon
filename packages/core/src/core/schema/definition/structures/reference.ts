@@ -355,7 +355,7 @@ export function defineReference<T = unknown>(
         // if the schema was a stub, we'll try to derive the value
         // by evaluating the refs.
         if (result !== undefined) {
-          return convertScalar(result, encoding, anull) as T;
+          return convertScalar(result, encoding, { anull }) as T;
         }
       }
 
@@ -368,7 +368,7 @@ export function defineReference<T = unknown>(
 
         defineReferenceValue(context, value);
 
-        return convertScalar(value, encoding, anull) as T;
+        return convertScalar(value, encoding, { anull }) as T;
       }
 
       return anull ? (null as T) : undefined!;
