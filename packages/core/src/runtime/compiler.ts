@@ -17,7 +17,7 @@ import { Project, ts } from "ts-morph";
 
 import { PardonError } from "../core/error.js";
 import { AppContext } from "../core/app-context.js";
-import { transformDotAwait } from "../core/expression.js";
+import { expressionTransform } from "../core/expression.js";
 import { shared } from "../core/async.js";
 
 const { join, normalize } = posix;
@@ -124,7 +124,7 @@ export default function createCompiler({
 
       const compiled = project
         .createSourceFile(resolved, content)
-        .transform(transformDotAwait)
+        .transform(expressionTransform)
         .asKind(ts.SyntaxKind.SourceFile)
         ?.getEmitOutput();
 
@@ -144,7 +144,7 @@ export default function createCompiler({
 
       const compiled = project
         .createSourceFile(path, content)
-        .transform(transformDotAwait)
+        .transform(expressionTransform)
         .asKind(ts.SyntaxKind.SourceFile)
         ?.getEmitOutput();
 

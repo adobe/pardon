@@ -67,7 +67,9 @@ import { manifest, samples, testing } from "../signals/pardon-config.ts";
 import AssetEditor from "../components/collection/AssetEditor.tsx";
 import ResponsePanel from "../components/collection/inbound/ResponsePanel.tsx";
 import { ConfigurationDrawer } from "../components/ConfigurationDrawer.tsx";
-import RequestHistory from "../components/RequestHistory.tsx";
+import RequestHistory, {
+  startTracingRequestHistory,
+} from "../components/RequestHistory.tsx";
 import MultiView from "../components/MultiView.tsx";
 import TestcaseSystem from "../components/TestcaseSystem.tsx";
 import PreviewPanel from "../components/collection/outbound/PreviewPanel.tsx";
@@ -447,6 +449,8 @@ ${previewText()}
     return request.context.trace;
   });
 
+  startTracingRequestHistory(outbound);
+
   return (
     <Resizable orientation="vertical">
       <Resizable.Panel
@@ -565,7 +569,7 @@ ${previewText()}
                             class="absolute inset-x-0 bottom-1 flex place-content-center opacity-100 transition-opacity duration-700"
                             classList={{
                               "!opacity-0 pointer-events-none":
-                                Object.keys(scratchValues()).length == 0,
+                                Object.keys(scratchValues() ?? {}).length == 0,
                             }}
                           >
                             <button
@@ -947,7 +951,6 @@ ${previewText()}
                       </Match>
                       <Match when={props.value == "history"}>
                         <RequestHistory
-                          render={outbound()}
                           onRestore={restoreFromHistory}
                           isCurrent={createSelector(currentTrace)}
                         />

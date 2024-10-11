@@ -13,7 +13,7 @@ import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
 import { PardonError } from "../../error.js";
 import { isNoExport, isOptional, isSecret } from "../definition/hinting.js";
-import { boxScalar, isScalar, unboxObject } from "../definition/scalar.js";
+import { isScalar } from "../definition/scalar.js";
 import { diagnostic, loc } from "./context-util.js";
 import { DEBUG } from "./debugging.js";
 import { isMergingContext } from "./schema.js";
@@ -145,7 +145,7 @@ export class Scope implements SchemaScope, ScopeData {
 
   localValues(options: ResolvedValueOptions): Record<string, unknown> {
     const localValues = mapObject(this.values, {
-      values: ({ value }) => (options.boxed ? value : unboxObject(value)),
+      values: ({ value }) => value,
       select: ({ expr }, key) =>
         !isNoExport(expr) &&
         (options?.secrets || !isSecret(expr)) &&
@@ -155,7 +155,7 @@ export class Scope implements SchemaScope, ScopeData {
     const exportValues = this.exportValues(options);
 
     return {
-      ...(options.boxed ? exportValues : unboxObject(exportValues)),
+      ...exportValues,
       ...localValues,
     };
   }
@@ -213,12 +213,17 @@ export class Scope implements SchemaScope, ScopeData {
     const declared = this.declarations[name];
 
     if (!declared) {
-      const declared = (this.declarations[name] = {
-        ...declaration,
-        identifier,
-        name,
-        path,
-      });
+      // TODO: re-evaluate this double assignment or
+      // switch to export prefixes being multiply-associated with values.
+      const declared =
+        (this.declarations[name] =
+        this.declarations[identifier] =
+          {
+            ...declaration,
+            identifier,
+            name,
+            path,
+          });
 
       if (this.values[name]) {
         this.values[name].expr = declared;
@@ -278,7 +283,7 @@ export class Scope implements SchemaScope, ScopeData {
 
     const current = this.values[name];
 
-    value = boxScalar(value);
+    // note that scalars might be boxed, might not be
 
     // extra fuzzy match because null values might resolve to string "null" + type null, etc...
     if (current) {
@@ -327,7 +332,7 @@ export class Scope implements SchemaScope, ScopeData {
       }
     }
 
-    this.values[name] = {
+    this.values[name] = this.values[identifier] = {
       identifier,
       value,
       name,
@@ -589,7 +594,9 @@ function mergeExports(exported: unknown, current: unknown) {
         (_, i) => mergeExports(exported[i], current[i]),
       );
 
-    case typeof current === "object":
+    case typeof current === "object" &&
+      current &&
+      Object.getPrototypeOf(current) === Object.prototype:
       if (current === null && Object.keys(exported || {}).length == 0) {
         return null;
       }

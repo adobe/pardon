@@ -46,7 +46,6 @@ import { intoURL, parseURL } from "./request/url-pattern.js";
 import { HTTP, RequestObject } from "./formats/http-fmt.js";
 import { Schema, SchemaMergingContext } from "./schema/core/types.js";
 import { getContextualValues } from "../core/schema/core/context.js";
-import { unboxObject } from "./schema/definition/scalar.js";
 
 export type PardonAppContext = Pick<
   AppContext,
@@ -281,11 +280,13 @@ export const PardonFetchExecution = pardonExecution({
 
     return {
       request: {
-        ...unboxObject(rendered.output),
-        values: getContextualValues(redacted.context, { secrets: true }),
+        ...rendered.output,
+        values: getContextualValues(redacted.context, {
+          secrets: true,
+        }),
       },
       redacted: {
-        ...unboxObject(redacted.output),
+        ...redacted.output,
         values: getContextualValues(rendered.context),
       },
       scope: rendered.context.scope,
@@ -336,14 +337,16 @@ export const PardonFetchExecution = pardonExecution({
     durations.render = Date.now() - renderStart;
 
     return {
-      request: unboxObject({
+      request: {
         ...rendered.output,
-        values: getContextualValues(rendered.context, { secrets: true }),
-      } satisfies RequestObject),
-      redacted: unboxObject({
+        values: getContextualValues(rendered.context, {
+          secrets: true,
+        }),
+      } satisfies RequestObject,
+      redacted: {
         ...redacted.output,
         values: getContextualValues(rendered.context),
-      } satisfies RequestObject),
+      } satisfies RequestObject,
       scope: rendered.context.scope,
     };
   },
@@ -456,11 +459,9 @@ export const PardonFetchExecution = pardonExecution({
         );
 
         return {
-          output: unboxObject(output),
+          output,
           scope: context.scope,
-          values: getContextualValues(context, {
-            secrets,
-          }),
+          values: getContextualValues(context, { secrets }),
         };
       }),
     );

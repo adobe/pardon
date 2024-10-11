@@ -24,7 +24,7 @@ import { keyed } from "../../src/core/schema/scheming.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
 import { bodyGlobals } from "../../src/core/request/body-template.js";
-import { boxObject } from "../../src/core/schema/definition/scalar.js";
+import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 
 describe("schema tests", () => {
   it("should create schemas for basic types", async () => {
@@ -132,8 +132,8 @@ describe("schema tests", () => {
     });
 
     assert.deepStrictEqual(
-      await executeOp(s, "render", renderCtx(s)),
-      boxObject({
+      unboxObject(await executeOp(s, "render", renderCtx(s))),
+      unboxObject({
         a: 2,
         b: 4,
         c: 6,
@@ -221,8 +221,8 @@ describe("schema tests", () => {
     const rendered = await executeOp(merged!, "render", renderCtx(merged!));
 
     assert.deepStrictEqual(
-      rendered,
-      boxObject({
+      unboxObject(rendered),
+      unboxObject({
         global: 100,
         a: 1,
         b: 1,

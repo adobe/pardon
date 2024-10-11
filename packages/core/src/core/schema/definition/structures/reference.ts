@@ -258,6 +258,9 @@ export function defineReference<T = unknown>(
       const info = extractReference(context);
 
       if (info) {
+        const { ref } = info;
+        const mergedHint = `${hint}${info.hint ?? ""}`;
+
         let merged = schema;
 
         if (info.encoding && encoding && info.encoding !== encoding) {
@@ -279,9 +282,16 @@ export function defineReference<T = unknown>(
           tryResolve(merged, context);
         }
 
+        if (ref) {
+          declareRef(context, {
+            ref,
+            hint: mergedHint,
+          });
+        }
+
         return defineReference({
           refs: new Set([...refs, info.ref].filter(Boolean)),
-          hint: `${hint}${info.hint ?? ""}`,
+          hint: mergedHint,
           schema: merged,
           encoding: info.encoding ?? encoding,
           anull: info.anull || anull,
@@ -367,18 +377,7 @@ export function defineReference<T = unknown>(
       const { scope } = context;
 
       for (const ref of refs) {
-        scope.declare(ref, {
-          context,
-          expr: null,
-          hint,
-          source: null,
-          resolved(context) {
-            return resolveReference(rescope(context, scope));
-          },
-          async rendered(context) {
-            return await renderReference(schema, rescope(context, scope));
-          },
-        });
+        declareRef(context, { ref, hint });
 
         if (!isMergingContext(context)) {
           scope.resolve(context, ref);
@@ -390,6 +389,30 @@ export function defineReference<T = unknown>(
       }
     },
   });
+
+  function declareRef(
+    context: SchemaContext,
+    { ref, hint }: { ref?: string; hint?: string },
+  ) {
+    if (!ref) {
+      return;
+    }
+
+    const { scope } = context;
+
+    scope.declare(ref, {
+      context,
+      expr: null,
+      hint: hint || null,
+      source: null,
+      resolved(context) {
+        return resolveReference(rescope(context, scope));
+      },
+      async rendered(context) {
+        return await renderReference(schema, rescope(context, scope));
+      },
+    });
+  }
 
   function tryResolve<T>(schema: Schema<T>, context: SchemaContext<T>) {
     const resolved = schema && maybeResolve(schema, context);

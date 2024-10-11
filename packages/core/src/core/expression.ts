@@ -57,6 +57,8 @@ export function applyTsMorph(
     .transform(transform)
     .getText();
 
+  //   this would actually leave more state around from
+  //   the expression evaulation than not doing it.
   // exprSourceFile.deleteImmediatelySync();
 
   return awaitedExpr;
@@ -90,10 +92,10 @@ export function unbound(
 // helper for recompiling x.await to (await x).
 // because: fetch().await.json().await.x
 // is easier to read than: (await (await fetch()).json()).x
-export function transformDotAwait({
+export const expressionTransform: TsMorphTransform = ({
   factory,
   visitChildren,
-}: TransformTraversalControl): ts.Node {
+}) => {
   const result = visitChildren();
 
   if (
@@ -106,7 +108,7 @@ export function transformDotAwait({
   }
 
   return result;
-}
+};
 
 export function syncEvaluation(
   expr: string,
@@ -153,7 +155,7 @@ export async function evaluation(
     (ident) => [ident, binding?.(ident)] as const,
   );
 
-  const compiled = applyTsMorph(expr, transformDotAwait);
+  const compiled = applyTsMorph(expr, expressionTransform);
 
   const fn = new Function(
     ...bound.map(([k]) => k),

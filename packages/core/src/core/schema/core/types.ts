@@ -169,7 +169,7 @@ export type ScopeIndex =
       key?: number;
     };
 
-export type ResolvedValueOptions = { secrets?: boolean; boxed?: boolean };
+export type ResolvedValueOptions = { secrets?: boolean };
 
 export type SchemaScope = {
   clone(context: SchemaContext): SchemaScope;

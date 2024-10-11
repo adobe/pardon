@@ -10,7 +10,6 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { evaluation } from "../../expression.js";
-import { boxScalar } from "../definition/scalar.js";
 import { rescope } from "./context.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";
@@ -83,7 +82,8 @@ function synthesizeExpressionDeclaration(
     context,
     expr: expr ?? null,
     hint: null,
-    source: `{{=${expr}}}`,
+    source:
+      expr === undefined ? `{{}}` : `{{= $$expr(${JSON.stringify(expr)}) }}`,
   };
 }
 
@@ -109,7 +109,7 @@ function renderIdentifierInExpression(
         hint,
       });
 
-      return boxScalar(expressionResult);
+      return expressionResult;
     }
 
     const ambientResult = await decl?.rendered?.(rescoped);

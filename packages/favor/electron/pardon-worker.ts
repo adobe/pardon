@@ -164,7 +164,7 @@ registerSequenceNotificationHooks({
           key,
           sequence,
           stepCount: 1,
-          values: ship(values),
+          values,
         },
         async () => {
           try {
@@ -222,7 +222,7 @@ const tracingHooks = {
 
     return {
       id: "trace:rendering" as const,
-      trace: ship(payload),
+      trace: payload,
     };
   },
   onRenderComplete({
@@ -248,7 +248,7 @@ const tracingHooks = {
 
     return {
       id: "trace:rendered" as const,
-      trace: ship(payload as Optional<typeof payload, "secure">),
+      trace: payload as Optional<typeof payload, "secure">,
     };
   },
   onSend({ context: { trace, timestamps, durations } }) {
@@ -261,7 +261,7 @@ const tracingHooks = {
 
     return {
       id: "trace:sent" as const,
-      trace: ship(payload),
+      trace: payload,
     };
   },
   onResult({
@@ -290,7 +290,7 @@ const tracingHooks = {
 
     return {
       id: "trace:completed" as const,
-      trace: ship(payload as Optional<typeof payload, "secure">),
+      trace: payload as Optional<typeof payload, "secure">,
     };
   },
   onError(error, stage, trace) {
@@ -618,7 +618,7 @@ const handlers = {
         id: "test:event",
         type: "test:run:start",
         run: testRun,
-        tests: ship(tests),
+        tests: tests,
         input,
       }) satisfies TestStepPayloads["test:run:start"],
     );

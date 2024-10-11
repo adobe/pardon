@@ -120,8 +120,8 @@ export default function remember(
 
             const requestValues = scope.resolvedValues({
               secrets: false,
-              boxed: true,
             });
+
             for (const [name, value] of Object.entries(requestValues)) {
               if (!once(name)) continue;
 
@@ -175,7 +175,6 @@ export default function remember(
 
             const responseValues = inbound.scope.resolvedValues({
               secrets: false,
-              boxed: true,
             });
 
             for (const [name, value] of Object.entries(responseValues)) {

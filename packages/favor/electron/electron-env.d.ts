@@ -77,6 +77,7 @@ declare module "solid-js" {
       [on: string]: Event;
     }
     interface CustomCaptureEvents {
+      copy: ClipboardEvent;
       paste: ClipboardEvent;
       [oncapture: string]: Event;
     }

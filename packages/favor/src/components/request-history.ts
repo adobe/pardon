@@ -40,7 +40,6 @@ const [history, setHistory] = makePersisted(
   }>({ traces: {} }),
   {
     name: "history",
-    storage: localStorage,
     ...persistJson,
   },
 );
@@ -62,14 +61,14 @@ export function clearTrace(trace: number) {
 export const { traces } = createRoot(() => {
   createEffect(() => {
     window.pardon.registerHistoryForwarder({
-      onRenderStart(trace, data) {
+      onRenderStart(trace, start) {
         setHistory(({ traces }) => ({
-          traces: { ...traces, [trace]: { trace, start: data } },
+          traces: { ...traces, [trace]: { trace, start } },
         }));
       },
-      onRenderComplete(trace, data) {
+      onRenderComplete(trace, { secure: _, ...render }) {
         setHistory(({ traces }) => ({
-          traces: { ...traces, [trace]: { ...traces[trace], render: data } },
+          traces: { ...traces, [trace]: { ...traces[trace], render } },
         }));
       },
       onSend(trace) {
@@ -77,14 +76,14 @@ export const { traces } = createRoot(() => {
           traces: { ...traces, [trace]: { ...traces[trace], sent: true } },
         }));
       },
-      onResult(trace, data) {
+      onResult(trace, { secure: _, ...result }) {
         setHistory(({ traces }) => ({
-          traces: { ...traces, [trace]: { ...traces[trace], result: data } },
+          traces: { ...traces, [trace]: { ...traces[trace], result } },
         }));
       },
-      onError(trace, data) {
+      onError(trace, error) {
         setHistory(({ traces }) => ({
-          traces: { ...traces, [trace]: { ...traces[trace], error: data } },
+          traces: { ...traces, [trace]: { ...traces[trace], error } },
         }));
       },
     });
@@ -102,38 +101,42 @@ export function traceCurrentRequest(
   currentRequest: Accessor<ExecutionOutboundResult & { type: "request" }>,
 ) {
   createEffect(
-    on(currentRequest, (request) => {
-      const trace = request?.context.trace;
+    on(
+      currentRequest,
+      (request) => {
+        const trace = request?.context.trace;
 
-      updateActiveTrace((previous) => {
-        setHistory((prev) => {
-          const { traces = {} } = prev || {};
+        updateActiveTrace((previous) => {
+          setHistory((prev) => {
+            const { traces = {} } = prev || {};
 
-          if (
-            typeof previous !== "undefined" &&
-            traces[previous] &&
-            !traces[previous].sent
-          ) {
-            return {
-              traces: {
-                ...traces,
-                [previous]: { ...traces[previous] },
-              },
-            };
-          }
+            if (
+              typeof previous !== "undefined" &&
+              traces[previous] &&
+              !traces[previous].sent
+            ) {
+              return {
+                traces: {
+                  ...traces,
+                  [previous]: { ...traces[previous] },
+                },
+              };
+            }
 
-          return { traces };
+            return { traces };
+          });
+
+          return trace;
         });
 
-        return trace;
-      });
-
-      if (typeof trace !== "undefined") {
-        setHistory(({ traces }) => ({
-          traces: { ...traces, [trace]: { ...traces[trace], tlr: true } },
-        }));
-      }
-    }),
+        if (typeof trace !== "undefined") {
+          setHistory(({ traces }) => ({
+            traces: { ...traces, [trace]: { ...traces[trace], tlr: true } },
+          }));
+        }
+      },
+      { defer: true },
+    ),
   );
 }
 

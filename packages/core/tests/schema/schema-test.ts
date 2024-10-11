@@ -80,13 +80,19 @@ async function compose(
 
   if (last.trim()) {
     assert.deepStrictEqual(
-      JSON.parse(output, (_key, value, { source }) => source ?? value),
-      JSON.parse(last, (_key, value, { source }) => source ?? value),
+      JSON.parse(
+        unboxObject(output),
+        (_key, value, { source }) => source ?? value,
+      ),
+      JSON.parse(
+        unboxObject(last),
+        (_key, value, { source }) => source ?? value,
+      ),
     );
   }
 
   if (expected) {
-    assert.deepStrictEqual(resultValues, unboxObject(expected));
+    assert.deepStrictEqual(unboxObject(resultValues), unboxObject(expected));
   }
 
   return { output, values: resultValues };

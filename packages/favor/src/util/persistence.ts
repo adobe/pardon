@@ -34,13 +34,22 @@ export const persistJson: Pick<
   deserialize(data) {
     return JSON.parse(data, (key, value, { source }) => {
       if (typeof value === "number") {
-        return Object.assign(new Number(value), {
+        const numeric = Object.assign(new Number(value), {
           source,
+          toString() {
+            // IDK why we need this, somehow the fact this is a Number is getting
+            // lost somewhere, but this toString lets us use it.
+            return source;
+          },
           toJSON() {
             return JSON.rawJSON(source);
           },
         });
+
+        return numeric;
       }
+
+      return value;
     });
   },
 };
@@ -55,14 +64,14 @@ export function recv<T>(value: T): T {
       return Object.assign(new Number(value["value"]), {
         source: value["source"],
         toJSON() {
-          return value["source"];
+          return JSON.rawJSON(value["source"] as string);
         },
       }) as T;
     case value?.["$$$type"] === "bigint":
       return Object.assign(Object(BigInt(value["value"])), {
         source: value["source"],
         toJSON() {
-          return value["source"];
+          return JSON.rawJSON(value["source"] as string);
         },
       }) as T;
     default:

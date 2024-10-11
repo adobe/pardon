@@ -38,6 +38,7 @@ import {
   merge,
 } from "../schema/core/schema-ops.js";
 import { EncodingTypes, evalTemplate } from "./body-template.js";
+import { JSON } from "../json.js";
 
 function looksLikeJson(template: unknown): template is string {
   if (typeof template !== "string") {
@@ -263,6 +264,7 @@ export function httpsResponseSchema(
       status: datums.pattern<string>("{{status}}", {
         re: ({ hint }) => (hint === "?" ? /\d/ : /\d+/),
         type: "number",
+        unboxed: true,
       }),
       statusText: datums.datum("{{?statusText}}"),
     }),

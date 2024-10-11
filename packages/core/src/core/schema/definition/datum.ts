@@ -62,12 +62,14 @@ import {
   scalarFuzzyTypeOf,
   ScalarType,
   scalarTypeOf,
+  unboxObject,
 } from "./scalar.js";
 
 type DatumRepresentation = {
   patterns: Pattern[];
   type?: ScalarType;
   custom?: PatternBuilding;
+  unboxed?: boolean;
 };
 
 const defaultScalarBuilding: PatternBuilding = {
@@ -83,10 +85,11 @@ function mergeRepresentation<T extends Scalar>(
     return rep;
   }
 
-  const { value, literal } = info;
   let { patterns } = rep;
+  const { value, literal } = info;
   const custom = rep.custom ?? info.custom;
   const type = rep.type ?? info.type;
+  const unboxed = rep.unboxed || info.unboxed;
 
   if (value !== undefined) {
     const source = String(value);
@@ -120,6 +123,7 @@ function mergeRepresentation<T extends Scalar>(
     custom,
     patterns,
     type,
+    unboxed,
   };
 }
 
@@ -234,7 +238,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         return;
       }
 
-      const { patterns, type, custom } = mergedSelf;
+      const { patterns, type, custom, unboxed } = mergedSelf;
 
       /*
        * This is where the patterns/values we have get
@@ -319,6 +323,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
           context,
           configuredPatterns,
           appraised,
+          { unboxed },
         );
 
         if (issue) {
@@ -403,7 +408,7 @@ function resolveScalar<T extends Scalar>(
   self: DatumRepresentation,
   forScope?: boolean,
 ): T | undefined {
-  const { patterns, custom } = self;
+  const { patterns, custom, unboxed } = self;
 
   const configuredPatterns =
     context.mode === "render" ||
@@ -436,7 +441,9 @@ function resolveScalar<T extends Scalar>(
   );
 
   if (result !== undefined) {
-    const issue = defineMatchesInScope(context, configuredPatterns, result);
+    const issue = defineMatchesInScope(context, configuredPatterns, result, {
+      unboxed,
+    });
 
     if (issue) {
       if (isMergingContext(context)) {
@@ -456,7 +463,7 @@ async function doRenderScalar<T>(
   self: DatumRepresentation,
 ): Promise<T | undefined> {
   const { mode, environment } = context;
-  const { patterns, type } = self;
+  const { patterns, type, unboxed } = self;
 
   // remap patterns against endpoint config
   const configuredPatterns = environment.reconfigurePatterns(context, patterns);
@@ -502,7 +509,9 @@ async function doRenderScalar<T>(
     // TODO: this unfortunately discards any known type here.
     return configuredPatterns[0].source as T;
   } else if (result !== undefined && isScalar(result)) {
-    const issue = defineMatchesInScope(context, configuredPatterns, result);
+    const issue = defineMatchesInScope(context, configuredPatterns, result, {
+      unboxed,
+    });
 
     if (issue) {
       throw diagnostic(context, issue);
@@ -575,6 +584,7 @@ function defineMatchesInScope<T extends Scalar>(
   context: SchemaContext<T>,
   patterns: Pattern[],
   value: Scalar,
+  { unboxed }: { unboxed?: boolean },
 ) {
   const { scope } = context;
 
@@ -585,8 +595,13 @@ function defineMatchesInScope<T extends Scalar>(
       patternMatch(pattern, String(value))
     ) {
       const key = pattern.vars[0].param;
+
       if (key) {
-        scope.define(context, key, value as T | null);
+        scope.define(
+          context,
+          key,
+          unboxed ? unboxObject(value as T | null) : (value as T | null),
+        );
         scope.declare(key, {
           context,
           expr: null,
@@ -594,6 +609,7 @@ function defineMatchesInScope<T extends Scalar>(
           hint: pattern.vars[0].hint ?? null,
         });
       }
+
       continue;
     }
 
@@ -626,7 +642,11 @@ function defineMatchesInScope<T extends Scalar>(
           continue;
         }
 
-        scope.define(context, key, value as T | null);
+        scope.define(
+          context,
+          key,
+          unboxed ? unboxObject(value) : (value as T | null),
+        );
       }
     }
   }
@@ -746,6 +766,7 @@ function resolvePattern<T extends Scalar>(
 type DatumSchematicInfo<T> = {
   value: T | string;
   anull?: true; // renders missing values as null instead of undefined.
+  unboxed?: boolean;
   type?: ScalarType;
   literal?: boolean;
   custom?: PatternBuilding;
@@ -808,6 +829,7 @@ function mergeSchematic<T extends Scalar>(
       custom: options.custom ?? scalar.custom,
       literal: options.literal ?? scalar.literal,
       type: options.type ?? scalar.type,
+      unboxed: options.unboxed ?? scalar.unboxed,
     };
   }
 
@@ -821,7 +843,7 @@ export function datumTemplate<T extends Scalar>(
   input: string | T | Schematic<Scalar> | undefined,
   options: Omit<DatumSchematicInfo<T>, "value">,
 ) {
-  const { value, type, custom, literal, anull } = mergeSchematic(
+  const { value, type, custom, literal, anull, unboxed } = mergeSchematic(
     input,
     options,
   );
@@ -835,6 +857,7 @@ export function datumTemplate<T extends Scalar>(
           custom,
           literal,
           anull,
+          unboxed,
         };
       }
 
@@ -853,6 +876,7 @@ export function datumTemplate<T extends Scalar>(
         custom,
         literal,
         anull,
+        unboxed,
       };
     },
     expand(context) {
@@ -867,6 +891,7 @@ export function datumTemplate<T extends Scalar>(
             type: type ?? scalarFuzzyTypeOf(context, value),
             custom,
             literal,
+            unboxed,
           },
         )!,
       ) as Schema<T>;
@@ -875,17 +900,21 @@ export function datumTemplate<T extends Scalar>(
 }
 
 export const datums = {
-  datum: <T extends Scalar = Scalar>(source: T | string) =>
-    datumTemplate(source, {}),
+  datum: <T extends Scalar = Scalar>(
+    source: T | string,
+    options?: { unboxed?: boolean },
+  ) => datumTemplate(source, options ?? {}),
   pattern: <T extends Scalar = Scalar>(
     source: string,
     {
       re,
       type = "string",
+      unboxed,
     }: PatternBuilding & {
       type?: ScalarType;
+      unboxed?: boolean;
     },
-  ) => datumTemplate<T>(source, { type, custom: { re } }),
+  ) => datumTemplate<T>(source, { type, unboxed, custom: { re } }),
   antipattern: <T extends Scalar = Scalar>(source: T) =>
     datumTemplate<T>(source, {
       type: scalarTypeOf(source),

@@ -1,8 +1,8 @@
 diff --git a/node_modules/eslint-plugin-headers/lib/comment-formatter.js b/node_modules/eslint-plugin-headers/lib/comment-formatter.js
-index 3e81662..ecfb0d4 100644
+index eedc6df..d5fde50 100644
 --- a/node_modules/eslint-plugin-headers/lib/comment-formatter.js
 +++ b/node_modules/eslint-plugin-headers/lib/comment-formatter.js
-@@ -23,9 +23,9 @@ class CommentFormatter {
+@@ -28,9 +28,9 @@ class CommentFormatter {
    }
  
    getJsdoc() {
@@ -15,7 +15,7 @@ index 3e81662..ecfb0d4 100644
      let body = this.lines
        .map((line) => `${linePrefix}${line}`.trimEnd())
        .join(this.eol);
-@@ -37,7 +37,7 @@ class CommentFormatter {
+@@ -42,7 +42,7 @@ class CommentFormatter {
        (this.blockPrefix && `//${this.blockPrefix}${this.eol}`) || "";
      let blockSuffix =
        (this.blockSuffix && `${this.eol}//${this.blockSuffix}`) || "";
@@ -24,11 +24,24 @@ index 3e81662..ecfb0d4 100644
      const body = this.lines
        .map((line) => `//${linePrefix}${line}`.trimEnd())
        .join(this.eol);
+@@ -50,9 +50,9 @@ class CommentFormatter {
+   }
+ 
+   getHtmlBlock() {
+-    let blockPrefix = this.blockPrefix || this.eol;
+-    let blockSuffix = this.blockSuffix || this.eol;
+-    let linePrefix = this.linePrefix || "  ";
++    let blockPrefix = this.blockPrefix ?? this.eol;
++    let blockSuffix = this.blockSuffix ?? this.eol;
++    let linePrefix = this.linePrefix ?? "  ";
+     const body = this.lines
+       .map((line) => `${linePrefix}${line}`.trimEnd())
+       .join(this.eol);
 diff --git a/node_modules/eslint-plugin-headers/lib/rules/header-format.js b/node_modules/eslint-plugin-headers/lib/rules/header-format.js
-index 03c5fb3..f9262f2 100644
+index 90489e2..17a0e6e 100644
 --- a/node_modules/eslint-plugin-headers/lib/rules/header-format.js
 +++ b/node_modules/eslint-plugin-headers/lib/rules/header-format.js
-@@ -193,10 +193,10 @@ module.exports = {
+@@ -299,10 +299,10 @@ module.exports = {
  
      const formatConfig = {
        blockPrefix:

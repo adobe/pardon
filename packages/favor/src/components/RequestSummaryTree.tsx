@@ -37,6 +37,7 @@ import { Trace } from "./request-history.ts";
 import { displayHttp } from "./display-util.ts";
 import { RequestSummaryInfo } from "./RequestHistory.tsx";
 import { HTTP } from "pardon/formats";
+import { recv } from "../util/persistence.ts";
 
 export type HistoryTree = { trace: number; deps: HistoryTree[] };
 
@@ -55,7 +56,7 @@ export function RequestSummaryTree(props: {
     <RequestSummaryNode
       {...props}
       path={path()}
-      trace={props.traces[props.trace]}
+      trace={recv(props.traces[props.trace])}
       current={props.isCurrent(props.trace)}
       exapandable={props.deps.length > 0}
     >
@@ -181,7 +182,13 @@ export function RequestSummary(
     current?: boolean;
   } & ComponentProps<"span">,
 ) {
-  const [, spanProps] = splitProps(props, ["trace", "onRestore"]);
+  const [, spanProps] = splitProps(props, [
+    "trace",
+    "onRestore",
+    "clearTrace",
+    "note",
+    "current",
+  ]);
   const request = createMemo(() =>
     displayHttp(props.trace.render?.outbound?.request),
   );
@@ -258,7 +265,7 @@ export function RequestSummary(
               </Show>
             }
           >
-            {response()?.status}
+            {String(response()?.status)}
           </Show>
         </span>
         <HttpMethodIcon

@@ -17,6 +17,8 @@ import {
   JSX,
   createContext,
   Show,
+  Accessor,
+  on,
 } from "solid-js";
 import { TbTrash } from "solid-icons/tb";
 import { executionResource } from "../signals/pardon-execution.ts";
@@ -119,27 +121,34 @@ export function RequestSummaryInfoDrawerWrapper(props: {
   );
 }
 
+export function startTracingRequestHistory(
+  render: Accessor<
+    ReturnType<ReturnType<typeof executionResource>["outbound"]>
+  >,
+) {
+  const currentRequest = createMemo(
+    on(render, (render) => {
+      if (render?.status !== "fulfilled") {
+        return;
+      }
+
+      const request = render?.value;
+      if (
+        request.type !== "history" &&
+        typeof request?.context.trace !== "undefined"
+      ) {
+        return request;
+      }
+    }),
+  );
+
+  traceCurrentRequest(currentRequest);
+}
+
 export default function RequestHistory(props: {
-  render: ReturnType<ReturnType<typeof executionResource>["outbound"]>;
   onRestore: (history: ExecutionHistory) => void;
   isCurrent(trace: number): boolean;
 }) {
-  const currentRequest = createMemo(() => {
-    if (props.render?.status !== "fulfilled") {
-      return;
-    }
-
-    const request = props.render?.value;
-    if (
-      request.type !== "history" &&
-      typeof request?.context.trace !== "undefined"
-    ) {
-      return request;
-    }
-  });
-
-  traceCurrentRequest(currentRequest);
-
   const tree = requestHistory(activeTrace);
 
   const expandedSet = new Set<string>();

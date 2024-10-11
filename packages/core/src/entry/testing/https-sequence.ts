@@ -53,6 +53,7 @@ import { disconnected, tracking } from "../../core/async.js";
 import { checkFastFailed, pendingFastFailure } from "./cli/failfast.js";
 import { TracedResult } from "../../features/trace.js";
 import { Schema, SchemaScope } from "../../core/schema/core/types.js";
+import { JSON } from "../../core/json.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
