@@ -105,9 +105,8 @@ function mergeRepresentation<T extends Scalar>(
       !pattern.vars.some((param) => isMelding(param))
     ) {
       if (
-        !patterns?.some(
-          (existing) =>
-            isPatternTrivial(existing) || existing.source === source,
+        !patterns?.some((existing) =>
+          arePatternsMeldable(context, existing, pattern),
         )
       ) {
         return;
@@ -125,6 +124,32 @@ function mergeRepresentation<T extends Scalar>(
     type,
     unboxed,
   };
+}
+
+// this is a bit rough, still:
+// the idea is that {{a}} and {{b}} are different patterns which don't by-default conflate
+// (we would conflate them if explicitly imply meldability by `{{~b}}` on the incoming pattern).
+//
+// But a value and a parameter are conflated if they can be.
+// we might want to use to context to check/apply this better.
+function arePatternsMeldable(
+  _context: SchemaMergingContext<unknown>,
+  existing: Pattern,
+  pattern: PatternRegex,
+) {
+  if (isPatternTrivial(existing)) {
+    return true;
+  }
+
+  if (existing.source === pattern.source) {
+    return true;
+  }
+
+  if (isPatternSimple(existing) && isPatternSimple(pattern)) {
+    return existing.vars[0].param == pattern.vars[0].param;
+  }
+
+  return false;
 }
 
 function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
@@ -234,6 +259,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
       const { environment } = context;
       const info = extractDatumInfo(context);
       const mergedSelf = mergeRepresentation(context, self, info);
+
       if (!mergedSelf) {
         return;
       }
