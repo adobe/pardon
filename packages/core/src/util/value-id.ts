@@ -9,6 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+
+// @ts-expect-error https://github.com/nodejs/node/issues/55446
+import { isNumberObject, isBigIntObject } from "node:util/types";
+
 export function valueId(value: unknown): string {
   switch (typeof value) {
     case "undefined":
@@ -30,6 +34,10 @@ export function valueId(value: unknown): string {
       }
       if (Array.isArray(value)) {
         return value.map(valueId).join(",");
+      }
+
+      if (isNumberObject(value) || isBigIntObject(value)) {
+        return valueId(value["source"] ?? (value.valueOf() as number | bigint));
       }
 
       return `{${Object.entries(value)

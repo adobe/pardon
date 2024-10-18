@@ -10,7 +10,7 @@
     "predev": "rimraf ../core/dist ./.vite/ ./node_modules/.vite && npm run build --prefix ../core",
     "dev": "cross-env NODE_OPTIONS=--enable-source-maps electron-forge start",
     "prepackage": "rimraf ../core/dist ./.vite/ ./node_modules/.vite && npm run build --prefix ../core",
-    "package": "electron-forge package",
+    "package": "NODE_OPTIONS='--trace-deprecation' electron-forge package",
     "lint": "eslint",
     "prepare": "patch-package"
   },

@@ -18,6 +18,8 @@ export default extendRendererConfig({
   resolve: {
     preserveSymlinks: true,
     alias: Object.entries({
+      "util/types": "./src/poly/util-types.ts",
+      "node:util/types": "./src/poly/util-types.ts",
       util: "node_modules/@pkgjs/parseargs",
       "node:util": "node_modules/@pkgjs/parseargs",
     }).map(([find, replacement]) => ({

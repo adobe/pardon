@@ -134,6 +134,8 @@ export default defineConfig({
         "node:fs": "./src/polyfill/fs.ts",
         os: "./src/polyfill/os.ts",
         "node:os": "./src/polyfill/os.ts",
+        "util/types": "./src/polyfill/util-types.ts",
+        "node:util/types": "./src/polyfill/util-types.ts",
         util: "./src/polyfill/util.ts",
         "node:util": "./src/polyfill/util.ts",
         path: "./src/polyfill/path.ts",
