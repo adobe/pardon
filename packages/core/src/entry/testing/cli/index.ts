@@ -27,6 +27,7 @@ import remember from "../../../features/remember.js";
 import failfast, { executeWithFastFail } from "./failfast.js";
 import { parseSmokeConfig } from "../smoking.js";
 import { initEnvironment } from "../../../runtime/environment.js";
+import { JSON } from "../../../core/json.js";
 
 // execute tests
 main().then(

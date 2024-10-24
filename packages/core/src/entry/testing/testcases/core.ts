@@ -9,6 +9,25 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { isBoxedPrimitive } from "node:util/types";
+
+function isAtomic(value: unknown) {
+  return typeof value !== "object" || isBoxedPrimitive(value);
+}
+
+function atomicEqual(a: unknown, b: unknown) {
+  if (
+    isBoxedPrimitive(a) &&
+    isBoxedPrimitive(b) &&
+    a["source"] !== undefined &&
+    b["source"] !== undefined
+  ) {
+    return a["source"] === b["source"];
+  }
+
+  return a?.valueOf() === b?.valueOf();
+}
+
 const alt = Symbol("alt");
 const gen = Symbol("gen");
 
@@ -103,7 +122,7 @@ export function desequenced(value: unknown) {
     for (const item of value) {
       desequenced(item);
     }
-  } else if (value && typeof value === "object") {
+  } else if (value && !isAtomic(value)) {
     desequenced(Object.values(value));
   }
 
@@ -180,7 +199,7 @@ function desequence(thing: Generation) {
 function alternates(value: unknown, context: CaseContext): any[] {
   context = normalize(context);
 
-  if (!value || typeof value !== "object") {
+  if (!value || isAtomic(value)) {
     return [value];
   }
 
@@ -226,8 +245,8 @@ export function exalternates(
 export function matches(pattern: unknown) {
   return (context: CaseContext) => {
     function matching(pattern: any) {
-      if (!pattern || typeof pattern !== "object") {
-        return (value: any) => value === pattern;
+      if (!pattern || isAtomic(pattern)) {
+        return (value: any) => atomicEqual(value, pattern);
       }
 
       return (value: any) =>

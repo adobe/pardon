@@ -14,7 +14,6 @@ import {
   HttpsSequenceScheme,
   HttpsRequestStep,
   HttpsResponseStep,
-  UseUnitOrFlow,
   HttpsUnitConfig,
   HttpsFlowConfig,
 } from "../../core/formats/https-fmt.js";
@@ -201,7 +200,7 @@ function contextAsUnitParams(
 }
 
 function usageNeeded(
-  provides: UseUnitOrFlow["provides"],
+  provides: HttpsUnitConfig["provides"],
   options: Record<string, unknown>,
 ) {
   if (!provides) {

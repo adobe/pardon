@@ -22,7 +22,8 @@ export type CacheEntity = {
 
 export type CacheEntry<T> = {
   value: T; // encoded/decoded with JSON.stringify()
-  expires_in: number; // milliseconds
+  expires_at?: number; // epoch/milliseconds
+  expires_in?: number; // milliseconds
   nocache?: boolean;
 };
 
@@ -100,19 +101,19 @@ export function cacheOps(db?: Database) {
     key: string,
     loader: () => Promise<CacheEntry<T>>,
   ): Promise<T> {
-    const { value, expires_in } = (await loader()) ?? {};
+    let { value, expires_in, expires_at } = (await loader()) ?? {};
 
     if (value === undefined) {
       throw new PardonError(`failed to compute cached value for ${key}`);
     }
 
-    const expires_at = expires_in
+    expires_at ??= expires_in
       ? Date.now() + expires_in
       : Number.MAX_SAFE_INTEGER;
 
     memoryCache[key] = {
       value,
-      expires_at,
+      expires_at: Number(expires_at),
     };
 
     updateCache?.run({
@@ -129,6 +130,7 @@ export function cacheOps(db?: Database) {
     loader: () => Promise<CacheEntry<T>>,
   ): Promise<T> {
     const inflight = inflightCache[key];
+
     if (inflight) {
       if (!memoryCache[key] || memoryCache[key].expires_at > Date.now()) {
         return inflight as Promise<T>;

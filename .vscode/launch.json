@@ -13,7 +13,8 @@
         "--import",
         "${workspaceFolder}/packages/core/node_modules/tsx/dist/esm/index.mjs",
         "--stack-trace-limit=100",
-        "${workspaceFolder}/packages/core/src/entry/testing/cli/index.ts"
+        "${workspaceFolder}/packages/core/src/entry/testing/cli/index.ts",
+        "env=stage"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
