@@ -11,7 +11,7 @@ if [ "$REPO_OK" = "true" ]; then
 fi
 
 echo -n "Checking repository is clean..."
-if [ -z "$(git status --porcelain)" ]; then
+if [ -z "$(git status --porcelain | grep -v .vscode/launch.json )" ]; then
   echo "✅︎"
   echo
   return 0

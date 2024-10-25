@@ -5,22 +5,6 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "s2/pardon-tests",
-      "type": "node",
-      "request": "launch",
-      "cwd": "/Users/afreidin/code/corp/enterprisecommerce/subscriptions/pardon-tests",
-      "runtimeArgs": [
-        "--import",
-        "${workspaceFolder}/packages/core/node_modules/tsx/dist/esm/index.mjs",
-        "--stack-trace-limit=100",
-        "${workspaceFolder}/packages/core/src/entry/testing/cli/index.ts",
-        "env=stage"
-      ],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "skipFiles": ["<node_internals>/**"]
-    },
-    {
       "name": "pardon",
       "type": "node",
       "request": "launch",
@@ -116,8 +100,7 @@
       "cwd": "${workspaceFolder}/packages/core",
       "runtimeArgs": [
         "dist/main.js",
-        "https://aos-stage.adobe.io/offers:search.sku?sku=65323049",
-        "--curl"
+        "test.http"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
