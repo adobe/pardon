@@ -140,6 +140,15 @@ let currentPromise: PromiseExecution | undefined = undefined;
 const trackingHook = createHook({
   init(asyncId, type, triggerAsyncId, resource) {
     if (type !== "PROMISE") {
+      // TBD: if we remove this most tests do continue to pass
+      // except we also get awaited() propagation into other resource types,
+      // e.g., setTimeout() functions.
+      //
+      // On the other hand, before() and after() hooks can be nested for some async resource types,
+      // and therefore "currentPromise" may to become a stack and
+      // tracked values aggregated at init for all layers of the stack?
+      //
+      // The mental model was originally only Promise propagation but this could be revisited.
       return;
     }
 

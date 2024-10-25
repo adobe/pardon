@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import test, { describe } from "node:test";
-import assert from "node:assert";
+import assert, { deepEqual } from "node:assert";
 import {
   all_disconnected,
   disconnected,
@@ -804,5 +804,20 @@ describe("async", () => {
       await ppgf;
     },
     "fg",
+  );
+
+  testing(
+    "set-timeout-continuation",
+    async ({ awaited, track }) => {
+      track("x");
+      let t;
+      setTimeout(() => {
+        // setTimeout creation does not propagate contexts
+        t = awaited();
+      }, 10);
+      await delay(20);
+      deepEqual(t, []); // clarifying that we don't inherit ["x"] here at the moment.
+    },
+    "x",
   );
 });
