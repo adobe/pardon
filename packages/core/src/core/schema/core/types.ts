@@ -28,7 +28,7 @@ type SchemaContextBase = {
 
 export type SchemaWarnings = {
   loc: string;
-  err: Error;
+  err: Error | string;
 };
 
 /**
@@ -114,7 +114,7 @@ export type SchemaOps<T> = {
   /**
    * Rendering evaluates a result of this schema from the current context.
    */
-  render(context: SchemaRenderContext): Promise<T | undefined>;
+  render(context: SchemaRenderContext): T | Promise<T | undefined>;
 
   /**
    * Resolves the current value.  Only some structures need to support this.
@@ -189,9 +189,9 @@ export type SchemaScope = {
 
   cached<T>(
     context: SchemaRenderContext,
-    action: () => Promise<T>,
+    action: () => Promise<T> | T,
     ...keys: string[]
-  ): Promise<T>;
+  ): Promise<T> | Exclude<T, undefined>;
 
   rendering<T>(
     context: SchemaRenderContext,

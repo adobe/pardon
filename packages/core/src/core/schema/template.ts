@@ -60,16 +60,13 @@ export function templateSchematic<
 export function expandInContext<T>(
   context: SchemaMergingContext<T>,
 ): Schema<T> {
-  const { mode, template } = context;
+  let { mode, template } = context;
 
   if (isScalar(template)) {
     if (mode === "match") {
-      return expandInContext({
-        ...context,
-        template: datums.antipattern(template),
-      });
+      template = datums.antipattern(template);
     } else {
-      return expandInContext({ ...context, template: datums.datum(template) });
+      template = datums.datum(template);
     }
   }
 

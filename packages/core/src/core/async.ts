@@ -92,10 +92,12 @@ type ValueTracking = WeakMap<TrackingKeyRing, TrackedValue<unknown>[]> &
 const promises = new Map<number, PromiseExecution>();
 const promiseRegistry = new FinalizationRegistry((asyncId: number) => {
   const record = promises.get(asyncId);
+
   if (record) {
     // no more init() calls expected with this as the trigger.
     record.resolution = undefined!;
   }
+
   promises.delete(asyncId);
 });
 
@@ -236,10 +238,8 @@ function propagateTracking(into: PromiseExecution) {
 
       sourceValues
         .filter(({ identity }) => once(identity))
-        .map(({ ...value }) => ({
-          ...value,
-        }))
-        .map((value) => targetValues.push(value));
+        .map(({ ...value }) => value)
+        .forEach((value) => targetValues.push(value));
 
       target.set(key, targetValues);
     }

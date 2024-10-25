@@ -238,9 +238,10 @@ export const PardonFetchExecution = pardonExecution({
       } else if (result.value?.schema === undefined) {
         throw new PardonError(
           `error(s) matching ask to ${result.value?.endpoint.configuration.name}:${result.value?.diagnostics
-            ?.map(
-              ({ loc, err }) =>
-                err?.stack?.split("\n").slice(0, 2).join("\n  ") ?? loc,
+            ?.map(({ loc, err }) =>
+              typeof err === "string"
+                ? err
+                : (err?.stack?.split("\n").slice(0, 2).join("\n  ") ?? loc),
             )
             .join("\n")}`,
         );

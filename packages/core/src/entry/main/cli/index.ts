@@ -102,7 +102,10 @@ ${YAML.stringify({
   endpoint: endpoint_,
   configuration: mapObject(configuration, {
     filter: (_, value) =>
-      !value || typeof value !== "object" || Object.keys(value).length !== 0,
+      (!value ||
+        typeof value !== "object" ||
+        Object.keys(value).length !== 0) &&
+      typeof value !== "function",
   }),
   ...endpoint,
 })}`);

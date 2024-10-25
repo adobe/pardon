@@ -35,7 +35,7 @@ export class Scope implements SchemaScope, ScopeData {
   parent?: Scope;
   path: string[];
   index?: ScopeIndex;
-  cache: Record<string, Promise<unknown>> = {};
+  cache: Record<string, Promise<unknown | undefined> | unknown> = {};
   declarations: Record<string, ExpressionDeclaration> = {};
   importedValues: Set<string | symbol> = new Set();
   values: Record<string, ValueDefinition> = {};
@@ -390,11 +390,17 @@ export class Scope implements SchemaScope, ScopeData {
     identifier: string,
     action: () => Promise<T>,
   ) {
+    type RenderingChainError = (Error | { message: string; cause?: Error }) & {
+      loc: string;
+    };
     const location = loc(context);
-    const chainError = Object.assign(
-      new Error(`${location}: evaluating ${identifier}`),
-      { loc: location },
-    );
+    const evaluating = `${location}: evaluating ${identifier}`;
+    const chainError: RenderingChainError = DEBUG
+      ? Object.assign(new Error(evaluating), { loc: location })
+      : {
+          message: evaluating,
+          loc: location,
+        };
 
     const ident = parseScopedIdentifier(identifier);
 
@@ -440,14 +446,24 @@ export class Scope implements SchemaScope, ScopeData {
 
   cached<T>(
     context: SchemaRenderContext,
-    action: () => Promise<T>,
+    action: () => Promise<T> | T,
     ...keys: string[]
-  ): Promise<T> {
+  ): Promise<T> | Exclude<T, undefined> {
     const key = [...context.keys, ...keys].join(".");
 
-    return (this.cache[key] ??= disarm(
-      (async () => await action())(),
-    )) as Promise<T>;
+    return (this.cache[key] ??= (() => {
+      try {
+        const result = action();
+
+        if (result == null) {
+          return Promise.resolve(result);
+        }
+
+        return result;
+      } catch (error) {
+        return disarm(Promise.reject(error));
+      }
+    })()) as Promise<T> | Exclude<T, undefined>;
   }
 
   evaluating(ident: string) {

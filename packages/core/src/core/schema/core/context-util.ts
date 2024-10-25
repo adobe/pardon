@@ -14,7 +14,7 @@ import { SchemaContext } from "./types.js";
 export function diagnostic(
   context: SchemaContext<unknown>,
   error: string | Error,
-) {
+): string | Error {
   const location = loc(context);
 
   if (typeof error === "string") {

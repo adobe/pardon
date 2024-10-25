@@ -31,7 +31,7 @@ const compat = new FlatCompat({
 
 export default [
   {
-    ignores: ["dist/**", ".astro/**"],
+    ignores: ["dist/**", ".astro/**", "src/env.d.ts"],
   },
   ...compat.extends("eslint:recommended", "prettier"),
   {

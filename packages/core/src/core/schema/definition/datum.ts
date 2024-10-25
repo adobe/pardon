@@ -411,8 +411,8 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 
       return defineScalar<T>(mergedSelf);
     },
-    async render(context) {
-      return (await renderScalar(context, self)) as T;
+    render(context) {
+      return renderScalar(context, self) as T | Promise<T>;
     },
     resolve(context) {
       return resolveScalar(context, self, false);
@@ -423,8 +423,10 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 function renderScalar<T>(
   context: SchemaRenderContext,
   self: DatumRepresentation,
-): Promise<T | undefined> {
+): Promise<T | undefined> | Exclude<T, undefined> {
   const { scope } = context;
+
+  // TODO: resolve scalar here if possible (optimization)
 
   return scope.cached(context, () => doRenderScalar(context, self));
 }
@@ -491,7 +493,7 @@ async function doRenderScalar<T>(
   const { mode, environment } = context;
   const { patterns, type, unboxed } = self;
 
-  // remap patterns against endpoint config
+  // remap patterns against config
   const configuredPatterns = environment.reconfigurePatterns(context, patterns);
 
   // if we have exhausted the configuration space, fail.

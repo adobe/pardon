@@ -11,4 +11,4 @@ governing permissions and limitations under the License.
 */
 
 // turn this on to capture stack traces into schemas and template objects.
-export const DEBUG = true;
+export const DEBUG = false;

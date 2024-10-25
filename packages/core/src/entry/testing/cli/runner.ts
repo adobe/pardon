@@ -133,7 +133,7 @@ export async function executeSelectedTests(
 
   const testResults = await all_disconnected(
     selectedTests.map(
-      async ({ test, testcase, environment: { ...environment } }) =>
+      async ({ test, testcase, environment: { ...testenv } }) =>
         await concurrently(() =>
           /*
            * `concurrently(() => disconnected(...))`
@@ -142,7 +142,7 @@ export async function executeSelectedTests(
            */
           disconnected(async () => {
             let errors: unknown[] = [];
-            let env: Record<string, any> = environment;
+            let env: Record<string, any> = testenv;
             const init = { ...env };
             try {
               ({ errors, environment: env } = await executeTest(
@@ -299,39 +299,35 @@ function writeReportFile(
     join(testReportDir, `requests.log`),
     [
       `# ${errors.length ? "FAIL" : "PASS"} - ${testcase}`,
+      KV.stringify(init, "\n", 2, ""),
+      `---`,
       ...errors.flatMap((error) =>
         [...String((error as any)?.stack ?? error).split("\n"), ""]
           .filter((line) => line.trim())
           .map((line) => `# ${line}`),
       ),
-      ...(sequences.length
-        ? [
-            "",
-            `>>>>>`,
-            KV.stringify(init, "\n", 2),
-            "",
-            ...sequences.map(
-              ({ type, name, key, values, result, error, steps }) =>
-                `>>> ${name}.${type} : ${key}
-${KV.stringify(cleanObject(values), "\n", 2)}
-
-${steps.map((step) => `# ${formatTracedStep(step)}`).join("\n")}
-${
-  result
-    ? `  <<< ${result.outcome ?? "ok"}
-${resultKV(result, values)}\n`
-    : `  <<< error: ${error}
-${String(error?.["stack"] ?? error)
-  .split("\n")
-  .map((s) => `  # ${s}`)
-  .join(`\n`)}\n`
-}`,
-            ),
-          ]
-        : []),
-      "<<<<<",
+      sequences.length && `>>>>>`,
+      ...sequences.flatMap(
+        ({ type, name, key, values, result, error, steps }) => [
+          `>>> ${name}.${type} : ${key}`,
+          `${KV.stringify(cleanObject(values), "\n", 2)}`,
+          ``,
+          `${steps.map((step) => `# ${formatTracedStep(step)}`).join("\n")}`,
+          `${
+            result
+              ? `  <<< ${result.outcome ?? "ok"}\n${resultKV(result, values)}\n`
+              : `  <<< error: ${error}\n${String(error?.["stack"] ?? error)
+                  .split("\n")
+                  .map((s) => `  # ${s}`)
+                  .join(`\n`)}\n`
+          }`,
+        ],
+      ),
+      sequences.length && "<<<<<",
       KV.stringify(resultEnv(env, init) ?? {}, "\n", 2),
-    ].join("\n"),
+    ]
+      .filter((line) => line != null && (line as unknown as number) !== 0)
+      .join("\n"),
     "utf-8",
   );
 }
@@ -368,25 +364,19 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
   const rejected: unknown[] = [];
   const awaited = tracking<Promise<unknown>>();
   const scheduled: Promise<unknown>[] = [];
-  let env: Record<string, any>;
 
   console.info("starting test -- " + testcase);
 
-  await inflight.run({ scheduled, awaited }, async () => {
+  return await inflight.run({ scheduled, awaited }, async () => {
     try {
-      await Promise.resolve(
-        shared(async () => {
-          environment = null!;
-          await fn();
-        }),
-      );
+      await Promise.resolve(shared(fn));
     } catch (error) {
       rejected.push(error);
     } finally {
-      env = { ...environment };
-
       const completions: PromiseSettledResult<unknown>[] = [];
+
       let once = true;
+
       while (scheduled.length) {
         const resolved = awaited.awaited();
         const todo = scheduled
@@ -398,7 +388,9 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
           once = false;
         }
 
-        completions.push(...(await Promise.allSettled(todo)));
+        completions.push(
+          ...(await disconnected(() => Promise.allSettled(todo))),
+        );
       }
 
       const errors = [
@@ -414,9 +406,9 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
 
       rejected.push(...errors);
     }
-  });
 
-  return { errors: rejected, environment: env! };
+    return { errors: rejected, environment: { ...environment } };
+  });
 }
 
 function formatReportPath(
