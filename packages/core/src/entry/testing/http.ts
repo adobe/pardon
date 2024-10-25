@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import type { pardon, template } from "../../api/pardon-wrapper.js";
 import { definedObject } from "../../util/mapping.js";
 import { disarm } from "../../util/promise.js";
-import { shared } from "../../core/async.js";
+import { shared } from "../../core/tracking.js";
 import { resolve } from "node:path";
 import { ts } from "ts-morph";
 

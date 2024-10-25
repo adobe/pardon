@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 export { pardon, template, type PardonOptions } from "../api/pardon-wrapper.js";
 
 export { cached, type CacheEntry } from "../api/cached.js";
-export { disconnected, shared } from "../core/async.js";
+export { disconnected, shared } from "../core/tracking.js";
 
 export { HTTP } from "../core/formats/http-fmt.js";
 export { CURL } from "../core/formats/curl-fmt.js";

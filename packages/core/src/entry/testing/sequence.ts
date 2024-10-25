@@ -15,7 +15,7 @@ import {
   definedObject,
   mapObject,
 } from "../../util/mapping.js";
-import { shared } from "../../core/async.js";
+import { shared } from "../../core/tracking.js";
 import { valueId } from "../../util/value-id.js";
 import { disarm } from "../../util/promise.js";
 import { UnitOrFlowName } from "../../core/formats/https-fmt.js";

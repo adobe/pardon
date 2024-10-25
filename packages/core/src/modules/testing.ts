@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-export { semaphore } from "../core/async.js";
+export { semaphore } from "../core/tracking.js";
 export type { PardonTestConfiguration } from "../entry/testing/cli/runner.js";
 export { verify } from "../entry/testing/assertions.js";
 export { createUnit, execute } from "../entry/testing/sequence.js";

@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { PardonAppContext, PardonFetchExecution } from "../core/pardon.js";
-import { disconnected, tracking } from "../core/async.js";
+import { disconnected, tracking } from "../core/tracking.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
 
 let notifier:

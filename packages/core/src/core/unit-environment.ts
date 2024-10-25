@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import { HttpsSequenceScheme } from "../core/formats/https-fmt.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
 import { PardonCompiler } from "../runtime/compiler.js";
-import { shared } from "./async.js";
+import { shared } from "./tracking.js";
 import { resolveDefaults, resolveImport } from "./endpoint-environment.js";
 import { dirname } from "node:path";
 

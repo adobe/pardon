@@ -48,7 +48,7 @@ import {
   withoutScope,
 } from "../../features/trace.js";
 import { HTTP } from "../../core/formats/http-fmt.js";
-import { disconnected, tracking } from "../../core/async.js";
+import { disconnected, tracking } from "../../core/tracking.js";
 import { checkFastFailed, pendingFastFailure } from "./cli/failfast.js";
 import { TracedResult } from "../../features/trace.js";
 import { Schema, SchemaScope } from "../../core/schema/core/types.js";

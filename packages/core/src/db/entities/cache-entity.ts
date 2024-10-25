@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { PardonError } from "../../core/error.js";
-import { shared } from "../../core/async.js";
+import { shared } from "../../core/tracking.js";
 import { Database, Datetime } from "../sqlite.js";
 
 export type CacheEntity = {

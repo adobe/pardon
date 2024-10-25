@@ -17,7 +17,7 @@ import {
   semaphore,
   shared,
   tracking,
-} from "../../src/core/async.js";
+} from "../../src/core/tracking.js";
 
 function testing(name, fn: (_: ReturnType<typeof tracking>) => void, result) {
   test(name, async () => {

@@ -18,7 +18,7 @@ import { Project, ts } from "ts-morph";
 import { PardonError } from "../core/error.js";
 import { AppContext } from "../core/app-context.js";
 import { expressionTransform } from "../core/expression.js";
-import { shared } from "../core/async.js";
+import { shared } from "../core/tracking.js";
 
 const { join, normalize } = posix;
 
