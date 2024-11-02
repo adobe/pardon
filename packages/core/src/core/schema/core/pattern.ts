@@ -222,19 +222,27 @@ export function patternize(
         throw new Error("rewrite from / to not regexes");
       }
 
-      const toParams = new Set(from.vars.map(({ param }) => param));
+      let unnamedFrom = 0;
+      let unnamedTo = 0;
+      const fromParamsList = from.vars.map(
+        ({ param }) => param ?? `[${unnamedFrom++}]`,
+      );
+      const fromParamsMap = arrayIntoObject(fromParamsList, (name, idx) => ({
+        [name]: idx,
+      }));
+      const toParamsList = to.vars.map(
+        ({ param }) => param ?? `[${unnamedTo++}]`,
+      );
+
+      const toParamsNames = new Set(toParamsList);
 
       // return undefined for non-matching from/to pairs.
       if (
-        from.vars.length !== toParams.size ||
-        !from.vars.every(({ param }) => toParams.has(param))
+        from.vars.length !== to.vars.length ||
+        ![...fromParamsList].every((param) => toParamsNames.has(param))
       ) {
         return undefined;
       }
-
-      const fromMap = arrayIntoObject(from.vars, ({ param }, idx) =>
-        param ? { [param]: idx } : false,
-      );
 
       if (this.vars.length) {
         if (to.re.source !== re.source) {
@@ -244,10 +252,9 @@ export function patternize(
         return patternize(
           patternRender(
             to,
-            to.vars.map(({ param }) => {
-              const fromIdx = fromMap[param];
-              return `{{${vars[fromIdx].source}}}`;
-            }),
+            toParamsList.map(
+              (param) => `{{${vars[fromParamsMap[param]].source}}}`,
+            ),
           ),
           building,
         );
@@ -261,8 +268,8 @@ export function patternize(
       return patternize(
         patternRender(
           to,
-          to.vars.map(({ param }, idx) => {
-            const fromIdx = fromMap[param];
+          toParamsList.map((name, idx) => {
+            const fromIdx = fromParamsMap[name];
             if (fromIdx === undefined) {
               return `{{${to.vars[idx].source}}}`;
             }
@@ -299,6 +306,13 @@ export function isPatternExpressive(pattern: Pattern) {
 }
 
 export function arePatternsCompatible(a: Pattern, b: Pattern) {
+  if (isPatternTrivial(a)) {
+    return patternMatch(b, patternRender(a, []));
+  }
+  if (isPatternTrivial(b)) {
+    return patternMatch(a, patternRender(b, []));
+  }
+
   const aps = patternEnds(a);
   const bps = patternEnds(b);
 
@@ -493,9 +507,5 @@ export function trivialPatternMatch(pattern: Pattern, other: Pattern) {
 
   if (renderedPattern !== undefined && renderedPossibility !== undefined) {
     return renderedPattern === renderedPossibility;
-  }
-
-  if (renderedPattern) {
-    return patternMatch(other, renderedPattern);
   }
 }

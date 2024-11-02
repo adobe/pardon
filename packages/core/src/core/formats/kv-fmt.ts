@@ -86,7 +86,8 @@ export const KV: {
           return JSON.parse(
             `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
           );
-        case /^-?(?:[0-9]+(?:[.][0-9]*)?|[0-9]+e[0-9]+|[.][0-9]+|0x[0-9A-F]+|0[0-7]*)$/i.test(
+        // 0, 100, 1.1e+10, 1.1e-10
+        case /^-?(?:0|[1-9][0-9]*(?:[.][0-9]+)?)(?:e[-+]?[0-9]+)?$/i.test(
           token,
         ):
           return createNumber(token);
@@ -460,13 +461,13 @@ function stringify_(values: unknown, join: string = " ", indent?: number) {
     ? Object.entries(values)
         .filter(([, v]) => v !== undefined && typeof v !== "function")
         .map(([k, v]) => {
-          return `${stringifyKey(k)}=${stringifyValue(v, 80, indent)}`;
+          return `${stringifyKey(k)}=${stringifyValue(v, indent)}`;
         })
         .join(join || " ")
-    : stringifyValue(values, 80, indent);
+    : stringifyValue(values, indent);
 }
 
-function stringifyValue(v: unknown, limit: number, jindent?: number) {
+function stringifyValue(v: unknown, jindent?: number) {
   if (
     typeof v !== "string" ||
     !v ||
