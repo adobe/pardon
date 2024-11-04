@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { tracking } from "../core/tracking.js";
 
-export async function initEnvironment(initial: Record<string, unknown> = {}) {
+export async function initTrackingEnvironment() {
   const { awaited: environmentUpdates, track: trackEnvironmentUpdate } =
     tracking<Record<string, unknown> | null>();
 
@@ -74,6 +74,4 @@ export async function initEnvironment(initial: Record<string, unknown> = {}) {
       trackEnvironmentUpdate(values ? { ...values } : null);
     },
   });
-
-  (globalThis as any).environment = initial;
 }

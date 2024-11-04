@@ -114,8 +114,6 @@ type HttpsSequenceInteraction = {
   responses: HttpsResponseStep[];
 };
 
-declare let environment: Record<string, any>;
-
 function parseOutcome(outcome?: string) {
   if (!outcome?.trim()) {
     return;

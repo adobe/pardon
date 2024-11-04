@@ -20,8 +20,6 @@ import { valueId } from "../../util/value-id.js";
 import { disarm } from "../../util/promise.js";
 import { UnitOrFlowName } from "../../core/formats/https-fmt.js";
 
-declare let environment: Record<string, any>;
-
 export type UnitParamBase = { required: boolean };
 export type UnitParamsItem = UnitParamBase & { name: string };
 export type UnitParam = UnitParamsDict | UnitParamsList | UnitParamsItem;
@@ -243,7 +241,7 @@ function composeValuesList(
     return composeParam(
       item,
       options?.[idx],
-      environment?.[idx],
+      env?.[idx],
       required && item.required,
     );
   });

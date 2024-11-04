@@ -45,6 +45,11 @@ import { applySmokeConfig, SmokeConfig } from "../smoking.js";
 import * as YAML from "yaml";
 import { cleanObject } from "../../../util/clean-object.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
+import { PardonError } from "../../../core/error.js";
+
+declare global {
+  let environment: Record<string, unknown>;
+}
 
 export type TestSetup = {
   test: () => Promise<void>;
@@ -56,8 +61,6 @@ const inflight = new AsyncLocalStorage<{
   scheduled: Promise<unknown>[];
   awaited: ReturnType<typeof tracking>;
 }>();
-
-declare let environment: Record<string, unknown>;
 
 onExecute((promise) => {
   const store = inflight.getStore();
@@ -542,13 +545,36 @@ export async function registerHttpsFlow(
   });
 }
 
+type TrialSelection = (
+  initialEnv: Record<string, unknown>,
+) => string | RegExp | (string | RegExp)[];
+type EnvironmentLoading = (
+  environment: Record<string, unknown>,
+) => void | Record<string, unknown> | Promise<void | Record<string, unknown>>;
+
 export type PardonTestConfiguration = {
+  /** optional selection for trials to run */
+  trials?: TrialSelection | string[];
+  /**
+   * An async loading stage for the environment,
+   * (loading a testcase csv via an async function, perhaps)
+   * returned values do not override commandline args.
+   */
+  loading?: EnvironmentLoading;
   gamut?: string;
   concurrency?: number;
   sequences?: string[];
-  tests?: string[];
+  /** initial environment configuration and alternation applying to all testcases */
   opening?(helpers: CaseHelpers): void;
+  /**
+   * final environment configuration and alternation applying to all testcases
+   * (if a large data object is loaded in a loading phase, closing might be useful
+   * to undefine that object here)
+   */
   closing?(helpers: CaseHelpers): void;
+  /**
+   * a custom additional report function.
+   */
   report?(
     reportdir: string,
     results: {
@@ -581,7 +607,6 @@ export async function loadTests(
   }
 
   configuration.sequences ??= ["./sequences/**"];
-  configuration.tests ??= ["./**/*.test.ts", "./!(node_modules)/**/*.test.ts"];
 
   for (const sequenceRoot of configuration.sequences) {
     if (!sequenceRoot.endsWith("/**")) {
@@ -640,11 +665,9 @@ export async function loadTests(
   const trialRegistry = await flushTrialRegistry(configuration);
 
   return {
-    testplanner: (
-      environment: Record<string, unknown>,
-      smokeConfig?: SmokeConfig,
-      ...filter: string[]
-    ) => {
+    testplanner: async (smokeConfig?: SmokeConfig, ...filter: string[]) => {
+      const testenv = { ...environment };
+
       const alltestcases = describeCases(
         configuration.closing || (() => {}),
         trialRegistry.flatMap(({ descriptions }) => {
@@ -653,7 +676,7 @@ export async function loadTests(
             [
               {
                 defs: {},
-                environment: { ...environment },
+                environment: { ...testenv },
               },
             ] as CaseContext[],
           );
@@ -680,16 +703,71 @@ export async function loadTests(
           }) as TestSetup,
       );
 
-      const patterns = (filter.length ? filter : ["**"]).map(globre);
-      return cases.filter(({ testcase }) =>
-        patterns.some((pattern) => pattern.test(testcase)),
-      );
+      const filtered = filter.length
+        ? filter
+        : await configureTrials(configuration, testenv);
+
+      const patterns =
+        filtered &&
+        filtered
+          .filter(
+            (pattern) =>
+              typeof pattern !== "string" || !pattern.startsWith("!"),
+          )
+          .map(globre);
+
+      const antipatterns = (filtered ?? [])
+        .filter((pattern) => typeof pattern === "string")
+        .filter((pattern) => pattern.startsWith("!"))
+        .map((pattern) => pattern.slice(1))
+        .map(globre);
+
+      return {
+        cases,
+        patterns,
+        antipatterns,
+      };
     },
     configuration,
   };
 }
 
-function globre(glob: string) {
+async function configureTrials(
+  { trials }: PardonTestConfiguration,
+  testenv: Record<string, unknown>,
+) {
+  if (typeof trials === "function") {
+    return shared(async () => {
+      environment = testenv;
+      let filtered = trials(testenv);
+
+      if (typeof filtered === "string") {
+        filtered = [filtered];
+      }
+
+      if (
+        !Array.isArray(filtered) ||
+        !filtered.every(
+          (item) => typeof item === "string" || item instanceof RegExp,
+        )
+      ) {
+        throw new PardonError(
+          "test-runner: config.trials() did not return a list of filters",
+        );
+      }
+
+      return filtered;
+    });
+  }
+
+  return trials;
+}
+
+function globre(glob: string | RegExp) {
+  if (glob instanceof RegExp) {
+    return glob;
+  }
+
   return new RegExp(
     `^${glob.replace(
       /[[\]()\\.*^$+&?{][*]?/g,

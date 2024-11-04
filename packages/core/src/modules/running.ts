@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 export { loadTests, executeTest } from "../entry/testing/cli/runner.js";
-export { initEnvironment } from "../runtime/environment.js";
+export { initTrackingEnvironment as initEnvironment } from "../runtime/environment.js";
 export { sequenceRegistry } from "../entry/testing/sequence.js";
 
 export {

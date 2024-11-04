@@ -16,10 +16,6 @@ import describeCases from "./testcases/index.js";
 import { disarm } from "../../util/promise.js";
 import { PardonTestConfiguration } from "./cli/runner.js";
 
-declare global {
-  let environment: Record<string, any>;
-}
-
 const pendingRegistrationTasks: Promise<unknown>[] = [];
 
 type RegisteredTrial = {
