@@ -31,11 +31,7 @@ app.commandLine.appendSwitch("js-flags", "--stack_trace_limit=100");
 
 let mainWindow: BrowserWindow | null;
 
-function resolveRelative(path) {
-  if (typeof __dirname !== "undefined") {
-    return path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/`);
-  }
-
+function resolveRelative(path: string) {
   return new URL(import.meta.resolve(path)).pathname.replace(
     // be friendlier to windows /C:/xyz/... paths.
     /[/\\]([A-Z]):([/\\])/,
