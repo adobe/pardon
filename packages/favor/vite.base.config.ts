@@ -35,14 +35,14 @@ interface ForgedConfigEnv<
 
 export function extendMainConfig(
   config: UserConfigExport,
-  target?: "cjs" | "es",
+  target?: "es" | "cjs"
 ): UserConfigExport {
   return async (env: ConfigEnv) =>
     await applyBaseBuildConfig(
       env as ForgedConfigEnv<"build">,
       config,
       "main",
-      target ?? (pkg.type === "module" ? "es" : "cjs"),
+      target ?? "es"
     );
 }
 
@@ -106,7 +106,7 @@ async function applyBaseBuildConfig(
 ) {
   const { root, mode, command } = env;
   const { entry } = env.forgeConfigSelf;
-  const format = pkg.type === "module" ? "es" : "cjs";
+  const format = target;
   const esExt = pkg.type === "module" ? "js" : "mjs";
   const cjsExt = pkg.type === "module" ? "cjs" : "js";
   const targetExt =
