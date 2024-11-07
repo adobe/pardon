@@ -75,7 +75,9 @@ export default [
           esbuild({
             exclude: ["tests/**", "ux/**", "node_modules/**"],
           }),
-          commonjs({}),
+          commonjs({
+            esmExternals: true
+          }),
         ]),
     ],
     external: ["better-sqlite3", "@types/better-sqlite3", "fsevents"],
