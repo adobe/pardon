@@ -37,7 +37,7 @@ import {
   notifyFastFailed,
   all_disconnected,
   registerSequenceNotificationHooks,
-  initEnvironment,
+  initTrackingEnvironment,
   sequenceRegistry,
   type SmokeConfig,
   awaitedSequences,
@@ -323,7 +323,7 @@ async function initializePardonAndLoadSamples(
 
   const testing = loadTestEngine(app);
 
-  await initEnvironment({});
+  await initTrackingEnvironment({});
 
   return { app, samples, testing };
 }

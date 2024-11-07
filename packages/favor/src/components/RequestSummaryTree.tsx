@@ -281,12 +281,14 @@ export function RequestSummary(
         <button
           class="m-0 bg-neutral-300 p-1 dark:bg-neutral-400"
           onClick={() => {
-            const outbound = props.trace?.render?.outbound?.request;
+            const outbound = props.trace?.render?.outbound;
+            const askValues = HTTP.parse(props.trace.start.context.ask).values;
+            const request = { ...outbound?.request, values: { ...askValues } };
             const inbound = props.trace?.result?.inbound;
             navigator.clipboard.writeText(
               `
 >>>
-${HTTP.stringify(HTTP.requestObject.fromJSON(outbound))}
+${HTTP.stringify(HTTP.requestObject.fromJSON(request))}
 ${
   !inbound
     ? ""

@@ -45,7 +45,7 @@ export const RequestSummaryInfo = createContext<{
 export function RequestSummaryInfoDrawerWrapper(props: {
   children: JSX.Element;
   faded?: boolean;
-}) {
+}): JSX.Element {
   const [displayedHttp, setDisplayedHttp] = createSignal<string>();
 
   const [displayedValues, setDisplayedValues] =

@@ -139,6 +139,11 @@ ${YAML.stringify({
         }),
       );
     }
+
+    if (options.timing) {
+      const context = await rendering.context;
+      console.warn('-- timing\n' + KV.stringify(context.durations, "\n", 2));
+    }
   } else {
     const {
       inbound: { values, secrets, response, redacted },
@@ -161,6 +166,11 @@ ${YAML.stringify({
       console.info(HTTP.responseObject.stringify(result));
     } else {
       console.info(result.body);
+    }
+
+    if (options.timing) {
+      const context = await rendering.context;
+      console.warn('-- timing\n' + KV.stringify(context.durations, "\n", 2));
     }
   }
 

@@ -46,6 +46,7 @@ import { intoURL, parseURL } from "./request/url-pattern.js";
 import { HTTP, RequestObject } from "./formats/http-fmt.js";
 import { Schema, SchemaMergingContext } from "./schema/core/types.js";
 import { getContextualValues } from "../core/schema/core/context.js";
+import { definedObject } from "../util/mapping.js";
 
 export type PardonAppContext = Pick<
   AppContext,
@@ -340,13 +341,13 @@ export const PardonFetchExecution = pardonExecution({
     return {
       request: {
         ...rendered.output,
-        values: getContextualValues(rendered.context, {
+        values: cleanRequestValues(getContextualValues(rendered.context, {
           secrets: true,
-        }),
+        })),
       } satisfies RequestObject,
       redacted: {
         ...redacted.output,
-        values: getContextualValues(rendered.context),
+        values: cleanRequestValues(getContextualValues(rendered.context)),
       } satisfies RequestObject,
       scope: rendered.context.scope,
     };
@@ -462,7 +463,7 @@ export const PardonFetchExecution = pardonExecution({
         return {
           output,
           scope: context.scope,
-          values: getContextualValues(context, { secrets }),
+          values: cleanResponseValues(getContextualValues(context, { secrets })),
         };
       }),
     );
@@ -505,4 +506,22 @@ function why(error: unknown) {
   }
 
   return error;
+}
+
+function cleanRequestValues(request: Record<string, unknown>) {
+  return definedObject({
+    ...request,
+    pathname: undefined,
+    origin: undefined,
+    search: undefined,
+    method: undefined
+  } as Record<string, unknown>);
+}
+
+function cleanResponseValues(response: Record<string, unknown>) {
+  return definedObject({
+    ...response,
+    status: undefined,
+    statusText: undefined,
+  } as Record<string, unknown>);
 }

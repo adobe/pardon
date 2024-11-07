@@ -98,6 +98,10 @@ export function opts() {
       render: {
         type: "boolean",
       },
+      timing: {
+        short: "T",
+        type: "boolean"
+      }
     },
   });
 }
