@@ -112,6 +112,7 @@ async function main() {
   }
 
   const { cases, patterns, antipatterns } = await testplanner(
+    environment,
     parseSmokeConfig(smoke),
     ...positionals,
   );
@@ -154,11 +155,11 @@ No testcases were specified!
     console.info(
       `${testplan
         .map(
-          ({ testcase, environment }) =>
+          ({ testcase, testenv }) =>
             `${testcase}${
               plan || verbose
                 ? `\n` +
-                  JSON.stringify(environment, null, 2)
+                  JSON.stringify(testenv, null, 2)
                     .split("\n")
                     .slice(1, -1)
                     .join("\n") +

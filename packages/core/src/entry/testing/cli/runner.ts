@@ -54,7 +54,7 @@ declare global {
 export type TestSetup = {
   test: () => Promise<void>;
   testcase: string;
-  environment: Record<string, unknown>;
+  testenv: Record<string, unknown>;
 };
 
 const inflight = new AsyncLocalStorage<{
@@ -111,11 +111,7 @@ ${failing.map(({ testcase }) => `${testcase}: FAIL\n`).join("")}
 
 export async function executeSelectedTests(
   configuration: PardonTestConfiguration,
-  selectedTests: {
-    test: () => Promise<void>;
-    testcase: string;
-    environment: Record<string, unknown>;
-  }[],
+  selectedTests: TestSetup[],
   report: string,
   ff: boolean | undefined,
 ) {
@@ -136,7 +132,7 @@ export async function executeSelectedTests(
 
   const testResults = await all_disconnected(
     selectedTests.map(
-      async ({ test, testcase, environment: { ...testenv } }) =>
+      async ({ test, testcase, testenv: { ...testenv } }) =>
         await concurrently(() =>
           /*
            * `concurrently(() => disconnected(...))`
@@ -665,9 +661,7 @@ export async function loadTests(
   const trialRegistry = await flushTrialRegistry(configuration);
 
   return {
-    testplanner: async (smokeConfig?: SmokeConfig, ...filter: string[]) => {
-      const testenv = { ...environment };
-
+    async testplanner(testenv: Record<string, unknown>, smokeConfig?: SmokeConfig, ...filter: string[]) {
       const alltestcases = describeCases(
         configuration.closing || (() => {}),
         trialRegistry.flatMap(({ descriptions }) => {
@@ -693,13 +687,13 @@ export async function loadTests(
           environment: {
             testcase,
             "::testexecution": testexecution,
-            ...environment
+            ...testenv
           },
         }) =>
           ({
-            test: () => testexecution(environment),
+            test: () => testexecution(testenv),
             testcase,
-            environment,
+            testenv,
           }) as TestSetup,
       );
 

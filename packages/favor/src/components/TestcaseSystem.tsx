@@ -225,7 +225,7 @@ export default function TestcaseSystem(props: {
                             class="flex max-h-[80%] flex-col bg-lime-300 dark:bg-lime-700"
                             content={
                               <div class="flex flex-initial flex-col overflow-auto">
-                                <KeyValueCopier data={item.environment} />
+                                <KeyValueCopier data={item.testenv} />
                               </div>
                             }
                           >
@@ -380,7 +380,7 @@ function compileTestReport(events: TestEventType[]) {
       events: TestEventType[];
       sequences: TestSequenceRecord[];
       input: string;
-      tests: { testcase: string; environment: Record<string, unknown> }[];
+      tests: { testcase: string; testenv: Record<string, unknown> }[]; // Pick<TestSetup, "testcase" | "testenv">[]
       testcases: Record<
         string,
         {

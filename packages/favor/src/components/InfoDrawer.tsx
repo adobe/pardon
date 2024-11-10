@@ -26,7 +26,7 @@ export function InfoDrawer(
     side?: Parameters<typeof Drawer>[0]["side"];
     "no-close-button"?: boolean;
   },
-) {
+): JSX.Element {
   const [ourProps, contentProps] = splitProps(props, [
     "side",
     "children",

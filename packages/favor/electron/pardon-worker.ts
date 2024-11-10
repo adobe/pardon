@@ -58,16 +58,16 @@ const currentHttpSequence = new AsyncLocalStorage<{
   values: Record<string, unknown>;
 }>();
 
-type TestSetup = ReturnType<
+type TestSetup = Awaited<ReturnType<
   Awaited<ReturnType<typeof loadTests>>["testplanner"]
->[number];
+>>["cases"][number];
 
 export type TestStepPayloads = {
   "test:run:start": {
     id: "test:event";
     type: "test:run:start";
     run: TestRunId;
-    tests: Pick<TestSetup, "testcase" | "environment">[];
+    tests: Pick<TestSetup, "testcase" | "testenv">[];
     input: string;
   };
   "test:case:start": {
@@ -593,9 +593,8 @@ const handlers = {
     { smoke, filter }: { smoke?: SmokeConfig; filter?: string[] },
   ) {
     const { testing } = await ready;
-    return (await testing)
-      ?.testplanner(environment, smoke, ...(filter || []))
-      ?.map(({ environment, testcase }) => ({ environment, testcase }));
+    const testplan = await (await testing)?.testplanner(environment, smoke, ...(filter || []));
+    return testplan.cases.map(({ testenv, testcase }) => ({ testenv, testcase }));
   },
   async executeTestcases(
     testenv: Record<string, unknown>,
@@ -607,18 +606,20 @@ const handlers = {
   ) {
     const testRun: TestRunId = `T${nextTestRunId++}`;
     const { testing } = await ready;
-    const tests = (await testing)?.testplanner(
+    const testplan = await (await testing)?.testplanner(
       testenv,
       undefined,
       ...testcases,
     );
+
+    const tests = (await testplan)?.cases;
 
     parentPort!.postMessage(
       ship({
         id: "test:event",
         type: "test:run:start",
         run: testRun,
-        tests: tests,
+        tests,
         input,
       }) satisfies TestStepPayloads["test:run:start"],
     );
