@@ -9,6 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { DEBUG } from "./debugging.js";
 import { SchemaContext } from "./types.js";
 
 export function diagnostic(
@@ -18,12 +19,16 @@ export function diagnostic(
   const location = loc(context);
 
   if (typeof error === "string") {
-    const warning = `${location}: ${error}`;
-    error = new Error(`${location}: ${error}`);
-    const [message /* ignore 1 frame */, , ...stack] = error.stack?.split(
-      "\n",
-    ) || [warning];
-    error.stack = [message, ...stack].join("\n");
+    if (!DEBUG) {
+      error = `${location}: ${error}`;
+    } else {
+      const warning = `${location}: ${error}`;
+      error = new Error(`${location}: ${error}`);
+      const [message /* ignore 1 frame */, , ...stack] = error.stack?.split(
+        "\n",
+      ) || [warning];
+      error.stack = [message, ...stack].join("\n");
+    }
   }
 
   context.diagnostics.push({

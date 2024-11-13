@@ -399,11 +399,11 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
           .filter((error) => !rejected.includes(error)),
       ];
 
-      console.info(
-        `test complete -- ${testcase}: ${errors.length ? `FAIL ${errors.length} errors` : "PASS"}`,
-      );
-
       rejected.push(...errors);
+
+      console.info(
+        `test complete -- ${testcase}: ${rejected.length ? `FAIL ${rejected.length} errors` : "PASS"}`,
+      );
     }
 
     return { errors: rejected, environment: { ...environment } };

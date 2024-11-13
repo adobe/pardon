@@ -47,6 +47,7 @@ import { HTTP, RequestObject } from "./formats/http-fmt.js";
 import { Schema, SchemaMergingContext } from "./schema/core/types.js";
 import { getContextualValues } from "../core/schema/core/context.js";
 import { definedObject } from "../util/mapping.js";
+import { JSON } from "./json.js";
 
 export type PardonAppContext = Pick<
   AppContext,

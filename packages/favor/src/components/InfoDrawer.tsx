@@ -19,14 +19,12 @@ import { twMerge } from "tailwind-merge";
 
 export function InfoDrawer(
   props: Parameters<typeof Drawer.Content>[0] & {
-    children:
-      | JSX.Element
-      | Exclude<Parameters<typeof Drawer>[0]["children"], JSX.Element>;
+    children: Parameters<typeof Drawer>[0]["children"];
     content: JSX.Element;
     side?: Parameters<typeof Drawer>[0]["side"];
     "no-close-button"?: boolean;
   },
-): JSX.Element {
+) {
   const [ourProps, contentProps] = splitProps(props, [
     "side",
     "children",

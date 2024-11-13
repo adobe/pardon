@@ -118,7 +118,8 @@ describe("schema tests", () => {
         merge(s, ctx);
       },
       (error) => {
-        assert((error as Error).message?.includes("redefined:x"));
+        const errorMessage = (error as Error)?.message ?? error;
+        assert(errorMessage?.includes("redefined:x"));
         return true;
       },
     );
