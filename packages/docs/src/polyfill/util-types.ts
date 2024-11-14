@@ -18,7 +18,6 @@ export function isBigIntObject(n: any) {
   return n && typeof n === "object" && n instanceof BigInt;
 }
 
-
 export function isBoxedPrimitive(n: any) {
   return (
     n &&

@@ -30,8 +30,10 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
     right && "place-content-end",
     column && "flex-col",
     initial && "[&>div]:!flex-initial",
-    class_
-  ].filter(Boolean).join(" ")}
+    class_,
+  ]
+    .filter(Boolean)
+    .join(" ")}
 >
   <slot />
 </div>
@@ -46,7 +48,7 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
       @apply grow;
     }
     & > svg {
-      @apply place-self-center grow-0 shrink-0;
+      @apply shrink-0 grow-0 place-self-center;
     }
     .code {
       @apply !px-1;

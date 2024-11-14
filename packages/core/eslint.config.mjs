@@ -73,7 +73,7 @@ export default [
 
     plugins: {
       "@typescript-eslint": typescriptEslint,
-      "headers": headersEslint
+      headers: headersEslint,
     },
 
     languageOptions: {
@@ -93,16 +93,19 @@ export default [
       "headers/header-format": [
         "error",
         {
-          "source": "string",
-          "linePrefix": "",
-          "blockPrefix": "\n",
-          "blockSuffix": "\n",
-          "content": readFileSync(path.join(__dirname, "../../.license-header"), 'utf-8').trim(),
-          "variables": {
-            "year": `${new Date().getFullYear()}`,
-          }
-        }
-      ]
+          source: "string",
+          linePrefix: "",
+          blockPrefix: "\n",
+          blockSuffix: "\n",
+          content: readFileSync(
+            path.join(__dirname, "../../.license-header"),
+            "utf-8",
+          ).trim(),
+          variables: {
+            year: `${new Date().getFullYear()}`,
+          },
+        },
+      ],
     },
   },
 ];

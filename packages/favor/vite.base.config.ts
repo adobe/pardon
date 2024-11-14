@@ -35,14 +35,14 @@ interface ForgedConfigEnv<
 
 export function extendMainConfig(
   config: UserConfigExport,
-  target?: "es" | "cjs"
+  target?: "es" | "cjs",
 ): UserConfigExport {
   return async (env: ConfigEnv) =>
     await applyBaseBuildConfig(
       env as ForgedConfigEnv<"build">,
       config,
       "main",
-      target ?? "es"
+      target ?? "es",
     );
 }
 

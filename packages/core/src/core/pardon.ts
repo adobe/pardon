@@ -342,9 +342,11 @@ export const PardonFetchExecution = pardonExecution({
     return {
       request: {
         ...rendered.output,
-        values: cleanRequestValues(getContextualValues(rendered.context, {
-          secrets: true,
-        })),
+        values: cleanRequestValues(
+          getContextualValues(rendered.context, {
+            secrets: true,
+          }),
+        ),
       } satisfies RequestObject,
       redacted: {
         ...redacted.output,
@@ -464,7 +466,9 @@ export const PardonFetchExecution = pardonExecution({
         return {
           output,
           scope: context.scope,
-          values: cleanResponseValues(getContextualValues(context, { secrets })),
+          values: cleanResponseValues(
+            getContextualValues(context, { secrets }),
+          ),
         };
       }),
     );
@@ -515,7 +519,7 @@ function cleanRequestValues(request: Record<string, unknown>) {
     pathname: undefined,
     origin: undefined,
     search: undefined,
-    method: undefined
+    method: undefined,
   } as Record<string, unknown>);
 }
 

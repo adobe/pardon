@@ -51,7 +51,7 @@ export default [
           destructuring: "all",
         },
       ],
-    }
+    },
   },
   {
     files: ["**/*.cjs"],
@@ -69,14 +69,14 @@ export default [
     )
     .map((config) => ({
       ...config,
-      files: ["**/*.ts"]
+      files: ["**/*.ts"],
     })),
   {
     files: ["**/*.ts"],
 
     plugins: {
       "@typescript-eslint": typescriptEslint,
-      "headers": headersEslint
+      headers: headersEslint,
     },
 
     languageOptions: {
@@ -90,23 +90,26 @@ export default [
         "error",
         {
           ignoreRestSiblings: true,
-          "argsIgnorePattern": "^_",
+          argsIgnorePattern: "^_",
         },
       ],
 
       "headers/header-format": [
         "error",
         {
-          "source": "string",
-          "linePrefix": "",
-          "blockPrefix": "\n",
-          "blockSuffix": "\n",
-          "content": readFileSync(path.join(__dirname, "../../.license-header"), 'utf-8').trim(),
-          "variables": {
-            "year": `${new Date().getFullYear()}`,
-          }
-        }
-      ]
+          source: "string",
+          linePrefix: "",
+          blockPrefix: "\n",
+          blockSuffix: "\n",
+          content: readFileSync(
+            path.join(__dirname, "../../.license-header"),
+            "utf-8",
+          ).trim(),
+          variables: {
+            year: `${new Date().getFullYear()}`,
+          },
+        },
+      ],
     },
   },
 ];

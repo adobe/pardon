@@ -59,9 +59,9 @@ const currentHttpSequence = new AsyncLocalStorage<{
   values: Record<string, unknown>;
 }>();
 
-type TestSetup = Awaited<ReturnType<
-  Awaited<ReturnType<typeof loadTests>>["testplanner"]
->>["cases"][number];
+type TestSetup = Awaited<
+  ReturnType<Awaited<ReturnType<typeof loadTests>>["testplanner"]>
+>["cases"][number];
 
 export type TestStepPayloads = {
   "test:run:start": {
@@ -594,7 +594,11 @@ const handlers = {
     { smoke, filter }: { smoke?: SmokeConfig; filter?: string[] },
   ) {
     const { testing } = await ready;
-    const planning = await (await testing)!.testplanner(environment, smoke, ...(filter || []));
+    const planning = await (await testing)!.testplanner(
+      environment,
+      smoke,
+      ...(filter || []),
+    );
 
     return filterTestPlanning(planning);
   },
@@ -608,11 +612,9 @@ const handlers = {
   ) {
     const testRun: TestRunId = `T${nextTestRunId++}`;
     const { testing } = await ready;
-    const testplan = await (await testing)?.testplanner(
-      testenv,
-      undefined,
-      ...testcases,
-    );
+    const testplan = await (
+      await testing
+    )?.testplanner(testenv, undefined, ...testcases);
 
     const tests = filterTestPlanning(testplan);
 

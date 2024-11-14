@@ -76,7 +76,7 @@ eexec({ dryrun: true })`git hook run pre-commit`;
 
 exec`npm version ${positionals.length ? positionals.map(quoteArg).join(" ") : "prerelease"}`;
 const { version } = JSON.parse(readFileSync("./package.json", "utf-8"));
-exec({ cwd: '../favor' })`npm version ${version}`;
+exec({ cwd: "../favor" })`npm version ${version}`;
 
 function quoteArg(arg) {
   return `'${arg.replace(/'/g, `'"'"'`)}'`;
@@ -109,7 +109,7 @@ console.log("\n\n--- building and publishing to registry ---");
 
 eexec({ dryrun: true, cwd: resolve("../favor") })`npm install`;
 eexec({ dryrun: true, cwd: resolve("../favor") })`npm run package`;
-eexec`npm publish${env.REGISTRY ? ` --registry="${env.REGISTRY}"` : ''}`;
+eexec`npm publish${env.REGISTRY ? ` --registry="${env.REGISTRY}"` : ""}`;
 
 console.log("\n\n--- commiting version updates ---");
 

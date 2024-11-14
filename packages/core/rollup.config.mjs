@@ -47,39 +47,39 @@ export default [
   { dir: "dist/types", types: true, input },
 ].map(
   ({ dir, types, input }) =>
-    /** @type {import("rollup").RollupOptions} */({
-    input,
-    treeshake: true,
-    output: {
-      dir,
-      format: "es",
-      sourcemap: true,
-      exports: "named",
-      ...(!types && {
-        entryFileNames: ({ name }) =>
-          `[name].${executables[name] ? "mjs" : "js"}`,
-      }),
-    },
-    plugins: [
-      hashbang.default(),
-      resolve({
-        preferBuiltins: true,
-      }),
-      ...(types
-        ? [
-          dts({
-            respectExternal: true,
-          }),
-        ]
-        : [
-          esbuild({
-            exclude: ["tests/**", "ux/**", "node_modules/**"],
-          }),
-          commonjs({
-            esmExternals: true
-          }),
-        ]),
-    ],
-    external: ["better-sqlite3", "@types/better-sqlite3", "fsevents"],
-  }),
+    /** @type {import("rollup").RollupOptions} */ ({
+      input,
+      treeshake: true,
+      output: {
+        dir,
+        format: "es",
+        sourcemap: true,
+        exports: "named",
+        ...(!types && {
+          entryFileNames: ({ name }) =>
+            `[name].${executables[name] ? "mjs" : "js"}`,
+        }),
+      },
+      plugins: [
+        hashbang.default(),
+        resolve({
+          preferBuiltins: true,
+        }),
+        ...(types
+          ? [
+              dts({
+                respectExternal: true,
+              }),
+            ]
+          : [
+              esbuild({
+                exclude: ["tests/**", "ux/**", "node_modules/**"],
+              }),
+              commonjs({
+                esmExternals: true,
+              }),
+            ]),
+      ],
+      external: ["better-sqlite3", "@types/better-sqlite3", "fsevents"],
+    }),
 );

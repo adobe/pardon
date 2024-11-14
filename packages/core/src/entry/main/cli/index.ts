@@ -142,7 +142,7 @@ ${YAML.stringify({
 
     if (options.timing) {
       const context = await rendering.context;
-      console.warn('-- timing\n' + KV.stringify(context.durations, "\n", 2));
+      console.warn("-- timing\n" + KV.stringify(context.durations, "\n", 2));
     }
   } else {
     const {
@@ -170,7 +170,7 @@ ${YAML.stringify({
 
     if (options.timing) {
       const context = await rendering.context;
-      console.warn('-- timing\n' + KV.stringify(context.durations, "\n", 2));
+      console.warn("-- timing\n" + KV.stringify(context.durations, "\n", 2));
     }
   }
 

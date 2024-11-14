@@ -42,7 +42,13 @@ export function convertScalar(
     case "null":
       return value === "null" ? null : undefined;
     case "boolean":
-      return value === "false" ? false : Boolean(value);
+      return value === "false"
+        ? false
+        : value === "true"
+          ? true
+          : typeof value === "boolean" || typeof value === "string"
+            ? value
+            : Boolean(value);
     case "number":
       if (value && value instanceof Number) {
         return value;
@@ -52,7 +58,7 @@ export function convertScalar(
         return createNumber(value["source"]);
       }
 
-      if (typeof value === 'string' && !isValidNumberToken(value)) {
+      if (typeof value === "string" && !isValidNumberToken(value)) {
         return value;
       }
 
@@ -65,6 +71,10 @@ export function convertScalar(
       }
 
       if (value && value instanceof BigInt) {
+        return value;
+      }
+
+      if (typeof value === "string" && !isValidNumberToken(value)) {
         return value;
       }
 

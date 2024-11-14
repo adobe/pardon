@@ -50,7 +50,10 @@ export function maybeResolve<T>(
   context: SchemaContext<T>,
 ): T | undefined {
   const { resolve } = exposeSchema<SchemaOps<T>>(schema);
-  return resolve?.(context) ?? (context.mode === 'match' ? context.template as T : undefined);
+  return (
+    resolve?.(context) ??
+    (context.mode === "match" ? (context.template as T) : undefined)
+  );
 }
 
 // ---- internal utility types ----

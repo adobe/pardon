@@ -100,8 +100,8 @@ export function opts() {
       },
       timing: {
         short: "T",
-        type: "boolean"
-      }
+        type: "boolean",
+      },
     },
   });
 }

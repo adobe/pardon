@@ -20,7 +20,7 @@ import solid from "@astrojs/solid-js";
 // https://astro.build/config
 export default defineConfig({
   site: process.env.SITE_ORIGIN,
-  base: process.env.SITE_ROOT ?? '/',
+  base: process.env.SITE_ROOT ?? "/",
   output: "static",
   integrations: [
     starlight({
@@ -100,7 +100,7 @@ export default defineConfig({
       ],
       components: {
         PageFrame: "@components/starlight/PageFrame.astro",
-        Footer: "@components/starlight/Footer.astro"
+        Footer: "@components/starlight/Footer.astro",
       },
     }),
     solid(),

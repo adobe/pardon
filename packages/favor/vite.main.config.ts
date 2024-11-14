@@ -38,6 +38,6 @@ export default extendMainConfig({
         exports: "named",
         sourcemap: true,
       },
-    }
+    },
   },
 });

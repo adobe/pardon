@@ -61,7 +61,7 @@ export type TestPlanning = {
   cases: TestSetup[];
   patterns?: RegExp[];
   antipatterns?: RegExp[];
-}
+};
 
 const inflight = new AsyncLocalStorage<{
   scheduled: Promise<unknown>[];
@@ -667,7 +667,11 @@ export async function loadTests(
   const trialRegistry = await flushTrialRegistry(configuration);
 
   return {
-    async testplanner(testenv: Record<string, unknown>, smokeConfig?: SmokeConfig, ...filter: string[]) {
+    async testplanner(
+      testenv: Record<string, unknown>,
+      smokeConfig?: SmokeConfig,
+      ...filter: string[]
+    ) {
       const alltestcases = describeCases(
         configuration.closing || (() => {}),
         trialRegistry.flatMap(({ descriptions }) => {
@@ -732,7 +736,11 @@ export async function loadTests(
   };
 }
 
-export function filterTestPlanning({ cases, patterns, antipatterns }: TestPlanning): TestSetup[] {
+export function filterTestPlanning({
+  cases,
+  patterns,
+  antipatterns,
+}: TestPlanning): TestSetup[] {
   return cases.filter(
     ({ testcase }) =>
       !patterns?.length ||
