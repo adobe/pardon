@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 
 import Drawer from "corvu/drawer";
 import { TbX } from "solid-icons/tb";
-import { createMemo, createSignal, splitProps } from "solid-js";
+import { createMemo, createSignal, splitProps, type JSX } from "solid-js";
 
 import "./InfoDrawer.pcss";
 import { twMerge } from "tailwind-merge";
