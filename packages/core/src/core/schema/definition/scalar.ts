@@ -52,6 +52,10 @@ export function convertScalar(
         return createNumber(value["source"]);
       }
 
+      if (typeof value === 'string' && !isValidNumberToken(value)) {
+        return value;
+      }
+
       return unboxed ? Number(value) : createNumber(String(value));
     case "string":
       return String(value);
@@ -111,6 +115,13 @@ export function scalarTypeOf(value?: unknown): ScalarType | undefined {
           : value instanceof BigInt
             ? "bigint"
             : (typeof value as ScalarType);
+}
+
+// 0, 100, 1.1e+10, 1.1e-10
+const numberRegex = /^-?(?:0|[1-9][0-9]*(?:[.][0-9]+)?)(?:e[-+]?[0-9]+)?$/;
+
+export function isValidNumberToken(n: string) {
+  return numberRegex.test(n);
 }
 
 export function createNumber(source: string, value?: number) {

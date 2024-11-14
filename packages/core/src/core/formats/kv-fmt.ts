@@ -14,6 +14,7 @@ import { JSON } from "../json.js";
 import {
   createNumber,
   isScalar,
+  isValidNumberToken,
   scalarTypeOf,
 } from "../schema/definition/scalar.js";
 
@@ -86,10 +87,7 @@ export const KV: {
           return JSON.parse(
             `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
           );
-        // 0, 100, 1.1e+10, 1.1e-10
-        case /^-?(?:0|[1-9][0-9]*(?:[.][0-9]+)?)(?:e[-+]?[0-9]+)?$/i.test(
-          token,
-        ):
+        case isValidNumberToken(token):
           return createNumber(token);
         case /^[+-]/.test(token):
           throw new Error("invalid numeric: " + token);
