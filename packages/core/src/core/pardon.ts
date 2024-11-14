@@ -499,7 +499,7 @@ export const PardonFetchExecution = pardonExecution({
 function why(error: unknown) {
   const reasons: string[] = [];
 
-  while (typeof error?.["cause"] === "object") {
+  while (error?.["cause"] !== undefined) {
     reasons.unshift(String(error?.["message"] ?? error));
     error = error["cause"];
   }
@@ -510,7 +510,7 @@ function why(error: unknown) {
     return reasons.join("\n - ");
   }
 
-  return error;
+  return error?.["message"] ?? error;
 }
 
 function cleanRequestValues(request: Record<string, unknown>) {
