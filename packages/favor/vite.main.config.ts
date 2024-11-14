@@ -38,10 +38,6 @@ export default extendMainConfig({
         exports: "named",
         sourcemap: true,
       },
-    },
-    commonjsOptions: {
-      transformMixedEsModules: true,
-      ignoreDynamicRequires: true,
-    },
+    }
   },
 });

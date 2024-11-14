@@ -57,6 +57,12 @@ export type TestSetup = {
   testenv: Record<string, unknown>;
 };
 
+export type TestPlanning = {
+  cases: TestSetup[];
+  patterns?: RegExp[];
+  antipatterns?: RegExp[];
+}
+
 const inflight = new AsyncLocalStorage<{
   scheduled: Promise<unknown>[];
   awaited: ReturnType<typeof tracking>;
@@ -720,10 +726,19 @@ export async function loadTests(
         cases,
         patterns,
         antipatterns,
-      };
+      } satisfies TestPlanning;
     },
     configuration,
   };
+}
+
+export function filterTestPlanning({ cases, patterns, antipatterns }: TestPlanning): TestSetup[] {
+  return cases.filter(
+    ({ testcase }) =>
+      !patterns?.length ||
+      (patterns.some((p) => p.test(testcase)) &&
+        !antipatterns?.some((p) => p.test(testcase))),
+  );
 }
 
 async function configureTrials(

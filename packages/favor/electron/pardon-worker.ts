@@ -42,6 +42,7 @@ import {
   type SmokeConfig,
   awaitedSequences,
   semaphore,
+  filterTestPlanning,
 } from "pardon/running";
 
 let nextTestRunId = Date.now();
@@ -323,7 +324,7 @@ async function initializePardonAndLoadSamples(
 
   const testing = loadTestEngine(app);
 
-  await initTrackingEnvironment({});
+  await initTrackingEnvironment();
 
   return { app, samples, testing };
 }
@@ -593,8 +594,9 @@ const handlers = {
     { smoke, filter }: { smoke?: SmokeConfig; filter?: string[] },
   ) {
     const { testing } = await ready;
-    const testplan = await (await testing)?.testplanner(environment, smoke, ...(filter || []));
-    return testplan.cases.map(({ testenv, testcase }) => ({ testenv, testcase }));
+    const planning = await (await testing)!.testplanner(environment, smoke, ...(filter || []));
+
+    return filterTestPlanning(planning);
   },
   async executeTestcases(
     testenv: Record<string, unknown>,
@@ -612,7 +614,7 @@ const handlers = {
       ...testcases,
     );
 
-    const tests = (await testplan)?.cases;
+    const tests = filterTestPlanning(testplan);
 
     parentPort!.postMessage(
       ship({
@@ -633,7 +635,7 @@ const handlers = {
     return currentTestRun.run(testRun, () =>
       all_disconnected(
         tests.map(
-          async ({ environment: initEnv, test, testcase }) =>
+          async ({ testenv: initEnv, test, testcase }) =>
             await concurrently(() =>
               disconnected(async () => {
                 let errors: unknown[] = [];
@@ -662,7 +664,7 @@ const handlers = {
                 } catch (error) {
                   notifyFastFailed(error);
                   errors.push(error);
-                  emitEnv = { ...environment };
+                  emitEnv = { ...testenv };
 
                   return { testcase, errors, environment: emitEnv };
                 } finally {

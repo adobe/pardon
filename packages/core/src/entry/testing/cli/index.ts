@@ -19,6 +19,7 @@ import { initializePardon } from "../../../runtime/runtime.js";
 import {
   chooseReportOutput,
   executeSelectedTests,
+  filterTestPlanning,
   loadTests,
   PardonTestConfiguration,
   writeResultSummary,
@@ -111,18 +112,13 @@ async function main() {
     environment = updates;
   }
 
-  const { cases, patterns, antipatterns } = await testplanner(
+  const planning = await testplanner(
     environment,
     parseSmokeConfig(smoke),
     ...positionals,
   );
 
-  const testplan = cases.filter(
-    ({ testcase }) =>
-      !patterns ||
-      (patterns.some((p) => p.test(testcase)) &&
-        !antipatterns.some((p) => p.test(testcase))),
-  );
+  const testplan = filterTestPlanning(planning);
 
   if (testplan.length === 0) {
     console.warn(`
@@ -131,7 +127,7 @@ FAIL
 
 no testcases configured and/or
 all testcases filtered out.${
-      patterns?.some((p) => p.source.includes("package\\.json"))
+      planning.patterns?.some((p) => p.source.includes("package\\.json"))
         ? `
 
 (Hint: You may need to put your ** filter in quotes.)
@@ -142,7 +138,7 @@ all testcases filtered out.${
     return 1;
   }
 
-  if (plan || !patterns) {
+  if (plan || !planning.patterns) {
     if (plan) {
       console.info(`--- TEST PLAN ---`);
     } else {
