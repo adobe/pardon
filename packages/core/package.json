@@ -94,7 +94,7 @@
     "acorn": "^8.10.0",
     "acorn-walk": "^8.3.2",
     "core-js-pure": "^3.38.1",
-    "eslint": "^9.8.0",
+    "eslint": "^9.14.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-headers": "^1.1.2",
     "eslint-plugin-prettier": "^5.0.1",

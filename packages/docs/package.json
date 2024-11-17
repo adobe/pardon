@@ -18,7 +18,7 @@
     "@astrojs/check": "^0.9.1",
     "@astrojs/mdx": "^3.0.1",
     "@astrojs/solid-js": "^4.2.0",
-    "@astrojs/starlight": "^0.28.1",
+    "@astrojs/starlight": "^0.29.0",
     "@astrojs/tailwind": "^5.1.0",
     "@codemirror/commands": "^6.6.0",
     "@pkgjs/parseargs": "^0.11.0",

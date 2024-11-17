@@ -10,6 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+export * as promises from "./fs_promises.js";
+
 export function lstat(_path: string, cb: (err: Error) => void) {
   cb(new Error("unimplemented"));
 }
