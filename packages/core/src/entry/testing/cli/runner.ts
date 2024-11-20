@@ -47,10 +47,6 @@ import { cleanObject } from "../../../util/clean-object.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
 import { PardonError } from "../../../core/error.js";
 
-declare global {
-  let environment: Record<string, unknown>;
-}
-
 export type TestSetup = {
   test: () => Promise<void>;
   testcase: string;

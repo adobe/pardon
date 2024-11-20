@@ -49,7 +49,7 @@ export default [
   ({ dir, types, input }) =>
     /** @type {import("rollup").RollupOptions} */ ({
       input,
-      treeshake: true,
+      treeshake: types,
       output: {
         dir,
         format: "es",

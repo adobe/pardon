@@ -33,29 +33,25 @@ interface ForgedConfigEnv<
   forgeConfigSelf: VitePluginConfig[K][number];
 }
 
-export function extendMainConfig(
-  config: UserConfigExport,
-  target?: "es" | "cjs",
-): UserConfigExport {
+export function extendMainConfig(config: UserConfigExport): UserConfigExport {
   return async (env: ConfigEnv) =>
     await applyBaseBuildConfig(
       env as ForgedConfigEnv<"build">,
       config,
       "main",
-      target ?? "es",
+      "es",
     );
 }
 
 export function extendPreloadConfig(
   config: UserConfigExport,
-  target?: "cjs" | "es",
 ): UserConfigExport {
   return async (env: ConfigEnv) =>
     await applyBaseBuildConfig(
       env as ForgedConfigEnv<"build">,
       config,
       "preload",
-      target ?? "cjs",
+      "cjs",
     );
 }
 
@@ -107,16 +103,7 @@ async function applyBaseBuildConfig(
   const { root, mode, command } = env;
   const { entry } = env.forgeConfigSelf;
   const format = target;
-  const esExt = pkg.type === "module" ? "js" : "mjs";
-  const cjsExt = pkg.type === "module" ? "cjs" : "js";
-  const targetExt =
-    target === "cjs"
-      ? type === "preload"
-        ? "cjs"
-        : cjsExt
-      : type === "preload"
-        ? "mjs"
-        : esExt;
+  const targetExt = target === "cjs" ? "cjs" : "js";
 
   const define = env.forgeConfig.renderer
     .map(({ name }) => name)
@@ -162,6 +149,7 @@ async function applyBaseBuildConfig(
         }),
         rollupOptions: {
           external,
+          treeshake: false,
           ...(type === "preload" && {
             input: entry,
             output: {

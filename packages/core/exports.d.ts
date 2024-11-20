@@ -14,4 +14,8 @@ interface Promise<T> {
   await: T;
 }
 
-export let environment: Record<string, unknown>;
+declare global {
+  export let environment: Record<string, unknown>;
+}
+
+export {};
