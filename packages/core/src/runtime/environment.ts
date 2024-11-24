@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { tracking } from "../core/tracking.js";
-import "../../exports.js";
+import "../../exports.d.ts";
 
 export async function initTrackingEnvironment() {
   const { awaited: environmentUpdates, track: trackEnvironmentUpdate } =
