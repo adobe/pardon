@@ -12,8 +12,12 @@ governing permissions and limitations under the License.
 
 export * as promises from "./fs_promises.js";
 
-export function lstat(_path: string, cb: (err: Error) => void) {
-  cb(new Error("unimplemented"));
+export function stat(_path: string, options: any, cb: (err: Error) => void) {
+  (typeof cb === "function" ? cb : options)(new Error("unimplemented"));
+}
+
+export function lstat(_path: string, options: any, cb: (err: Error) => void) {
+  (typeof cb === "function" ? cb : options)(new Error("unimplemented"));
 }
 
 export function readlink(_path: string, cb: (err: Error) => void) {
@@ -25,6 +29,10 @@ export function realpath(_path: string, cb: (err: Error) => void) {
 }
 
 export function realpathSync(_path: string) {
+  throw new Error("unimplemented");
+}
+
+export function statSync() {
   throw new Error("unimplemented");
 }
 
@@ -55,15 +63,22 @@ export function readdir(
   cb(undefined!, []);
 }
 
+export function createReadStream(_path: string, _options?: any) {
+  throw new Error("createReadStream unsupported");
+}
+
 export default {
   readFile,
   readFileSync,
   lstat,
   lstatSync,
+  stat,
+  statSync,
   readdir,
   readdirSync,
   readlink,
   readlinkSync,
   realpath,
   realpathSync,
+  createReadStream,
 };

@@ -50,7 +50,9 @@ const encodings = {
 
 export type EncodingTypes = keyof typeof encodings;
 
-export const bodyGlobals = {
+// error TS7056: The inferred type of this node exceeds the maximum length the compiler will serialize.
+// An explicit type annotation is needed.
+export const bodyGlobals: Record<string, any> = {
   false: false,
   true: true,
   null: null,

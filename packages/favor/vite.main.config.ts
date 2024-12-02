@@ -36,7 +36,6 @@ export default extendMainConfig({
       },
       output: {
         exports: "named",
-        sourcemap: true,
       },
     },
   },
