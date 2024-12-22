@@ -149,7 +149,7 @@ async function applyBaseBuildConfig(
         }),
         rollupOptions: {
           external,
-          treeshake: false,
+          treeshake: true,
           ...(type === "preload" && {
             input: entry,
             output: {
