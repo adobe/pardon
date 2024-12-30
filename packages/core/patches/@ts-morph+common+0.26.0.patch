@@ -1,17 +1,17 @@
 diff --git a/node_modules/@ts-morph/common/dist/typescript.js b/node_modules/@ts-morph/common/dist/typescript.js
-index 90f3266..5feb86b 100644
+index 33387ea..a6311e7 100644
 --- a/node_modules/@ts-morph/common/dist/typescript.js
 +++ b/node_modules/@ts-morph/common/dist/typescript.js
-@@ -8246,7 +8246,7 @@ var sys = (() => {
+@@ -8268,7 +8268,7 @@ var sys = (() => {
      const platform = _os.platform();
      const useCaseSensitiveFileNames2 = isFileSystemCaseSensitive();
      const fsRealpath = !!_fs.realpathSync.native ? process.platform === "win32" ? fsRealPathHandlingLongPath : _fs.realpathSync.native : _fs.realpathSync;
 -    const executingFilePath = __filename.endsWith("sys.js") ? _path.join(_path.dirname(__dirname), "__fake__.js") : __filename;
-+    const executingFilePath = typeof __filename === 'undefined' ? "." : __filename.endsWith("sys.js") ? _path.join(_path.dirname(__dirname), "__fake__.js") : __filename;
++    const executingFilePath = typeof __filename === 'undefined' ? '.' : __filename.endsWith("sys.js") ? _path.join(_path.dirname(__dirname), "__fake__.js") : __filename;
      const fsSupportsRecursiveFsWatch = process.platform === "win32" || isMacOs;
      const getCurrentDirectory = memoize(() => process.cwd());
      const { watchFile: watchFile2, watchDirectory } = createSystemWatchFunctions({
-@@ -8453,7 +8453,7 @@ var sys = (() => {
+@@ -8473,7 +8473,7 @@ var sys = (() => {
        if (platform === "win32" || platform === "win64") {
          return false;
        }

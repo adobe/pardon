@@ -16,11 +16,15 @@ import { type PlaygroundOptions } from "@components/playgrounds/pardon/pardon-pl
 import type { JSX } from "solid-js";
 
 import { getCollection } from "astro:content";
+
 const [
   {
     data: { server },
   },
-] = await getCollection("docs", ({ slug }) => slug === Astro.params.slug);
+] = (await getCollection("docs")).filter(
+  ({ id }) =>
+    id == `${Astro.params.slug}.mdx` || id == `${Astro.params.slug}/index.mdx`,
+);
 
 type Props = {
   children: JSX.Element | JSX.Element[];
