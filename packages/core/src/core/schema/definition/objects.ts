@@ -224,7 +224,7 @@ function defineObject<M extends Record<string, unknown>>(
             inflationSchema.scope.index?.struts?.map(async (strut) => {
               return await context.environment.evaluate({
                 context,
-                ident: strut,
+                identifier: strut,
               });
             }) || [],
           )
@@ -293,7 +293,7 @@ function inflatedObject<M extends Record<string, unknown>>(
       ?.map((strut) => {
         return context.environment.resolve({
           context,
-          ident: strut,
+          identifier: strut,
         });
       })
       .flatMap((data) => Object.keys(data || {})) || []),

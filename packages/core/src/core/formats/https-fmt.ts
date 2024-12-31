@@ -148,8 +148,8 @@ function scanRequestComputations(file: string) {
 
   for (;;) {
     if (file.trim().startsWith(":")) {
-      const [, expr, rest] = /\s*(:[^\n]*)\n(.*)/s.exec(file)!;
-      const parsed = parseVariable(expr);
+      const [, expression, rest] = /\s*(:[^\n]*)\n(.*)/s.exec(file)!;
+      const parsed = parseVariable(expression);
       if (!parsed) break;
       computations[parsed.param] = `{{${parsed.variable.source}}}`;
       file = rest;

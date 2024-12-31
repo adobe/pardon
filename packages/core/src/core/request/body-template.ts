@@ -77,15 +77,15 @@ export const bodyGlobals: Record<string, any> = {
 
 export function evalTemplate(schemaSource: string): Schematic<unknown> {
   return syncEvaluation(`${schemaSource}`, {
-    binding(identifier) {
-      if (identifier in bodyGlobals) {
-        return bodyGlobals[identifier];
+    binding(name) {
+      if (name in bodyGlobals) {
+        return bodyGlobals[name];
       }
 
-      if (identifier.startsWith("$")) {
-        const ident = identifier.slice(1);
+      if (name.startsWith("$")) {
+        const ref = name.slice(1);
 
-        return referenceTemplate({ ref: ident });
+        return referenceTemplate({ ref });
       }
 
       return undefined;

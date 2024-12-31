@@ -49,14 +49,14 @@ export type PatternMaker = (_: {
 export type PatternVar = {
   param: string;
   hint?: string;
-  expr?: string;
+  expression?: string;
   re?: RegExp;
   source?: string;
 };
 
-// patterns look, in general, like {{<flags> x.y = ...expr... % /regex/ }}
+// patterns look, in general, like {{<flags> x.y = ...expression... % /regex/ }}
 // where flags can be any pattern of these characters: "?!@#:*~/-",
-// the "% /regex/" and "= ...expr..." parts are optional.
+// the "% /regex/" and "= ...expression..." parts are optional.
 // and the variable name can be dotted.
 const paramPattern =
   /^([.?!@#:~*/+-]+)?((?:[a-z$_][a-z0-9_$]*)(?:[.][@a-z$_][a-z0-9_$]*)*)?\s*(?:=\s*((?:[^%]|%\s*[^/])*)?)?(?:%\s*([/].*))?$/i;
@@ -86,17 +86,17 @@ export function parseVariable(source: string) {
     return null;
   }
 
-  let [, hint, param, expr, rex] = match;
-  const exprMatch = expr && exprMatcher.exec(expr); // $$expr("...") encodes source with possible }}
+  let [, hint, param, expression, rex] = match;
+  const exprMatch = expression && exprMatcher.exec(expression); // $$expr("...") encodes source with possible }}
   if (exprMatch) {
-    expr = JSON.parse(exprMatch[1]);
+    expression = JSON.parse(exprMatch[1]);
   }
 
   return {
     param: param || "",
     variable: {
       source,
-      expr,
+      expression,
       hint,
       re: parseRex(rex),
     } as PatternVar,
@@ -302,7 +302,9 @@ export function patternRender(
 }
 
 export function isPatternExpressive(pattern: Pattern) {
-  return isPatternRegex(pattern) && pattern.vars.some(({ expr }) => expr);
+  return (
+    isPatternRegex(pattern) && pattern.vars.some(({ expression }) => expression)
+  );
 }
 
 export function arePatternsCompatible(a: Pattern, b: Pattern) {

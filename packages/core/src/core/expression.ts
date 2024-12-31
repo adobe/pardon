@@ -24,11 +24,11 @@ import {
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 
 export function applyTsMorph(
-  expr: string,
+  expression: string,
   transform?: TsMorphTransform,
 ): string {
   if (!transform) {
-    return expr;
+    return expression;
   }
 
   const expressionProject = new Project({
@@ -47,7 +47,7 @@ export function applyTsMorph(
 
   const exprSourceFile = expressionProject.createSourceFile(
     `__expr__.ts`,
-    `export default ${expr}`,
+    `export default ${expression}`,
     { overwrite: true },
   );
 
@@ -65,14 +65,14 @@ export function applyTsMorph(
 }
 
 export function unbound(
-  expr: string,
+  expression: string,
   options: acorn.Options = { ecmaVersion: 2022 },
 ) {
   const unbound: string[] = [];
 
   try {
     walker.simple(
-      acorn.parse(expr, { ...options, allowAwaitOutsideFunction: true }),
+      acorn.parse(expression, { ...options, allowAwaitOutsideFunction: true }),
       {
         Expression(node) {
           if (node.type == "Identifier") {
@@ -82,7 +82,7 @@ export function unbound(
       },
     );
   } catch (ex) {
-    console.error(`error parsing: ${expr} for unbound values`);
+    console.error(`error parsing: ${expression} for unbound values`);
     throw ex;
   }
 
@@ -111,7 +111,7 @@ export const expressionTransform: TsMorphTransform = ({
 };
 
 export function syncEvaluation(
-  expr: string,
+  expression: string,
   {
     binding,
     options,
@@ -122,26 +122,26 @@ export function syncEvaluation(
     transform?: TsMorphTransform;
   },
 ): unknown {
-  expr = applyTsMorph(expr, transform);
+  expression = applyTsMorph(expression, transform);
 
-  const bound = [...unbound(`(${expr})`, options)].map(
-    (ident) => [ident, binding?.(ident)] as const,
+  const bound = [...unbound(`(${expression})`, options)].map(
+    (name) => [name, binding?.(name)] as const,
   );
 
-  const fn = new Function(...bound.map(([k]) => k), `return (${expr})`);
+  const fn = new Function(...bound.map(([k]) => k), `return (${expression})`);
 
   const args = bound.map(([, v]) => v);
 
   try {
     return fn(...args);
   } catch (error) {
-    console.warn(`error evaluating script: ${expr}`, error);
+    console.warn(`error evaluating script: ${expression}`, error);
     throw error;
   }
 }
 
 export async function evaluation(
-  expr: string,
+  expression: string,
   {
     binding,
     options,
@@ -150,12 +150,12 @@ export async function evaluation(
     options?: acorn.Options;
   },
 ): Promise<unknown> {
-  const unboundIdentifiers = unbound(`(${expr})`, options);
+  const unboundIdentifiers = unbound(`(${expression})`, options);
   const bound = [...unboundIdentifiers].map(
-    (ident) => [ident, binding?.(ident)] as const,
+    (name) => [name, binding?.(name)] as const,
   );
 
-  const compiled = applyTsMorph(expr, expressionTransform);
+  const compiled = applyTsMorph(expression, expressionTransform);
 
   const fn = new Function(
     ...bound.map(([k]) => k),

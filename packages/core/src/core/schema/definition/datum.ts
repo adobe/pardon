@@ -178,7 +178,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         // (should this also skip cases for non-simple patterns?)
         if (
           isPatternTrivial(pattern) ||
-          pattern.vars.find((v) => v.param === param)?.expr ||
+          pattern.vars.find((v) => v.param === param)?.expression ||
           patterns.every(
             (p) =>
               p === pattern ||
@@ -207,7 +207,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 
           scope.declare(param, {
             context,
-            expr: null,
+            expression: null,
             source: pattern.vars[0].source ?? null,
             hint: pattern.vars[0].hint ?? null,
             rendered: renderedTrigger(param, pattern),
@@ -227,14 +227,15 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
           continue;
         }
 
-        pattern?.vars?.forEach(({ param, hint, source, expr }) => {
+        pattern?.vars?.forEach(({ param, hint, source, expression }) => {
           if (!param) {
             return;
           }
 
           scope.declare(param, {
             context,
-            expr: (exprPattern == pattern ? expr : undefined) ?? null,
+            expression:
+              (exprPattern == pattern ? expression : undefined) ?? null,
             hint: hint ?? null,
             source: source ?? null,
             rendered: renderedTrigger(param, pattern),
@@ -386,7 +387,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
                 | undefined;
 
               if (
-                declaration?.expr ||
+                declaration?.expression ||
                 declaration?.rendered ||
                 configuredPatterns.some((pattern) =>
                   isPatternExpressive(pattern),
@@ -633,7 +634,7 @@ function defineMatchesInScope<T extends Scalar>(
         );
         scope.declare(key, {
           context,
-          expr: null,
+          expression: null,
           source: pattern.vars[0].source ?? null,
           hint: pattern.vars[0].hint ?? null,
         });
@@ -706,13 +707,13 @@ function resolveDefinedPattern(context: SchemaContext, patterns: Pattern[]) {
 function resolveOrEvaluate(
   context: SchemaRenderContext,
   identifier: string,
-  expr: string | undefined,
+  expression: string | undefined,
 ) {
   const resolved = resolveIdentifier(context, identifier);
 
   return resolved !== undefined
     ? resolved
-    : evaluateIdentifierWithExpression(context, identifier, expr);
+    : evaluateIdentifierWithExpression(context, identifier, expression);
 }
 
 async function evaluateScalar(
@@ -747,7 +748,7 @@ async function evaluateScalar(
     return await resolveOrEvaluate(
       context,
       pattern.vars[0].param,
-      pattern.vars[0].expr,
+      pattern.vars[0].expression,
     );
   } else {
     return patternRender(
@@ -755,8 +756,10 @@ async function evaluateScalar(
       isPatternTrivial(pattern)
         ? []
         : await Promise.all(
-            pattern.vars.map(async ({ param, expr }) => {
-              return String(await resolveOrEvaluate(context, param, expr));
+            pattern.vars.map(async ({ param, expression }) => {
+              return String(
+                await resolveOrEvaluate(context, param, expression),
+              );
             }),
           ),
     );

@@ -23,37 +23,37 @@ import {
 export function evaluateIdentifierWithExpression(
   context: SchemaRenderContext,
   identifier: string,
-  expr?: string,
+  expression?: string,
 ): undefined | unknown | Promise<unknown> {
   const resolved = resolveIdentifier(context, identifier);
   if (resolved !== undefined) {
     return resolved;
   }
 
-  return renderIdentifierInExpression(context, identifier, expr);
+  return renderIdentifierInExpression(context, identifier, expression);
 }
 
 function doRenderExpression(
   context: SchemaRenderContext,
   {
-    ident,
-    expr,
+    identifier,
+    expression,
     source,
     hint,
   }: {
-    ident: ValueIdentifier;
-    expr: string;
+    identifier: ValueIdentifier;
+    expression: string;
     source: string | null;
     hint: string | null;
   },
 ) {
   return context.environment.evaluating({
-    ident,
+    identifier,
     context,
     source,
     hint,
     evaluation: async () =>
-      await evaluation(expr!, {
+      await evaluation(expression!, {
         binding(unbound) {
           return evaluateIdentifierWithExpression(context, unbound);
         },
@@ -64,7 +64,7 @@ function doRenderExpression(
 function synthesizeExpressionDeclaration(
   context: SchemaRenderContext,
   identifier: string,
-  expr?: string,
+  expression?: string,
 ): Omit<ExpressionDeclaration, "name" | "path"> {
   const { scope } = context;
 
@@ -73,38 +73,40 @@ function synthesizeExpressionDeclaration(
   if (isLookupExpr(lookup)) {
     return {
       ...lookup,
-      expr: expr ?? lookup.expr,
+      expression: expression ?? lookup.expression,
     };
   }
 
   return {
     identifier,
     context,
-    expr: expr ?? null,
+    expression: expression ?? null,
     hint: null,
     source:
-      expr === undefined ? `{{}}` : `{{= $$expr(${JSON.stringify(expr)}) }}`,
+      expression === undefined
+        ? `{{}}`
+        : `{{= $$expr(${JSON.stringify(expression)}) }}`,
   };
 }
 
 function renderIdentifierInExpression(
   context: SchemaRenderContext,
-  identifier: string,
-  expr?: string,
+  name: string,
+  expression?: string,
 ) {
-  const decl = synthesizeExpressionDeclaration(context, identifier, expr);
+  const decl = synthesizeExpressionDeclaration(context, name, expression);
   const { scope } = context;
   const rescoped = rescope(context, decl.context.scope);
 
-  return scope.rendering(context, identifier, async () => {
-    const ident = parseScopedIdentifier(identifier);
+  return scope.rendering(context, name, async () => {
+    const identifier = parseScopedIdentifier(name);
 
-    if (decl.expr) {
-      const { expr, source, hint } = decl;
+    if (decl.expression) {
+      const { expression, source, hint } = decl;
 
       const expressionResult = await doRenderExpression(rescoped, {
-        ident,
-        expr,
+        identifier,
+        expression,
         source,
         hint,
       });
@@ -120,7 +122,7 @@ function renderIdentifierInExpression(
 
     const evaluatedResult = await context.environment.evaluate({
       context,
-      ident,
+      identifier: identifier,
     });
 
     return evaluatedResult;

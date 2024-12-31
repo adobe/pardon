@@ -17,7 +17,7 @@ import {
   ValueIdentifier,
 } from "./types.js";
 
-export function globalIdentifier(key: string): ValueIdentifier {
+export function makeGlobalIdentifier(key: string): ValueIdentifier {
   return {
     root: key,
     name: key,

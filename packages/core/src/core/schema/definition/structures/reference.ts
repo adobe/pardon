@@ -402,7 +402,7 @@ export function defineReference<T = unknown>(
 
     scope.declare(ref, {
       context,
-      expr: null,
+      expression: null,
       hint: hint || null,
       source: null,
       resolved(context) {

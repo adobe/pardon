@@ -73,7 +73,7 @@ export default function remember(
               },
             } = match;
 
-            for (const [ident, value] of Object.entries({
+            for (const [name, value] of Object.entries({
               endpoint,
               service,
               action,
@@ -86,7 +86,7 @@ export default function remember(
                 http,
                 type: "endpoint",
                 scope: "",
-                name: ident,
+                name: name,
                 value: String(value),
               });
             }
@@ -135,7 +135,7 @@ export default function remember(
             }
 
             const definitions = unredactedScalarValues(scope);
-            for (const { ident: name, value, scope } of definitions) {
+            for (const { name: name, value, scope } of definitions) {
               if (scope === "" && !once(name)) {
                 continue;
               }
@@ -187,7 +187,7 @@ export default function remember(
               });
             }
 
-            for (const { ident: name, scope, value } of unredactedScalarValues(
+            for (const { name: name, scope, value } of unredactedScalarValues(
               inbound.scope,
             )) {
               if (scope === "" && name in responseValues) {

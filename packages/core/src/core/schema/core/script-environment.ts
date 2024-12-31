@@ -18,7 +18,7 @@ import {
 } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { ConfigMapping, ConfigSpace } from "./config-space.js";
-import { globalIdentifier, isGlobalIdentifier } from "./schema.js";
+import { makeGlobalIdentifier, isGlobalIdentifier } from "./schema.js";
 import { indexChain } from "./scope.js";
 import {
   SchemaContext,
@@ -36,7 +36,7 @@ export type ScriptDataResolver = (
 ) => unknown | undefined;
 
 export type ScriptDataEvaluator = (
-  ident: string,
+  name: string,
   context: SchemaRenderContext,
 ) => unknown | undefined | Promise<unknown | undefined>;
 
@@ -46,7 +46,7 @@ export type ScriptResolver = (
 ) => unknown | undefined;
 
 export type ScriptEvaluator = (
-  ident: ValueIdentifier,
+  identifier: ValueIdentifier,
   context: SchemaRenderContext,
 ) => unknown | undefined | Promise<unknown | undefined>;
 
@@ -57,7 +57,7 @@ export type RenderRedactor = <T>(
 
 export type ScriptExpressionRenderer = <T>(info: {
   evaluation: () => Promise<T>;
-  ident: ValueIdentifier | null;
+  identifier: ValueIdentifier | null;
   source: string | null;
   context: SchemaRenderContext;
 }) => Promise<T | string>;
@@ -107,42 +107,45 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.space = new ConfigSpace(config ?? {});
     this.space.choose(input ?? {});
 
-    this.resolver = (ident, context) => {
+    this.resolver = (identifier, context) => {
       return resolveAccess(
-        this.input[ident.root] ??
-          runtime?.[ident.root] ??
-          resolve?.(ident.root, context),
-        ident,
+        this.input[identifier.root] ??
+          runtime?.[identifier.root] ??
+          resolve?.(identifier.root, context),
+        identifier,
         context,
       );
     };
     this.resolvedDefaults = resolvedDefaults;
 
-    this.evaluator = (ident, context) =>
-      resolveAccess(evaluate?.(ident.root, context), ident, context);
+    this.evaluator = (identifier, context) =>
+      resolveAccess(evaluate?.(identifier.root, context), identifier, context);
     this.redactor = redact;
     this.expression = express;
     this.options = options;
   }
 
   resolve({
-    ident,
+    identifier,
     context,
   }: {
-    ident: ValueIdentifier;
+    identifier: ValueIdentifier;
     context: SchemaContext<unknown>;
   }): unknown {
-    return this.resolver?.(ident, context);
+    return this.resolver?.(identifier, context);
   }
 
   evaluate({
-    ident,
+    identifier,
     context,
   }: {
-    ident: ValueIdentifier;
+    identifier: ValueIdentifier;
     context: SchemaRenderContext;
   }): unknown | undefined | Promise<unknown | undefined> {
-    return this.resolver?.(ident, context) ?? this.evaluator?.(ident, context);
+    return (
+      this.resolver?.(identifier, context) ??
+      this.evaluator?.(identifier, context)
+    );
   }
 
   match({
@@ -238,7 +241,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
       [...this.space.keys()],
       (key) => {
         const value = this.resolve({
-          ident: globalIdentifier(key),
+          identifier: makeGlobalIdentifier(key),
           context,
         });
 
@@ -263,15 +266,15 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 
   update({
     value,
-    ident,
+    identifier,
     context,
   }: {
     value: unknown;
-    ident: ValueIdentifier;
+    identifier: ValueIdentifier;
     context: SchemaContext<unknown>;
   }): unknown {
-    if (isGlobalIdentifier(ident) && !context.scope.parent) {
-      return this.space.update(ident.path[0], value);
+    if (isGlobalIdentifier(identifier) && !context.scope.parent) {
+      return this.space.update(identifier.path[0], value);
     }
 
     return value;
@@ -279,19 +282,19 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 
   evaluating<T>({
     evaluation,
-    ident,
+    identifier,
     source,
     context,
   }: {
     evaluation: () => Promise<T>;
-    ident: ValueIdentifier | null;
+    identifier: ValueIdentifier | null;
     source: string | null;
     context: SchemaRenderContext;
   }): Promise<T | string> {
     return this.expression
       ? (this.expression({
           evaluation,
-          ident,
+          identifier: identifier,
           source,
           context,
         }) as Promise<T | string>)
@@ -315,21 +318,21 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 
 export function resolveAccess(
   value: unknown,
-  ident: ValueIdentifier,
+  identifier: ValueIdentifier,
   context: SchemaContext,
 ) {
-  if (ident.path.length == 0) {
+  if (identifier.path.length == 0) {
     return value;
   }
 
   const indices = indexChain(context.scope);
 
-  if (ident.name.endsWith(".@key")) {
-    const keyIndex = indices.length - ident.path.length;
+  if (identifier.name.endsWith(".@key")) {
+    const keyIndex = indices.length - identifier.path.length;
     return indices[keyIndex]?.key;
   }
 
-  const resolved = ident.path.reduce<unknown>(
+  const resolved = identifier.path.reduce<unknown>(
     (value, step, idx) => {
       value = value?.[step];
       const index = indices[indices.length - idx - 1];
@@ -338,9 +341,9 @@ export function resolveAccess(
       } else if (index.key === undefined) {
         index.struts.push({
           loc: loc(context),
-          root: ident.root,
-          path: ident.path.slice(0, idx),
-          name: ident.path[idx],
+          root: identifier.root,
+          path: identifier.path.slice(0, idx),
+          name: identifier.path[idx],
         });
       } else {
         value = value?.[String(index.key)];
@@ -348,14 +351,14 @@ export function resolveAccess(
 
       return value;
     },
-    { [ident.path[0]]: value },
+    { [identifier.path[0]]: value },
   );
 
-  if (ident.name.endsWith(".@value")) {
+  if (identifier.name.endsWith(".@value")) {
     return resolved;
   }
 
-  return resolved?.[ident.name];
+  return resolved?.[identifier.name];
 }
 
 function resolvedScalars(context: SchemaMergingContext<unknown>) {

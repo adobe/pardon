@@ -172,7 +172,7 @@ function contextAsUnitParams(
       if (item.startsWith("...")) {
         defined[(params.rested = item.slice(3).trim())] = true;
       } else {
-        const [, name, question, value, expr] =
+        const [, name, question, value, expression] =
           /(\w+)([?]?)(?:\s+as\s+(\w+))?(?:\s+(?:default|=)\s+(.*))?$/.exec(
             item.trim(),
           )!;
@@ -181,7 +181,7 @@ function contextAsUnitParams(
           name: value ?? name,
           required: !question,
         };
-        defined[value ?? name] = expr ?? true;
+        defined[value ?? name] = expression ?? true;
       }
     } else if (Array.isArray(item)) {
       throw new Error("unexpected array in context");

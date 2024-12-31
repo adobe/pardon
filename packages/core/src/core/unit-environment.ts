@@ -58,9 +58,9 @@ export function createSequenceEnvironment({
     redact(value) {
       return value;
     },
-    express({ source, ident, evaluation }) {
+    express({ source, identifier, evaluation }) {
       void source;
-      void ident;
+      void identifier;
 
       return shared(() => evaluation());
     },

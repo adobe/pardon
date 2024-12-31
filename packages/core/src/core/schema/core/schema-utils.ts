@@ -20,7 +20,6 @@ import {
 import {
   Schema,
   SchemaMergingContext,
-  SchemaScope,
   SchemaScriptEnvironment,
   ScopeData,
   Template,
@@ -63,9 +62,8 @@ export function mergeSchema<T>(
 export async function renderSchema<T>(
   schema: Schema<T>,
   environment?: SchemaScriptEnvironment,
-  scope?: SchemaScope,
 ) {
-  const context = createRenderContext(schema, environment, scope);
+  const context = createRenderContext(schema, environment);
   const output = (await executeOp(schema, "render", context))!;
 
   return { output, context };
@@ -74,9 +72,8 @@ export async function renderSchema<T>(
 export async function prerenderSchema<T>(
   schema: Schema<T>,
   environment?: SchemaScriptEnvironment,
-  scope?: SchemaScope,
 ) {
-  const context = createPrerenderContext(schema, environment, scope);
+  const context = createPrerenderContext(schema, environment);
   const output = (await executeOp(schema, "render", context))!;
 
   return { output, context };
@@ -85,9 +82,8 @@ export async function prerenderSchema<T>(
 export async function postrenderSchema<T>(
   schema: Schema<T>,
   environment?: SchemaScriptEnvironment,
-  scope?: SchemaScope,
 ) {
-  const context = createPostrenderContext(schema, environment, scope);
+  const context = createPostrenderContext(schema, environment);
   const output = (await executeOp(schema, "render", context))!;
 
   return { output, context };
@@ -96,9 +92,8 @@ export async function postrenderSchema<T>(
 export async function previewSchema<T>(
   schema: Schema<T>,
   environment?: SchemaScriptEnvironment,
-  previousScope?: SchemaScope,
 ) {
-  const context = createPreviewContext(schema, environment, previousScope);
+  const context = createPreviewContext(schema, environment);
   const output = (await executeOp(schema, "render", context))!;
 
   return { output, context };
@@ -106,23 +101,23 @@ export async function previewSchema<T>(
 
 export function unredactedScalarValues(
   data: ScopeData,
-): { ident: string; scope: string; value: Scalar }[] {
+): { name: string; scope: string; value: Scalar }[] {
   const definitions = Object.entries(data.values)
     .map(
       ([
-        ident,
+        name,
         {
           value,
           context: { scopes },
-          expr,
+          expression,
         },
       ]) => {
         return (
           isScalar(value) &&
-          !isNoExport(expr) &&
-          !isSecret(expr) && {
+          !isNoExport(expression) &&
+          !isSecret(expression) && {
             scope: scopes.map((part) => `:${part}`).join(""),
-            ident,
+            name,
             value,
           }
         );
@@ -140,21 +135,21 @@ export function unredactedScalarValues(
 
 export function unredactedValues(
   data: ScopeData,
-): { ident: string; scope: string; value: unknown }[] {
+): { name: string; scope: string; value: unknown }[] {
   const definitions = Object.entries(data.values)
     .map(
       ([
-        ident,
+        name,
         {
           value,
           context: { scopes },
-          expr,
+          expression,
         },
       ]) => {
         return (
-          !isSecret(expr) && {
+          !isSecret(expression) && {
             scope: scopes.map((part) => `:${part}`).join(""),
-            ident,
+            name,
             value,
           }
         );

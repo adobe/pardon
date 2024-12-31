@@ -21,7 +21,6 @@ import {
   ExpressionDeclaration,
   ResolvedValueOptions,
   SchemaContext,
-  SchemaMergingContext,
   SchemaRenderContext,
   SchemaScope,
   ScopeData,
@@ -51,32 +50,6 @@ export class Scope implements SchemaScope, ScopeData {
 
   static createRootScope() {
     return new Scope(undefined, []);
-  }
-
-  clone(context: SchemaContext, parent?: Scope) {
-    const self = new Scope(parent ?? this.parent, this.path);
-
-    self.values = mapObject(
-      this.values,
-      ({ value, identifier, name, path, context: { scopes } }) => {
-        const { template, ...deprimed } =
-          context as SchemaMergingContext<unknown>;
-        return {
-          value,
-          identifier,
-          name,
-          path,
-          context: { ...deprimed, scopes },
-        };
-      },
-    );
-
-    Object.assign(
-      self.subscopes,
-      mapObject(this.subscopes, (subscope) => subscope.clone(context, self)),
-    );
-
-    return self as SchemaScope;
   }
 
   exportValues(
@@ -146,9 +119,9 @@ export class Scope implements SchemaScope, ScopeData {
   localValues(options: ResolvedValueOptions): Record<string, unknown> {
     const localValues = mapObject(this.values, {
       values: ({ value }) => value,
-      select: ({ expr }, key) =>
-        !isNoExport(expr) &&
-        (options?.secrets || !isSecret(expr)) &&
+      select: ({ expression }, key) =>
+        !isNoExport(expression) &&
+        (options?.secrets || !isSecret(expression)) &&
         !this.importedValues.has(key),
     });
 
@@ -226,40 +199,40 @@ export class Scope implements SchemaScope, ScopeData {
           });
 
       if (this.values[name]) {
-        this.values[name].expr = declared;
+        this.values[name].expression = declared;
       }
 
       return;
     }
 
     // okay, this is a bit convoluted
-    // the expr is a definition of a value to be evaluated,
+    // the expression is a definition of a value to be evaluated,
     // while the rendered function is a fallback that is
     // used to extract a value from a rendered match.
     //
     // as such, we complain when there's two expressions,
     // and we override any rendered fallbacks with expressions.
 
-    const { expr, source, hint, rendered, resolved } = declaration;
-    if (!(expr || rendered || resolved || hint)) {
+    const { expression, source, hint, rendered, resolved } = declaration;
+    if (!(expression || rendered || resolved || hint)) {
       return;
     }
 
-    if (expr && declared.expr) {
-      // TODO: revisit why we need to compare declared.expr == expr
+    if (expression && declared.expression) {
+      // TODO: revisit why we need to compare declared.expression == expression
       // and fix the double declaration upstream?
       // TODO: revisit if we even want to do this, maybe overriding is good?
-      if (expr !== declared.expr) {
+      if (expression !== declared.expression) {
         throw diagnostic(
           context,
-          `redeclared ${identifier} = (${expr}): previously defined @${loc(
+          `redeclared ${identifier} = (${expression}): previously defined @${loc(
             declared.context,
-          )} as (${declared.expr})`,
+          )} as (${declared.expression})`,
         );
       }
     }
 
-    declared.expr ??= expr;
+    declared.expression ??= expression;
     declared.source = source;
     declared.hint ??= hint || null;
     declared.context = context;
@@ -267,7 +240,7 @@ export class Scope implements SchemaScope, ScopeData {
     // expressions override the need to attempt render-matches matches.
     // we combine render and resolution triggers
     // in the hopes that one of them will work.
-    declared.rendered = expr
+    declared.rendered = expression
       ? undefined
       : combineAsync(rendered, declared.rendered);
 
@@ -338,7 +311,7 @@ export class Scope implements SchemaScope, ScopeData {
       name,
       path,
       context,
-      expr: this.declarations[identifier],
+      expression: this.declarations[identifier],
       ...(DEBUG ? { stack: new Error("defined:here") } : {}),
     };
 
@@ -355,8 +328,8 @@ export class Scope implements SchemaScope, ScopeData {
     return findDefinition(identifier, this);
   }
 
-  resolve(context: SchemaContext, identifier: string) {
-    let lookup = this.lookup(identifier);
+  resolve(context: SchemaContext, name: string) {
+    let lookup = this.lookup(name);
 
     if (
       isLookupExpr(lookup) &&
@@ -364,37 +337,40 @@ export class Scope implements SchemaScope, ScopeData {
       /* &&
       !isAbstractContext(context)*/
     ) {
-      this.resolving(context, identifier, lookup.resolved);
-      lookup = this.lookup(identifier);
+      this.resolving(context, name, lookup.resolved);
+      lookup = this.lookup(name);
     }
 
     if (isLookupValue(lookup)) {
       return lookup;
     }
 
-    const ident = parseScopedIdentifier(identifier);
+    const identifier = parseScopedIdentifier(name);
 
-    const value = context.environment.resolve({ context, ident });
+    const value = context.environment.resolve({
+      context,
+      identifier,
+    });
 
     if (value !== undefined) {
-      if (this.define(context, identifier, value) === undefined) {
+      if (this.define(context, name, value) === undefined) {
         return undefined;
       }
 
-      return this.values[ident.name];
+      return this.values[identifier.name];
     }
   }
 
   rendering<T>(
     context: SchemaRenderContext,
-    identifier: string,
+    name: string,
     action: () => Promise<T>,
   ) {
     type RenderingChainError = (Error | { message: string; cause?: Error }) & {
       loc: string;
     };
     const location = loc(context);
-    const evaluating = `${location}: evaluating ${identifier}`;
+    const evaluating = `${location}: evaluating ${name}`;
     const chainError: RenderingChainError = DEBUG
       ? Object.assign(new Error(evaluating), { loc: location })
       : {
@@ -402,18 +378,18 @@ export class Scope implements SchemaScope, ScopeData {
           loc: location,
         };
 
-    const ident = parseScopedIdentifier(identifier);
+    const identifier = parseScopedIdentifier(name);
 
     const evaluation =
-      identifier === ""
+      name === ""
         ? action()
-        : ((this.evaluations[ident.name] ??= disarm(
-            this._doEvaluate(context, identifier, action),
+        : ((this.evaluations[identifier.name] ??= disarm(
+            this._doEvaluate(context, name, action),
           )) as Promise<T>);
 
     return evaluation.catch((chain) => {
       if (chain.loc === chainError.loc) {
-        chain = diagnostic(context, `${identifier} is undefined`);
+        chain = diagnostic(context, `${name} is undefined`);
       }
 
       chainError.cause = chain;
@@ -423,17 +399,17 @@ export class Scope implements SchemaScope, ScopeData {
 
   resolving<T>(
     context: SchemaContext,
-    identifier: string,
+    name: string,
     action: (context: SchemaContext) => T,
   ) {
-    const ident = parseScopedIdentifier(identifier);
+    const identifier = parseScopedIdentifier(name);
 
-    if (this.resolutionStarted[ident.name]) {
+    if (this.resolutionStarted[identifier.name]) {
       // or error on recursive resolution?
       return undefined;
     }
 
-    this.resolutionStarted[ident.name] = true;
+    this.resolutionStarted[identifier.name] = true;
 
     const value = action(context);
 
@@ -441,7 +417,7 @@ export class Scope implements SchemaScope, ScopeData {
       return undefined;
     }
 
-    return this.define(context, identifier, action(context));
+    return this.define(context, name, action(context));
   }
 
   cached<T>(
@@ -466,34 +442,35 @@ export class Scope implements SchemaScope, ScopeData {
     })()) as Promise<T> | Exclude<T, undefined>;
   }
 
-  evaluating(ident: string) {
-    return Boolean(this.evaluations[ident]);
+  evaluating(name: string) {
+    return Boolean(this.evaluations[name]);
   }
 
   async _doEvaluate<T>(
     context: SchemaRenderContext,
-    identifier: string,
+    name: string,
     action: () => Promise<T>,
   ): Promise<T> {
-    const ident = parseScopedIdentifier(identifier);
+    const identifier = parseScopedIdentifier(name);
 
-    this.evaluations[ident.name] = disarm(
+    this.evaluations[identifier.name] = disarm(
       Promise.reject(
-        new PardonError(`${loc(context)} ${ident.name}: circular definition`),
+        new PardonError(
+          `${loc(context)} ${identifier.name}: circular definition`,
+        ),
       ),
     );
 
     const value = await action();
 
-    const result =
-      identifier !== "" ? this.define(context, identifier, value) : value;
+    const result = name !== "" ? this.define(context, name, value) : value;
 
     if (result === undefined && context.mode !== "prerender") {
       if (context.mode !== "postrender") {
-        const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
+        const hint = this.lookupDeclaration(name)?.hint ?? undefined;
 
         if (!isOptional({ hint })) {
-          throw diagnostic(context, `failed to define ${identifier}=${value}`);
+          throw diagnostic(context, `failed to define ${name}=${value}`);
         }
       }
     }
@@ -507,7 +484,7 @@ export function isLookupValue(lookup: unknown): lookup is ValueDeclaration {
 }
 
 export function isLookupExpr(lookup: unknown): lookup is ExpressionDeclaration {
-  return lookup?.["expr"] !== undefined;
+  return lookup?.["expression"] !== undefined;
 }
 
 function findDefinition(identifier: string, inScope: SchemaScope) {
@@ -521,7 +498,7 @@ function findDefinition(identifier: string, inScope: SchemaScope) {
       if (declaration.rendered) {
         firstRenderedDeclaration ??= declaration;
       }
-      if (declaration.expr) {
+      if (declaration.expression) {
         firstExpressionDeclaration ??= declaration;
       }
     }
@@ -530,23 +507,19 @@ function findDefinition(identifier: string, inScope: SchemaScope) {
   return firstRenderedDeclaration ?? firstExpressionDeclaration;
 }
 
-function findValue(ident: string, inScope: Scope) {
+function findValue(name: string, inScope: Scope) {
   for (const scope of scopeChain(inScope)) {
-    if (ident in scope.values) {
-      return scope.values[ident];
+    if (name in scope.values) {
+      return scope.values[name];
     }
   }
 }
 
-function* scopeChain(scope?: SchemaScope, rootScope?: SchemaScope) {
+function* scopeChain(scope?: SchemaScope) {
   while (scope) {
     yield scope;
 
     scope = scope.parent;
-  }
-
-  if (rootScope) {
-    yield rootScope;
   }
 }
 
@@ -576,8 +549,8 @@ function combineSync<F extends (...args: any) => unknown>(
   }) as F;
 }
 
-export function parseScopedIdentifier(ident: string): ValueIdentifier {
-  if (!ident) {
+export function parseScopedIdentifier(name: string): ValueIdentifier {
+  if (!name) {
     return {
       name: "",
       root: "",
@@ -585,12 +558,12 @@ export function parseScopedIdentifier(ident: string): ValueIdentifier {
     };
   }
 
-  const parts = ident.split(".");
-  const name = /.@[a-z]+$/.test(ident) ? ident : parts.slice(-1)[0];
+  const parts = name.split(".");
+  const key = /.@[a-z]+$/.test(name) ? name : parts.slice(-1)[0];
 
   return {
-    name,
-    root: parts[0] ?? name,
+    name: key,
+    root: parts[0] ?? key,
     path: parts.slice(0, -1),
   };
 }

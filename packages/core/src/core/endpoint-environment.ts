@@ -125,9 +125,9 @@ export function createEndpointEnvironment({
 
       return "{{redacted}}";
     },
-    async express({ source, ident, evaluation }) {
+    async express({ source, identifier, evaluation }) {
       void source;
-      void ident;
+      void identifier;
 
       return evaluation();
     },

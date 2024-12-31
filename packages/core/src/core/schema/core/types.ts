@@ -172,8 +172,6 @@ export type ScopeIndex =
 export type ResolvedValueOptions = { secrets?: boolean };
 
 export type SchemaScope = {
-  clone(context: SchemaContext): SchemaScope;
-
   subscope(name: string, index?: ScopeIndex): SchemaScope;
 
   tempscope(): SchemaScope;
@@ -195,21 +193,21 @@ export type SchemaScope = {
 
   rendering<T>(
     context: SchemaRenderContext,
-    ident: string,
+    name: string,
     action: () => Promise<T>,
   ): Promise<T>;
 
   resolving<T>(
     context: SchemaContext,
-    ident: string,
+    name: string,
     action: () => T,
   ): T | undefined;
 
-  evaluating(ident: string): boolean;
+  evaluating(name: string): boolean;
 
-  lookup(ident: string): ValueDeclaration | ExpressionDeclaration | undefined;
+  lookup(name: string): ValueDeclaration | ExpressionDeclaration | undefined;
 
-  lookupDeclaration(ident: string): ExpressionDeclaration | undefined;
+  lookupDeclaration(name: string): ExpressionDeclaration | undefined;
 
   resolve(
     context: SchemaContext,
@@ -236,7 +234,7 @@ export interface SchemaScriptEnvironment {
 
   evaluating<T>(info: {
     evaluation: () => Promise<T>;
-    ident: ValueIdentifier | null;
+    identifier: ValueIdentifier | null;
     hint: string | null;
     source: string | null;
     context: SchemaRenderContext;
@@ -263,7 +261,7 @@ export interface SchemaScriptEnvironment {
 
   update(info: {
     value: unknown;
-    ident: ValueIdentifier;
+    identifier: ValueIdentifier;
     context: SchemaContext;
   }): unknown | undefined;
 
@@ -274,12 +272,12 @@ export interface SchemaScriptEnvironment {
 
   resolve(info: {
     context: SchemaContext<unknown>;
-    ident: ValueIdentifier;
+    identifier: ValueIdentifier;
   }): unknown;
 
   evaluate(info: {
     context: SchemaRenderContext;
-    ident: ValueIdentifier;
+    identifier: ValueIdentifier;
   }): unknown | undefined | Promise<unknown | undefined>;
 
   reset(): void;
@@ -305,11 +303,11 @@ export type ScopeValueReference = {
 export type ValueDeclaration = ScopeValueReference;
 
 export type ValueDefinition = ScopeValueReference & {
-  expr?: ExpressionDeclaration;
+  expression?: ExpressionDeclaration;
 };
 
 export type ExpressionDeclaration = ScopeValueReference & {
-  expr: string | null;
+  expression: string | null;
   hint: string | null;
   source: string | null;
   context: SchemaContext<unknown>;

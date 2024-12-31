@@ -101,20 +101,16 @@ export function tempContext<C extends SchemaContext>(context: C): C {
 export function createRenderContext<T>(
   schema: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
-  scope?: SchemaScope,
 ): SchemaRenderContext {
   const ctx = {
     mode: "render",
     keys: [],
     scopes: [],
     environment,
-    scope: scope ?? Scope.createRootScope(),
+    scope: Scope.createRootScope(),
     diagnostics: [],
   } satisfies SchemaRenderContext;
 
-  if (scope) {
-    ctx.scope = scope.clone(ctx);
-  }
   executeOp(schema, "scope", ctx);
 
   return ctx;
@@ -123,22 +119,17 @@ export function createRenderContext<T>(
 export function createPreviewContext<T>(
   scheme: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
-  scope?: SchemaScope,
 ): SchemaRenderContext {
   const ctx = {
     mode: "preview",
     keys: [],
     scopes: [],
     environment,
-    scope: scope ?? Scope.createRootScope(),
+    scope: Scope.createRootScope(),
     diagnostics: [],
   } satisfies SchemaRenderContext;
 
-  if (!scope) {
-    executeOp(scheme, "scope", ctx);
-  } else {
-    ctx.scope = scope.clone(ctx);
-  }
+  executeOp(scheme, "scope", ctx);
 
   return ctx;
 }
@@ -146,22 +137,17 @@ export function createPreviewContext<T>(
 export function createPrerenderContext<T>(
   scheme: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
-  scope?: SchemaScope,
 ): SchemaRenderContext {
   const ctx = {
     mode: "prerender",
     keys: [],
     scopes: [],
     environment,
-    scope: scope ?? Scope.createRootScope(),
+    scope: Scope.createRootScope(),
     diagnostics: [],
   } satisfies SchemaRenderContext;
 
-  if (!scope) {
-    executeOp(scheme, "scope", ctx);
-  } else {
-    ctx.scope = scope.clone(ctx);
-  }
+  executeOp(scheme, "scope", ctx);
 
   return ctx;
 }
@@ -169,7 +155,6 @@ export function createPrerenderContext<T>(
 export function createPostrenderContext<T>(
   scheme: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
-  scope?: SchemaScope,
 ): SchemaRenderContext {
   const ctx = {
     mode: "postrender",
@@ -177,14 +162,10 @@ export function createPostrenderContext<T>(
     scopes: [],
     diagnostics: [],
     environment,
-    scope: scope ?? Scope.createRootScope(),
+    scope: Scope.createRootScope(),
   } satisfies SchemaRenderContext;
 
-  if (!scope) {
-    executeOp(scheme, "scope", ctx);
-  } else {
-    ctx.scope = scope.clone(ctx);
-  }
+  executeOp(scheme, "scope", ctx);
 
   return ctx;
 }

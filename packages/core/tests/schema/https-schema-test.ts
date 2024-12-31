@@ -505,11 +505,11 @@ describe("https-schema-tests", () => {
     .from("`<<${ $abc }::${ $xyz.$pqr = 100+5 }>>`")
     .to(`"<<{{ abc }}::{{ xyz.pqr = $$expr(\\"100+5\\") }}>>"`);
 
-  transforms("kv-expr")
+  transforms("kv-expression")
     .from(`[$key, undefined] * [ [$headers.key, $headers.value] ]`)
     .to("keyed([$key, undefined], [[$headers.key, $headers.value]])");
 
-  transforms("kv-expr")
+  transforms("kv-expression")
     .from(`{ id: $key } ** { id: $map.key, value: $map.value }`)
     .to("keyed.mv({ id: $key }, { id: $map.key, value: $map.value })");
 
