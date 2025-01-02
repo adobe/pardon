@@ -11,9 +11,7 @@ governing permissions and limitations under the License.
 */
 import { type HttpsSteps } from "../core/formats/https-fmt.js";
 import { EncodingTypes } from "../core/request/body-template.js";
-import { type ConfigMapping } from "../core/schema/core/config-space.js";
-
-export type Config = Record<string, string | ConfigMapping>;
+import { type ConfigMap } from "../core/schema/core/config-space.js";
 
 export type Helper = {
   config: string;
@@ -28,8 +26,8 @@ export type AssetParseError = { path: string; error: any };
 export type Configuration = {
   name: string;
   path: string;
-  config?: Config;
-  defaults?: Record<string, string | ConfigMapping>;
+  config?: ConfigMap;
+  defaults?: ConfigMap;
   mixin?: string | string[];
   import?: ConfigurationImports;
   export?: string;

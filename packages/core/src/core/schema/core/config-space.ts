@@ -21,19 +21,24 @@ import {
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { uniqReducer } from "../../../util/uniq-reducer.js";
 
+export type ConfigMap = Record<string, ConfigMapping>;
+
 export type ConfigMapping =
   | string
   | {
-      [key: string]: Record<string, ConfigMapping>;
+      [key: string]: ConfigMap;
     };
 
 export class ConfigSpace {
   options: Record<string, string>[];
   possibilities: Record<string, string>[];
-  mapping: Record<string, ConfigMapping>;
+  mapping: ConfigMap;
+  defaults: ConfigMap;
+  chosen: Record<string, string> = {};
 
-  constructor(mapping: Record<string, ConfigMapping>) {
+  constructor(mapping: ConfigMap, defaults?: ConfigMap) {
     this.options = enumerateConfigs((this.mapping = mapping));
+    this.defaults = defaults ?? {};
 
     this.possibilities = this.options.slice();
   }
@@ -43,6 +48,7 @@ export class ConfigSpace {
   }
 
   choose(config: Record<string, unknown>) {
+    Object.assign(this.chosen, config);
     this.possibilities = this.possibilities.filter((possibility) =>
       compatible(possibility, config),
     );
@@ -184,13 +190,28 @@ export class ConfigSpace {
 
     // reduce alternatives down to those that are compatible with the
     // current possibilities and don't override any data in the natural interpretation.
-    const selected = alternatives.filter(
+    let selected = alternatives.filter(
       ({ option }) =>
         compatible(option, compatibleNature) &&
         this.possibilities.some((possibility) =>
           compatible({ ...option, ...compatibleNature }, possibility),
         ),
     );
+
+    if (selected.length > 1) {
+      const inferred = {
+        ...this.chosen,
+        ...implied(...selected.map(({ option }) => option)),
+      };
+
+      selected = selected.filter(({ option }) =>
+        Object.entries(option).every(
+          ([k, v]) =>
+            inferred[k] ??
+            (resolveDefault(this.defaults[k], inferred) ?? v) == v,
+        ),
+      );
+    }
 
     // rewrite any other mappings from the natural interpretation to the selected one.
     const rewritten = other.flatMap((pattern) =>
@@ -417,4 +438,18 @@ function related(keys: string[], options: Record<string, string>[]) {
   void options;
 
   return keys;
+}
+
+function resolveDefault(
+  defaulted: ConfigMapping,
+  values: Record<string, string>,
+): string | undefined {
+  while (defaulted !== undefined) {
+    if (typeof defaulted === "string") {
+      return defaulted;
+    }
+
+    const [k, v] = Object.entries(defaulted)[0];
+    defaulted = v[values[k] ?? "default"];
+  }
 }

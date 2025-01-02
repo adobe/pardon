@@ -56,6 +56,7 @@ export function createEndpointEnvironment({
   const environment = new ScriptEnvironment({
     name: endpoint.configuration.name,
     config: endpoint.configuration.config,
+    defaults: endpoint.configuration.defaults,
     input: values,
     runtime: {
       false: false,

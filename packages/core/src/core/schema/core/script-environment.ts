@@ -75,6 +75,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   constructor({
     name,
     config,
+    defaults,
     input,
     runtime,
     resolve,
@@ -86,6 +87,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   }: {
     name?: string;
     config?: Record<string, ConfigMapping>;
+    defaults?: Record<string, ConfigMapping>;
     input?: Record<string, unknown>;
     runtime?: Record<string, unknown>;
     resolve?: ScriptDataResolver;
@@ -97,7 +99,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   } = {}) {
     this.name = () => name;
     this.input = input ?? {};
-    this.space = new ConfigSpace(config ?? {});
+    this.space = new ConfigSpace(config ?? {}, defaults);
     this.space.choose(input ?? {});
 
     this.resolver = (identifier, context) => {
