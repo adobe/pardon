@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { Pattern, PatternRegex } from "./pattern.js";
+import { Pattern } from "./pattern.js";
 
 /**
  * Schema operations are applied to a context object which is
@@ -158,13 +158,13 @@ export type ScopeData = {
 export type ScopeIndex =
   | {
       context: SchemaContext;
-      struts: ValueIdentifier[];
+      struts: Identifier[];
       type: "field";
       key?: string;
     }
   | {
       context: SchemaContext;
-      struts: ValueIdentifier[];
+      struts: Identifier[];
       type: "element";
       key?: number;
     };
@@ -234,7 +234,7 @@ export interface SchemaScriptEnvironment {
 
   evaluating<T>(info: {
     evaluation: () => Promise<T>;
-    identifier: ValueIdentifier | null;
+    identifier: Identifier | null;
     hint: string | null;
     source: string | null;
     context: SchemaRenderContext;
@@ -246,24 +246,16 @@ export interface SchemaScriptEnvironment {
     patterns: Pattern[] | null;
   }): T | string | undefined;
 
-  match(info: {
-    context: SchemaMergingContext<unknown>;
-    patterns: Pattern[];
-    patternize(s: string): PatternRegex;
-    resolve(p: Pattern): unknown | undefined;
-  }): Pattern[] | undefined;
+  match(
+    template: Pattern,
+    patterns: Pattern[],
+  ): { patterns: Pattern[]; related: string[] } | undefined;
 
-  reconfigurePatterns(context: SchemaContext, pattern: Pattern[]): Pattern[];
+  config(context: SchemaContext, pattern: Pattern[]): Pattern[];
 
   init(info: { context: SchemaContext }): SchemaScriptEnvironment;
 
   exhausted(): boolean;
-
-  update(info: {
-    value: unknown;
-    identifier: ValueIdentifier;
-    context: SchemaContext;
-  }): unknown | undefined;
 
   implied(
     override?: Record<string, unknown>,
@@ -272,12 +264,12 @@ export interface SchemaScriptEnvironment {
 
   resolve(info: {
     context: SchemaContext<unknown>;
-    identifier: ValueIdentifier;
+    identifier: Identifier;
   }): unknown;
 
   evaluate(info: {
     context: SchemaRenderContext;
-    identifier: ValueIdentifier;
+    identifier: Identifier;
   }): unknown | undefined | Promise<unknown | undefined>;
 
   reset(): void;
@@ -285,7 +277,7 @@ export interface SchemaScriptEnvironment {
   option(key: string): unknown;
 }
 
-export type ValueIdentifier = {
+export type Identifier = {
   loc?: string; // context location info
   name: string;
   root: string;
@@ -295,7 +287,7 @@ export type ValueIdentifier = {
 export type ScopeValueReference = {
   identifier: string;
   name: string;
-  path: ValueIdentifier["path"];
+  path: Identifier["path"];
   context: SchemaContext<unknown>;
   value?: unknown;
 };

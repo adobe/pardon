@@ -19,10 +19,11 @@ import {
   isPatternSimple,
   isPatternTrivial,
   patternLiteral,
-  patternMatch,
+  matchToPattern,
   patternRender,
   patternize,
   patternsMatch,
+  renderTrivialPattern,
 } from "../core/pattern.js";
 import {
   isNonEmpty,
@@ -64,6 +65,7 @@ import {
   scalarTypeOf,
   unboxObject,
 } from "./scalar.js";
+import { uniqReducer } from "../../../util/uniq-reducer.js";
 
 type DatumRepresentation = {
   patterns: Pattern[];
@@ -86,13 +88,13 @@ function mergeRepresentation<T extends Scalar>(
   }
 
   let { patterns } = rep;
-  const { value, literal } = info;
+  const { template, literal } = info;
   const custom = rep.custom ?? info.custom;
   const type = rep.type ?? info.type;
   const unboxed = rep.unboxed || info.unboxed;
 
-  if (value !== undefined) {
-    const source = String(value);
+  if (template !== undefined) {
+    const source = String(template);
 
     const pattern = literal
       ? patternLiteral(source)
@@ -113,8 +115,29 @@ function mergeRepresentation<T extends Scalar>(
       }
     }
 
-    if (!patterns?.some((existing) => patternsMatch(pattern, existing))) {
-      patterns = [pattern, ...(patterns ?? [])];
+    const templatePattern =
+      context.mode === "match"
+        ? patternLiteral(String(template))
+        : patternize(String(template), custom);
+
+    if (context.scope.parent) {
+      if (
+        !patterns.some((pattern) => patternsMatch(templatePattern, pattern))
+      ) {
+        patterns = [templatePattern, ...patterns];
+      }
+    } else {
+      const match = context.environment.match(
+        context.mode === "match"
+          ? patternLiteral(String(template))
+          : patternize(String(template), custom),
+        patterns,
+      );
+
+      if (!match) {
+        return;
+      }
+      patterns = match.patterns;
     }
   }
 
@@ -257,7 +280,6 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
       }
     },
     merge(context) {
-      const { environment } = context;
       const info = extractDatumInfo(context);
       const mergedSelf = mergeRepresentation(context, self, info);
 
@@ -265,33 +287,13 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         return;
       }
 
-      const { patterns, type, custom, unboxed } = mergedSelf;
+      const { patterns, type, unboxed } = mergedSelf;
 
-      /*
-       * This is where the patterns/values we have get
-       * interpolated by the config: mapping into
-       * matching alternates.  It also reduces the set
-       * of matching alternates as resolved patterns are merged.
-       */
-      const configuredPatterns = environment.match({
-        context: {
-          ...context,
-          template: info?.value,
-        },
-        patterns,
-        resolve(pattern) {
-          return resolvePattern(context, pattern);
-        },
-        patternize(s: string) {
-          return patternize(s, custom ?? defaultScalarBuilding);
-        },
-      });
-
-      if (!configuredPatterns) {
-        if (info?.value !== undefined) {
+      if (!patterns) {
+        if (info?.template !== undefined) {
           diagnostic(
             context,
-            `incompatible stub ${info.value} with ${patterns.map(({ source }) => JSON.stringify(source)).join(", ")}`,
+            `incompatible stub ${info.template} with ${self.patterns.map(({ source }) => JSON.stringify(source)).join(", ")}`,
           );
           return undefined;
         }
@@ -300,29 +302,34 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         return defineScalar(mergedSelf);
       }
 
-      let appraised: Scalar | undefined;
+      const resolved = patterns
+        .map((pattern) => renderTrivialPattern(pattern))
+        .filter((resolved) => resolved !== undefined)
+        .reduce(...uniqReducer(String));
 
-      for (const pattern of configuredPatterns) {
-        appraised = resolvePattern(context, pattern);
-
-        if (appraised !== undefined) {
-          break;
-        }
+      if (resolved.length > 1) {
+        diagnostic(
+          context,
+          `multiple values for patterns: ${patterns.map(({ source }) => source).join(", ")}`,
+        );
+        return undefined;
       }
+
+      let appraised = resolved[0] ?? tryResolve(context, patterns);
 
       if (
         context.mode === "match" &&
         appraised !== undefined &&
-        info?.value === undefined
+        info?.template === undefined
       ) {
-        const redact = configuredPatterns.some(
+        const redact = patterns.some(
           (pattern) =>
             isPatternRegex(pattern) && pattern.vars.some((v) => isSecret(v)),
         );
 
         diagnostic(
           context,
-          `expected value: ${redact ? "<redacted>" : appraised} = ${redact ? "<redacted>" : info?.value}`,
+          `expected value: ${redact ? "<redacted>" : appraised} = ${redact ? "<redacted>" : info?.template}`,
         );
 
         return undefined;
@@ -334,7 +341,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 
       if (appraised === undefined && context.mode === "match") {
         if (
-          configuredPatterns.some(
+          patterns.some(
             (pattern) =>
               isPatternRegex(pattern) && pattern.vars.some(isRequired),
           )
@@ -346,12 +353,9 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
       }
 
       if (appraised !== undefined) {
-        const issue = defineMatchesInScope(
-          context,
-          configuredPatterns,
-          appraised,
-          { unboxed },
-        );
+        const issue = defineMatchesInScope(context, patterns, appraised, {
+          unboxed,
+        });
 
         if (issue) {
           diagnostic(context, issue);
@@ -360,7 +364,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
       }
 
       if (appraised === undefined && context.phase === "validate") {
-        const requiredPattern = configuredPatterns.find(
+        const requiredPattern = patterns.find(
           (pattern) =>
             isPatternRegex(pattern) &&
             pattern.vars.some((variable) => {
@@ -389,9 +393,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
               if (
                 declaration?.expression ||
                 declaration?.rendered ||
-                configuredPatterns.some((pattern) =>
-                  isPatternExpressive(pattern),
-                )
+                patterns.some((pattern) => isPatternExpressive(pattern))
               ) {
                 diagnostic(context, "unresolved required pattern");
               }
@@ -437,24 +439,16 @@ function resolveScalar<T extends Scalar>(
   self: DatumRepresentation,
   forScope?: boolean,
 ): T | undefined {
-  const { patterns, custom, unboxed } = self;
+  const { patterns, unboxed } = self;
 
   const configuredPatterns =
     context.mode === "render" ||
     context.mode === "preview" ||
     context.mode === "prerender" ||
     context.mode === "postrender"
-      ? context.environment.reconfigurePatterns(context, patterns)
-      : context.environment.match({
-          patterns,
-          context: context as SchemaMergingContext<string>,
-          resolve(pattern) {
-            return resolvePattern(context, pattern);
-          },
-          patternize(s: string) {
-            return patternize(s, custom ?? defaultScalarBuilding);
-          },
-        });
+      ? context.environment.config(context, patterns)
+      : patterns;
+  //      : context.environment.match(patterns);
 
   if (!configuredPatterns && forScope) {
     return;
@@ -495,7 +489,7 @@ async function doRenderScalar<T>(
   const { patterns, type, unboxed } = self;
 
   // remap patterns against config
-  const configuredPatterns = environment.reconfigurePatterns(context, patterns);
+  const configuredPatterns = environment.config(context, patterns);
 
   // if we have exhausted the configuration space, fail.
   if (!configuredPatterns) {
@@ -622,7 +616,7 @@ function defineMatchesInScope<T extends Scalar>(
     if (
       isPatternRegex(pattern) &&
       isPatternSimple(pattern) &&
-      patternMatch(pattern, String(value))
+      matchToPattern(pattern, String(value))
     ) {
       const key = pattern.vars[0].param;
 
@@ -644,7 +638,7 @@ function defineMatchesInScope<T extends Scalar>(
     }
 
     const match = isPatternRegex(pattern)
-      ? patternMatch(
+      ? matchToPattern(
           pattern,
           String(value),
           pattern.vars.map(({ param }) => {
@@ -766,37 +760,8 @@ async function evaluateScalar(
   }
 }
 
-function resolvePattern<T extends Scalar>(
-  context: SchemaContext<T>,
-  pattern?: Pattern,
-) {
-  if (!pattern) {
-    return;
-  }
-
-  if (isAbstractContext(context)) {
-    return;
-  }
-
-  if (isPatternLiteral(pattern)) {
-    return pattern.source;
-  }
-
-  if (!pattern.vars.every(({ param }) => param)) {
-    return;
-  }
-
-  const values = pattern.vars.map(({ param }) =>
-    resolveIdentifier(context, param),
-  );
-
-  if (values.every((value) => value !== undefined)) {
-    return patternRender(pattern, values.map(String));
-  }
-}
-
 type DatumSchematicInfo<T> = {
-  value: T | string;
+  template: T | string;
   anull?: true; // renders missing values as null instead of undefined.
   unboxed?: boolean;
   type?: ScalarType;
@@ -836,18 +801,18 @@ function extractDatumInfo<T>(
   return template === undefined
     ? undefined
     : {
-        value: template as T,
+        template: template as T,
         literal: context.mode === "match",
         type: scalarFuzzyTypeOf(context, template as T),
       };
 }
 
 function mergeSchematic<T extends Scalar>(
-  value: string | T | Schematic<Scalar> | undefined,
-  options: Omit<DatumSchematicInfo<T>, "value">,
+  template: string | T | Schematic<Scalar> | undefined,
+  options: Omit<DatumSchematicInfo<T>, "template">,
 ): DatumSchematicInfo<any> {
-  if (isSchematic(value)) {
-    const schematicInfo = exposeSchematic<DatumSchematicOps<any>>(value);
+  if (isSchematic(template)) {
+    const schematicInfo = exposeSchematic<DatumSchematicOps<any>>(template);
 
     if (!schematicInfo.datum) {
       throw new Error("scalar type cannot be applied to non-scalar schematic");
@@ -856,7 +821,7 @@ function mergeSchematic<T extends Scalar>(
     const scalar = schematicInfo.datum();
 
     return {
-      value: scalar.value,
+      template: scalar.template,
       anull: options.anull ?? scalar.anull,
       custom: options.custom ?? scalar.custom,
       literal: options.literal ?? scalar.literal,
@@ -867,15 +832,15 @@ function mergeSchematic<T extends Scalar>(
 
   return {
     ...options,
-    value,
+    template,
   };
 }
 
 export function datumTemplate<T extends Scalar>(
   input: string | T | Schematic<Scalar> | undefined,
-  options: Omit<DatumSchematicInfo<T>, "value">,
+  options: Omit<DatumSchematicInfo<T>, "template">,
 ) {
-  const { value, type, custom, literal, anull, unboxed } = mergeSchematic(
+  const { template, type, custom, literal, anull, unboxed } = mergeSchematic(
     input,
     options,
   );
@@ -884,7 +849,7 @@ export function datumTemplate<T extends Scalar>(
     datum(context) {
       if (!context) {
         return {
-          value,
+          template: template,
           type,
           custom,
           literal,
@@ -893,16 +858,16 @@ export function datumTemplate<T extends Scalar>(
         };
       }
 
-      if (typeof value === "function") {
+      if (typeof template === "function") {
         throw diagnostic(context, "cannot expand scalar over schematic");
       }
 
       return {
-        value,
+        template: template,
         type:
           // this "as" cast is weird, but tsc lint is determining something weird here without it.
           type ??
-          ((context && scalarFuzzyTypeOf(context, value)) as
+          ((context && scalarFuzzyTypeOf(context, template)) as
             | ScalarType
             | undefined),
         custom,
@@ -919,8 +884,8 @@ export function datumTemplate<T extends Scalar>(
             patterns: [],
           },
           {
-            value,
-            type: type ?? scalarFuzzyTypeOf(context, value),
+            template: template,
+            type: type ?? scalarFuzzyTypeOf(context, template),
             custom,
             literal,
             unboxed,
@@ -953,3 +918,30 @@ export const datums = {
       literal: true,
     }),
 };
+
+function tryResolve(
+  context: SchemaMergingContext<unknown>,
+  patterns: Pattern[],
+) {
+  if (isAbstractContext(context)) {
+    return undefined;
+  }
+
+  for (const pattern of patterns) {
+    if (isPatternTrivial(pattern)) {
+      continue;
+    }
+
+    if (!pattern.vars.every(({ param }) => param)) {
+      return;
+    }
+
+    const values = pattern.vars.map(({ param }) =>
+      resolveIdentifier(context, param),
+    );
+
+    if (values.every((value) => value !== undefined)) {
+      return patternRender(pattern, values.map(String));
+    }
+  }
+}

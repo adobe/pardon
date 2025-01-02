@@ -27,7 +27,7 @@ import {
   ScopeIndex,
   ValueDeclaration,
   ValueDefinition,
-  ValueIdentifier,
+  Identifier,
 } from "./types.js";
 
 export class Scope implements SchemaScope, ScopeData {
@@ -256,7 +256,7 @@ export class Scope implements SchemaScope, ScopeData {
 
     const current = this.values[name];
 
-    // note that scalars might be boxed, might not be
+    // note that scalars might be boxed, (also, might not be)
 
     // extra fuzzy match because null values might resolve to string "null" + type null, etc...
     if (current) {
@@ -331,12 +331,7 @@ export class Scope implements SchemaScope, ScopeData {
   resolve(context: SchemaContext, name: string) {
     let lookup = this.lookup(name);
 
-    if (
-      isLookupExpr(lookup) &&
-      lookup.resolved
-      /* &&
-      !isAbstractContext(context)*/
-    ) {
+    if (isLookupExpr(lookup) && lookup.resolved) {
       this.resolving(context, name, lookup.resolved);
       lookup = this.lookup(name);
     }
@@ -549,7 +544,7 @@ function combineSync<F extends (...args: any) => unknown>(
   }) as F;
 }
 
-export function parseScopedIdentifier(name: string): ValueIdentifier {
+export function parseScopedIdentifier(name: string): Identifier {
   if (!name) {
     return {
       name: "",

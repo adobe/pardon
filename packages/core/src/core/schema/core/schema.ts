@@ -10,24 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import {
-  Schema,
-  SchemaContext,
-  SchemaMergingContext,
-  ValueIdentifier,
-} from "./types.js";
-
-export function makeGlobalIdentifier(key: string): ValueIdentifier {
-  return {
-    root: key,
-    name: key,
-    path: [],
-  };
-}
-
-export function isGlobalIdentifier({ path }: ValueIdentifier): boolean {
-  return path.length === 0;
-}
+import { Schema, SchemaContext, SchemaMergingContext } from "./types.js";
 
 /** Given a type with Schema\<T> nested in it, try to unwrap all Schema\<T>s into T */
 export type Render<R> =

@@ -17,7 +17,7 @@ import {
   ExpressionDeclaration,
   SchemaContext,
   SchemaRenderContext,
-  ValueIdentifier,
+  Identifier,
 } from "./types.js";
 
 export function evaluateIdentifierWithExpression(
@@ -41,7 +41,7 @@ function doRenderExpression(
     source,
     hint,
   }: {
-    identifier: ValueIdentifier;
+    identifier: Identifier;
     expression: string;
     source: string | null;
     hint: string | null;

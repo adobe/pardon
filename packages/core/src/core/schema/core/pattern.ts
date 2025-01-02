@@ -309,10 +309,10 @@ export function isPatternExpressive(pattern: Pattern) {
 
 export function arePatternsCompatible(a: Pattern, b: Pattern) {
   if (isPatternTrivial(a)) {
-    return patternMatch(b, patternRender(a, []));
+    return matchToPattern(b, patternRender(a, []));
   }
   if (isPatternTrivial(b)) {
-    return patternMatch(a, patternRender(b, []));
+    return matchToPattern(a, patternRender(b, []));
   }
 
   const aps = patternEnds(a);
@@ -357,15 +357,6 @@ export function patternValues(
   return values;
 }
 
-export function patternsSimilar(a: Pattern, b: Pattern) {
-  if (isPatternLiteral(a) && isPatternLiteral(b)) {
-    return a.source === b.source;
-  }
-  if (isPatternRegex(a) && isPatternRegex(b)) {
-    return a.re.source === b.re.source;
-  }
-}
-
 export function patternsMatch(a: Pattern, b: Pattern) {
   if (isPatternLiteral(a) && isPatternLiteral(b)) {
     return a.source === b.source;
@@ -380,7 +371,7 @@ export function patternsMatch(a: Pattern, b: Pattern) {
   }
 }
 
-export function patternMatch(
+export function matchToPattern(
   pattern: Pattern,
   proto: string,
   partial?: unknown[],
@@ -497,17 +488,4 @@ export function renderTrivialPattern(pattern: Pattern) {
     : pattern.vars.length == 0
       ? patternRender(pattern, [])
       : undefined;
-}
-
-export function trivialPatternMatch(pattern: Pattern, other: Pattern) {
-  if (!isPatternTrivial(pattern) && !isPatternTrivial(other)) {
-    return pattern.source == other.source;
-  }
-
-  const renderedPattern = renderTrivialPattern(pattern);
-  const renderedPossibility = renderTrivialPattern(other);
-
-  if (renderedPattern !== undefined && renderedPossibility !== undefined) {
-    return renderedPattern === renderedPossibility;
-  }
 }

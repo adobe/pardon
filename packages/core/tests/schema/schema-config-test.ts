@@ -27,22 +27,34 @@ import {
 } from "../../src/core/schema/core/types.js";
 
 describe("schema configuration magic", () => {
-  it("should render via config", async () => {
-    const config = {
-      origin: {
-        env: {
-          prod: "https://example.com",
-          stage: "https://stage.example.com",
+  const config = {
+    origin: {
+      env: {
+        prod: {
+          region: {
+            default: "https://example.com",
+            east: "https://east.example.com",
+            west: "https://west.example.com",
+          },
+        },
+        stage: {
+          region: {
+            default: "https://stage.example.com",
+            east: "https://stage-east.example.com",
+            north: "https://stage-north.example.com",
+          },
         },
       },
-      pathname: {
-        env: {
-          prod: "/v1/thing/{{thing}}",
-          stage: "/thing/v1/{{thing}}",
-        },
+    },
+    pathname: {
+      env: {
+        prod: "/v1/thing/{{thing}}",
+        stage: "/thing/v1/{{thing}}",
       },
-    };
+    },
+  };
 
+  it("should render via config", async () => {
     const { schema: archetype, context: archContext } = extend(
       httpsRequestSchema("json", { search: { multivalue: true } }),
       {
@@ -89,6 +101,69 @@ describe("schema configuration magic", () => {
       createRenderContext(prototype, environment),
     );
     assert.equal(result?.origin, "https://stage.example.com");
+    assert.equal(result?.pathname, "/thing/v1/abc");
+  });
+
+  it("should override naturally", async () => {
+    const { schema: archetype, context: archContext } = extend(
+      httpsRequestSchema("json", { search: { multivalue: true } }),
+      {
+        origin: "https://example.com",
+        pathname: "/v1/thing/{{thing}}",
+        searchParams: intoSearchParams("?x={{x}}"),
+        headers: [],
+      },
+      new ScriptEnvironment({ config }),
+    )!;
+
+    const protoEnvironment = new ScriptEnvironment({
+      config,
+      input: archContext.scope.resolvedValues(),
+    });
+
+    const { schema: prototype, context: protoContext } = extend(
+      archetype,
+      {
+        origin: "https://east.example.com",
+        pathname: "/v1/thing/abc",
+        searchParams: new URLSearchParams("?x=10&x=20"),
+      },
+      protoEnvironment,
+    )!;
+
+    console.log(protoEnvironment.implied());
+
+    const protoValues = {
+      ...protoContext.scope.resolvedValues(),
+      ...protoEnvironment.implied(),
+    };
+
+    const naturalRenderContext = createRenderContext(
+      prototype,
+      new ScriptEnvironment({
+        config,
+        input: protoValues,
+      }).choose({}),
+    );
+
+    const natural = await executeOp(prototype, "render", naturalRenderContext);
+    assert.equal(natural?.origin, "https://east.example.com");
+    assert.equal(natural?.pathname, "/v1/thing/abc");
+
+    protoContext.environment.implied();
+    const renderEnvironment = new ScriptEnvironment({
+      config,
+      input: {
+        env: "stage",
+      },
+    });
+
+    const result = await executeOp(
+      prototype,
+      "render",
+      createRenderContext(prototype, renderEnvironment),
+    );
+    assert.equal(result?.origin, "https://stage-east.example.com");
     assert.equal(result?.pathname, "/thing/v1/abc");
   });
 

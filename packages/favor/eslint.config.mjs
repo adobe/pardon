@@ -105,7 +105,7 @@ export default [
             "utf-8",
           ).trim(),
           variables: {
-            year: `${new Date().getFullYear()}`,
+            year: `2024`,
           },
         },
       ],

@@ -9,26 +9,19 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import {
-  Pattern,
-  PatternRegex,
-  arePatternsCompatible,
-  patternLiteral,
-  patternize,
-} from "./pattern.js";
+import { Pattern, patternize } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { ConfigMapping, ConfigSpace } from "./config-space.js";
-import { makeGlobalIdentifier, isGlobalIdentifier } from "./schema.js";
+import { makeGlobalIdentifier } from "./identifier.js";
 import { indexChain } from "./scope.js";
 import {
   SchemaContext,
   SchemaMergingContext,
   SchemaRenderContext,
   SchemaScriptEnvironment,
-  ValueIdentifier,
+  Identifier,
 } from "./types.js";
 import { loc } from "./context-util.js";
-import { isScalar } from "../definition/scalar.js";
 
 export type ScriptDataResolver = (
   name: string,
@@ -41,12 +34,12 @@ export type ScriptDataEvaluator = (
 ) => unknown | undefined | Promise<unknown | undefined>;
 
 export type ScriptResolver = (
-  name: ValueIdentifier,
+  name: Identifier,
   context: SchemaContext,
 ) => unknown | undefined;
 
 export type ScriptEvaluator = (
-  identifier: ValueIdentifier,
+  identifier: Identifier,
   context: SchemaRenderContext,
 ) => unknown | undefined | Promise<unknown | undefined>;
 
@@ -57,7 +50,7 @@ export type RenderRedactor = <T>(
 
 export type ScriptExpressionRenderer = <T>(info: {
   evaluation: () => Promise<T>;
-  identifier: ValueIdentifier | null;
+  identifier: Identifier | null;
   source: string | null;
   context: SchemaRenderContext;
 }) => Promise<T | string>;
@@ -129,7 +122,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     identifier,
     context,
   }: {
-    identifier: ValueIdentifier;
+    identifier: Identifier;
     context: SchemaContext<unknown>;
   }): unknown {
     return this.resolver?.(identifier, context);
@@ -139,7 +132,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     identifier,
     context,
   }: {
-    identifier: ValueIdentifier;
+    identifier: Identifier;
     context: SchemaRenderContext;
   }): unknown | undefined | Promise<unknown | undefined> {
     return (
@@ -148,59 +141,19 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     );
   }
 
-  match({
-    context,
-    patterns,
-    patternize,
-    resolve,
-  }: {
-    patterns: Pattern[];
-    context: SchemaMergingContext<unknown>;
-    patternize(s: string): PatternRegex;
-    resolve(p: Pattern): string | undefined;
-  }): Pattern[] | undefined {
-    const { template } = context;
-
-    // bail if the stub value is not a scalar.
-    if (!isScalar(template)) {
-      return patterns;
-    }
-
-    // configuration only applies to the root scope, so if we're
-    // not in the root scope, just mix in the stub value
-    // and bail.
-    if (context.scopes.length) {
-      if (template !== undefined) {
-        const stubPattern =
-          context.mode === "match"
-            ? patternLiteral(String(template))
-            : patternize(String(template));
-        if (
-          patterns.some(
-            (pattern) => !arePatternsCompatible(stubPattern, pattern),
-          )
-        ) {
-          return undefined;
-        }
-
-        return [stubPattern, ...patterns];
-      }
-      return patterns;
-    }
-
-    return this.space.match(patterns, {
-      context: { ...context, template: String(template) },
-      patternize,
-      resolve,
-    });
+  match(
+    template: Pattern,
+    patterns: Pattern[],
+  ): { patterns: Pattern[]; related: string[] } | undefined {
+    return this.space.match(template, patterns);
   }
 
-  reconfigurePatterns(context: SchemaContext, patterns: Pattern[]) {
+  config(context: SchemaContext, patterns: Pattern[]) {
     if (context.scope?.scopePath()?.length) {
       return patterns;
     }
 
-    return this.space.reconfigurePatterns(patterns);
+    return this.space.config(patterns);
   }
 
   choose(requirements: Record<string, string>) {
@@ -264,22 +217,6 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.space.reset();
   }
 
-  update({
-    value,
-    identifier,
-    context,
-  }: {
-    value: unknown;
-    identifier: ValueIdentifier;
-    context: SchemaContext<unknown>;
-  }): unknown {
-    if (isGlobalIdentifier(identifier) && !context.scope.parent) {
-      return this.space.update(identifier.path[0], value);
-    }
-
-    return value;
-  }
-
   evaluating<T>({
     evaluation,
     identifier,
@@ -287,7 +224,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     context,
   }: {
     evaluation: () => Promise<T>;
-    identifier: ValueIdentifier | null;
+    identifier: Identifier | null;
     source: string | null;
     context: SchemaRenderContext;
   }): Promise<T | string> {
@@ -318,7 +255,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 
 export function resolveAccess(
   value: unknown,
-  identifier: ValueIdentifier,
+  identifier: Identifier,
   context: SchemaContext,
 ) {
   if (identifier.path.length == 0) {

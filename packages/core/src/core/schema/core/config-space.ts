@@ -11,19 +11,15 @@ governing permissions and limitations under the License.
 */
 import {
   type Pattern,
-  patternMatch,
+  matchToPattern,
   patternize,
-  patternLiteral,
   isPatternRegex,
-  patternsSimilar,
   PatternRegex,
-  trivialPatternMatch,
   arePatternsCompatible,
+  patternsMatch,
 } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
-import { diagnostic } from "./context-util.js";
-import { SchemaMergingContext } from "./types.js";
-import { isScalar } from "../definition/scalar.js";
+import { uniqReducer } from "../../../util/uniq-reducer.js";
 
 export type ConfigMapping =
   | string
@@ -37,9 +33,9 @@ export class ConfigSpace {
   mapping: Record<string, ConfigMapping>;
 
   constructor(mapping: Record<string, ConfigMapping>) {
-    this.options = this.possibilities = enumerateConfigs(
-      (this.mapping = mapping),
-    );
+    this.options = enumerateConfigs((this.mapping = mapping));
+
+    this.possibilities = this.options.slice();
   }
 
   keys() {
@@ -59,14 +55,14 @@ export class ConfigSpace {
   }
 
   implied(override?: Record<string, string>) {
-    const implications = implied(this.possibilities);
+    const implications = implied(...this.possibilities);
 
     if (!override) {
       return implications;
     }
 
     const inferred = implied(
-      this.options.filter((option) => compatible(option, override)),
+      ...this.options.filter((option) => compatible(option, override)),
     );
     const merged = {
       ...implications,
@@ -74,99 +70,60 @@ export class ConfigSpace {
     };
 
     return {
-      ...implied(this.options.filter((option) => compatible(option, merged))),
+      ...implied(
+        ...this.options.filter((option) => compatible(option, merged)),
+      ),
       ...override,
     };
   }
 
+  /**
+   * matches patterns against the current configuration options.
+   */
   match(
+    template: Pattern,
     patterns: Pattern[],
-    {
-      context,
-      patternize,
-      resolve,
-    }: {
-      context: SchemaMergingContext<string>;
-      patternize(s: string): PatternRegex;
-      resolve(p: Pattern): string | undefined;
-    },
-  ) {
-    const space = this.configurations(patterns);
-    const { template } = context;
+  ): undefined | { patterns: Pattern[]; related: string[] } {
+    const space = this.configurations(patterns, template);
 
-    // if there's no related configuration for these patterns,
-    // mix in the stub pattern and bail.
+    // if there's no related configuration for these patterns, bail
     if (!space) {
-      if (template === undefined || !isScalar(template)) {
-        return patterns;
+      if (patterns.some((pattern) => patternsMatch(pattern, template))) {
+        return { patterns, related: [] };
       }
 
-      const stubPattern =
-        context.mode === "match"
-          ? patternLiteral(template)
-          : patternize(template);
-
-      if (
-        patterns.some((pattern) => !arePatternsCompatible(stubPattern, pattern))
-      ) {
-        return undefined;
-      }
-
-      return [stubPattern, ...patterns];
+      return { patterns: [template, ...patterns], related: [] };
     }
 
     const {
       // all the possible configuration patterns and what they imply
-      possible,
+      alternatives,
       // other patterns (that may be useful in defining the value)
       other,
       // the patterns/options that are related to the current value
       naturally,
-      // the implied options of the current value
-      nature,
+      // which config keys are potentially implied by values for these patterns
+      related,
     } = space;
 
-    if (template !== undefined) {
-      if (typeof template === "function") {
-        diagnostic(context, "config on template of string?");
-      }
+    // reduce the options for this schema merge pass down to whatever
+    // is compatible with the current natural set.
+    this.possibilities = this.possibilities.filter((possibility) =>
+      alternatives.some(
+        ({ pattern, option }) =>
+          compatible(possibility, option) &&
+          arePatternsCompatible(template, pattern),
+      ),
+    );
 
-      const stubPattern =
-        context.mode === "match"
-          ? patternLiteral(template as string)
-          : patternize(template as string);
-      const stubValue = resolve(stubPattern);
-
-      if (stubValue) {
-        other.unshift(patternLiteral(stubValue));
-      } else {
-        other.unshift(stubPattern);
-      }
-
-      const matchings = possible.filter(({ pattern }) =>
-        stubValue !== undefined
-          ? patternMatch(pattern, stubValue)
-          : patternsSimilar(pattern, stubPattern),
-      );
-
-      this.possibilities = this.possibilities.filter((possibility) =>
-        matchings.some(({ option }) => compatible(possibility, option)),
-      );
-    } else {
-      this.possibilities = this.possibilities.filter((possibility) =>
-        compatible(possibility, nature),
-      );
-    }
-
-    const selected = possible
+    const selected = alternatives
       .filter(({ option }) =>
         this.possibilities.some((possibility) =>
           compatible(possibility, option),
         ),
       )
       .filter(
-        ({ pattern }) =>
-          !other.some((other) => trivialPatternMatch(pattern, other)),
+        ({ pattern }) => !other.some((other) => patternsMatch(pattern, other)),
       );
 
     const rewritten = other
@@ -182,7 +139,7 @@ export class ConfigSpace {
       .filter(
         (rewrittenPattern) =>
           !other.some((otherPattern) =>
-            trivialPatternMatch(otherPattern, rewrittenPattern),
+            patternsMatch(otherPattern, rewrittenPattern),
           ),
       );
 
@@ -191,44 +148,51 @@ export class ConfigSpace {
       ...rewritten,
     ];
 
-    // check for incompatible configured patterns
-    // (do we need to check any other pairs?)
-    if (
-      other.some((otherPattern) =>
-        selectedOrRewrittenPatterns.some(
-          (pattern) => !arePatternsCompatible(otherPattern, pattern),
-        ),
-      )
-    ) {
-      return undefined;
+    patterns = [...selectedOrRewrittenPatterns, ...other].reduce(
+      ...uniqReducer<Pattern>((p) => p.source),
+    );
+
+    if (!patterns.some((pattern) => patternsMatch(pattern, template))) {
+      patterns = [template, ...patterns];
     }
 
-    return [...selectedOrRewrittenPatterns, ...other];
+    return {
+      patterns,
+      related,
+    };
   }
 
-  reconfigurePatterns(patterns: Pattern[]) {
+  config(patterns: Pattern[]) {
     const space = this.configurations(patterns);
 
     if (!space) {
       return patterns;
     }
 
-    const { possible, naturally, other } = space;
+    const { alternatives, naturally, other } = space;
 
-    const compatibleNature = implied(
-      naturally.map(({ option }) =>
-        compatibleSubset(option, this.possibilities),
+    // determine additional compatible configurations info from the
+    // natural mapping. (the current possibilities restricts us here)
+    const compatibleNature = {
+      ...implied(
+        ...naturally.map(({ option }) =>
+          compatibleSubset(option, this.possibilities),
+        ),
       ),
-    );
+      ...implied(...this.possibilities),
+    };
 
-    const selected = possible.filter(({ option }) =>
-      this.possibilities.some(
-        (possibility) =>
-          compatible(compatibleNature, option) &&
+    // reduce alternatives down to those that are compatible with the
+    // current possibilities and don't override any data in the natural interpretation.
+    const selected = alternatives.filter(
+      ({ option }) =>
+        compatible(option, compatibleNature) &&
+        this.possibilities.some((possibility) =>
           compatible({ ...option, ...compatibleNature }, possibility),
-      ),
+        ),
     );
 
+    // rewrite any other mappings from the natural interpretation to the selected one.
     const rewritten = other.flatMap((pattern) =>
       naturally.flatMap(({ pattern: from }) =>
         selected.flatMap(
@@ -237,35 +201,46 @@ export class ConfigSpace {
       ),
     );
 
-    return [...selected.map(({ pattern }) => pattern), ...rewritten];
+    return [...selected.map(({ pattern }) => pattern), ...rewritten].reduce(
+      ...uniqReducer<Pattern>((pattern) => pattern.source),
+    );
   }
 
-  configurations(patterns: Pattern[]) {
-    const { configurable, all } = patterns.reduce(
-      (acc, pattern) => {
-        if (isPatternRegex(pattern)) {
-          const configurable = pattern.vars.some(({ param }) =>
-            this.options.some((option) => option[param] !== undefined),
-          );
+  /**
+   * Given a group of patterns with config-mapped parameters:
+   * determine
+   *  - `alternatives: { pattern, option }[]` which config options are possible (enumerating _all_ options).
+   *  - `naturally: typeof possible` the subset of possibilities which are compatible the given patterns.
+   *  - `other: Pattern[]` other patterns, these are maintained as potential sources of info.
+   */
+  configurations(patterns: Pattern[], template?: Pattern) {
+    const { configurable, configuration } = [...patterns, template]
+      .filter(Boolean)
+      .reduce<{ configurable: PatternRegex[]; configuration: Pattern[] }>(
+        (acc, pattern) => {
+          if (isPatternRegex(pattern)) {
+            const configurable = pattern.vars.some(({ param }) =>
+              this.options.some((option) => option[param] !== undefined),
+            );
 
-          if (configurable) {
-            acc.configurable.push(pattern);
+            if (configurable) {
+              acc.configurable.push(pattern);
+              return acc;
+            }
           }
-        }
 
-        acc.all.push(pattern);
-
-        return acc;
-      },
-      { configurable: [] as PatternRegex[], all: [] as Pattern[] },
-    );
+          acc.configuration.push(pattern);
+          return acc;
+        },
+        { configurable: [], configuration: [] },
+      );
 
     if (configurable.length === 0) {
       return;
     }
 
     // all possible patterns based on configurable options.
-    const possible = configurable.flatMap((pattern) =>
+    const alternatives = configurable.flatMap((pattern) =>
       this.options
         .filter((option) =>
           pattern.vars.some(({ param }) => option[param] !== undefined),
@@ -278,51 +253,58 @@ export class ConfigSpace {
         })),
     );
 
-    const same = possible.filter(({ pattern: possibility }) =>
-      all.some((pattern) => trivialPatternMatch(pattern, possibility)),
+    const { same, other } = [...patterns, template].filter(Boolean).reduce(
+      (acc, pattern) => {
+        if (
+          !alternatives.some(({ pattern: alternate, option }) => {
+            if (patternsMatch(alternate, pattern)) {
+              acc.same.push(option);
+
+              return true;
+            }
+          })
+        ) {
+          acc.other.push(pattern);
+        }
+        return acc;
+      },
+      { same: [] as Record<string, string>[], other: [] as Pattern[] },
     );
 
-    const other = all.filter(
-      (pattern) =>
-        !possible.some(({ pattern: possibility }) =>
-          trivialPatternMatch(pattern, possibility),
-        ),
-    ) as Pattern[];
+    const current = implied(
+      ...alternatives.flatMap(({ pattern, option }) =>
+        configuration.some((info) => patternsMatch(info, pattern))
+          ? [option]
+          : [],
+      ),
+    );
 
-    const nature = implied(same.map(({ option }) => option));
-    const naturally = possible.filter(({ option }) =>
+    const nature = implied(
+      ...same
+        .filter((option) => compatible(current, option))
+        .map((option) => option),
+    );
+
+    const naturally = alternatives.filter(({ option }) =>
       compatible(option, nature),
     );
 
-    return { possible, nature, naturally, other };
+    return {
+      alternatives,
+      naturally,
+      other,
+      related: related(Object.keys(nature), this.options),
+    };
   }
 
-  update(name: string, value: unknown): unknown {
-    if (!this.options.some((option) => name in option)) {
-      return value;
-    }
-
-    const potential = this.possibilities.filter((possibility) => {
-      const pi = possibility[name];
-      if (pi === undefined) {
-        return true;
-      }
-      const sv = String(value ?? "");
-      return pi == sv || matchesPattern(pi, sv);
+  hint(values: Record<string, string>) {
+    return mapObject(values, {
+      filter(key, value) {
+        return this.options.some(
+          (option) => option[key] === value || option[key] === undefined,
+        );
+      },
     });
-
-    const choices = new Set(potential.map((option) => option[name] ?? value));
-
-    if (choices.size >= 1) {
-      this.possibilities = potential;
-      if (potential.length === 0) {
-        return undefined;
-      }
-
-      return value;
-    }
-
-    return undefined;
   }
 
   reset() {
@@ -332,7 +314,7 @@ export class ConfigSpace {
 }
 
 function matchesPattern(pattern: string, value: string) {
-  return patternMatch(patternize(pattern), value);
+  return matchToPattern(patternize(pattern), value);
 }
 
 function enumerateConfig(
@@ -379,7 +361,7 @@ function enumerateConfigs(configs: Record<string, ConfigMapping> = {}) {
   );
 }
 
-function implied(options: Record<string, string>[]): Record<string, string> {
+function implied(...options: Record<string, string>[]): Record<string, string> {
   return arrayIntoObject([...new Set(options.flatMap(Object.keys))], (key) => {
     let value: string | undefined;
     for (const option of options) {
@@ -429,4 +411,10 @@ function compatibleSubset(
       return { [key]: String(value) };
     }
   });
+}
+
+function related(keys: string[], options: Record<string, string>[]) {
+  void options;
+
+  return keys;
 }
