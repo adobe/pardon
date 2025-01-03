@@ -1,0 +1,1 @@
+.icon-grid{position:relative;top:-3px;display:grid;height:100%;place-items:center;gap:.25rem}.icon-grid-col{grid-auto-flow:column;grid-template-rows:repeat(1,minmax(0,1fr));direction:rtl}.icon-grid-col>*{direction:normal}
