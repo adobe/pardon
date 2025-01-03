@@ -17,7 +17,6 @@ import {
   merge,
 } from "../../core/schema-ops.js";
 import { Schema, Template } from "../../core/types.js";
-import { expandTemplate } from "../../template.js";
 import { stubSchema } from "./stub.js";
 
 function defineHiddenSchema<T>(schema: Schema<T>) {
@@ -48,9 +47,7 @@ function defineHiddenSchema<T>(schema: Schema<T>) {
 export function hiddenTemplate<T = any>(template?: Template<T>): Template<T> {
   return defineSchematic({
     expand(context) {
-      const schema = template
-        ? expandTemplate(template, context)
-        : stubSchema();
+      const schema = template ? context.expand(template) : stubSchema();
 
       return defineHiddenSchema(schema);
     },

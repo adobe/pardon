@@ -38,7 +38,6 @@ import {
 } from "../core/evaluate.js";
 import { isMergingContext } from "../core/schema.js";
 import { isLookupValue, parseScopedIdentifier } from "../core/scope.js";
-import { rescope } from "../core/context.js";
 import {
   ExpressionDeclaration,
   Schema,
@@ -55,7 +54,11 @@ import {
   isSchema,
   isSchematic,
 } from "../core/schema-ops.js";
-import { diagnostic, isAbstractContext } from "../core/context-util.js";
+import {
+  diagnostic,
+  isAbstractContext,
+  rescope,
+} from "../core/context-util.js";
 import {
   convertScalar,
   isScalar,
@@ -849,7 +852,7 @@ export function datumTemplate<T extends Scalar>(
     datum(context) {
       if (!context) {
         return {
-          template: template,
+          template,
           type,
           custom,
           literal,
@@ -863,7 +866,7 @@ export function datumTemplate<T extends Scalar>(
       }
 
       return {
-        template: template,
+        template,
         type:
           // this "as" cast is weird, but tsc lint is determining something weird here without it.
           type ??
@@ -884,7 +887,7 @@ export function datumTemplate<T extends Scalar>(
             patterns: [],
           },
           {
-            template: template,
+            template,
             type: type ?? scalarFuzzyTypeOf(context, template),
             custom,
             literal,

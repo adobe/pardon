@@ -198,7 +198,7 @@ export async function createPardonApplicationContext(
   const {
     rc: {
       collections,
-      samples: samples,
+      samples,
       example,
       database: databaseLocation = "./pardon.db",
     },

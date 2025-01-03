@@ -9,7 +9,6 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { createMergingContext } from "./core/context.js";
 import { diagnostic, loc } from "./core/context-util.js";
 import { stubSchema } from "./definition/structures/stub.js";
 import { expandArray } from "./definition/arrays.js";
@@ -120,38 +119,4 @@ export function expandTemplate<T>(
   }
 
   return expandInContext({ ...context, template }) as Schema<T>;
-}
-
-// TODO: remove these or can we pass phase in from context at call site?
-export function mixing<T>(template: Template<T>): Schema<T> {
-  return expandTemplate<T>(
-    template,
-    createMergingContext(
-      { mode: "mix", phase: "build" },
-      stubSchema(),
-      undefined,
-    ),
-  );
-}
-
-export function matching<T>(template: Template<T>) {
-  return expandTemplate<T>(
-    template,
-    createMergingContext(
-      { mode: "match", phase: "build" },
-      stubSchema(),
-      undefined,
-    ),
-  );
-}
-
-export function muxing<T>(template: Template<T>) {
-  return expandTemplate<T>(
-    template,
-    createMergingContext(
-      { mode: "mux", phase: "build" },
-      stubSchema(),
-      undefined,
-    ),
-  );
 }

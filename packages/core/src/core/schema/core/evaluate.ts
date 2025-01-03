@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { evaluation } from "../../expression.js";
-import { rescope } from "./context.js";
+import { rescope } from "./context-util.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";
 import {
@@ -122,7 +122,7 @@ function renderIdentifierInExpression(
 
     const evaluatedResult = await context.environment.evaluate({
       context,
-      identifier: identifier,
+      identifier,
     });
 
     return evaluatedResult;

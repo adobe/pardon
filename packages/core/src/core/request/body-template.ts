@@ -10,11 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { jsonSchemaTransform, syncEvaluation } from "../expression.js";
+import { JSON } from "../json.js";
 import { Schematic, Template } from "../schema/core/types.js";
 import { datums } from "../schema/definition/datum.js";
 import { base64Encoding } from "../schema/definition/encodings/base64-encoding.js";
-import { jsonEncoding } from "../schema/definition/encodings/json-encoding.js";
+import {
+  encodingTemplate,
+  EncodingType,
+} from "../schema/definition/encodings/encoding.js";
 import { textTemplate } from "../schema/definition/encodings/text-encoding.js";
 import { urlEncodedFormTemplate } from "../schema/definition/encodings/url-encoded.js";
 import { createNumber } from "../schema/definition/scalar.js";
@@ -29,6 +32,7 @@ import {
   mixTemplate,
   matchTemplate,
 } from "../schema/scheming.js";
+import { evalTemplate } from "./eval-template.js";
 
 const encodings = {
   json(value: unknown | Template<unknown>) {
@@ -75,25 +79,50 @@ export const bodyGlobals: Record<string, any> = {
   },
 };
 
-export function evalTemplate(schemaSource: string): Schematic<unknown> {
-  return syncEvaluation(`${schemaSource}`, {
-    binding(name) {
-      if (name in bodyGlobals) {
-        return bodyGlobals[name];
-      }
-
-      if (name.startsWith("$")) {
-        const ref = name.slice(1);
-
-        return referenceTemplate({ ref });
-      }
-
-      return undefined;
-    },
-    transform: jsonSchemaTransform,
-  }) as Schematic<unknown>;
+export function evalBodyTemplate(source: string) {
+  return evalTemplate(source, bodyGlobals);
 }
 
 export function getContentEncoding(encoding: EncodingTypes) {
   return encodings[encoding]!;
 }
+
+export function jsonEncoding(template?: Template<unknown>): Schematic<string> {
+  return encodingTemplate(jsonEncodingType, template);
+}
+
+export const jsonEncodingType: EncodingType<string, unknown> = {
+  as: "string",
+  decode({ mode, template }) {
+    if ((template ?? "") == "") {
+      return undefined;
+    }
+
+    if (typeof template !== "string") {
+      throw new Error("json cannot parse non-string");
+    }
+
+    if (mode === "match") {
+      return JSON.parse(template, (_, value, { source }) => {
+        if (typeof value === "number") {
+          return createNumber(source, value);
+        }
+
+        return value;
+      });
+    }
+
+    return evalBodyTemplate(template);
+  },
+  encode(output, context) {
+    if (output === undefined) {
+      return undefined;
+    }
+
+    if (context.environment.option("pretty-print")) {
+      return JSON.stringify(output, null, 2);
+    }
+
+    return JSON.stringify(output, null, 0);
+  },
+};

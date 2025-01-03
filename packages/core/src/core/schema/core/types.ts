@@ -41,6 +41,7 @@ export type SchemaMergingContext<T> = SchemaContextBase & {
   scope: SchemaScope;
   environment: SchemaScriptEnvironment;
   template?: Template<T>;
+  expand<T>(template?: Template<T>): Schema<T>;
 };
 
 /** Given a type T, produce a type where T or any recursive field of T is alternated with T | Schematic\<T> */

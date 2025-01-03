@@ -14,17 +14,17 @@ import assert from "node:assert";
 
 import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
 import { referenceTemplate } from "../../src/core/schema/definition/structures/reference.js";
-import { mixing } from "../../src/core/schema/template.js";
 import { keyed } from "../../src/core/schema/definition/structures/keyed-list.js";
 import { deepStrictMatchEqual } from "../asserts.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
-import { evalTemplate } from "../../src/core/request/body-template.js";
+import { evalBodyTemplate } from "../../src/core/request/body-template.js";
 import { Schema, Schematic } from "../../src/core/schema/core/types.js";
 import {
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
+import { mixing } from "../../src/core/schema/core/contexts.js";
 
 describe("schema structure", () => {
   it("should render captures / references", async () => {
@@ -54,10 +54,10 @@ describe("schema structure", () => {
   it("should capture key-values", async () => {
     const s = mixing(
       keyed(
-        { name: evalTemplate("$key") as Schematic<string> },
+        { name: evalBodyTemplate("$key") as Schematic<string> },
         {
           hello: { name: "hello", value: "{{hello}}" },
-          world: { name: "world", value: evalTemplate("$world") },
+          world: { name: "world", value: evalBodyTemplate("$world") },
         },
       ),
     );
@@ -77,7 +77,7 @@ describe("schema structure", () => {
     //    const k = keyed(mixing({ name: "{{key}}" }));
 
     const s = mixing(
-      evalTemplate(`
+      evalBodyTemplate(`
       keyed({ name: $key }, [{ value: $named.$value }])
     `),
     );

@@ -233,7 +233,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     return this.expression
       ? (this.expression({
           evaluation,
-          identifier: identifier,
+          identifier,
           source,
           context,
         }) as Promise<T | string>)

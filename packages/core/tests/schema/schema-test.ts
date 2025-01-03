@@ -12,7 +12,6 @@ governing permissions and limitations under the License.
 import { it } from "node:test";
 import assert from "node:assert";
 
-import { mixing } from "../../src/core/schema/template.js";
 import {
   mergeSchema,
   renderSchema,
@@ -23,6 +22,7 @@ import { Schema } from "../../src/core/schema/core/types.js";
 import { KV } from "../../src/core/formats/kv-fmt.js";
 import { JSON } from "../../src/core/json.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
+import { mixing } from "../../src/core/schema/core/contexts.js";
 
 async function compose(
   testname: string,

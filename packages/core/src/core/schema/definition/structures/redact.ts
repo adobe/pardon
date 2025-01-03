@@ -16,7 +16,6 @@ import {
   merge,
 } from "../../core/schema-ops.js";
 import { Schema, SchematicOps, Template } from "../../core/types.js";
-import { expandTemplate } from "../../template.js";
 
 export type RedactedOps<T> = SchematicOps<T> & {
   readonly redacted: true;
@@ -29,7 +28,7 @@ export function redact<T>(template?: Template<T>) {
       return applied && redactSchema(applied);
     },
     expand(context) {
-      return redactSchema(expandTemplate(template, context));
+      return redactSchema(context.expand(template));
     },
     redacted: true,
   });

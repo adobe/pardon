@@ -20,7 +20,6 @@ import {
   merge,
   maybeResolve,
 } from "../../core/schema-ops.js";
-import { rescope } from "../../core/context.js";
 import { isMergingContext } from "../../core/schema.js";
 import { parseScopedIdentifier } from "../../core/scope.js";
 import {
@@ -32,7 +31,6 @@ import {
   SchematicOps,
   Template,
 } from "../../core/types.js";
-import { expandTemplate } from "../../template.js";
 import { stubSchema } from "./stub.js";
 import { redact, RedactedOps } from "./redact.js";
 import { isSecret } from "../hinting.js";
@@ -43,6 +41,7 @@ import {
   ScalarType,
 } from "../scalar.js";
 import { datumTemplate } from "../datum.js";
+import { rescope } from "../../core/context-util.js";
 
 type ReferenceSchema<T> = {
   refs: Set<string>;
@@ -99,7 +98,7 @@ export function referenceTemplate<T = unknown>(
         hint: reference.hint ?? "",
         schema:
           reference.template !== undefined
-            ? expandTemplate(reference.template, context)
+            ? context.expand(reference.template)
             : undefined,
         encoding: reference.encoding,
         anull: reference.anull,

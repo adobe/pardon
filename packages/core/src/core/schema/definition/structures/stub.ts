@@ -12,7 +12,6 @@ governing permissions and limitations under the License.
 import { diagnostic } from "../../core/context-util.js";
 import { defineSchema, executeOp } from "../../core/schema-ops.js";
 import { Schema, Template } from "../../core/types.js";
-import { expandTemplate } from "../../template.js";
 
 export function stubSchema<T = any>(
   fallbackSchema?: Schema<T> | null,
@@ -30,10 +29,9 @@ export function stubSchema<T = any>(
       }
 
       if (template !== undefined) {
-        return expandTemplate(template as Template<T>, {
-          ...context,
-          template: undefined,
-        });
+        return { ...context, template: undefined }.expand(
+          template as Template<T>,
+        );
       }
 
       return stubSchema(fallbackSchema);

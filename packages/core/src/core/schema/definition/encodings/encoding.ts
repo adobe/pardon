@@ -10,7 +10,6 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { isMergingContext } from "../../core/schema.js";
-import { expandTemplate } from "../../template.js";
 import { diagnostic } from "../../core/context-util.js";
 import {
   Schema,
@@ -72,10 +71,7 @@ export function encodingTemplate<T, S>(
 ): Schematic<T> {
   return defineSchematic<EncodingSchematicOps<T, S>>({
     expand(context) {
-      return encodingSchema(
-        encoding,
-        expandTemplate(template, context as SchemaMergingContext<S>),
-      );
+      return encodingSchema(encoding, context.expand(template));
     },
     encoding() {
       return encoding;

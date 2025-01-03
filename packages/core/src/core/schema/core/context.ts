@@ -9,6 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { expandTemplate } from "../template.js";
 import { executeOp } from "./schema-ops.js";
 import { Scope } from "./scope.js";
 import { ScriptEnvironment } from "./script-environment.js";
@@ -18,85 +19,9 @@ import {
   SchemaContext,
   SchemaMergingContext,
   SchemaRenderContext,
-  SchemaScope,
   SchemaScriptEnvironment,
   Template,
 } from "./types.js";
-
-export type KeyedContext<
-  C extends SchemaContext,
-  Parameters extends (string | number)[],
-> = C extends SchemaRenderContext
-  ? SchemaRenderContext
-  : C extends SchemaMergingContext<infer M>
-    ? SchemaMergingContext<DereferenceType<M, Parameters>>
-    : C;
-
-export function keyContext<
-  C extends SchemaContext | SchemaMergingContext<unknown>,
-  Parameters extends (string | number)[],
-  O = KeyedContext<C, Parameters>,
->(context: C, ...keys: Parameters): O {
-  const template = keys.reduce(
-    (template, key) => template?.[key],
-    (context as SchemaMergingContext<unknown>).template,
-  );
-
-  return {
-    ...context,
-    template,
-    keys: [...context.keys, ...keys],
-  } as O;
-}
-
-export function metaScopeContext<C extends SchemaContext>(
-  context: C,
-  meta: string,
-): C {
-  const subscope = context.scope.subscope([...context.keys, meta].join("."));
-
-  return { ...context, scope: subscope, scopes: subscope.path, keys: [] } as C;
-}
-
-export function elementScopeContext<
-  C extends SchemaContext,
-  Key extends number,
-  O = KeyedContext<C, [Key]>,
->(context: C, key: Key): O {
-  context = keyContext(context, key === -1 ? "[]" : key) as C;
-
-  const subscope = context.scope.subscope(context.keys.join("."), {
-    context,
-    type: "element",
-    key: key === -1 ? undefined : key,
-    struts: [],
-  });
-
-  return { ...context, scope: subscope, scopes: subscope.path, keys: [] } as O;
-}
-
-export function fieldScopeContext<
-  C extends SchemaContext,
-  Key extends string | undefined,
-  O = KeyedContext<C, [Key extends undefined ? string : Key]>,
->(context: C, key: Key): O {
-  context = keyContext(context, key ?? "{}") as C;
-
-  const subscope = context.scope.subscope(context.keys.join("."), {
-    context,
-    type: "field",
-    key,
-    struts: [],
-  });
-
-  return { ...context, scope: subscope, scopes: subscope.path, keys: [] } as O;
-}
-
-export function tempContext<C extends SchemaContext>(context: C): C {
-  const { scope } = context as SchemaContext;
-
-  return { ...context, scope: scope?.tempscope() };
-}
 
 export function createRenderContext<T>(
   schema: Schema<T>,
@@ -190,6 +115,9 @@ export function createMergingContext<T>(
     scope: Scope.createRootScope(),
     template,
     diagnostics: [],
+    expand(template) {
+      return expandTemplate(template, this);
+    },
   } satisfies SchemaMergingContext<T>;
 
   context.environment.reset();
@@ -209,32 +137,5 @@ export function getContextualValues(
   return {
     ...context.environment.implied(),
     ...context.scope.resolvedValues(options),
-  };
-}
-
-export type DereferenceType<
-  M,
-  Parameters extends (string | number)[],
-> = Parameters extends [
-  infer H extends string | number,
-  ...infer Rest extends (string | number)[],
-]
-  ? H extends keyof M
-    ? DereferenceType<M[H], Rest>
-    : H extends number
-      ? M extends (infer O)[]
-        ? O
-        : never
-      : never
-  : M;
-
-export function rescope<T extends SchemaContext>(
-  context: T,
-  scope: SchemaScope,
-): T {
-  return {
-    ...context,
-    scope: scope.rescope(context.scope),
-    scopes: [...scope.scopePath()],
   };
 }

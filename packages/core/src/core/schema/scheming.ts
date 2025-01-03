@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { expandTemplate, muxing, templateSchematic } from "./template.js";
+import { templateSchematic } from "./template.js";
 import * as KeyedList from "./definition/structures/keyed-list.js";
 import { createMergingContext } from "./core/context.js";
 import { isLookupValue } from "./core/scope.js";
@@ -28,6 +28,7 @@ import {
   SchematicOps,
   Template,
 } from "./core/types.js";
+import { muxing } from "./core/contexts.js";
 
 function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
   return (template: Template<T>) =>
@@ -36,7 +37,7 @@ function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
         return next({ ...context, mode, template });
       },
       expand(context) {
-        return expandTemplate(template, context);
+        return context.expand(template);
       },
     });
 }
@@ -172,7 +173,7 @@ export function keyed<T extends object>(
 ) {
   return defineSchematic<KeyedTemplateOps<T>>({
     expand(context) {
-      return expandTemplate(
+      return context.expand(
         makeKeymapTemplate(
           {
             keyTemplate,
@@ -181,7 +182,6 @@ export function keyed<T extends object>(
           },
           context,
         ),
-        context,
       );
     },
     keyed(context) {
@@ -203,7 +203,7 @@ keyed.mv = function mvkeyed<T extends object>(
 ) {
   return defineSchematic<KeyedTemplateOps<T>>({
     expand(context) {
-      return expandTemplate(
+      return context.expand(
         makeMvKeymapTemplate(
           {
             keyTemplate,
@@ -212,7 +212,6 @@ keyed.mv = function mvkeyed<T extends object>(
           },
           context,
         ),
-        context,
       );
     },
     keyed(context) {
@@ -250,8 +249,8 @@ export function scoped<T>(
         return defineScoped<T>(
           typeof keyTemplate == "string"
             ? keyTemplate
-            : expandTemplate(keyTemplate as Template<T>, context),
-          expandTemplate(template, context),
+            : context.expand(keyTemplate as Template<T>),
+          context.expand(template),
           options,
         );
       },
@@ -262,11 +261,8 @@ export function scoped<T>(
   return templateSchematic<T>(
     (context) => {
       return defineScoped(
-        expandTemplate(
-          keyTemplate,
-          context as SchemaMergingContext<string | T>,
-        ) as Schema<T>,
-        expandTemplate(template, context),
+        context.expand(keyTemplate) as Schema<T>,
+        context.expand(template),
         options,
       );
     },

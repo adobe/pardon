@@ -10,12 +10,12 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { arrayIntoObject, mapObject } from "../../../../util/mapping.js";
-import { diagnostic } from "../../core/context-util.js";
 import {
+  diagnostic,
   fieldScopeContext,
   keyContext,
   tempContext,
-} from "../../core/context.js";
+} from "../../core/context-util.js";
 import {
   defineSchema,
   defineSchematic,
@@ -33,7 +33,6 @@ import {
   Template,
 } from "../../core/types.js";
 import { KeyedTemplateOps } from "../../scheming.js";
-import { expandTemplate } from "../../template.js";
 import { objects } from "../objects.js";
 
 type KeyedListOps<T, Multivalued extends boolean> = SchematicOps<T[]> & {
@@ -70,15 +69,8 @@ function keyedList<T>(
     },
     expand(context) {
       return defineKeyedList({
-        key: expandTemplate(
-          key,
-          tempContext(context) as SchemaMergingContext<T>,
-        ),
-        object: expandTemplate(object, {
-          ...context,
-        } as SchemaMergingContext<unknown> as SchemaMergingContext<
-          Record<string, T>
-        >),
+        key: tempContext(context).expand(key),
+        object: { ...context }.expand(object),
         multivalued: false,
       });
     },
@@ -99,18 +91,10 @@ function mvKeyedList<T>(
     },
     expand(context) {
       return defineMvKeyedList({
-        key: expandTemplate(
-          key,
-          tempContext(
-            fieldScopeContext({ ...context, template: undefined }, undefined),
-          ),
-        ),
-        object: expandTemplate(
-          object,
-          context as SchemaMergingContext<unknown> as SchemaMergingContext<
-            Record<string, T[]>
-          >,
-        ),
+        key: tempContext(
+          fieldScopeContext({ ...context, template: undefined }, undefined),
+        ).expand(key),
+        object: context.expand(object),
         multivalued: true,
       });
     },

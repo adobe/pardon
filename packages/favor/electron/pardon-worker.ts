@@ -677,7 +677,7 @@ const handlers = {
                       id: "test:event",
                       type: "test:case:complete",
                       run: testRun,
-                      testcase: testcase,
+                      testcase,
                       errors: errors.map(String),
                       environment: emitEnv,
                       awaited: awaitedJsonSequences(awaitedSequences()),

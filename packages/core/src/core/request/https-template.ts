@@ -13,7 +13,6 @@ import MIME from "whatwg-mimetype";
 import { jsonEncoding } from "../schema/definition/encodings/json-encoding.js";
 import { referenceTemplate } from "../schema/definition/structures/reference.js";
 import { FetchObject, ResponseObject } from "./fetch-pattern.js";
-import { mixing } from "../schema/template.js";
 import {
   urlEncodedTemplate,
   urlEncodedFormTemplate,
@@ -37,8 +36,9 @@ import {
   executeOp,
   merge,
 } from "../schema/core/schema-ops.js";
-import { EncodingTypes, evalTemplate } from "./body-template.js";
+import { EncodingTypes, evalBodyTemplate } from "./body-template.js";
 import { JSON } from "../json.js";
+import { mixing } from "../schema/core/contexts.js";
 
 function looksLikeJson(template: unknown): template is string {
   if (typeof template !== "string") {
@@ -155,7 +155,7 @@ export function bodySchema(
         if (/^[a-z]+(?<!^mix|^mux|^match)\s*[(]/i.test(source.trim())) {
           const merged = merge(stubSchema(), {
             ...context,
-            template: evalTemplate(`${source}`),
+            template: evalBodyTemplate(`${source}`),
           }) as Schema<string>;
 
           return merged && bodySchema(encoding, merged);
@@ -172,7 +172,7 @@ export function bodySchema(
         ) {
           const merged = merge(schema ?? stubSchema(), {
             ...context,
-            template: evalTemplate(`json(${source})`),
+            template: evalBodyTemplate(`json(${source})`),
           }) as Schema<string>;
           return merged && bodySchema(encoding, merged);
         }
@@ -185,7 +185,7 @@ export function bodySchema(
       const effectiveEncoding = encoding ?? "json";
       const merged = merge(schema ?? stubSchema(), {
         ...context,
-        template: evalTemplate(
+        template: evalBodyTemplate(
           `${effectiveEncoding}(${effectiveEncoding === "json" ? source : JSON.stringify(source)})`,
         ) as Template<string>,
       });

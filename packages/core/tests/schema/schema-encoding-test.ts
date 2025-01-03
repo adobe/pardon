@@ -18,13 +18,13 @@ import {
 } from "../../src/core/schema/core/context.js";
 import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
 import { base64Encoding } from "../../src/core/schema/definition/encodings/base64-encoding.js";
-import { mixing } from "../../src/core/schema/template.js";
-import { urlEncodedFormTemplate as urlEncodedFormTemplate } from "../../src/core/schema/definition/encodings/url-encoded.js";
+import { urlEncodedFormTemplate } from "../../src/core/schema/definition/encodings/url-encoded.js";
 import { deepStrictMatchEqual } from "../asserts.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
+import { mixing } from "../../src/core/schema/core/contexts.js";
 
 describe("schema json tests", () => {
   it("should parse and render json", async () => {

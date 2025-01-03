@@ -15,7 +15,6 @@ import {
   mapObjectAsync,
 } from "../../../util/mapping.js";
 import { isMergingContext } from "../core/schema.js";
-import { keyContext, fieldScopeContext } from "../core/context.js";
 import { stubSchema } from "./structures/stub.js";
 import {
   Schema,
@@ -32,7 +31,11 @@ import {
   exposeSchematic,
   merge,
 } from "../core/schema-ops.js";
-import { diagnostic } from "../core/context-util.js";
+import {
+  diagnostic,
+  fieldScopeContext,
+  keyContext,
+} from "../core/context-util.js";
 
 type ObjectSchematicInfo<M extends Record<string, unknown>> = {
   object?: { [K in keyof M]: Template<M[K]> };

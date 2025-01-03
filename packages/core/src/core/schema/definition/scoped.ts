@@ -9,11 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { metaScopeContext, tempContext } from "../core/context.js";
+import { metaScopeContext, tempContext } from "../core/context-util.js";
 import { defineSchema, executeOp, merge } from "../core/schema-ops.js";
 import { isLookupValue } from "../core/scope.js";
 import { Schema, SchemaContext } from "../core/types.js";
-
 export type ScopedOptions = {
   field?: boolean;
 };

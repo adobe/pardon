@@ -86,7 +86,7 @@ export default function remember(
                 http,
                 type: "endpoint",
                 scope: "",
-                name: name,
+                name,
                 value: String(value),
               });
             }
