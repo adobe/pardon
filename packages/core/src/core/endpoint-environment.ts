@@ -20,7 +20,7 @@ import {
 import { resolveIdentifier } from "./schema/core/evaluate.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
 import { PardonCompiler } from "../runtime/compiler.js";
-import { ConfigMapping } from "./schema/core/config-space.js";
+import { DefaultsMap } from "./schema/core/config-space.js";
 import { arrayIntoObject, mapObject } from "../util/mapping.js";
 import { HttpsRequestObject } from "./request/https-template.js";
 import { PardonError } from "./error.js";
@@ -144,7 +144,7 @@ export function createEndpointEnvironment({
 
 export function resolveDefaults(
   name: string,
-  defaults: Record<string, ConfigMapping> | undefined,
+  defaults: DefaultsMap | undefined,
   context: SchemaContext<unknown>,
 ) {
   let defaulting = defaults?.[name];

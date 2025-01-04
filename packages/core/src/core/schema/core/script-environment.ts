@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { Pattern, patternize } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
-import { ConfigMapping, ConfigSpace } from "./config-space.js";
+import { ConfigMap, DefaultsMap, ConfigSpace } from "./config-space.js";
 import { makeGlobalIdentifier } from "./identifier.js";
 import { indexChain } from "./scope.js";
 import {
@@ -86,8 +86,8 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     resolvedDefaults,
   }: {
     name?: string;
-    config?: Record<string, ConfigMapping>;
-    defaults?: Record<string, ConfigMapping>;
+    config?: ConfigMap;
+    defaults?: DefaultsMap;
     input?: Record<string, unknown>;
     runtime?: Record<string, unknown>;
     resolve?: ScriptDataResolver;

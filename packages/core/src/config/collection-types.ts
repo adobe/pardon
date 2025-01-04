@@ -11,7 +11,10 @@ governing permissions and limitations under the License.
 */
 import { type HttpsSteps } from "../core/formats/https-fmt.js";
 import { EncodingTypes } from "../core/request/body-template.js";
-import { type ConfigMap } from "../core/schema/core/config-space.js";
+import {
+  DefaultsMap,
+  type ConfigMap,
+} from "../core/schema/core/config-space.js";
 
 export type Helper = {
   config: string;
@@ -27,7 +30,7 @@ export type Configuration = {
   name: string;
   path: string;
   config?: ConfigMap;
-  defaults?: ConfigMap;
+  defaults?: DefaultsMap;
   mixin?: string | string[];
   import?: ConfigurationImports;
   export?: string;

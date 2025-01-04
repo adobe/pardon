@@ -353,7 +353,14 @@ function mergeData<A, B>(
     b: B extends Record<string, unknown> ? B[string] : never,
   ) => unknown = mergeData,
 ): A & B {
-  if (typeof a === "object" && typeof b === "object" && a && b) {
+  if (
+    typeof a === "object" &&
+    typeof b === "object" &&
+    a &&
+    b &&
+    !Array.isArray(a) &&
+    !Array.isArray(b)
+  ) {
     return {
       ...a,
       ...b,

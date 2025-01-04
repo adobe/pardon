@@ -23,20 +23,29 @@ import { uniqReducer } from "../../../util/uniq-reducer.js";
 
 export type ConfigMap = Record<string, ConfigMapping>;
 
-export type ConfigMapping =
+type ConfigMapping =
   | string
+  | string[]
   | {
       [key: string]: ConfigMap;
+    };
+
+export type DefaultsMap = Record<string, DefaultsMapping>;
+
+type DefaultsMapping =
+  | string
+  | {
+      [key: string]: DefaultsMap;
     };
 
 export class ConfigSpace {
   options: Record<string, string>[];
   possibilities: Record<string, string>[];
   mapping: ConfigMap;
-  defaults: ConfigMap;
+  defaults: DefaultsMap;
   chosen: Record<string, string> = {};
 
-  constructor(mapping: ConfigMap, defaults?: ConfigMap) {
+  constructor(mapping: ConfigMap, defaults?: DefaultsMap) {
     this.options = enumerateConfigs((this.mapping = mapping));
     this.defaults = defaults ?? {};
 
@@ -347,6 +356,10 @@ function enumerateConfig(
       return [{ [name]: mapping }];
     }
 
+    if (Array.isArray(mapping)) {
+      return mapping.map((value) => ({ [name]: value }));
+    }
+
     if (Object.keys(mapping).length > 1) {
       throw new Error("irredeemable config mapping");
     }
@@ -361,7 +374,7 @@ function enumerateConfig(
   return enumerate(configMapping);
 }
 
-function enumerateConfigs(configs: Record<string, ConfigMapping> = {}) {
+function enumerateConfigs(configs: ConfigMap = {}) {
   const values = Object.values(
     mapObject(configs, (value, key) => enumerateConfig(key, value)),
   );
