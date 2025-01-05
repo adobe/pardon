@@ -34,6 +34,8 @@ export const initialize: InitializeHook = async ({ port }) => {
 };
 
 export const resolve: ResolveHook = async (specifier, context, nextResolve) => {
+  const { importAttributes } = context;
+
   if (specifier === "pardon") {
     return nextResolve("./api.js", {
       ...context,
@@ -49,18 +51,36 @@ export const resolve: ResolveHook = async (specifier, context, nextResolve) => {
   }
 
   if (specifier.startsWith("pardon:")) {
+    const { identity } = context.importAttributes;
+
+    const [, name, index] = /^([^?]*)(?:[?](.*))?$/.exec(identity ?? "")!;
+
+    if (index?.startsWith("-0")) {
+      throw new PardonError("cannot import parent from base of script stack");
+    }
+
+    if (name === specifier) {
+      return {
+        importAttributes,
+        url: `${name}?${Number(index)}`,
+        shortCircuit: true,
+      };
+    }
+
     // skip any more resolution, we'll handle this in the loader.
-    return { url: specifier, shortCircuit: true };
+    return { url: specifier, importAttributes, shortCircuit: true };
   }
 
-  if (context.parentURL?.startsWith("pardon:")) {
+  const contextURL = context.parentURL?.replace(/[/].*$/, "");
+
+  if (contextURL?.startsWith("pardon:")) {
     if (
       ts.isExternalModuleNameRelative(specifier) &&
       !/[.][a-z]+$/i.test(specifier)
     ) {
       const resolved = new URL(
         specifier,
-        `file:///__service__/${context.parentURL.replace(/^[^/]*[/]/, "")}`,
+        `file:///__service__/${context.parentURL!.replace(/^[^/]*[/]/, "")}`,
       ).pathname;
 
       if (!resolved.startsWith("/__service__/")) {
@@ -70,16 +90,14 @@ export const resolve: ResolveHook = async (specifier, context, nextResolve) => {
       }
 
       return {
-        url: join(
-          context.parentURL.replace(/[/].*$/, ""),
-          resolved.replace(/^[/]__service__[/]/, "/"),
-        ),
+        url: join(contextURL, resolved.replace(/^[/]__service__[/]/, "/")),
+        importAttributes,
         shortCircuit: true,
       };
     }
 
     if (specifier.endsWith(".https")) {
-      return nextResolve(`${specifier}`, {
+      return nextResolve(specifier, {
         ...context,
         parentURL: import.meta.url,
       });
@@ -106,10 +124,12 @@ export const load: LoadHook = async (url, context, nextLoad) => {
   }
 
   const compiled = (await host().send("compile", url, context)) as string;
+  const { importAttributes } = context;
 
   return {
     format: "module",
     source: compiled,
+    importAttributes,
     shortCircuit: true,
   } as LoadFnOutput;
 };

@@ -75,24 +75,27 @@ function extractLayer(
   config: Record<string, string>,
   layer: string,
   prefix: string,
-): Record<string, AssetSource> {
-  return Object.entries(config)
-    .map(([source, content]) => {
-      const path = `${prefix}${source}`;
-      if (path.startsWith(layer)) {
-        return {
-          name: path.slice(layer.length),
-          path,
-          content,
-        };
-      }
-    })
-    .filter<Record<"name" | "path" | "content", string>>(Boolean as any)
-    .reduce(
-      (map, { name, path, content }) =>
-        Object.assign(map, {
-          [name]: { path, content },
-        }),
-      {},
-    );
+): { root: string; files: Record<string, AssetSource> } {
+  return {
+    root: prefix,
+    files: Object.entries(config)
+      .map(([source, content]) => {
+        const path = `${prefix}${source}`;
+        if (path.startsWith(layer)) {
+          return {
+            name: path.slice(layer.length),
+            path,
+            content,
+          };
+        }
+      })
+      .filter<Record<"name" | "path" | "content", string>>(Boolean as any)
+      .reduce(
+        (map, { name, path, content }) =>
+          Object.assign(map, {
+            [name]: { path, content },
+          }),
+        {},
+      ),
+  };
 }

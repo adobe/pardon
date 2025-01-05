@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 
 import * as YAML from "yaml";
 
@@ -23,12 +23,12 @@ import {
 import {
   HTTPS,
   HttpsTemplateConfiguration,
+  HttpsTemplateScheme,
 } from "../core/formats/https-fmt.js";
 import { globfiles } from "./util/globfiles.js";
 import { arrayIntoObject, mapObject } from "../util/mapping.js";
 import { resolvePardonRelativeImport } from "../runtime/compiler.js";
 import {
-  AssetInfo,
   AssetSource,
   AssetType,
   CollectionData,
@@ -38,9 +38,12 @@ import { PardonError } from "../core/error.js";
 import { expandConfigMap } from "../core/schema/core/config-space.js";
 
 export async function loadCollectionLayer(root: string) {
-  return await globfiles(root, ["**/*"], async (content, path) => {
-    return { path: resolve(root, path), content } as AssetSource;
-  });
+  return {
+    root,
+    files: await globfiles(root, ["**/*"], async (content, path) => {
+      return { path: resolve(root, path), content } as AssetSource;
+    }),
+  };
 }
 
 export function processCollectionLayer(sources: Record<string, AssetSource>): {
@@ -63,7 +66,6 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
         const id = `pardon:${name.replace(/[.](yaml|json)$/, "")}`;
         return {
           type: "data" as const,
-          import: [`pardon:${name}`, id],
           name,
           id,
           source,
@@ -90,7 +92,6 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
         return {
           type: "script" as const,
           name,
-          import: [`pardon:${name}`, id],
           id,
           source,
         };
@@ -111,15 +112,18 @@ export async function loadCollections(collectionRoots: string[]) {
     collectionRoots.map((root) =>
       root === "//fallback/collection"
         ? ({
-            "default/service.yaml": {
-              content: "# built-in fallback service",
-              path: "//fallback/collection/default/service.yaml",
+            root,
+            files: {
+              "default/service.yaml": {
+                content: "# built-in fallback service",
+                path: "//fallback/collection/default/service.yaml",
+              },
+              "default/default.https": {
+                content: "# built-in fallback endpoint\n>>>\nANY //",
+                path: "//fallback/collection/default/default.https",
+              },
             },
-            "default/default.https": {
-              content: "# built-in fallback endpoint\n>>>\nANY //",
-              path: "//fallback/collection/default/default.https",
-            },
-          } satisfies Record<string, AssetSource>)
+          } satisfies Awaited<ReturnType<typeof loadCollectionLayer>>)
         : loadCollectionLayer(root),
     ),
   );
@@ -157,17 +161,25 @@ function priorityOf(type: AssetType) {
 export function buildCollection(
   collections: Awaited<ReturnType<typeof loadCollectionLayer>>[],
 ): PardonCollection {
-  const layers = collections.map((layer) => processCollectionLayer(layer));
+  const layers = collections.map(({ files }) => processCollectionLayer(files));
+  const files = collections
+    .flatMap(({ files }) => Object.values(files))
+    .reduce(
+      (files, { path, content }) =>
+        Object.assign(files, {
+          [path]: content,
+        }),
+      {},
+    );
 
   const configurations: PardonCollection["configurations"] = {};
   const endpoints: PardonCollection["endpoints"] = {};
   const data: PardonCollection["data"] = {};
   const mixins: PardonCollection["mixins"] = {};
-  const scripts: PardonCollection["scripts"] = {};
+  const errors: PardonCollection["errors"] = [];
+  const assets: PardonCollection["assets"] = {};
   const resolutions: PardonCollection["resolutions"] = {};
-  const errors: AssetParseError[] = [];
-
-  const assets: Record<string, AssetInfo> = {};
+  const identities: PardonCollection["identities"] = {};
 
   for (const asset of Object.values(
     collate(
@@ -181,42 +193,85 @@ export function buildCollection(
     const { type, name, id } = asset[0];
     const sources = asset.map(({ source }) => source);
 
-    for (const specifier of asset.flatMap(
-      ({ import: imports = [] }) => imports,
-    )) {
-      if (type === "data" && id.endsWith("/defaults")) {
-        continue;
-      }
-
-      resolutions[specifier] = id;
-    }
-
     assets[id] = {
       type,
       sources,
       name,
     };
 
-    switch (type) {
-      case "config":
-        configurations[id] = mergeConfigurations({
-          name,
-          configurations: sources.map(({ content, path }) =>
-            loadConfig({ content, name, path }, errors),
-          ),
-        });
-        break;
-      case "endpoint": {
-        const { service, configuration } = endpointServiceConfiguration(
-          id,
-          configurations,
+    function resolveExport(
+      path: string,
+      configuration: Configuration<"source">,
+    ) {
+      if (configuration?.export) {
+        const sourcepath = resolve(
+          dirname(path),
+          relative(configuration.path, configuration.export),
         );
+        const resolution = (resolutions[`pardon:${id}`] ??= []);
+        const identity = `pardon:${id}?${resolution.length}`;
+        if (sourcepath in files) {
+          if ((identities[sourcepath] ??= identity) !== identity) {
+            throw new PardonError(
+              `cannot reidentify ${sourcepath} from ${identities[sourcepath]} to ${identity}`,
+            );
+          }
+
+          resolution.push({ path: sourcepath, content: files[sourcepath] });
+          return true;
+        }
+      }
+    }
+
+    switch (type) {
+      case "config": {
+        configurations[id] = collections.reduce(
+          (mergedConfiguration, { files, root }) => {
+            const { content, path } =
+              files[`${id}/service.yaml`] ?? files[`${id}/config.yaml`] ?? {};
+
+            const configuration = path
+              ? loadConfig({ content, name, path }, errors)
+              : undefined;
+
+            const configurations = [mergedConfiguration, configuration].filter(
+              Boolean,
+            );
+
+            if (configurations.length === 0) return null!;
+
+            const merged = mergeConfigurations({
+              name,
+              configurations,
+            });
+
+            if (
+              !resolveExport(path ?? resolve(root, merged.name), merged) &&
+              configuration?.export
+            ) {
+              console.warn(
+                `export: could not resolve direct reference to ${configuration.export} from ${path}`,
+              );
+            }
+
+            return merged;
+          },
+          null! as Configuration,
+        );
+
+        break;
+      }
+      case "endpoint": {
+        const {
+          service,
+          configuration: { export: _, ...serviceConfiguration },
+        } = endpointServiceConfiguration(id, configurations);
 
         endpoints[id] = sources.reduce<LayeredEndpoint>(
           (endpoint, { content, path }) => {
             const { steps, configuration } = parseAsset(
               path,
-              () => HTTPS.parse(content),
+              () => HTTPS.parse(content) as HttpsTemplateScheme<"source">,
               errors,
               () => ({
                 configuration: {} as any,
@@ -224,19 +279,31 @@ export function buildCollection(
                 steps: [],
               }),
             );
+
             endpoint.configuration = mergeConfigurations({
               name: name.replace(/[.]https$/, ""),
               configurations: [endpoint.configuration, configuration].filter(
                 Boolean,
               ),
             });
+
+            if (
+              !resolveExport(path, endpoint.configuration) &&
+              configuration?.export
+            ) {
+              console.warn(
+                `export: could not resolve direct reference to ${configuration.export} from ${path}`,
+              );
+            }
+
             endpoint.layers.push({ path, steps });
+
             return endpoint;
           },
           {
             service,
             action: id.split("/").slice(-1)[0],
-            configuration,
+            configuration: serviceConfiguration,
             layers: [],
           } as LayeredEndpoint,
         );
@@ -286,6 +353,7 @@ export function buildCollection(
                 Boolean,
               ),
             });
+
             mixin.layers.push({ path, steps, mode: mode as "mix" | "mux" });
 
             return mixin;
@@ -295,7 +363,18 @@ export function buildCollection(
         break;
       }
       case "script":
-        scripts[id] = sources;
+        if (sources.some(({ path }) => identities[path])) {
+          if (!sources.every(({ path }) => identities[path])) {
+            console.warn(`inconsistent usage of script ${id}`);
+          }
+          break;
+        }
+
+        for (const { path, content } of sources) {
+          const resolution = (resolutions[id] ??= []);
+          identities[path] = `${id}?${resolution.length}`;
+          resolution.push({ path, content });
+        }
         break;
       case "unknown":
       default:
@@ -311,9 +390,9 @@ export function buildCollection(
     configurations,
     data,
     mixins,
-    resolutions,
-    scripts,
     errors,
+    resolutions,
+    identities,
   };
 }
 
@@ -428,26 +507,21 @@ function loadConfig(
   { content, name: rawname, path }: Record<"content" | "name" | "path", string>,
   errors: AssetParseError[],
 ): Configuration<"source"> {
-  try {
-    const configuration = parseAsset(
-      path,
-      () => YAML.parse(content) as Configuration,
-      errors,
-      () => ({}),
-    );
+  const configuration = parseAsset(
+    path,
+    () => YAML.parse(content) as Configuration,
+    errors,
+    () => ({}),
+  );
 
-    const [, name, type] = /^(.*)[/](service|config)[.]yaml$/.exec(rawname)!;
+  const [, name, type] = /^(.*)[/](service|config)[.]yaml$/.exec(rawname)!;
 
-    return {
-      ...configuration,
-      type: type as "service" | "config",
-      name,
-      path,
-    };
-  } catch (error) {
-    console.warn(`${path}: error loading file`, error);
-    throw new PardonError(`${path}: error loading file`, error);
-  }
+  return {
+    ...configuration,
+    type: type as "service" | "config",
+    name,
+    path,
+  };
 }
 
 /**
@@ -462,7 +536,8 @@ export function mergeConfigurations({
 }: {
   name: string;
   configurations: Partial<
-    Configuration<"source"> & HttpsTemplateConfiguration<"source">
+    Configuration<"source" | "runtime"> &
+      HttpsTemplateConfiguration<"source" | "runtime">
   >[];
   mixing?: boolean;
 }): Configuration {

@@ -238,10 +238,12 @@ export type PardonCollection = {
   endpoints: Record<string, LayeredEndpoint>;
   data: Record<string, CollectionData>;
   mixins: Record<string, LayeredMixin>;
-  scripts: Record<string, AssetSource[]>;
-  resolutions: Record<string, string>;
   assets: Record<string, AssetInfo>;
   errors: AssetParseError[];
+  /** import "pardon:x" -> assets imported */
+  resolutions: Record<string, { path: string; content: string }[]>;
+  /** converse of resolutions, required name to import each asset */
+  identities: Record<string, string>;
 };
 
 export function resolvePardonApplicationCollection({

@@ -68,13 +68,15 @@ export type UseUnitOrFlow = {
   context?: HttpsFlowContext;
 };
 
-export type HttpsSchemeType<Mode extends string, Config> = {
+export type HttpsSchemeType<Mode extends string, Configuration> = {
   mode: Mode;
-  configuration: Config;
+  configuration: Configuration;
   steps: HttpsSteps;
 };
 
-export type HttpsScheme = HttpsUnitScheme | HttpsTemplateScheme;
+export type HttpsScheme<Phase extends ConfigurationProcessingPhase> =
+  | HttpsUnitScheme
+  | HttpsTemplateScheme<Phase>;
 
 export type HttpsTemplateConfiguration<
   Phase extends ConfigurationProcessingPhase = "runtime",
@@ -89,20 +91,20 @@ export type HttpsTemplateConfiguration<
   | "search"
   | "type"
   | "encoding"
+  | "export"
 >;
 
 export type HttpsUnitScheme = HttpsSchemeType<"unit", HttpsUnitConfig>;
 export type HttpsFlowScheme = HttpsSchemeType<"flow", HttpsFlowConfig>;
 
 export type HttpsSequenceScheme = HttpsUnitScheme | HttpsFlowScheme;
-export type HttpsTemplateScheme = HttpsSchemeType<
-  "mix" | "mux",
-  HttpsTemplateConfiguration
->;
+export type HttpsTemplateScheme<
+  Phase extends ConfigurationProcessingPhase = "runtime",
+> = HttpsSchemeType<"mix" | "mux", HttpsTemplateConfiguration<Phase>>;
 
 export const HTTPS = { parse };
 
-function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme {
+function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
   const lines = file.split("\n");
   const steps: HttpsSteps = [];
   const inlineConfiguration: string[] = [];

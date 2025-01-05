@@ -13,26 +13,77 @@ import type Module from "node:module";
 import { posix } from "node:path";
 import { readFileSync } from "node:fs";
 
-import { Project, ts } from "ts-morph";
+import { Project, SourceFile, ts } from "ts-morph";
 
 import { PardonError } from "../core/error.js";
 import { AppContext } from "../core/app-context.js";
-import { expressionTransform } from "../core/expression.js";
+import { expressionTransform, TsMorphTransform } from "../core/expression.js";
 import { shared } from "../core/tracking.js";
 
 const { join, normalize } = posix;
 
 export type PardonCompiler = ReturnType<typeof createCompiler>;
 
+const withIdentityTransfrom: (identity: string) => TsMorphTransform =
+  (identity) =>
+  ({ factory, visitChildren, currentNode }) => {
+    if (
+      ts.isImportDeclaration(currentNode) ||
+      ts.isExportDeclaration(currentNode)
+    ) {
+      if (
+        !currentNode.moduleSpecifier ||
+        !ts.isStringLiteral(currentNode.moduleSpecifier) ||
+        !currentNode.moduleSpecifier.text.startsWith("pardon:")
+      ) {
+        return visitChildren();
+      }
+
+      if (ts.isImportDeclaration(currentNode)) {
+        return factory.createImportDeclaration(
+          currentNode.modifiers,
+          currentNode.importClause,
+          currentNode.moduleSpecifier,
+          factory.createImportAttributes(
+            factory.createNodeArray([
+              factory.createImportAttribute(
+                factory.createIdentifier("identity"),
+                factory.createStringLiteral(identity),
+              ),
+              ...(currentNode.attributes?.elements ?? []),
+            ]),
+          ),
+        );
+      } else if (!currentNode.isTypeOnly) {
+        return factory.createExportDeclaration(
+          currentNode.modifiers,
+          false,
+          currentNode.exportClause,
+          currentNode.moduleSpecifier,
+          factory.createImportAttributes(
+            factory.createNodeArray([
+              factory.createImportAttribute(
+                factory.createIdentifier("identity"),
+                factory.createStringLiteral(identity),
+              ),
+            ]),
+          ),
+        );
+      }
+    }
+
+    return visitChildren();
+  };
+
 export default function createCompiler({
-  collection: { configurations, data, scripts, resolutions, assets },
+  collection: { data, resolutions, identities, assets },
 }: Pick<AppContext, "collection">) {
   const project: Project = new Project({
     compilerOptions: {
       outDir: "memory",
       module: ts.ModuleKind.ES2022,
       target: ts.ScriptTarget.ES2022,
-      lib: ["lib.es2022.d.ts"], // use 2022 runtime.
+      lib: ["lib.es2022.d.ts"], // assume 2022 runtime.
       allowJs: true,
       sourceMap: true,
       inlineSourceMap: true,
@@ -40,6 +91,38 @@ export default function createCompiler({
     },
     useInMemoryFileSystem: true,
   });
+
+  translate.cache = {} as Record<
+    string,
+    { compiled: SourceFile; exports: string[] } | undefined
+  >;
+
+  function translate(path: string, content: string) {
+    if (translate.cache[path]) {
+      return translate.cache[path];
+    }
+
+    const identity = identities[path];
+
+    const compiled = project
+      .createSourceFile(path, content)
+      .transform(expressionTransform)
+      .transform(withIdentityTransfrom(identity))
+      .asKind(ts.SyntaxKind.SourceFile)!;
+
+    const exports = [...(compiled?.getExportedDeclarations().entries() ?? [])]
+      .filter(([, v]) =>
+        v.some((v) => {
+          return !(
+            (v.getSymbol()?.getValueDeclaration()?.getFlags() ??
+              ts.SymbolFlags.Transient) & ts.SymbolFlags.Transient
+          );
+        }),
+      )
+      .map(([k]) => k);
+
+    return (translate.cache[path] = { compiled, exports });
+  }
 
   return {
     compile,
@@ -54,115 +137,104 @@ export default function createCompiler({
     return await shared(() => import(/* @vite-ignore */ resolved));
   }
 
-  // TODO: analyze which paths actually hit here.
-  function resolvePardonExport(moduleSpecifier: string) {
+  function resolvePardonExport(spec: string, context: Module.LoadHookContext) {
+    let [, moduleSpecifier, index] = /^([^?]*)(?:[?](.*))?$/.exec(spec)!;
+
     // file urls?
     if (moduleSpecifier.startsWith("file:///")) {
-      return new URL(moduleSpecifier).pathname;
+      const pathname = new URL(moduleSpecifier).pathname;
+
+      if (identities[pathname]) {
+        const { identity } = context.importAttributes;
+        if (!identity) {
+          throw new Error("illegal direct import of exported script");
+        }
+
+        if (identity !== identities[pathname]) {
+          throw new Error("improper import of exported script");
+        }
+
+        return { resolution: pathname, identity };
+      }
+
+      return { resolution: pathname };
     }
 
     if (!moduleSpecifier.startsWith("pardon:")) {
-      return moduleSpecifier;
+      return { resolution: moduleSpecifier };
     }
+
+    moduleSpecifier = moduleSpecifier.replace(/[.][tj]s$/, "");
 
     const resolved = resolutions[moduleSpecifier];
 
     if (resolved) {
-      return resolved;
-    }
-
-    const config = resolvePardonConfig(moduleSpecifier);
-
-    if (config) {
-      const exports = config.export;
-      if (exports && exports in resolutions) {
-        return resolutions[exports];
+      if (index) {
+        return { resolved, index: Number(index), identity: moduleSpecifier };
       }
 
-      throw new PardonError(`${moduleSpecifier}: configuration has no export`);
+      return { resolved, index: resolved.length, identity: moduleSpecifier };
     }
 
     throw new PardonError(`${moduleSpecifier}: unresolved`);
   }
 
-  function expectPardon(specifier: string) {
-    if (!specifier.startsWith("pardon:")) {
-      throw new PardonError(
-        "unexpected attempt to resolve non-pardon module: " + specifier,
-      );
-    }
-
-    return specifier.replace(/^pardon:/, "");
-  }
-
-  function resolvePardonConfig(pardonSpecifier: string) {
-    const module = expectPardon(pardonSpecifier);
-
-    const configuration = configurations[module];
-
-    if (!configuration) {
-      throw new Error("could resolve pardon config: " + pardonSpecifier);
-    }
-
-    return configuration;
-  }
-
   function compile(moduleSpecifier: string, context: Module.LoadHookContext) {
-    void context;
-
     if (moduleSpecifier in data) {
       return `export default (${JSON.stringify(data[moduleSpecifier].values ?? null)});`;
     }
 
-    const resolved = resolvePardonExport(moduleSpecifier);
+    const { resolution, resolved, identity, index } = resolvePardonExport(
+      moduleSpecifier,
+      context,
+    );
 
-    if (!resolved.startsWith("pardon:") && !resolved.endsWith(".https")) {
-      const content = readFileSync(resolved, "utf-8");
-      if (!resolved.endsWith(".ts")) {
+    if (
+      resolution &&
+      !resolution.startsWith("pardon:") &&
+      !resolution.endsWith(".https")
+    ) {
+      const content = readFileSync(resolution, "utf-8");
+      if (!resolution.endsWith(".ts")) {
         return content;
       }
 
-      const compiled = project
-        .createSourceFile(resolved, content)
-        .transform(expressionTransform)
-        .asKind(ts.SyntaxKind.SourceFile)
-        ?.getEmitOutput();
+      const compiled = translate(resolution, content)?.compiled.getEmitOutput();
 
-      const output = compiled?.getOutputFiles()[0].getText();
-
-      return output;
+      return compiled?.getOutputFiles()[0].getText();
     }
 
-    if (resolved in scripts) {
-      const stack = scripts[resolved];
-
-      if (stack.length > 1) {
-        throw new Error("todo: stacked scripts");
-      }
-
-      const { path, content } = stack[0];
-
-      const compiled = project
-        .createSourceFile(path, content)
-        .transform(expressionTransform)
-        .asKind(ts.SyntaxKind.SourceFile)
-        ?.getEmitOutput();
-
-      const output = compiled?.getOutputFiles()[0].getText();
-
-      return output;
+    if (resolved) {
+      const exported = new Set<string>();
+      return resolved
+        .slice(0, index)
+        .reverse()
+        .map(({ path, content }) => ({
+          path,
+          exports: translate(path, content).exports.filter((symbol) =>
+            exported.has(symbol) ? false : exported.add(symbol),
+          ),
+        }))
+        .reverse()
+        .map(
+          ({ path, exports }, index) =>
+            `export { ${exports.join(", ")} } from ${JSON.stringify(
+              `file://${path}`,
+            )} with { identity: ${JSON.stringify(`${identity}?${index}`)} };`,
+        )
+        .join("\n");
     }
 
-    const httpsMatch = /[.](mix|mux|unit|flow)[.]https$/.exec(resolved);
+    const httpsMatch = /[.](mix|mux|unit|flow)[.]https$/.exec(resolution);
 
     if (httpsMatch) {
       const [, type] = httpsMatch;
 
-      const asset = assets[resolved] ?? {
+      const asset = assets[resolution] ?? {
         sources: [
           {
             path: resolved,
-            content: readFileSync(resolved, "utf-8"),
+            content: readFileSync(resolution, "utf-8"),
           },
         ],
       };
