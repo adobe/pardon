@@ -35,6 +35,7 @@ import {
   PardonCollection,
 } from "../core/app-context.js";
 import { PardonError } from "../core/error.js";
+import { expandConfigMap } from "../core/schema/core/config-space.js";
 
 export async function loadCollectionLayer(root: string) {
   return await globfiles(root, ["**/*"], async (content, path) => {
@@ -345,13 +346,18 @@ function mergeDefaults(
   }
 }
 
+type Combiner = {
+  merge<A, B>(a: A, b: B, combiner: Combiner): A & B;
+  mix<A, B>(a: A, b: B): A & B;
+};
+
 function mergeData<A, B>(
   a: A,
   b: B,
-  combine: (
-    a: A extends Record<string, unknown> ? A[string] : never,
-    b: B extends Record<string, unknown> ? B[string] : never,
-  ) => unknown = mergeData,
+  combiner: Combiner = {
+    merge: mergeData,
+    mix: (a, b) => (b ?? a) as typeof a & typeof b,
+  },
 ): A & B {
   if (
     typeof a === "object" &&
@@ -367,7 +373,13 @@ function mergeData<A, B>(
       ...arrayIntoObject(
         Object.keys(a ?? {}).filter((k) => (b ?? {})[k] !== undefined),
         (k) =>
-          ({ [k]: combine((a ?? {})[k] as any, (b ?? {})[k] as any) }) as any,
+          ({
+            [k]: combiner.merge(
+              (a ?? {})[k] as any,
+              (b ?? {})[k] as any,
+              combiner,
+            ),
+          }) as any,
       ),
     };
   }
@@ -377,7 +389,7 @@ function mergeData<A, B>(
     return b as A & B;
   }
 
-  return (b ?? a) as A & B;
+  return combiner.mix(a, b) as A & B;
 }
 
 function endpointServiceConfiguration(
@@ -415,9 +427,9 @@ function endpointServiceConfiguration(
 function loadConfig(
   { content, name: rawname, path }: Record<"content" | "name" | "path", string>,
   errors: AssetParseError[],
-): Configuration {
+): Configuration<"source"> {
   try {
-    const config = parseAsset(
+    const configuration = parseAsset(
       path,
       () => YAML.parse(content) as Configuration,
       errors,
@@ -427,7 +439,7 @@ function loadConfig(
     const [, name, type] = /^(.*)[/](service|config)[.]yaml$/.exec(rawname)!;
 
     return {
-      ...config,
+      ...configuration,
       type: type as "service" | "config",
       name,
       path,
@@ -449,7 +461,9 @@ export function mergeConfigurations({
   mixing,
 }: {
   name: string;
-  configurations: Partial<Configuration & HttpsTemplateConfiguration>[];
+  configurations: Partial<
+    Configuration<"source"> & HttpsTemplateConfiguration<"source">
+  >[];
   mixing?: boolean;
 }): Configuration {
   const target = `pardon:${dirname(name)}`;
@@ -482,21 +496,7 @@ export function mergeConfigurations({
           //...other
         },
       ) => ({
-        // mixin configuration overrides without mergeData().
-        // we do it like this so that mixins can specify, for instance:
-        //
-        // guard:
-        //   method:
-        //     POST: allowed
-        //     PUT: allowed
-        //
-        // which prevents the mixin from being applied to any other request method.
-        config: mixing
-          ? {
-              ...merged.config,
-              ...(config ?? {}),
-            }
-          : mergeData(merged.config, config ?? {}),
+        config: expandConfigMap(config, merged.config),
         // defaults do not override when applying mixins
         defaults: mixing
           ? mergeData(defaults ?? {}, merged.defaults)
@@ -547,7 +547,7 @@ export function mergeConfigurations({
             ? ("service" as const)
             : ("config" as const),
       }),
-      { config: {}, defaults: {}, import: {}, mixin: [] },
+      { config: [{}], defaults: {}, import: {}, mixin: [] },
     );
 
   return { ...merged, name, path: target };

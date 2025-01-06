@@ -21,13 +21,12 @@ import {
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { uniqReducer } from "../../../util/uniq-reducer.js";
 
-export type ConfigMap = Record<string, ConfigMapping>;
+export type ConfigMap = Record<string, ConfigMapping | ConfigMapping[]>;
 
 type ConfigMapping =
   | string
-  | string[]
   | {
-      [key: string]: ConfigMap;
+      [key: string]: ConfigMap | (ConfigMap | string)[];
     };
 
 export type DefaultsMap = Record<string, DefaultsMapping>;
@@ -41,14 +40,12 @@ type DefaultsMapping =
 export class ConfigSpace {
   options: Record<string, string>[];
   possibilities: Record<string, string>[];
-  mapping: ConfigMap;
   defaults: DefaultsMap;
   chosen: Record<string, string> = {};
 
-  constructor(mapping: ConfigMap, defaults?: DefaultsMap) {
-    this.options = enumerateConfigs((this.mapping = mapping));
+  constructor(options: Record<string, string>[], defaults?: DefaultsMap) {
+    this.options = options;
     this.defaults = defaults ?? {};
-
     this.possibilities = this.options.slice();
   }
 
@@ -353,11 +350,7 @@ function enumerateConfig(
 ): Record<string, string>[] {
   function enumerate(mapping: ConfigMapping) {
     if (typeof mapping === "string") {
-      return [{ [name]: mapping }];
-    }
-
-    if (Array.isArray(mapping)) {
-      return mapping.map((value) => ({ [name]: value }));
+      return [mapping === "..." ? {} : { [name]: mapping }];
     }
 
     if (Object.keys(mapping).length > 1) {
@@ -365,21 +358,47 @@ function enumerateConfig(
     }
 
     return Object.entries(mapping).flatMap(([key, submapping]) => {
-      return Object.entries(submapping).flatMap(([value, next]) =>
-        enumerate(next).map((option: object) => ({ [key]: value, ...option })),
-      );
+      return [submapping].flat(1).flatMap((subvalue) => {
+        if (typeof subvalue === "string") {
+          return { [key]: subvalue };
+        }
+        return Object.entries(subvalue).flatMap(([value, next]) =>
+          [next].flat(1).flatMap((n) =>
+            enumerate(n).map((option: object) => ({
+              [key]: value,
+              ...option,
+            })),
+          ),
+        );
+      });
     });
   }
 
   return enumerate(configMapping);
 }
 
-function enumerateConfigs(configs: ConfigMap = {}) {
-  const values = Object.values(
-    mapObject(configs, (value, key) => enumerateConfig(key, value)),
-  );
+export function expandConfigMap(
+  configMap: ConfigMap | Record<string, string>[] = {},
+  space: Record<string, string>[] = [{}],
+) {
+  const values = Array.isArray(configMap)
+    ? [configMap]
+    : Object.values(
+        mapObject(configMap, (value, key) =>
+          [value].flat(1).flatMap((v) => enumerateConfig(key, v)),
+        ),
+      );
 
-  return values.reduce(
+  const options = mergeOptions(values, space);
+
+  return options;
+}
+
+export function mergeOptions(
+  values: Record<string, string>[][],
+  over: Record<string, string>[] = [{}],
+) {
+  const integrated = values.reduce(
     (options, values) =>
       options.flatMap((option) =>
         values
@@ -387,12 +406,27 @@ function enumerateConfigs(configs: ConfigMap = {}) {
             (value) =>
               compatible(option, value) &&
               (Object.keys(value).some((k) => option[k] === undefined) ||
-                Object.keys(option).some((k) => value[k] === undefined)),
+                Object.keys(option).some((k) => value[k] === undefined) ||
+                (Object.keys(value).length === 0 &&
+                  Object.keys(option).length === 0)),
           )
           .map((value) => ({ ...option, ...value })),
       ),
     [{} as Record<string, string>],
   );
+
+  return integrated.flatMap((space) => {
+    const compat = over.flatMap((base) => {
+      if (compatible(space, base)) {
+        return [{ ...space, ...base }];
+      }
+      return [];
+    });
+    if (compat.length != 0) {
+      return compat;
+    }
+    return [space];
+  });
 }
 
 function implied(...options: Record<string, string>[]): Record<string, string> {
@@ -454,7 +488,7 @@ function related(keys: string[], options: Record<string, string>[]) {
 }
 
 function resolveDefault(
-  defaulted: ConfigMapping,
+  defaulted: DefaultsMapping,
   values: Record<string, string>,
 ): string | undefined {
   while (defaulted !== undefined) {

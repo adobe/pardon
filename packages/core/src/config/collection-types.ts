@@ -26,10 +26,13 @@ export type ConfigurationImports = Record<string, string | string[]>;
 
 export type AssetParseError = { path: string; error: any };
 
-export type Configuration = {
+export type ConfigurationProcessingPhase = "source" | "runtime";
+
+export type Configuration<
+  ProcessingPhase extends ConfigurationProcessingPhase = "runtime",
+> = {
   name: string;
   path: string;
-  config?: ConfigMap;
   defaults?: DefaultsMap;
   mixin?: string | string[];
   import?: ConfigurationImports;
@@ -37,7 +40,13 @@ export type Configuration = {
   encoding?: EncodingTypes;
   search?: "multi";
   type?: "service" | "config";
-};
+} & (ProcessingPhase extends "source"
+  ? {
+      config?: ConfigMap | Record<string, string>[];
+    }
+  : {
+      config: Record<string, string>[];
+    });
 
 export type EndpointConfiguration = Omit<Configuration, "export"> & {
   mode?: "mix" | "mux";

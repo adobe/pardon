@@ -313,14 +313,66 @@ endpoint=example/products/create method=POST name=thneed
 </Exercises>
 </PardonPlayground>
 
+## Config
+
+The `config` mapping enables templates to assert possible combinations of certain values.
+
+A simple mapping of
+```yaml
+config:
+  key: value
+```
+specifies one option of `{ "key": "value" }`, and 
+```yaml
+config:
+  key1: value1
+  key2: value2
+```
+specifies one option of `{ "key1": "value1", "key2": "value2" }`.  This is not functionally any
+better than normal template matching, but it has its uses since the data is outside
+the rendering of the template.
+
+Revisting the config we introduced earlier
+
+```yaml ins="origin" ins=/https:.*/ "env" "prod" "stage"
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+```
+You can read this as 
+- `origin = (when env is prod) https://example.com`, and
+- `origin = (when env is stage) https://stage.example.com`
+
+and this allows for two variants of the request
+- `{ env: "prod", origin: "https://example.com" }`, and
+- `{ env: "stage", origin: "https://stage.example.com" }`
+
+Specifying `env=prod` implies the origin value and vice-versa,
+and `env` becomes a value that can be used in scripts.
+
+Patterns, with expressions, can be included, e,g., this config
+```plain ins="origin" ins=/https?:.*/ "env" "prod" "stage" "local"
+config:
+  origin:
+    env:
+      prod: https://example.com
+      stage: https://stage.example.com
+      local: http://localhost:{{port=8000}}
+```
+also allows `env=local` and provides a default port.
+
 ## Mixins
 
 Oh no. In our rush to add features, we forgot to include authorization headers to call these endpoints:
 the security team took care of this in the gateway on stage, and now all of our endpoints need
 to be updated, and tested.
 
-We want to tell Pardon that this _service_ needs authentication, rather than updating every endpoint.
-We just need to specify a mixin at the service level.
+We want to tell Pardon that by default all calls to this _service_ needs authentication,
+rather than updating every endpoint.
+
+We can do this with a mixin at the service level.
 
 ```yaml title="example/service.yaml" {6-7}
 config:
@@ -355,7 +407,8 @@ Authorization: {{ @auth = `${env}-auth-token` }}
 ```
 
 The special request method `ANY` matches _all_ request methods, and the special value `//` matches _any_ URL.
-(A "mixin" is mixed-in _only if_ it is "compatible" with the request.)
+(A "mixin" is mixed-in _only if_ it is "compatible" with the request.  So this mixin can
+apply to any service call.)
 
 This adds an authorization header to all requests.
 
@@ -376,18 +429,22 @@ out of durable locations, and just generally hide them by default.
 Commonly, we would compute the secret using an imported function.
 
 ```http
+import:
+  ./helper.ts:
+    - makeAccessToken
+>>>
+ANY //
 Authorization: {{ @auth = makeAccessToken(env) }}
 ```
 
 where `makeAccessToken` is an async function exported from a javascript
-(or typescript) file, and it could be implemented by calling another
-pardon endpoint.
+(or typescript) file.
 :::
 </Aside>
 
 Let's try it out in stage and confirm all our endpoints are working and have authorization
-applied... (The `@` in `@auth` marks it a secret. You can see the value using the lock button
-in this exercise.).
+applied... (The `@` in `@auth` marks it a secret. You can unlock the secret for viewing by tapping
+the lock button in this exercise.).
 
 <PardonPlayground
   secrets
@@ -409,18 +466,20 @@ this analogy, I just thought it might be interesting to think about.
 > 
 > They do not affect whether the endpoint template matches the input request.
 
-Awesome! We've got a security measure applied to our requests.
+Awesome! We have applied a security measure applied to our requests.
 And we provided confirmation of all our requests working on stage, so ops rolled
 these changes out to production.
 
-Unfortunately, now alerts are firing because the (oops, only in production!)
-liveness probe hitting `/ping` requires an auth token and is not provisioned to use one.
-We missed this case in staging because our updated collection sent auth
-tokens to _every_ endpoint.
+Unfortunately, now alerts are firing because the (oops) 
+only-running-in-production-liveness-probe hitting `/ping`
+also requires an auth token now.
+
+We missed this case in staging because when we tested our updated collection we
+sent auth tokens to _every_ endpoint.
 
 Well, it's not _actually_ an outage, and the fix isn't even on our end (ops is in control of
-removing the Authorization header check from the /ping endpoint),
-but we do want to adjust our collection to align with the deployment.
+removing the Authorization header check from the /ping endpoint).
+But we do want to adjust our collection to not send an unnecessary auth token for ping calls.
 
 :::caution
 One option is removing the mixin from service.yaml and including it selectively from every authenticated endpoint.
@@ -516,20 +575,20 @@ and provides some additional controls we explore here:
 <PardonPlayground
   secrets
   values
-  example={`GET https://example.com/products`}
-  config={serviceAndPingAndProductsWithConfigurableAuth} >
+  example={`GET https://example.com/ping`}
+  config={serviceAndPingAndProductsWithConfigurableAuth}>
 
 <Exercises>
-  <ExerciseItem label="ping"
-    prompt="Set the endpoint to ping.">
-    Notice the authorization header disappears as expected.
+  <ExerciseItem label="ping" >
+    Notice the authorization header is gone, because
+    it's disabled for ping by default now.
     <IconicCode name="pencil">
 ```http ins="ping"
 GET https://example.com/ping
 ```
     </IconicCode>
   </ExerciseItem>
-  <ExerciseItem label="pong"
+  <ExerciseItem label="ping w/auth"
     prompt="Send authorization to ping anyway?">
     Override the default `authorization` to force an authenticated ping request!
     <IconicCode name="setting">
@@ -537,11 +596,15 @@ GET https://example.com/ping
 authorization=token
 ```
     </IconicCode>
+    <IconicCode name="pencil">
+```http
+GET https://example.com/ping
+```
+    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="disable auth"
     prompt="Send an unauthenticated request to products.">
     Override the default `authorization` to force an unauthenticated products request.
-    Why would we do this?  I don't know, maybe for testing?  To assert dominance over our framework?
     <IconicCode name="setting">
 ```properties ins="authorization=token"
 authorization=none
@@ -556,6 +619,52 @@ GET https://example.com/products
 </Exercises>
 </PardonPlayground>
 
+## default.https
+
+A service can have a default request that is tried if no specific request matches.
+The `default.https` request extends the `service.yaml` specification.
+
+Since multiple services can have defaults, we probably want to use defaults only for
+`stage`/`prod` origins, and not `localhost` ones (since then they would conflict with each other).
+
+<Tabs>
+  <TabItem label="config arrays">
+  To specify a subset of environments, you can use a list in the config mapping.
+```http title="example/default.https" ins={3-4} ins="env"
+config:
+  env:
+    - stage
+    - prod
+mixin:
+  - ./auth.mix.https
+>>>
+ANY //
+```
+  </TabItem>
+  <TabItem label="elided values ...">
+Alternatively you can use ellipses (`...`) to specify no value for `origin`.
+This means exactly the same thing.
+
+```http title="example/default.https" "origin" "..." ins=/env|stage|prod/
+config:
+  origin:
+    env:
+      stage: ...
+      prod: ...
+mixin:
+    - ./auth.mix.https
+>>>
+ANY //
+```
+  </TabItem>
+</Tabs>
+
+When merging config mappings, all possibilities of the last mapping will be retained,
+along with all options of compatible values for each of them, if present.  So
+in this case the config acts as a filter, only applying "default.https" to requests
+to `https://example.com/` and `https://stage.example.com/` that don't match
+a more specific template.
+ 
 ## Collection Layering
 
 To match team structures, collections are defined in layers:
@@ -566,13 +675,15 @@ access to credentials to the same services, so Pardon supports
 separation of concerns and access requirements by allowing
 layers of functionality to be applied.
 
-A root pardon config defines the layers of collections
+Requests, mixins, and service configs can all be layered.
+
+A root pardon config defines all the layers of collections
 to use. We'll need to revisit this in the section on scripting.
 
 ## Next Steps
 
 Next we will cover more dataflow mechanisms.
 
-<CollectionLinkCard href="/intro/dataflow"/>
+<CollectionLinkCard href="/intro/dataflow" />
 
-Afterwards we will revisit layering a bit in scripting.
+Then layering and scripting collections.

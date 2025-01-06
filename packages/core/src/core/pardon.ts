@@ -188,7 +188,7 @@ export const PardonFetchExecution = pardonExecution({
         configuration: {
           path: "-",
           name: "-",
-          config: {},
+          config: [{}],
           mixin: [],
           defaults: {},
         },
@@ -453,6 +453,7 @@ export const PardonFetchExecution = pardonExecution({
               configuration: {
                 name: endpoint.configuration.name,
                 path: endpoint.configuration.path,
+                config: [{}],
               },
             },
             compiler,

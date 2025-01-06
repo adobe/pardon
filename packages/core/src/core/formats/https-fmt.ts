@@ -9,7 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Configuration } from "../../config/collection-types.js";
+import {
+  Configuration,
+  ConfigurationProcessingPhase,
+} from "../../config/collection-types.js";
 import { PardonError } from "../error.js";
 import {
   fetchIntoObject,
@@ -73,8 +76,10 @@ export type HttpsSchemeType<Mode extends string, Config> = {
 
 export type HttpsScheme = HttpsUnitScheme | HttpsTemplateScheme;
 
-export type HttpsTemplateConfiguration = Pick<
-  Configuration,
+export type HttpsTemplateConfiguration<
+  Phase extends ConfigurationProcessingPhase = "runtime",
+> = Pick<
+  Configuration<Phase>,
   | "name"
   | "config"
   | "mixin"

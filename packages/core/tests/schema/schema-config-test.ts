@@ -25,9 +25,160 @@ import {
   SchemaScriptEnvironment,
   Template,
 } from "../../src/core/schema/core/types.js";
+import { expandConfigMap } from "../../src/core/schema/core/config-space.js";
+
+describe("config map merging", () => {
+  it("should expand env/origin", () => {
+    const options = expandConfigMap({
+      origin: {
+        env: {
+          stage: "https://stage.example.com",
+          prod: "https://stage.example.com",
+        },
+      },
+    });
+
+    assert.equal(options.length, 2);
+  });
+
+  it("should expand alternations", () => {
+    const options = expandConfigMap({
+      origin: {
+        env: {
+          stage: "https://stage.example.com",
+          prod: "https://stage.example.com",
+        },
+      },
+      alternate: ["a", "b"],
+    });
+
+    assert.equal(options.length, 4);
+  });
+
+  it("should expand unmapped alternatives", () => {
+    const options = expandConfigMap({
+      origin: {
+        env: [
+          {
+            stage: "https://stage.example.com",
+            prod: "https://stage.example.com",
+          },
+          "local",
+        ],
+      },
+    });
+
+    assert.equal(options.length, 3);
+  });
+
+  it("should filter down", () => {
+    const options = expandConfigMap(
+      { env: ["stage", "prod"] },
+      expandConfigMap({
+        origin: {
+          env: {
+            stage: "https://stage.example.com",
+            prod: "https://stage.example.com",
+            local: "http://locahost",
+          },
+        },
+      }),
+    );
+
+    assert.equal(options.length, 2);
+  });
+
+  it("should expand on a base", () => {
+    const options = expandConfigMap(
+      expandConfigMap({
+        origin: {
+          env: {
+            stage: "...",
+            prod: "...",
+            local: "http://localhost",
+          },
+        },
+      }),
+      expandConfigMap({
+        origin: {
+          env: {
+            stage: "https://stage.example.com",
+            prod: "https://stage.example.com",
+          },
+        },
+      }),
+    );
+
+    assert.equal(
+      options.find(({ env }) => env == "stage")!.origin,
+      "https://stage.example.com",
+    );
+    assert.equal(options.length, 3);
+  });
+
+  it("should expand merge alternates", () => {
+    const options = expandConfigMap(
+      expandConfigMap({
+        origin: {
+          x: ["a", "b"],
+        },
+      }),
+      expandConfigMap({
+        origin: {
+          env: {
+            stage: "https://stage.example.com",
+            prod: "https://example.com",
+          },
+        },
+      }),
+    );
+
+    assert.equal(
+      options.find(({ env }) => env == "stage")!.origin,
+      "https://stage.example.com",
+    );
+
+    assert.equal(options.length, 4);
+  });
+
+  it("should expand merge alternates", () => {
+    // this example doesn't need to make any sense
+    const options = expandConfigMap(
+      expandConfigMap({
+        x: ["a", "d"],
+      }),
+      expandConfigMap({
+        origin: {
+          env: {
+            stage: {
+              x: {
+                a: "https://stage.example.com",
+                b: "https://stage-b.example.com",
+              },
+            },
+            prod: {
+              x: {
+                a: {
+                  y: {
+                    s: "https://example.com",
+                    t: "https://t.example.com",
+                  },
+                },
+                c: { y: { t: "https://c.example.com" } },
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    assert.equal(options.length, 4);
+    assert.equal(options.filter(({ origin }) => origin).length, 3);
+  });
+});
 
 describe("schema configuration magic", () => {
-  const config = {
+  const config = expandConfigMap({
     origin: {
       env: {
         prod: {
@@ -52,7 +203,7 @@ describe("schema configuration magic", () => {
         stage: "/thing/v1/{{thing}}",
       },
     },
-  };
+  });
 
   it("should render via config", async () => {
     const { schema: archetype, context: archContext } = extend(

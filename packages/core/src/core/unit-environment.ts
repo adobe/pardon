@@ -29,7 +29,7 @@ export function createSequenceEnvironment({
 }) {
   const scriptEnv = new ScriptEnvironment({
     name: sequencePath,
-    config: {},
+    config: [{}],
     input: {},
     runtime: {
       false: false,
