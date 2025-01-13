@@ -1,4 +1,6 @@
 config:
   origin:
     env:
+      prod: ...
+      stage: ...
       local: http://localhost:{{port=8080}}

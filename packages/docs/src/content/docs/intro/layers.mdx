@@ -99,9 +99,13 @@ update defaults, and add or customize mixins.
 config:
   origin:
     env:
+      stage: ...
+      prod: ...
       local: http://localhost:8080
 ```
     </IconicCode>
+    We want to retain the `stage` and `prod` configs here but
+    by specifying `...` we don't need to repeat their definitions.
 
     Then we can configure the request for local
     <IconicCode name="setting">
