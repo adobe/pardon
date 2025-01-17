@@ -41,7 +41,7 @@
     "@rollup/plugin-alias": "^5.1.0",
     "@tailwindcss/typography": "^0.5.13",
     "@typescript-eslint/eslint-plugin": "^8.4.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-headers": "^1.1.2",
     "eslint-plugin-prettier": "^5.2.1",
     "import-meta-resolve": "^4.1.0",
