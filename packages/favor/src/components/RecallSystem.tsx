@@ -150,7 +150,11 @@ export default function RecallSystem(props: {
                               ask,
                               endpoint: {
                                 action: "",
-                                configuration: { name: "", path: "" },
+                                configuration: {
+                                  name: "",
+                                  path: "",
+                                  config: [],
+                                },
                                 layers: [],
                                 service: "",
                               },
