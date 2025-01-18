@@ -68,9 +68,6 @@
   "dependencies": {
     "better-sqlite3": "^11.1.2"
   },
-  "overrides": {
-    "node-gyp": "^10"
-  },
   "engines": {
     "rollup": ">=14.6.3 <14.6.0"
   }
