@@ -11,27 +11,28 @@ governing permissions and limitations under the License.
 */
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { VitePlugin } from "@electron-forge/plugin-vite";
+import { NativeDepsPlugin } from "./forge/plugins/forge-native-deps.ts";
 
 const config: ForgeConfig = {
   packagerConfig: {
     name: "pardon",
-    derefSymlinks: true,
     icon: "./electron-static/icon",
+    derefSymlinks: true,
+    darwinDarkModeSupport: true,
   },
-  rebuildConfig: {},
   plugins: [
+    new NativeDepsPlugin({ force: true }),
     new VitePlugin({
-      // `build` can specify multiple entry builds, which can be Main process, Preload scripts, Worker process, etc.
-      // If you are familiar with Vite configuration, it will look really familiar.
       build: [
         {
-          // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
           entry: "electron/main.ts",
           config: "vite.main.config.ts",
+          target: "main",
         },
         {
           entry: "electron/preload.ts",
           config: "vite.preload.config.ts",
+          target: "preload",
         },
       ],
       renderer: [
