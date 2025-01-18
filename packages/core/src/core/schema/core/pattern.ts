@@ -59,7 +59,7 @@ export type PatternVar = {
 // the "% /regex/" and "= ...expression..." parts are optional.
 // and the variable name can be dotted.
 const paramPattern =
-  /^([.?!@#:~*/+-]+)?((?:[a-z$_][a-z0-9_$]*)(?:[.][@a-z$_][a-z0-9_$]*)*)?\s*(?:=\s*((?:[^%]|%\s*[^/])*)?)?(?:%\s*([/].*))?$/i;
+  /^([.?!@#:~*/+-]+)?((?:[a-z$_][a-z0-9_$]*)(?:[.][@a-z$_][a-z0-9_$]*)*)?\s*(?:=\s*((?:[^%]|%\s*[^/\s])*)?)?(?:%\s*([/].*))?$/i;
 
 const literal = /(?:[^{]|[{][^{])+/;
 const squote = /['](?:(?:[^'\\]|[\\].)*)[']/;

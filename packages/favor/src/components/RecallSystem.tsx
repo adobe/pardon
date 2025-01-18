@@ -43,8 +43,8 @@ const recallArgConfig = {
 } as const;
 
 function qt(s: string) {
-  if (/[$\s]/.test(s)) {
-    return `'${s.replace(/"/g, '\\"')}'`;
+  if (/[$\s'"]/.test(s)) {
+    return JSON.stringify(s);
   }
   return s;
 }

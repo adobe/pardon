@@ -24,11 +24,11 @@ export const CURL = {
 };
 
 function quot(s: string | unknown) {
-  return String(s ?? "").replace(/"/g, '\\"');
+  return String(s ?? "").replace(/["\\]/g, (m) => `\\${m}`);
 }
 
 function squot(s: string | unknown) {
-  return String(s ?? "").replace(/'/g, "'\\''");
+  return String(s ?? "").replace(/'/g, `'"'"'`);
 }
 
 function headerList(headers: HeadersInit = []) {

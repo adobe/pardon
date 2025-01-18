@@ -69,7 +69,7 @@ function decode(token: string) {
 export function intoArgs(command: string) {
   const tokens = command
     .trim()
-    .split(/(\s+|"(?:\\.|[^"])*"|'(?:[^'])*'|[^\\'"\s]+|\\.)/s);
+    .split(/(\s+|"(?:\\.|[^"\\])*"|'(?:[^'])*'|[^\\'"\s]+|\\.)/s);
 
   const args: string[] = [];
 
