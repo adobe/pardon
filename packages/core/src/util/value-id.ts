@@ -10,7 +10,6 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-// @ts-expect-error https://github.com/nodejs/node/issues/55446
 import { isNumberObject, isBigIntObject } from "node:util/types";
 
 export function valueId(value: unknown): string {
