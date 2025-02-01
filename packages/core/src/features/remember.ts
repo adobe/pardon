@@ -58,7 +58,7 @@ export default function remember(
         const { insertValue } = valueOps(database);
         const { insertHttp } = httpOps(database);
 
-        context.http = database
+        context.http = database.sqlite
           .transaction(() => {
             const http = insertHttp({
               req,
@@ -164,7 +164,7 @@ export default function remember(
         const { updateWithResponse } = httpOps(database);
         const { insertValue } = valueOps(database);
 
-        database
+        database.sqlite
           .transaction(() => {
             if (inbound.redacted) {
               updateWithResponse({

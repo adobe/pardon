@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Database, Id } from "../sqlite.js";
+import { PardonDatabase, Id, cachedOps } from "../sqlite.js";
 import { arrayIntoObject } from "../../util/mapping.js";
 import { httpOps } from "./http-entity.js";
 import { JSON } from "../../core/json.js";
@@ -33,10 +33,14 @@ export type ValueEntityInsert = Omit<ValueEntity, "scope"> & {
   scope?: string;
 };
 
-export function valueOps(db: Database) {
+export const valueOps = cachedOps(valueOps_);
+
+function valueOps_(db: PardonDatabase) {
   httpOps(db);
 
-  db.exec(`
+  const { sqlite } = db;
+
+  sqlite.exec(`
 CREATE TABLE IF NOT EXISTS "value"
 (
     "http" INTEGER NOT NULL,
@@ -54,28 +58,28 @@ CREATE INDEX IF NOT EXISTS "value-by-name-and-value" on "value" ("name", "value"
 `);
 
   if (
-    !(db.pragma('table_info("value")') as any[])?.find(
+    !(sqlite.pragma('table_info("value")') as any[])?.find(
       ({ name }) => name === "typeof",
     )
   ) {
     console.warn("--- (once) migrate value-table ---");
-    db.exec(`
+    sqlite.exec(`
 ALTER TABLE "value"
 ADD COLUMN "typeof" TEXT DEFAULT ('raw');
 `);
   }
 
-  const insert = db.prepare<InternalValueEntity>(`
+  const insert = sqlite.prepare<InternalValueEntity>(`
 INSERT INTO "value" ("http", "type", "scope", "name", "value", "typeof")
 VALUES (:http, :type, :scope, :name, :value, :typeof)
 `);
 
-  const byHttp = db.prepare<{ http: Id | string }, InternalValueEntity>(`
+  const byHttp = sqlite.prepare<{ http: Id | string }, InternalValueEntity>(`
 SELECT * FROM "value"
 WHERE "http" = :http
 `);
 
-  const byHttpAndNameScoped = db.prepare<
+  const byHttpAndNameScoped = sqlite.prepare<
     Pick<InternalValueEntity, "http" | "name" | "scope">,
     Pick<InternalValueEntity, "value" | "typeof" | "scope">
   >(
@@ -167,7 +171,7 @@ WHERE "http" = :http
   ): { [http: string]: { [scope: string]: Record<string, unknown> } } {
     const queryvalues = [...Object.entries(values)];
 
-    const statement = db.prepare<string[]>(`
+    const statement = sqlite.prepare<string[]>(`
 WITH
   "criteria"("name", "value") AS (
     ${

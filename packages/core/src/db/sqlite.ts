@@ -14,7 +14,10 @@ import { PardonAppContextOptions } from "../core/app-context.js";
 
 export type Id = number | bigint;
 export type Datetime = string;
-export type { Database };
+export type PardonDatabase = {
+  sqlite: Database;
+  opsCache: Record<string, unknown>;
+};
 
 export type StatementOptions<S> =
   S extends Statement<infer P> ? (P extends unknown[] ? never : P) : never;
@@ -26,12 +29,14 @@ export type StatementBindArgs<S> =
 export async function connectDb(
   path: string,
   options?: PardonAppContextOptions["sqlite3"],
-): Promise<any> {
+): Promise<PardonDatabase | undefined> {
   try {
-    return await tryConnectDb(path, options);
+    return {
+      sqlite: await tryConnectDb(path, options),
+      opsCache: {},
+    };
   } catch (error) {
     console.warn("error loading sqlite3", error);
-    return undefined;
   }
 }
 
@@ -39,13 +44,7 @@ async function tryConnectDb(
   path: string,
   options?: PardonAppContextOptions["sqlite3"],
 ) {
-  let Sqlite3: typeof import("better-sqlite3");
-  try {
-    ({ default: Sqlite3 } = await import("better-sqlite3"));
-  } catch (error) {
-    void error;
-    return undefined;
-  }
+  const { default: Sqlite3 } = await import("better-sqlite3");
 
   const database = new Sqlite3(path, {
     nativeBinding: options?.nativeBinding,
@@ -66,4 +65,10 @@ async function tryConnectDb(
   // database.pragma("cache_size=100000")
 
   return database;
+}
+
+export function cachedOps<T>(
+  opsFn: (db: PardonDatabase) => T,
+): (db: PardonDatabase) => T {
+  return (db) => (db.opsCache[opsFn.name] ??= opsFn(db)) as T;
 }

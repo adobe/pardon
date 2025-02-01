@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { PardonError } from "../../core/error.js";
 import { shared } from "../../core/tracking.js";
-import { Database, Datetime } from "../sqlite.js";
+import { PardonDatabase, Datetime, cachedOps } from "../sqlite.js";
 
 export type CacheEntity = {
   key: string;
@@ -29,8 +29,10 @@ export type CacheEntry<T> = {
 
 const inflightCache: Record<string, Promise<unknown>> = {};
 
-function initDb(db: Database) {
-  db.exec(`
+export const initDb = cachedOps(initDb_);
+
+function initDb_({ sqlite }: PardonDatabase) {
+  sqlite.exec(`
     CREATE TABLE IF NOT EXISTS "cache"
     (
       "key" TEXT PRIMARY KEY NOT NULL,
@@ -39,7 +41,7 @@ function initDb(db: Database) {
       "expires_at" DATETIME NOT NULL
     );`);
 
-  const updateCache = db.prepare<{
+  const updateCacheStmt = sqlite.prepare<{
     key: string;
     value: unknown;
     expires_at: string;
@@ -51,7 +53,7 @@ function initDb(db: Database) {
       "expires_at" = "excluded"."expires_at"
   `);
 
-  const readCache = db
+  const readCacheStmt = sqlite
     .prepare<{ key: string }>(
       `
     SELECT "value"
@@ -65,20 +67,36 @@ function initDb(db: Database) {
     .pluck();
 
   function cleanExpiredCache() {
-    db.exec(`
+    sqlite.exec(`
     DELETE FROM "cache"
     WHERE "expires_at" < CURRENT_TIME
     `);
   }
 
   function cleanCache() {
-    db.exec(`DELETE FROM "cache"`);
+    sqlite.exec(`DELETE FROM "cache"`);
+  }
+
+  function readCache(key: string) {
+    return readCacheStmt.get({ key });
+  }
+
+  function updateCache({
+    key,
+    value,
+    expires_at,
+  }: {
+    key: string;
+    value: string;
+    expires_at: string;
+  }) {
+    return updateCacheStmt.run({ key, value, expires_at });
   }
 
   return { updateCache, readCache, cleanExpiredCache, cleanCache };
 }
 
-export function cacheOps(db?: Database) {
+export function cacheOps(db?: PardonDatabase) {
   const memoryCache: Record<string, { value: unknown; expires_at: number }> =
     {};
 
@@ -116,7 +134,7 @@ export function cacheOps(db?: Database) {
       expires_at: Number(expires_at),
     };
 
-    updateCache?.run({
+    updateCache?.({
       key,
       value: JSON.stringify(value),
       expires_at: new Date(expires_at).toISOString(),
@@ -139,7 +157,7 @@ export function cacheOps(db?: Database) {
       delete inflightCache[key];
     }
 
-    const entry = readCache?.get({ key }) as string;
+    const entry = readCache?.(key) as string | undefined;
 
     if (entry) {
       return JSON.parse(entry);

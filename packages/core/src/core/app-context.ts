@@ -14,7 +14,6 @@ import { readFile, stat } from "node:fs/promises";
 import os from "node:os";
 
 import * as YAML from "yaml";
-import type { Database } from "better-sqlite3";
 
 import type {
   AssetParseError,
@@ -22,7 +21,7 @@ import type {
   LayeredEndpoint,
   LayeredMixin,
 } from "../config/collection-types.js";
-import { connectDb } from "../db/sqlite.js";
+import { connectDb, PardonDatabase } from "../db/sqlite.js";
 import { loadCollections, buildCollection } from "../config/collection.js";
 import createCompiler, { PardonCompiler } from "../runtime/compiler.js";
 import { homely } from "../util/resolvehome.js";
@@ -57,7 +56,7 @@ export type AppContext = {
   samples?: string[];
   example?: PardonRC["example"];
   compiler: PardonCompiler;
-  database?: Database;
+  database?: PardonDatabase;
 };
 
 type PardonConfigRC = {
@@ -257,7 +256,7 @@ export function resolvePardonApplicationCollection({
   layers: Awaited<ReturnType<typeof loadCollections>>;
   samples: string[];
   example: PardonRC["example"];
-  database?: Database;
+  database?: PardonDatabase;
 }) {
   const collection = buildCollection(layers);
 

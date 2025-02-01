@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Database, Id, Datetime } from "../sqlite.js";
+import { PardonDatabase, Id, Datetime, cachedOps } from "../sqlite.js";
 
 export type HttpEntity = {
   id: Id;
@@ -34,15 +34,17 @@ export type HttpAwaited = {
 
 export type HttpEntityInsert = Pick<HttpEntity, "req">;
 
-export function httpOps(db: Database) {
+export const httpOps = cachedOps(httpOps_);
+
+export function httpOps_({ sqlite }: PardonDatabase) {
   // transitional code to update the http table
   if (
-    (db.pragma('table_info("http")') as any[])?.find(
+    (sqlite.pragma('table_info("http")') as any[])?.find(
       ({ name }) => name === "endpoint",
     )
   ) {
     console.warn("-- (once) migrating http table! --");
-    db.exec(`
+    sqlite.exec(`
 PRAGMA foreign_keys=off;
 BEGIN TRANSACTION;
 
@@ -64,7 +66,7 @@ DROP TABLE IF EXISTS "http_awaited";
 `);
   }
 
-  db.exec(`
+  sqlite.exec(`
 CREATE TABLE IF NOT EXISTS "http"
 (
     "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +77,7 @@ CREATE TABLE IF NOT EXISTS "http"
 );
 `);
 
-  const insertHttpStmt = db
+  const insertHttpStmt = sqlite
     .prepare<Pick<HttpEntity, "req" | "ask">>(
       `
 INSERT INTO "http" ("req", "ask")
@@ -85,12 +87,12 @@ RETURNING "id"
     )
     .pluck();
 
-  const getHttpStmt = db.prepare<{ http: Id | string }, HttpEntity>(`
+  const getHttpStmt = sqlite.prepare<{ http: Id | string }, HttpEntity>(`
 SELECT * FROM "http"
 WHERE "id" = :http
 `);
 
-  const updateWithResponseStmt = db.prepare<{
+  const updateWithResponseStmt = sqlite.prepare<{
     http: Id | string;
     res: string;
   }>(`
