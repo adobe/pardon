@@ -593,12 +593,12 @@ function TestReport(props: {
                       <div class="flex flex-1 flex-col overflow-auto">
                         <div class="relative flex flex-1 p-1">
                           <TbChartArrows class="absolute right-2 top-2" />
-                          <KeyValueCopier data={values ?? {}} />
+                          <KeyValueCopier data={recv(values ?? {})} />
                         </div>
                         <hr />
                         <div class="relative flex flex-1 p-1">
                           <TbChartArrows class="absolute right-2 top-2 rotate-90" />
-                          <KeyValueCopier data={result ?? {}} />
+                          <KeyValueCopier data={recv(result ?? {})} />
                         </div>
                       </div>
                     </div>
@@ -629,22 +629,22 @@ function TestReport(props: {
                               <div class="relative flex flex-1 p-1 pr-10">
                                 <TbChartArrows class="absolute right-2 top-2" />
                                 <KeyValueCopier
-                                  data={
+                                  data={recv(
                                     props.testcase.steptraces[
                                       execution.context.trace
-                                    ]?.values ?? {}
-                                  }
+                                    ]?.values ?? {},
+                                  )}
                                 />
                               </div>
                               <hr />
                               <div class="relative flex flex-1 p-1 pr-10">
                                 <TbChartArrows class="absolute right-2 top-2 rotate-90" />
                                 <KeyValueCopier
-                                  data={
+                                  data={recv(
                                     props.testcase.steptraces[
                                       execution.context.trace
-                                    ]?.result ?? {}
-                                  }
+                                    ]?.result ?? {},
+                                  )}
                                 />
                               </div>
                             </div>
@@ -660,7 +660,7 @@ function TestReport(props: {
                         deps={[]}
                         expandedSet={new Set()}
                         onRestore={props.onRestore}
-                        trace={execution.context.trace}
+                        trace={recv(execution.context.trace)}
                         isCurrent={() => false}
                       />
                       <Show

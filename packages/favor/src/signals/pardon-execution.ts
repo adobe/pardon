@@ -117,6 +117,11 @@ function outboundResource(source: Accessor<PardonExecutionSource>) {
                   }),
                 );
 
+                console.trace(
+                  "perf: render(durations)",
+                  render.context.durations,
+                );
+
                 setSecureData((data) => ({
                   ...data,
                   [render.context.trace]: secure,

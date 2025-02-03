@@ -46,7 +46,8 @@ export function isNoExport({ hint }: Hinting = {}) {
   return hint?.includes(":");
 }
 
-// expression will be evaulated when --offline is passed.
+// signals a reference can meld with another reference in a
+// keyed context.
 export function isMelding({ hint }: Hinting = {}) {
   return hint?.includes("~");
 }

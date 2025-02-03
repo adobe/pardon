@@ -25,20 +25,32 @@ true, false, null, "", strings that look like numbers or
 contain non identifier characters (a-z0-9$_)).
 */
 
+// a kv token is:
+//  whitespace
+//  a single-quoted string
+//  a double-quoted string
+//  a backtick-quoted string. (with out ${...} interpolations)
+//  syntax characters, any of these: {}[]:,=
+//  a word token, which can contain letters, digits, underscores, $, @, +, - (as a minus or hyphen)
+//  comment (starting with # till end of line)
+const tokenizer =
+  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}:[\],=]|-?[a-z0-9$@_./+-]+)|(?:#.*$)/im;
+
 function tokenize(data: string) {
-  return data.split(
-    /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}:[\],=]|-?[a-z0-9$@_./+-]+)|(?:#.*$)/im,
-  );
+  // returns strings that alternate between values that match the tokenizer and the
+  // values inbetween (which should be empty strings until the end of the kv data).
+  return data.split(tokenizer);
 }
 
 // simple token should allow somewhat complex values like e.g., email addresses and paths without quotes
 const simpleToken = /^(?!-)[a-z0-9$@_./+-]*$/i;
 const simpleKey = /^@?[a-z0-9$_.-]*$/i;
 
+const unparsed = Symbol("unparsed");
+const upto = Symbol("upto");
+const eoi = Symbol("end-of-input");
+
 export type ParseMode = "object" | "stream";
-export const unparsed = Symbol("unparsed");
-export const upto = Symbol("upto");
-export const eoi = Symbol("end-of-input");
 
 export const KV: {
   parse(data: string, mode: "object"): Record<string, unknown>;
@@ -271,6 +283,7 @@ export const KV: {
           if (stack.length !== 1 || !stack.pop()![eoi]?.()) {
             result[upto] = tokens.slice(parsed).join("").length;
           }
+
           result[unparsed] = tokens.slice(i).join("");
           return result;
         }

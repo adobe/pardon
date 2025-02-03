@@ -58,6 +58,8 @@ export default function ResponsePanel(props: {
           await window.pardon.continue(execution.value.handle),
         );
 
+        console.trace("perf: pardon(durations)", result.context.durations);
+
         setSecureData((data) => ({ ...data, [result.context.trace]: secure }));
 
         return {

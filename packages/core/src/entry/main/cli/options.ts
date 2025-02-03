@@ -37,7 +37,7 @@ export function opts() {
         type: "string",
       },
       // turns of most expression evaluation when rendering
-      offline: {
+      preview: {
         type: "boolean",
         short: "n",
       },
@@ -102,6 +102,10 @@ export function opts() {
         short: "T",
         type: "boolean",
       },
+      help: {
+        short: 'h',
+        type: "boolean"
+      }
     },
   });
 }

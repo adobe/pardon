@@ -54,6 +54,24 @@ function scalars(values: Record<string, unknown>): Record<string, string> {
 
 async function main() {
   const { positionals: args = [], values: options } = opts();
+  if(options.help) {
+    console.info(`
+usage
+-----
+[making requests]
+  pardon "https://any.url"
+  pardon "POST https://any.url" --data="..."
+  pardon request.http
+  pardon endpoint=service/action key=value
+
+[previewing requests in curl format]
+  pardon ... --curl
+[previewing requests in http]
+  pardon ... --http
+[show secrets (in responses or previews)]
+  pardon ... --secrets
+`.trim());
+  }
 
   const { url, init, values } = await processOptions(options, ...args);
 
@@ -74,12 +92,12 @@ async function main() {
     return 0;
   }
 
-  if (options.offline || options.curl || options.http) {
+  if (options.preview || options.curl || options.http) {
     options.secrets ??= false;
   }
 
   const rendering = disarm(
-    options.offline
+    options.preview
       ? pardon(values).preview(url!, init, { options })
       : pardon(values).render(url!, init, { options }),
   );
@@ -113,7 +131,7 @@ ${YAML.stringify({
     return 0;
   }
 
-  if (options.offline || options.curl || options.http || options.render) {
+  if (options.preview || options.curl || options.http || options.render) {
     const { request, redacted } = await rendering;
     const rendered = options.secrets ? request : redacted;
 

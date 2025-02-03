@@ -213,9 +213,10 @@ function propagateTracking(into: PromiseExecution) {
 
   if (into.tracking === undefined) {
     into.tracking = source;
+
     return;
   }
-
+  
   if (into.tracking === source) {
     return;
   }
@@ -229,6 +230,7 @@ function propagateTracking(into: PromiseExecution) {
     if (sourceValues) {
       if (!targetValues) {
         target.set(key, sourceValues);
+
         continue;
       }
 
@@ -237,7 +239,9 @@ function propagateTracking(into: PromiseExecution) {
         if (seen.has(n)) {
           return false;
         }
+
         seen.add(n);
+
         return true;
       }
 
@@ -247,7 +251,6 @@ function propagateTracking(into: PromiseExecution) {
 
       sourceValues
         .filter(({ identity }) => once(identity))
-        .map(({ ...value }) => value)
         .forEach((value) => targetValues.push(value));
 
       target.set(key, targetValues);
@@ -418,6 +421,7 @@ function cloneValueTracking(execution: PromiseExecution) {
   if (execution.tracking) {
     for (let key = sentinelKey.next; key !== sentinelKey; key = key.next) {
       const values = execution.tracking.get(key);
+
       if (values) {
         tracking.set(key, [...values]);
       }

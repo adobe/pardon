@@ -23,6 +23,20 @@ import {
 
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 
+const expressionProject = new Project({
+  compilerOptions: {
+    allowJs: true,
+    target: ScriptTarget.ES2022,
+    module: ModuleKind.ES2022,
+  },
+  useInMemoryFileSystem: true,
+  manipulationSettings: {
+    // hopefully this removes any unquoted "}}" values in expressions
+    insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: true,
+    indentationText: IndentationText.TwoSpaces,
+  },
+});
+
 export function applyTsMorph(
   expression: string,
   transform?: TsMorphTransform,
@@ -30,20 +44,6 @@ export function applyTsMorph(
   if (!transform) {
     return expression;
   }
-
-  const expressionProject = new Project({
-    compilerOptions: {
-      allowJs: true,
-      target: ScriptTarget.ES2022,
-      module: ModuleKind.ES2022,
-    },
-    useInMemoryFileSystem: true,
-    manipulationSettings: {
-      // hopefully this removes any unquoted "}}" values in expressions
-      insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: true,
-      indentationText: IndentationText.TwoSpaces,
-    },
-  });
 
   const exprSourceFile = expressionProject.createSourceFile(
     `__expr__.ts`,

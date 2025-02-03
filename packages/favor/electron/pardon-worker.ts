@@ -128,7 +128,7 @@ export type TestStepPayloads = {
 registerSequenceNotificationHooks({
   onSequenceStepStart({ request, values }) {
     const store = currentHttpSequence.getStore()!;
-    parentPort!.postMessage(
+    parentPort.postMessage(
       ship({
         id: "test:event",
         type: "test:step:start",
@@ -143,7 +143,7 @@ registerSequenceNotificationHooks({
   },
   onSequenceStepEnd({ trace, inbound: { redacted }, outcome, values: result }) {
     const store = currentHttpSequence.getStore()!;
-    parentPort!.postMessage(
+    parentPort.postMessage(
       ship({
         id: "test:event",
         type: "test:step:end",
@@ -169,7 +169,7 @@ registerSequenceNotificationHooks({
         },
         async () => {
           try {
-            parentPort!.postMessage(
+            parentPort.postMessage(
               ship({
                 id: "test:event",
                 type: "test:sequence:start",
@@ -181,7 +181,7 @@ registerSequenceNotificationHooks({
 
             const result = await callback();
 
-            parentPort!.postMessage(
+            parentPort.postMessage(
               ship({
                 id: "test:event",
                 type: "test:sequence:complete",
@@ -192,7 +192,7 @@ registerSequenceNotificationHooks({
 
             return result;
           } catch (error) {
-            parentPort!.postMessage(
+            parentPort.postMessage(
               ship({
                 id: "test:event",
                 type: "test:sequence:complete",
@@ -503,6 +503,7 @@ type PardonExecutionRender = {
   context: {
     trace: number;
     ask: string;
+    durations: PardonHttpExecutionContext["durations"];
   };
   outbound: {
     request: RequestJSON;
@@ -575,7 +576,6 @@ const handlers = {
         root.replace(/[\\]/g, "/"),
       ),
       example: app.example,
-      scripts: app.collection.scripts,
       data: app.collection.data,
       mixins: app.collection.mixins,
       errors: app.collection.errors,
@@ -672,7 +672,7 @@ const handlers = {
                 } finally {
                   console.info("testcase complete: ", testcase, errors);
 
-                  parentPort!.postMessage(
+                  parentPort.postMessage(
                     ship({
                       id: "test:event",
                       type: "test:case:complete",
@@ -734,13 +734,14 @@ const handlers = {
     const handle = randomUUID() as string;
     const { request, redacted } = await execution.outbound;
 
-    const { trace, ask } =
+    const { trace, ask, durations } =
       (await execution.context) as PardonHttpExecutionContext;
 
     const render: PardonExecutionRender = {
       context: {
         trace,
         ask,
+        durations,
       },
       outbound: {
         request: HTTP.requestObject.json(redacted),
@@ -763,14 +764,14 @@ const handlers = {
     const {
       execution: flow,
       render: {
-        context: { ask, trace },
+        context: { ask, trace, durations },
       },
     } = ongoing[handle];
 
     const { endpoint, outbound, inbound } = await flow.result;
 
     return {
-      context: { ask, trace },
+      context: { ask, trace, durations },
       endpoint,
       outcome: inbound.outcome,
       outbound: {
