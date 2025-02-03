@@ -23,6 +23,7 @@ import { ExecutionOutboundResult } from "../signals/pardon-execution.ts";
 import { HistoryTree } from "./RequestSummaryTree.tsx";
 import { mapObject } from "pardon/utils";
 import { persistJson } from "../util/persistence.ts";
+import localforage from "localforage";
 
 export type Trace = {
   trace: number;
@@ -40,6 +41,7 @@ const [history, setHistory] = makePersisted(
   }>({ traces: {} }),
   {
     name: "history",
+    storage: localforage,
     ...persistJson,
   },
 );
