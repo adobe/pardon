@@ -33,7 +33,7 @@ import { registerPardonLoader } from "../loader/modern/register.js";
  */
 export async function establishPardonRuntime(
   options?: PardonAppContextOptions,
-): Promise<AppContext> {
+) {
   const [major, minor] = process.version
     .split(".")
     .map((v) => Number(v.replace(/[^\d]/g, "")));

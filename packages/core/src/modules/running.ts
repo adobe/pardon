@@ -46,10 +46,7 @@ export {
   notifyFastFailed,
 } from "../entry/testing/cli/failfast.js";
 
-export {
-  registerSequenceNotificationHooks,
-  type CompiledHttpsSequence,
-} from "../entry/testing/https-sequence.js";
+export { type CompiledHttpsSequence } from "../entry/testing/https-sequence.js";
 
 export {
   all_disconnected,

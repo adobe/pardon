@@ -42,7 +42,6 @@ import {
 import Toggle from "../components/Toggle.tsx";
 
 import {
-  TbChartDots3,
   TbCopy,
   TbExclamationCircle,
   TbEye,
@@ -63,7 +62,7 @@ import {
   TbSettings2,
   TbTrash,
 } from "solid-icons/tb";
-import { manifest, samples, testing } from "../signals/pardon-config.ts";
+import { manifest, samples } from "../signals/pardon-config.ts";
 import AssetEditor from "../components/collection/AssetEditor.tsx";
 import ResponsePanel from "../components/collection/inbound/ResponsePanel.tsx";
 import { ConfigurationDrawer } from "../components/ConfigurationDrawer.tsx";
@@ -71,7 +70,6 @@ import RequestHistory, {
   startTracingRequestHistory,
 } from "../components/RequestHistory.tsx";
 import MultiView from "../components/MultiView.tsx";
-import TestcaseSystem from "../components/TestcaseSystem.tsx";
 import PreviewPanel from "../components/collection/outbound/PreviewPanel.tsx";
 import TbInterrobang from "../components/TbInterrobang.tsx";
 import RecallSystem from "../components/RecallSystem.tsx";
@@ -85,7 +83,7 @@ import { secureData } from "../components/secure-data.ts";
 import { Text } from "@codemirror/state";
 import { persistJson } from "../util/persistence.ts";
 
-type SubPanelView = "history" | "editor" | "testcases" | "recall" | "samples";
+type SubPanelView = "history" | "editor" | "recall" | "samples";
 
 export default function Main(
   props: VoidProps<{
@@ -137,26 +135,6 @@ export default function Main(
     values: { ...globals(), ...values() },
     comp: { ...globals(), ...values() },
   });
-
-  // eslint-disable-next-line no-constant-binary-expression
-  false &&
-    createEffect(
-      on(
-        lastResult,
-        (history) => {
-          if (history) {
-            updateSource(({ http, values, hint }) => ({
-              http,
-              values,
-              comp: values,
-              hint,
-              history,
-            }));
-          }
-        },
-        { defer: true },
-      ),
-    );
 
   createEffect(() => relock() && setRedacted(true));
 
@@ -872,7 +850,6 @@ ${previewText()}
                   view={value}
                   class="p-1 text-xl [&.multiview-selected]:bg-lime-400 [&.multiview-selected]:dark:bg-cyan-500"
                   disabled={{
-                    testcases: Boolean(testing.state !== "ready" || !testing()),
                     samples: Boolean(
                       samples?.state !== "ready" || !samples().length,
                     ),
@@ -882,7 +859,6 @@ ${previewText()}
                     samples: <TbFolderCode />,
                     editor: <TbPencil />,
                     recall: <TbInterrobang />,
-                    testcases: <TbChartDots3 />,
                   }}
                 />
                 <Toggle
@@ -906,82 +882,74 @@ ${previewText()}
           }}
         >
           {(props) => (
-            <Switch
-              fallback={
-                <Resizable>
-                  <Resizable.Panel initialSize={0.2}>
-                    <Collections
-                      selection={selection()}
-                      filters={{
-                        endpoint: true,
-                        other: props.value === "editor",
-                      }}
+            <Resizable>
+              <Resizable.Panel initialSize={0.2}>
+                <Collections
+                  selection={selection()}
+                  filters={{
+                    endpoint: true,
+                    other: props.value === "editor",
+                  }}
+                  expanded={new Set()}
+                  endpoint={current()}
+                  active={active()}
+                  onClick={(key, info, event) => {
+                    const { type, archetype: preview } = info ?? {};
+
+                    setCollectionItem({ ...info, key });
+
+                    if (event.metaKey) {
+                      setSubPanelView("editor");
+                    } else if (type === "endpoint") {
+                      if (!http().trim()) {
+                        setHttp(preview);
+                      }
+                    }
+                  }}
+                  onDblClick={(key, info) => {
+                    const { type, archetype: preview } = info ?? {};
+
+                    setCollectionItem({ ...info, key });
+
+                    if (type === "endpoint") {
+                      restoreFromHttp(preview);
+                    }
+                  }}
+                />
+              </Resizable.Panel>
+              <Resizable.Handle />
+              <Resizable.Panel initialSize={0.8} class="flex">
+                <Switch>
+                  <Match when={props.value === "editor"}>
+                    <AssetEditor id={asset()} />
+                  </Match>
+                  <Match when={props.value == "history"}>
+                    <RequestHistory
+                      onRestore={restoreFromHistory}
+                      isCurrent={createSelector(currentTrace)}
+                    />
+                  </Match>
+                  <Match when={props.value == "recall"}>
+                    <RecallSystem
+                      onRestore={restoreFromHistory}
+                      isCurrent={createSelector(currentTrace)}
+                    />
+                  </Match>
+                  <Match when={props.value == "samples"}>
+                    <Samples
                       expanded={new Set()}
-                      endpoint={current()}
-                      active={active()}
-                      onClick={(key, info, event) => {
-                        const { type, archetype: preview } = info ?? {};
-
-                        setCollectionItem({ ...info, key });
-
-                        if (event.metaKey) {
-                          setSubPanelView("editor");
-                        } else if (type === "endpoint") {
-                          if (!http().trim()) {
-                            setHttp(preview);
-                          }
-                        }
-                      }}
-                      onDblClick={(key, info) => {
-                        const { type, archetype: preview } = info ?? {};
-
-                        setCollectionItem({ ...info, key });
-
-                        if (type === "endpoint") {
-                          restoreFromHttp(preview);
+                      onDblClick={(_key, { content, path }) => {
+                        if (path.endsWith(".log.https")) {
+                          restoreFromLog(content);
+                        } else {
+                          restoreFromHttp(content);
                         }
                       }}
                     />
-                  </Resizable.Panel>
-                  <Resizable.Handle />
-                  <Resizable.Panel initialSize={0.8} class="flex">
-                    <Switch>
-                      <Match when={props.value === "editor"}>
-                        <AssetEditor id={asset()} />
-                      </Match>
-                      <Match when={props.value == "history"}>
-                        <RequestHistory
-                          onRestore={restoreFromHistory}
-                          isCurrent={createSelector(currentTrace)}
-                        />
-                      </Match>
-                      <Match when={props.value == "recall"}>
-                        <RecallSystem
-                          onRestore={restoreFromHistory}
-                          isCurrent={createSelector(currentTrace)}
-                        />
-                      </Match>
-                      <Match when={props.value == "samples"}>
-                        <Samples
-                          expanded={new Set()}
-                          onDblClick={(_key, { content, path }) => {
-                            if (path.endsWith(".log.https")) {
-                              restoreFromLog(content);
-                            } else {
-                              restoreFromHttp(content);
-                            }
-                          }}
-                        />
-                      </Match>
-                    </Switch>
-                  </Resizable.Panel>
-                </Resizable>
-              }
-            >
-              <Match when={props.value == "testcases"}>
-                <TestcaseSystem onRestore={restoreFromHistory} />
-              </Match>
-            </Switch>
+                  </Match>
+                </Switch>
+              </Resizable.Panel>
+            </Resizable>
           )}
         </MultiView>
       </Resizable.Panel>

@@ -20,40 +20,30 @@ import {
   startTransition,
 } from "solid-js";
 
-export const {
-  manifest,
-  testing,
-  samples,
-  manifestPromise,
-  setManifestPromise,
-} = createRoot(() => {
-  const [manifestPromise, setManifestPromise] = createSignal<
-    Promise<PardonManifest>
-  >(
-    (async () => {
-      const cwd = (await window.pardon.settings).cwd ?? "/";
-      console.info("pardon.setConfig", cwd);
-      return window.pardon.setConfig(cwd);
-    })(),
-  );
+export const { manifest, samples, manifestPromise, setManifestPromise } =
+  createRoot(() => {
+    const [manifestPromise, setManifestPromise] = createSignal<
+      Promise<PardonManifest>
+    >(
+      (async () => {
+        const cwd = (await window.pardon.settings).cwd ?? "/";
+        console.info("pardon.setConfig", cwd);
+        return window.pardon.setConfig(cwd);
+      })(),
+    );
 
-  const [manifest] = createResource(
-    manifestPromise,
-    async (promise) => await promise,
-  );
+    const [manifest] = createResource(
+      manifestPromise,
+      async (promise) => await promise,
+    );
 
-  const [testing] = createResource(manifestPromise, async (promise) => {
-    await promise;
-    return await window.pardon.testing();
+    const [samples] = createResource(manifestPromise, async (promise) => {
+      await promise;
+      return await window.pardon.samples();
+    });
+
+    return { manifestPromise, setManifestPromise, manifest, samples };
   });
-
-  const [samples] = createResource(manifestPromise, async (promise) => {
-    await promise;
-    return await window.pardon.samples();
-  });
-
-  return { manifestPromise, setManifestPromise, manifest, testing, samples };
-});
 
 window.pardon.resetManifestWith((manifest) => {
   startTransition(() => setManifestPromise(manifest));

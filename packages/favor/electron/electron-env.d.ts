@@ -11,10 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { RequestJSON, ResponseJSON } from "pardon/formats";
-import type {
-  PardonElectronApi,
-  TracingHookPayloads as THP,
-} from "./preload.js";
+import type { PardonElectronApi } from "./preload.js";
 
 // Used in Renderer process, expose in `preload.ts`
 declare global {
@@ -64,8 +61,6 @@ declare global {
     };
   };
   type ExecutionHistory = Exclude<PardonExecutionSource["history"], undefined>;
-
-  type TracingHookPayloads = THP;
 
   type Optional<T, Keys extends keyof T> = Omit<T, Keys> &
     Partial<Pick<T, Keys>>;

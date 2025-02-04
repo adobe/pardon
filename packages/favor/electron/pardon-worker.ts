@@ -13,200 +13,21 @@ governing permissions and limitations under the License.
 import { argv } from "node:process";
 import { randomUUID } from "node:crypto";
 import { parentPort } from "node:worker_threads";
-import { existsSync } from "node:fs";
-import { AsyncLocalStorage } from "node:async_hooks";
 import { readFile } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { resolve } from "node:path";
 
 import * as YAML from "yaml";
 import { glob } from "glob";
 
 import { PardonAppContextOptions, initializePardon } from "pardon/runtime";
-import { arrayIntoObject, mapObject, mapObjectAsync } from "pardon/utils";
+import { arrayIntoObject, mapObject } from "pardon/utils";
 import { HTTP, HTTPS, PardonOptions, disconnected, pardon } from "pardon";
 import { httpOps, valueOps } from "pardon/database";
 
 import { traced } from "pardon/features/trace";
 import remember, { PardonHttpExecutionContext } from "pardon/features/remember";
-import { cleanObject, FetchObject, RequestJSON } from "pardon/formats";
-import {
-  CompiledHttpsSequence,
-  executeTest,
-  failfast,
-  loadTests,
-  notifyFastFailed,
-  all_disconnected,
-  registerSequenceNotificationHooks,
-  initTrackingEnvironment,
-  sequenceRegistry,
-  type SmokeConfig,
-  awaitedSequences,
-  semaphore,
-  filterTestPlanning,
-} from "pardon/running";
-
-let nextTestRunId = Date.now();
-type SequenceId = `${string}`;
-type StepId = `${SequenceId}[${number}]`;
-type TestRunId = `T${string}`;
-
-const currentTestRun = new AsyncLocalStorage<TestRunId>();
-
-const currentHttpSequence = new AsyncLocalStorage<{
-  key: SequenceId;
-  stepCount: number;
-  sequence: CompiledHttpsSequence;
-  values: Record<string, unknown>;
-}>();
-
-type TestSetup = Awaited<
-  ReturnType<Awaited<ReturnType<typeof loadTests>>["testplanner"]>
->["cases"][number];
-
-export type TestStepPayloads = {
-  "test:run:start": {
-    id: "test:event";
-    type: "test:run:start";
-    run: TestRunId;
-    tests: Pick<TestSetup, "testcase" | "testenv">[];
-    input: string;
-  };
-  "test:case:start": {
-    id: "test:event";
-    type: "test:case:start";
-    run: TestRunId;
-    testcase: string;
-    environment: Record<string, unknown>;
-  };
-  "test:case:complete": {
-    id: "test:event";
-    type: "test:case:complete";
-    testcase: string;
-    run: TestRunId;
-    environment: Record<string, unknown>;
-    errors: string[];
-    awaited: ReturnType<typeof awaitedJsonSequences>;
-  };
-  "test:step:start": {
-    id: "test:event";
-    type: "test:step:start";
-    sequence: string;
-    step: StepId;
-    info: {
-      request: FetchObject;
-      values: Record<string, unknown>;
-    };
-  };
-  "test:step:end": {
-    id: "test:event";
-    type: "test:step:end";
-    sequence: string;
-    step: StepId;
-    info: {
-      trace: number;
-      response: string;
-      outcome?: string;
-      result: Record<string, unknown>;
-    };
-  };
-  "test:sequence:start": {
-    id: "test:event";
-    type: "test:sequence:start";
-    run: TestRunId;
-    key: string;
-    name: string;
-  };
-  "test:sequence:complete": {
-    id: "test:event";
-    type: "test:sequence:complete";
-    run: TestRunId;
-    key: string;
-    error?: unknown;
-  };
-};
-
-registerSequenceNotificationHooks({
-  onSequenceStepStart({ request, values }) {
-    const store = currentHttpSequence.getStore()!;
-    parentPort.postMessage(
-      ship({
-        id: "test:event",
-        type: "test:step:start",
-        step: `${store.key}[${store.stepCount}]`,
-        sequence: store.key,
-        info: {
-          request: request.request,
-          values,
-        },
-      }) satisfies TestStepPayloads["test:step:start"],
-    );
-  },
-  onSequenceStepEnd({ trace, inbound: { redacted }, outcome, values: result }) {
-    const store = currentHttpSequence.getStore()!;
-    parentPort.postMessage(
-      ship({
-        id: "test:event",
-        type: "test:step:end",
-        step: `${store.key}[${store.stepCount++}]`,
-        sequence: currentHttpSequence.getStore()!.key,
-        info: {
-          trace,
-          response: HTTP.responseObject.stringify(redacted),
-          outcome: outcome?.name,
-          result,
-        },
-      }) satisfies TestStepPayloads["test:step:end"],
-    );
-  },
-  runSequence({ sequence, values, key }, callback) {
-    return () =>
-      currentHttpSequence.run(
-        {
-          key,
-          sequence,
-          stepCount: 1,
-          values,
-        },
-        async () => {
-          try {
-            parentPort.postMessage(
-              ship({
-                id: "test:event",
-                type: "test:sequence:start",
-                run: currentTestRun.getStore(),
-                key,
-                name: sequence.name,
-              }) satisfies TestStepPayloads["test:sequence:start"],
-            );
-
-            const result = await callback();
-
-            parentPort.postMessage(
-              ship({
-                id: "test:event",
-                type: "test:sequence:complete",
-                run: currentTestRun.getStore(),
-                key,
-              }) satisfies TestStepPayloads["test:sequence:complete"],
-            );
-
-            return result;
-          } catch (error) {
-            parentPort.postMessage(
-              ship({
-                id: "test:event",
-                type: "test:sequence:complete",
-                run: currentTestRun.getStore(),
-                key,
-                error: String(error),
-              }) satisfies TestStepPayloads["test:sequence:complete"],
-            );
-            throw error;
-          }
-        },
-      );
-  },
-});
+import { cleanObject, RequestJSON } from "pardon/formats";
+import { failfast, initTrackingEnvironment } from "pardon/running";
 
 const [cwd] = argv.slice(2);
 
@@ -302,8 +123,6 @@ const tracingHooks = {
   },
 } as const satisfies Parameters<typeof traced>[0];
 
-type AppContext = Awaited<ReturnType<typeof initializePardon>>;
-
 async function initializePardonAndLoadSamples(
   options: PardonAppContextOptions,
 ) {
@@ -322,38 +141,9 @@ async function initializePardonAndLoadSamples(
 
   const samples = loadSamples(app.samples || []);
 
-  const testing = loadTestEngine(app);
-
   await initTrackingEnvironment();
 
-  return { app, samples, testing };
-}
-
-async function loadTestEngine(app: AppContext) {
-  try {
-    const testPath = join(app.config.root, "pardon.test.ts");
-    if (!existsSync(testPath)) {
-      console.warn(`${testPath}: no testconfig here`);
-      return;
-    }
-
-    const testing = await loadTests(app, {
-      testPath,
-    });
-
-    return {
-      ...testing,
-      sequences: await mapObjectAsync(sequenceRegistry(), (unitsOrFlows) =>
-        mapObjectAsync(unitsOrFlows, async (path) => ({
-          path,
-          content:
-            path !== "script" ? await readFile(path, "utf-8") : undefined,
-        })),
-      ),
-    };
-  } catch (error) {
-    console.warn("failed to load testcases", error);
-  }
+  return { app, samples };
 }
 
 async function loadSamples(samples: string[]) {
@@ -581,114 +371,9 @@ const handlers = {
       errors: app.collection.errors,
     };
   },
-  async testing() {
-    const { testing } = await ready;
-    return await testing;
-  },
   async samples() {
     const { samples } = await ready;
     return await samples;
-  },
-  async testcases(
-    environment: Record<string, unknown>,
-    { smoke, filter }: { smoke?: SmokeConfig; filter?: string[] },
-  ) {
-    const { testing } = await ready;
-    const planning = await (await testing)!.testplanner(
-      environment,
-      smoke,
-      ...(filter || []),
-    );
-
-    return filterTestPlanning(planning);
-  },
-  async executeTestcases(
-    testenv: Record<string, unknown>,
-    input: string,
-    testcases: string[],
-    options: {
-      concurrency?: string;
-    } = {},
-  ) {
-    const testRun: TestRunId = `T${nextTestRunId++}`;
-    const { testing } = await ready;
-    const testplan = await (
-      await testing
-    )?.testplanner(testenv, undefined, ...testcases);
-
-    const tests = filterTestPlanning(testplan);
-
-    parentPort!.postMessage(
-      ship({
-        id: "test:event",
-        type: "test:run:start",
-        run: testRun,
-        tests,
-        input,
-      }) satisfies TestStepPayloads["test:run:start"],
-    );
-
-    const concurrency =
-      Math.max(Number(options.concurrency ?? "10"), 0) || Infinity;
-    console.log(`running tests with concurrency=${concurrency}`);
-
-    const concurrently = semaphore(concurrency);
-
-    return currentTestRun.run(testRun, () =>
-      all_disconnected(
-        tests.map(
-          async ({ testenv: initEnv, test, testcase }) =>
-            await concurrently(() =>
-              disconnected(async () => {
-                let errors: unknown[] = [];
-                let emitEnv: Record<string, any>;
-                try {
-                  parentPort.postMessage(
-                    ship({
-                      id: "test:event",
-                      type: "test:case:start",
-                      run: testRun,
-                      testcase,
-                      environment: initEnv,
-                    }) satisfies TestStepPayloads["test:case:start"],
-                  );
-
-                  ({ errors, environment: emitEnv } = await executeTest(
-                    test,
-                    testcase,
-                  ));
-
-                  if (errors.length > 0) {
-                    notifyFastFailed(errors[0] ?? new Error("undefined error"));
-                  }
-
-                  return { testcase, errors, environment: emitEnv };
-                } catch (error) {
-                  notifyFastFailed(error);
-                  errors.push(error);
-                  emitEnv = { ...testenv };
-
-                  return { testcase, errors, environment: emitEnv };
-                } finally {
-                  console.info("testcase complete: ", testcase, errors);
-
-                  parentPort.postMessage(
-                    ship({
-                      id: "test:event",
-                      type: "test:case:complete",
-                      run: testRun,
-                      testcase,
-                      errors: errors.map(String),
-                      environment: emitEnv,
-                      awaited: awaitedJsonSequences(awaitedSequences()),
-                    }) satisfies TestStepPayloads["test:case:complete"],
-                  );
-                }
-              }),
-            ),
-        ),
-      ),
-    );
   },
   async resolvePath(path: string) {
     return new URL(path, `file://${cwd}/`).href;
@@ -865,81 +550,4 @@ function archetype({ steps }: Partial<ReturnType<typeof HTTPS.parse>> = {}) {
     const { method, url } = HTTP.requestObject.json(request.request);
     return `${method} ${url}`;
   }
-}
-
-export type TracingHookPayloads = {
-  [Callback in keyof typeof tracingHooks]: ReturnType<
-    (typeof tracingHooks)[Callback]
-  >;
-};
-
-type AwaitedSequences = ReturnType<typeof awaitedSequences>;
-
-function jsonExecutions(
-  executions: AwaitedSequences[number]["executions"],
-): ExecutionHistory[] {
-  return executions.map(
-    ({ context: { ask, trace }, inbound, outbound }) =>
-      ({
-        context: { trace, ask },
-        outbound: {
-          request: HTTP.requestObject.json(outbound.redacted),
-        },
-        inbound: {
-          response: HTTP.responseObject.json(inbound.redacted),
-          values: inbound.values,
-        },
-        secure: {
-          outbound: {
-            request: HTTP.requestObject.json(outbound.request),
-          },
-          inbound: {
-            response: HTTP.responseObject.json(inbound.response),
-            values: inbound.secrets,
-          },
-        },
-      }) satisfies ExecutionHistory,
-  );
-}
-
-export type AwaitedJsonSequences = (Omit<
-  AwaitedSequences[number],
-  "deps" | "executions"
-> & {
-  deps: AwaitedJsonSequences;
-  executions: ExecutionHistory[];
-})[];
-
-const jsonSequenceMapping = new WeakMap<
-  AwaitedSequences[number],
-  AwaitedJsonSequences[number]
->();
-
-function awaitedJsonSequences(
-  sequences: AwaitedSequences,
-): AwaitedJsonSequences {
-  return sequences.map((dep) => {
-    const { executions, deps, key, ...other } = dep;
-
-    let inJsonForm = jsonSequenceMapping.get(dep);
-    if (inJsonForm) {
-      return inJsonForm;
-    }
-
-    jsonSequenceMapping.set(
-      dep,
-      (inJsonForm = {
-        deps: awaitedJsonSequences(deps),
-        executions: jsonExecutions(executions),
-        // ensure every flow has a key for proper UI processing,
-        // assume that the last trace id of the executions is unique
-        key:
-          key ??
-          String(`K${dep.executions[dep.executions.length - 1].context.trace}`),
-        ...other,
-      }),
-    );
-
-    return inJsonForm;
-  });
 }

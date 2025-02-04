@@ -190,7 +190,7 @@ function normalizePaths(paths: string | string[], configdir: string) {
 
 export async function createPardonApplicationContext(
   options?: PardonAppContextOptions,
-): Promise<AppContext> {
+) {
   // Node16 support
   await fetchPolyfillReady;
 

@@ -52,9 +52,6 @@ const pardonWorkerApi: PardonWorkerHandlers = {
   async manifest() {
     return invokePardonWorker("manifest");
   },
-  async testing() {
-    return invokePardonWorker("testing");
-  },
   async samples() {
     return invokePardonWorker("samples");
   },
@@ -66,18 +63,6 @@ const pardonWorkerApi: PardonWorkerHandlers = {
   },
   async recall(keys, other, limit) {
     return invokePardonWorker("recall", keys, other, limit);
-  },
-  async testcases(environment, { smoke, filter }) {
-    return invokePardonWorker("testcases", environment, { smoke, filter });
-  },
-  async executeTestcases(environment, input, testcases, options) {
-    return invokePardonWorker(
-      "executeTestcases",
-      environment,
-      input,
-      testcases,
-      options,
-    );
   },
 };
 

@@ -78,37 +78,6 @@ const { awaited: awaitedSequences, track: trackSequence } =
 
 export { awaitedSequences, awaitedSteps };
 
-type HttpSequenceNotificationHooks = {
-  runSequence<T>(
-    info: {
-      sequence: CompiledHttpsSequence;
-      key: string;
-      values: Record<string, unknown>;
-    },
-    callback: () => Promise<T>,
-  ): () => Promise<T>;
-  onSequenceStepStart(info: {
-    request: HttpsRequestStep;
-    values: Record<string, unknown>;
-  }): void;
-  onSequenceStepEnd(info: {
-    trace: number;
-    inbound: Awaited<
-      ReturnType<ReturnType<ReturnType<typeof pardon>>>
-    >["inbound"];
-    values: Record<string, unknown>;
-    outcome: ReturnType<typeof parseOutcome>;
-  }): void;
-};
-
-let notificationHooks: HttpSequenceNotificationHooks | undefined = undefined;
-
-export function registerSequenceNotificationHooks(
-  hooks: HttpSequenceNotificationHooks,
-) {
-  notificationHooks = hooks;
-}
-
 type HttpsSequenceInteraction = {
   request: HttpsRequestStep;
   responses: HttpsResponseStep[];
@@ -360,7 +329,7 @@ export async function executeHttpsSequence(
   }
 
   let attempts = 0;
-  let sequenceRun = async () => {
+  const sequenceRun = async () => {
     try {
       const result = await executeFlowSequence(
         sequence,
@@ -379,12 +348,6 @@ export async function executeHttpsSequence(
       console.warn(`reattempting unit: ${sequence.name}`);
     }
   };
-
-  sequenceRun =
-    notificationHooks?.runSequence(
-      { sequence, key, values: effectiveValues },
-      sequenceRun,
-    ) ?? sequenceRun;
 
   return await sequenceRun();
 }
@@ -640,11 +603,6 @@ error = ${error?.stack ?? error}
     throw error;
   }
 
-  notificationHooks?.onSequenceStepStart({
-    request: interaction.request,
-    values,
-  });
-
   const { outbound, inbound } = await execution.result;
 
   const { trace } =
@@ -697,13 +655,6 @@ error = ${error?.stack ?? error}
     }
     console.info("--------------------------------");
 
-    notificationHooks?.onSequenceStepEnd({
-      trace,
-      inbound,
-      values: {},
-      outcome: { name: "unmatched" },
-    });
-
     throw new Error("unmatched response");
   }
 
@@ -715,12 +666,6 @@ error = ${error?.stack ?? error}
   const outcome = parseOutcome(outcomeText);
 
   const effectiveValues = { ...renderedValues, ...valuesFromScope(scope) };
-  notificationHooks?.onSequenceStepEnd({
-    trace,
-    inbound,
-    values: effectiveValues,
-    outcome,
-  });
 
   // makes unit tests better for now.
   if (outcome) {
