@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { rebuild } from "@electron/rebuild";
 import { execSync } from "node:child_process";
 import { PluginBase } from "@electron-forge/plugin-base";
-import {
+import type {
   ForgeRebuildOptions,
   ResolvedForgeConfig,
 } from "@electron-forge/shared-types";
