@@ -13,76 +13,63 @@ governing permissions and limitations under the License.
 /**
  * What is this?
  *
- * This implements a utility for tracking work across promise chains.
- * In this system, after executing
+ * This is a utility for tracking work across promise chains.
+ * It implements a new kind of object scope / lifetime, which could be described
+ * by words like "after" or "awaited".
+ *
+ * A tracking context is created with `const { track, awaited } = tracking();`
+ *
+ * Then after running
  * <code>
- *   await ... something that calls track(x)
- *   await ... some promise that was created after something that called track(y)
- *   track(z)
+ *   const p_of_x = (async () => { await something(); track(x); })();
+ *   const p_of_y = (async () => { await somethingElse(); track(y); })();
+ *   track(s)
+ *   await p_of_x;
+ *   await p_of_y;
+ *   track(t)
  * <code>
- * then awaited() would produce a list, [x,y,z].  Critically, this is not just because
- * these register calls were made, but because they were awaited in the current execution.
- *
- * If a register(x) call is awaited multiple times in the same execution, the later ones
- * have no effect on the resulting order.
- *
- * A "shared" utility is provided for promises that are intended to be shared across
- * contexts (e.g., a promise to loads some resource, where that loading is cached),
- * to avoid cross polution of data across these chains.
- *
- * A "disconnected" utility is also provided to drop tracking (supports garbage collection).
- *
- * A "semaphore" utility is provided to manage concurrency.
+ * awaited() will produce a list of [s,x,y,t]; in the await-ed order;
+ * regardless of whether x or y was (by the clock) tracked "first".
  *
  * We use this in pardon for correlating dataflow between requests and also for
- * composing an intelligent/stable "environment" object in integration tests.
+ * managing a global/contextual "environment" object in tests that run concurrently.
  *
- * Note that this system creates a *lot* of objects and every access of the awaited() list
- * involves some graph searching.
+ * --- Internal Implementation Guide ---
  *
- * A best-effort is made to garbage collect unreachable data, but this is
- * not particularly performant nor is it designed for use in long-lived systems as its tracking
- * mechanism inherently accumulates information (uses a fair amount of memory).
+ * async_hooks provides callbacks when a promise is created, when it is resolved,
+ * as well as before and after execution hooks.
+ *
+ * For each promise object, we store an execution object (identified by
+ * execution async id).  The execution object contains a mapping of tracked objects.
+ * That mapping itself is a WeakMap, keyed by a tokens stored in a linked list: each
+ * token represents a tracking() context.  A FinalizationRegistry removes tokens from the
+ * linked list if a context becomes inaccessible, which then allows the WeakMaps to
+ * drop their tracked values.
+ *
+ * In order to help garbage collect tracked values: the promise->execution mapping
+ * itself is cleaned (also via a FinalizationRegistry) when its promise is removed.
+ *
+ * When new promises are created, we can propagate the current executions tracked-values mapping
+ * into the new promise.  An ownership and copy-on-write mechanism allows the map
+ * to be propagated without cloning in many cases.
  */
 
 import { AsyncResource, createHook } from "node:async_hooks";
 
-/**
- * function task() {
- *    await ...;
- *    track("trigger")
- * }
- *
- * track("init");
- *
- * // promise p created with "init" from current execution node and
- * // triggerAsyncId is from task() (not yet resolved), which will provide
- * // "trigger" to awaited eventually.
- * p = task().then(() => {
- *   track("current");
- *
- *   return awaited(); // returns ["init", "trigger", "current"]
- * });
- */
 type PromiseExecution = {
-  // the promise we created the promise in
   init?: PromiseExecution;
-  // the promise this promise is waiting for to start (trigger.then(...))
   trigger?: PromiseResolution;
-  // we record the current execution node here when this promise is resolved.
   resolution: PromiseResolution;
-  // the values we've tracked in this context. (cloned with copy-on-write semantics)
-  tracking?: ValueTracking;
+  values?: TrackedValues;
 };
 
 type PromiseResolution =
   | {
       promise: PromiseExecution;
-      sequence: number;
     }
   | Record<string, never>;
 
-type ValueTracking = WeakMap<TrackingKeyRing, TrackedValue<unknown>[]> &
+type TrackedValues = WeakMap<TrackingKeyRing, TrackedValue<unknown>[]> &
   WeakMap<PromiseExecution, "owner">;
 
 /**
@@ -102,28 +89,16 @@ const promiseRegistry = new FinalizationRegistry((asyncId: number) => {
 });
 
 /**
- * This is a shared counter for
- *   1. executions.
- *   2. tracked values in executions.
- *   3. marking the points executions are correlated.
- *
- * One operation might synchronously
- *  - mark A
- *  - mark B
- *  - start operation X
- *  - mark C
- *
- * awaiting the result of X will inherit the A and B values
- * but not C, despite that promise tracking all three.
+ * A counter that provides unique IDs to tracked values.
  */
-let executionSequenceCounter = 1;
+let trackedValueCounter = 1;
 
 let promiseAsyncId: number | undefined = undefined;
-let currentPromise: PromiseExecution | undefined = undefined;
+let currentExecution: PromiseExecution | undefined = undefined;
 
 /**
  * createHook is not recommended by NodeJS, but we use it anyway.
- * (This mechanism basically works as far back as Node16.)
+ * (This mechanism works as far back as Node16, perhaps earlier.)
  *
  * From https://nodejs.org/docs/latest-v20.x/api/async_hooks.html#async-hooks
  *
@@ -145,17 +120,22 @@ const trackingHook = createHook({
       // e.g., setTimeout() functions.
       //
       // On the other hand, before() and after() hooks can be nested for some async resource types,
-      // and therefore "currentPromise" may to become a stack and
-      // tracked values aggregated at init for all layers of the stack?
-      //
-      // The mental model was originally only Promise propagation but this could be revisited.
+      // and therefore "currentExecution" should become a stack?
       return;
     }
 
+    // the promise for the future execution here is downstream
+    // of both the init (context) of where/when the promise is created
+    // and the trigger promise that preceeds execution.
+    //
+    // init() {
+    //   promise = trigger.then(() => { ...execution... });
+    // }
+
     promises.set(asyncId, {
+      init: currentExecution,
       trigger: promises.get(triggerAsyncId)?.resolution,
-      init: currentPromise,
-      tracking: useTracking(currentPromise),
+      values: useTracking(currentExecution),
       resolution: {},
     });
 
@@ -170,58 +150,65 @@ const trackingHook = createHook({
 
     propagateTracking(promise);
 
-    currentPromise = promise;
+    currentExecution = promise;
 
-    // this is largely redundant with executionAsyncId()
-    // except it's possible for other async resources.
-    //
-    // (not sure if this is the correct thing or not)
+    /*
+     * There are some async types that stack with promises.
+     * In order to unset the currentExecution in the
+     * after() hook we need to identify the promise asyncId?
+     */
     promiseAsyncId = asyncId;
   },
   promiseResolve(asyncId) {
     const promise = promises.get(asyncId);
 
-    if (promise && currentPromise) {
-      promise.resolution.promise = currentPromise;
-      promise.resolution.sequence = executionSequenceCounter++;
+    if (promise && currentExecution) {
+      promise.resolution.promise = currentExecution;
     }
   },
   after(asyncId) {
-    if (promiseAsyncId === asyncId) {
-      promiseAsyncId = undefined;
-      currentPromise = undefined;
+    if (promiseAsyncId !== asyncId) {
+      return;
     }
+
+    promiseAsyncId = undefined;
+    currentExecution = undefined;
   },
 });
 
 function propagateTracking(into: PromiseExecution) {
-  const { trigger: from, init } = into;
+  const { trigger, init } = into;
   into.trigger = into.init = undefined;
 
-  const resolution = from?.promise;
-  const source = useTracking(resolution);
-
-  // one weird case: when resolution === init we must bail.
+  // one weird case: when resolution === init we bail.
+  //
   // otherwise constructions like
-  //   (async () => { await Promise.resolve(); p = Promise.resolve(); track('x'); })();
+  //   (async () => { await (null! as Promise<void>); p = Promise.resolve(); track('x'); })();
   //   await ...;
   //   await p;
-  // will show 'x' as tracked erroneosly.
-  if (!source || resolution === init) {
+  //
+  // can show 'x' as tracked by p even though it's tracked after p's creation.
+  const resolution = trigger?.promise;
+  if (resolution === init) {
     return;
   }
 
-  if (into.tracking === undefined) {
-    into.tracking = source;
-
-    return;
-  }
-  
-  if (into.tracking === source) {
+  const source = useTracking(resolution);
+  if (!source) {
     return;
   }
 
-  const target = makeValueTracking(into);
+  if (into.values === undefined) {
+    into.values = source;
+
+    return;
+  }
+
+  if (into.values === source) {
+    return;
+  }
+
+  const target = copyTrackingBeforeWrite(into);
 
   for (let key = sentinelKey.next; key !== sentinelKey; key = key.next) {
     const sourceValues = source.get(key);
@@ -263,13 +250,11 @@ type TrackedValue<T> = {
   identity: number;
 };
 
-function awaited(
-  collector: (tracking: ValueTracking, sequence: number) => void,
-): void {
-  const tracking = currentPromise?.tracking;
+function awaited(collector: (tracking: TrackedValues) => void): void {
+  const tracking = currentExecution?.values;
 
   if (tracking) {
-    collector(tracking, Infinity);
+    collector(tracking);
   }
 }
 
@@ -277,7 +262,7 @@ function _unlink() {
   // disconnect the promise execution graph here.
   // this prevents the fn() from inheriting any
   // values tracked in by the caller.
-  currentPromise = undefined;
+  currentExecution = undefined;
   promises.delete(promiseAsyncId!);
 }
 
@@ -301,9 +286,9 @@ export function shared<T>(fn: () => Promise<T>): Promise<T> {
 
 // helper for shared().
 async function _shared<T>(fn: () => T | Promise<T>): Promise<T> {
-  await Promise.resolve();
+  await (null! as Promise<void>);
   _unlink();
-  await Promise.resolve();
+  await (null! as Promise<void>);
 
   return await fn();
 }
@@ -315,7 +300,7 @@ async function _shared<T>(fn: () => T | Promise<T>): Promise<T> {
  */
 export async function disconnected<T>(fn: () => T | Promise<T>): Promise<T> {
   try {
-    await Promise.resolve();
+    await (null! as Promise<void>);
     return await fn();
   } finally {
     await _unlink();
@@ -404,23 +389,27 @@ function removeTrackingKey(key: TrackingKeyRing) {
 }
 
 function useTracking(execution?: PromiseExecution) {
-  if (!execution?.tracking) {
+  if (!execution?.values) {
     return undefined;
   }
 
   // activate copy-on-write for future values.
-  execution.tracking.delete(execution);
+  execution.values.delete(execution);
 
-  return execution.tracking;
+  return execution.values;
 }
 
-function cloneValueTracking(execution: PromiseExecution) {
-  const tracking = new WeakMap() as ValueTracking;
+function copyTrackingBeforeWrite(execution: PromiseExecution) {
+  if (execution.values?.has(execution)) {
+    return execution.values;
+  }
+
+  const tracking = new WeakMap() as TrackedValues;
   tracking.set(execution, "owner");
 
-  if (execution.tracking) {
+  if (execution.values) {
     for (let key = sentinelKey.next; key !== sentinelKey; key = key.next) {
-      const values = execution.tracking.get(key);
+      const values = execution.values.get(key);
 
       if (values) {
         tracking.set(key, [...values]);
@@ -428,26 +417,18 @@ function cloneValueTracking(execution: PromiseExecution) {
     }
   }
 
-  return tracking;
-}
-
-function makeValueTracking(execution: PromiseExecution) {
-  if (execution.tracking?.has(execution)) {
-    return execution.tracking;
-  }
-
-  return (execution.tracking = cloneValueTracking(execution));
+  return (execution.values = tracking);
 }
 
 export function tracking<T>() {
   const key = createTrackingKey();
 
   function currentValues() {
-    if (!currentPromise) {
+    if (!currentExecution) {
       throw new Error("cannot register, not in an async context");
     }
 
-    const values = makeValueTracking(currentPromise);
+    const values = copyTrackingBeforeWrite(currentExecution);
 
     let items = values.get(key);
     if (!items) {
@@ -462,7 +443,7 @@ export function tracking<T>() {
       const tracked: T[] = [];
       const seen = new Set<number>();
 
-      awaited((tracking, sequence) => {
+      awaited((tracking) => {
         const list = tracking.get(key);
 
         if (!list) {
@@ -470,10 +451,6 @@ export function tracking<T>() {
         }
 
         for (const item of list) {
-          if (item.identity > sequence) {
-            break;
-          }
-
           if (seen.has(item.identity)) {
             continue;
           }
@@ -489,7 +466,7 @@ export function tracking<T>() {
     track(value: T) {
       currentValues().push({
         value,
-        identity: executionSequenceCounter++,
+        identity: trackedValueCounter++,
       });
 
       return value;
@@ -535,7 +512,7 @@ export async function allSettled_disconnected(
   // might terminate Node while we're awaiting value[0]
   disarmPromises(promises);
 
-  await Promise.resolve();
+  await (null! as Promise<void>);
 
   return await new Promise<PromiseSettledResult<unknown>[]>((resolve) => {
     const list: unknown[] = [...promises];
