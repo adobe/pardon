@@ -24,7 +24,7 @@ type ConfigProps = {
   layers?: string[];
 };
 
-const PardonContext =
+const PardonApplicationContext =
   createContext<
     Accessor<
       | { application: ApplicationContext }
@@ -32,10 +32,10 @@ const PardonContext =
     >
   >();
 
-export default PardonContext;
+export default PardonApplicationContext;
 
-export function usePardonContext() {
-  return useContext(PardonContext);
+export function usePardonApplicationContext() {
+  return useContext(PardonApplicationContext);
 }
 
 export function PardonApplication(props: ParentProps<ConfigProps>) {
@@ -48,9 +48,9 @@ export function PardonApplication(props: ParentProps<ConfigProps>) {
   });
 
   return (
-    <PardonContext.Provider value={applicationContext}>
+    <PardonApplicationContext.Provider value={applicationContext}>
       {props.children}
-    </PardonContext.Provider>
+    </PardonApplicationContext.Provider>
   );
 }
 

@@ -18,7 +18,7 @@ import {
   intoFetchParams,
   intoResponseObject,
 } from "./request/fetch-pattern.js";
-import { AppContext } from "./app-context.js";
+import { PardonContext } from "./app-context.js";
 import { PardonOptions } from "../api/pardon-wrapper.js";
 import { matchRequest } from "./match.js";
 import { ProgressiveMatch } from "./progress.js";
@@ -50,7 +50,7 @@ import { definedObject } from "../util/mapping.js";
 import { JSON } from "./json.js";
 
 export type PardonAppContext = Pick<
-  AppContext,
+  PardonContext,
   "collection" | "compiler" | "database"
 >;
 

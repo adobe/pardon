@@ -21,9 +21,9 @@ import {
 
 function testing(name, fn: (_: ReturnType<typeof tracking>) => void, result) {
   test(name, async () => {
-    await Promise.resolve();
+    await (null! as Promise<void>);
     const tracker = tracking<string>();
-    await Promise.resolve();
+    await (null! as Promise<void>);
 
     await shared(async () => fn(tracker));
     assert.equal(tracker.awaited().join(""), result);
@@ -38,9 +38,9 @@ testing["only"] = (
   result,
 ) => {
   test["only"](name, async () => {
-    await Promise.resolve();
+    await (null! as Promise<void>);
     const tracker = tracking<string>();
-    await Promise.resolve();
+    await (null! as Promise<void>);
 
     await fn(tracker);
     assert.equal(tracker.awaited().join(""), result);
@@ -52,7 +52,7 @@ async function delay(n = 100 * Math.random()) {
 }
 
 async function thread(fn) {
-  await Promise.resolve();
+  await (null! as Promise<void>);
   return fn();
 }
 
@@ -162,9 +162,9 @@ describe("async", () => {
     "merge flows",
     async ({ track }) => {
       track("0");
-      await Promise.resolve();
+      await (null! as Promise<void>);
       track("1");
-      await Promise.resolve();
+      await (null! as Promise<void>);
       track("a");
       const x = thread(() => {
         track("b");
@@ -605,58 +605,58 @@ describe("async", () => {
           return "world";
         }),
         disconnected(async () => {
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
         }),
         disconnected(async () => {
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
         }),
         disconnected(async () => {
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
         }),
         disconnected(async () => {
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
         }),
         disconnected(async () => {
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
         }),
         disconnected(async () => {
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
-          await Promise.resolve();
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
+          await (null! as Promise<void>);
         }),
       ]).then((a) => a.filter(Boolean));
 

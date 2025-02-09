@@ -72,7 +72,7 @@ export async function flushTrialRegistry(
           set(
             "::testexecution",
             async (environment: Record<string, unknown>) => {
-              await Promise.resolve();
+              await (null! as Promise<void>);
               return await definition(environment);
             },
           );

@@ -40,9 +40,9 @@ export type HttpsRequestStep = {
 };
 
 export type HttpsSteps = (HttpsRequestStep | HttpsResponseStep)[];
-export type HttpsMode = "mix" | "mux" | "flow" | "unit" | "log";
+export type HttpsMode = "mix" | "mux" | "flow" | "log";
 
-export type UnitOrFlowName = `${string}.unit` | `${string}.flow`;
+export type FlowName = `${string}.flow`;
 
 export type HttpsFlowContext =
   | string
@@ -51,19 +51,16 @@ export type HttpsFlowContext =
 type ValueMapping = (string | Record<string, ValueMapping>)[];
 
 export type HttpsFlowConfig = {
+  use?: UseFlow[];
+  attempts?: number;
   import?: HttpsTemplateConfiguration["import"];
   defaults?: HttpsTemplateConfiguration["defaults"];
   context?: HttpsFlowContext;
   provides?: string | ValueMapping;
 };
 
-export type HttpsUnitConfig = HttpsFlowConfig & {
-  use?: UseUnitOrFlow[];
-  attempts?: number;
-};
-
-export type UseUnitOrFlow = {
-  sequence: UnitOrFlowName;
+export type UseFlow = {
+  flow: FlowName;
   provides?: string | ValueMapping;
   context?: HttpsFlowContext;
 };
@@ -75,7 +72,7 @@ export type HttpsSchemeType<Mode extends string, Configuration> = {
 };
 
 export type HttpsScheme<Phase extends ConfigurationProcessingPhase> =
-  | HttpsUnitScheme
+  | HttpsFlowScheme
   | HttpsTemplateScheme<Phase>;
 
 export type HttpsTemplateConfiguration<
@@ -94,10 +91,8 @@ export type HttpsTemplateConfiguration<
   | "export"
 >;
 
-export type HttpsUnitScheme = HttpsSchemeType<"unit", HttpsUnitConfig>;
 export type HttpsFlowScheme = HttpsSchemeType<"flow", HttpsFlowConfig>;
 
-export type HttpsSequenceScheme = HttpsUnitScheme | HttpsFlowScheme;
 export type HttpsTemplateScheme<
   Phase extends ConfigurationProcessingPhase = "runtime",
 > = HttpsSchemeType<"mix" | "mux", HttpsTemplateConfiguration<Phase>>;
@@ -146,7 +141,7 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
       configuration: YAML.parse(inlineConfiguration.join("\n")),
     }),
     mode,
-  } as HttpsUnitScheme;
+  } as HttpsFlowScheme;
 }
 
 function scanRequestComputations(file: string) {

@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { AppContext } from "../core/app-context.js";
+import { PardonContext } from "../core/app-context.js";
 import { HTTP } from "../core/formats/http-fmt.js";
 
 import {
@@ -19,7 +19,7 @@ import {
 } from "../core/pardon.js";
 import type { SimpleRequestInit } from "../core/request/fetch-pattern.js";
 import { intoURL } from "../core/request/url-pattern.js";
-import { runtimeLoaded } from "../runtime/runtime-resolution.js";
+import { pardonRuntime } from "../runtime/runtime-deferred.js";
 
 export type PardonOptions = {
   unmatched?: boolean;
@@ -27,9 +27,11 @@ export type PardonOptions = {
   parsecurl?: boolean;
 };
 
-let context: AppContext;
-let FetchExecution: typeof PardonFetchExecution;
-runtimeLoaded().then((runtime) => ({ context, FetchExecution } = runtime));
+let pardonContext: PardonContext;
+let execution: typeof PardonFetchExecution;
+pardonRuntime().then(
+  (runtime) => ({ context: pardonContext, execution } = runtime),
+);
 
 type FetchArgs =
   | [URL | string]
@@ -44,28 +46,28 @@ export function pardon(
   values: Record<string, unknown> = {},
   executionContext?: Omit<Partial<PardonExecutionContext>, "values">,
 ) {
-  if (!context) {
+  if (!pardonContext) {
     throw new Error("pardon: no pardon runtime context loaded");
   }
 
   return pardonExecutionHandle({
     context: {
-      app: () => context,
+      app: () => pardonContext,
       durations: {},
       timestamps: {},
       values,
       ...executionContext,
     },
-    FetchExecution,
+    execution,
   });
 }
 
 export function pardonExecutionHandle({
   context,
-  FetchExecution,
+  execution,
 }: {
   context: PardonExecutionContext;
-  FetchExecution: typeof PardonFetchExecution;
+  execution: typeof PardonFetchExecution;
 }) {
   const http = (template: TemplateStringsArray, ...args: unknown[]) => {
     const http = String.raw(template, ...args);
@@ -74,7 +76,7 @@ export function pardonExecutionHandle({
     });
 
     function initiate() {
-      return FetchExecution.init({
+      return execution.init({
         ...context,
         url: intoURL(request),
         init: {
@@ -123,22 +125,22 @@ export function pardonExecutionHandle({
 
   return Object.assign(http, {
     match(...[url, init, extra]: FetchArgs) {
-      return FetchExecution.match(fetchExecutionInit(url, init, extra));
+      return execution.match(fetchExecutionInit(url, init, extra));
     },
     preview(...[url, init, extra]: FetchArgs) {
-      return FetchExecution.preview(fetchExecutionInit(url, init, extra));
+      return execution.preview(fetchExecutionInit(url, init, extra));
     },
     render(...[url, init, extra]: FetchArgs) {
-      return FetchExecution.render(fetchExecutionInit(url, init, extra));
+      return execution.render(fetchExecutionInit(url, init, extra));
     },
     fetch(...[url, init, extra]: FetchArgs) {
-      return FetchExecution.process(fetchExecutionInit(url, init, extra));
+      return execution.process(fetchExecutionInit(url, init, extra));
     },
   });
 }
 
 export function template(source: string) {
-  if (!context) {
+  if (!pardonContext) {
     throw new Error("pardon: no pardon runtime context loaded");
   }
 

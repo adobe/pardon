@@ -11,11 +11,11 @@ governing permissions and limitations under the License.
 */
 import { valueOps } from "../../../db/entities/value-entity.js";
 import { httpOps } from "../../../db/entities/http-entity.js";
-import { AppContext } from "../../../core/app-context.js";
+import { PardonContext } from "../../../core/app-context.js";
 import { PardonError } from "../../../core/error.js";
 
 export function recall(
-  { database }: AppContext,
+  { database }: PardonContext,
   lookup: string[],
   values: Record<string, string>,
   locale?: Intl.Locale,

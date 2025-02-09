@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-export { initializePardon } from "../runtime/runtime.js";
+export { initializePardon } from "../runtime/initialize.js";
 
 export type {
   AssetParseError,
@@ -22,7 +22,7 @@ export type {
 export type { EncodingTypes } from "../core/request/body-template.js";
 
 export type {
-  AppContext,
+  PardonContext,
   AssetType,
   AssetInfo,
   AssetSource,

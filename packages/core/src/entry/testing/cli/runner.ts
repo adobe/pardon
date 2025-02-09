@@ -16,14 +16,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { TracedResult, awaitedResults } from "../../../features/trace.js";
 import { HTTP } from "../../../core/formats/http-fmt.js";
-import { onExecute, registerUnit, registerFlow } from "../sequence.js";
+import { onExecute, registerFlow } from "../flow.js";
 import {
   awaitedSequences,
-  compileHttpsSequence,
+  compileHttpsFlow,
   SequenceReport,
   SequenceStepReport,
   traceSequenceExecution,
-} from "../https-sequence.js";
+} from "../https-flow.js";
 import {
   all_disconnected,
   disconnected,
@@ -32,16 +32,13 @@ import {
   tracking,
 } from "../../../core/tracking.js";
 import { PardonAppContext } from "../../../core/pardon.js";
-import {
-  HttpsFlowScheme,
-  HttpsUnitScheme,
-} from "../../../core/formats/https-fmt.js";
+import { HttpsFlowScheme } from "../../../core/formats/https-fmt.js";
 import { flushTrialRegistry, withGamutConfiguration } from "../trial.js";
 import { glob } from "glob";
-import { AppContext } from "../../../core/app-context.js";
+import { PardonContext } from "../../../core/app-context.js";
 import describeCases, { CaseContext, CaseHelpers } from "../testcases/index.js";
 import { notifyFastFailed } from "./failfast.js";
-import { applySmokeConfig, SmokeConfig } from "../smoking.js";
+import { applySmokeConfig, SmokeConfig } from "../smoke.js";
 import * as YAML from "yaml";
 import { cleanObject } from "../../../util/clean-object.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
@@ -492,30 +489,6 @@ function fmtTraceId(trace: number | string) {
   return `000${trace}`.slice(-3);
 }
 
-export async function registerHttpsUnit(
-  { compiler }: PardonAppContext,
-  unitName: string,
-  unitPath: string,
-  unitScheme: HttpsUnitScheme,
-) {
-  if (unitScheme.mode !== "unit") {
-    throw new Error("unit sequence expected");
-  }
-
-  const sequence = compileHttpsSequence(unitScheme, {
-    path: unitPath,
-    name: unitName,
-  });
-
-  return registerUnit(unitName, {
-    path: unitPath,
-    params: sequence.params ?? { dict: {}, rested: "", required: false },
-    async action(values, key) {
-      return await traceSequenceExecution({ compiler }, sequence, key, values);
-    },
-  });
-}
-
 export async function registerHttpsFlow(
   { compiler }: PardonAppContext,
   flowName: string,
@@ -526,7 +499,7 @@ export async function registerHttpsFlow(
     throw new Error("flow sequence expected");
   }
 
-  const sequence = compileHttpsSequence(flowScheme, {
+  const sequence = compileHttpsFlow(flowScheme, {
     path: flowPath,
     name: flowName,
   });
@@ -589,7 +562,7 @@ export type TestLoadOptions = {
 };
 
 export async function loadTests(
-  context: AppContext,
+  context: PardonContext,
   { testPath, concurrency }: TestLoadOptions,
 ) {
   const cwd = dirname(testPath);
@@ -611,30 +584,6 @@ export async function loadTests(
       throw new Error("expect sequences root glob to end with /**");
     }
   }
-
-  await Promise.all(
-    configuration.sequences.map(async (sequenceRoot) => {
-      const root = resolve(cwd, sequenceRoot);
-      const unitTemplates = await glob(join(root, "*.unit.https"), {
-        cwd,
-        nodir: true,
-        absolute: true,
-      });
-
-      const base = root.replace(/[/][*][*]$/, "/");
-
-      return await Promise.all(
-        unitTemplates.map(async (httpsUnit) => {
-          const name = httpsUnit
-            .slice(base.length)
-            .replace(/[.]unit[.]https$/, "");
-          const { default: schema } = await import(httpsUnit);
-
-          return registerHttpsUnit(context, name, httpsUnit, schema);
-        }),
-      );
-    }),
-  );
 
   await Promise.all(
     configuration.sequences.map(async (sequenceRoot) => {

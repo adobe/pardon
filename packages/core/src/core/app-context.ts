@@ -28,6 +28,7 @@ import { homely } from "../util/resolvehome.js";
 
 import fetchPolyfillReady from "../runtime/init/fetch-polyfill.js";
 import { KV } from "./formats/kv-fmt.js";
+import { HttpsFlowScheme } from "./formats/https-fmt.js";
 
 export type CollectionData = {
   values: Record<string, unknown>;
@@ -37,6 +38,7 @@ export type AssetType =
   | "config"
   | "data"
   | "mixin"
+  | "flow"
   | "endpoint"
   | "script"
   | "unknown";
@@ -47,7 +49,7 @@ export type AssetInfo = {
   sources: AssetSource[];
 };
 
-export type AppContext = {
+export type PardonContext = {
   config: {
     root: string;
     collections: string[];
@@ -235,6 +237,7 @@ export async function createPardonApplicationContext(
 export type PardonCollection = {
   configurations: Record<string, Configuration>;
   endpoints: Record<string, LayeredEndpoint>;
+  flows: Record<string, HttpsFlowScheme>;
   data: Record<string, CollectionData>;
   mixins: Record<string, LayeredMixin>;
   assets: Record<string, AssetInfo>;
@@ -252,7 +255,7 @@ export function resolvePardonApplicationCollection({
   samples,
   example,
 }: {
-  config: AppContext["config"];
+  config: PardonContext["config"];
   layers: Awaited<ReturnType<typeof loadCollections>>;
   samples: string[];
   example: PardonRC["example"];
@@ -264,7 +267,7 @@ export function resolvePardonApplicationCollection({
     collection,
   });
 
-  const context: AppContext = {
+  const context: PardonContext = {
     config,
     collection,
     compiler,

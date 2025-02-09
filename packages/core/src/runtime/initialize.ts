@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import { PardonAppContextOptions } from "../core/app-context.js";
 import { establishPardonRuntime } from "./init/establish.js";
 import { PardonFetchExecution } from "../core/pardon.js";
-import { resolveRuntime } from "./runtime-resolution.js";
+import { resolveRuntime } from "./runtime-deferred.js";
 
 export type FeatureHook<T> = (_: T) => T;
 
@@ -31,18 +31,18 @@ export async function initializePardon(
 
   // compose the basic pardon execution with feature hooks.
   // execution-hook.ts provides the framework to create hooks.
-  const FetchExecution = featureHooks
+  const execution = featureHooks
     .filter(Boolean)
     .reduce((execution, feature) => feature(execution), PardonFetchExecution);
 
   // resolve the runtime promise so other
   // modules can receive these values.
   // (currently only internal modules are allowed to receive these)
-  resolveRuntime({ context, FetchExecution });
+  resolveRuntime({ context, execution });
 
   // Ideas:
-  //  - simplify: move FetchExecution into the app context.
-  //  - flexibilty: make hooks dynamic per-request.
+  //  - simplify: move execution into the app context, or
+  //  - flexibility: make hooks dynamic per-request.
 
   return context;
 }

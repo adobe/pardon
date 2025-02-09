@@ -42,4 +42,4 @@ export {
   applySmokeConfig,
   parseSmokeConfig,
   type SmokeConfig,
-} from "../entry/testing/smoking.js";
+} from "../entry/testing/smoke.js";

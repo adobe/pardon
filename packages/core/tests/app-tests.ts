@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { unregisterPardonLoader } from "../src/runtime/loader/modern/register.js";
-import { initializePardon } from "../src/runtime/runtime.js";
+import { initializePardon } from "../src/runtime/initialize.js";
 
 export default async () => {
   await initializePardon({ cwd: "./tests/config" });

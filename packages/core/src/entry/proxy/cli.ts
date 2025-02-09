@@ -12,7 +12,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { parseArgs } from "node:util";
-import { initializePardon } from "../../runtime/runtime.js";
+import { initializePardon } from "../../runtime/initialize.js";
 import { HTTP } from "../../core/formats/http-fmt.js";
 import HttpProxy from "http-proxy";
 import { IncomingMessage, createServer } from "node:http";

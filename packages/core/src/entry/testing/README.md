@@ -106,8 +106,8 @@ completes)
 ### units
 
 Units are functions which are keyed on their input, and the results
-cached/shared across multiple tests. They can be implemented as `...unit.https`
-files as well, using the same syntax as https flows.
+cached/shared across multiple tests. They can be implemented as `...flow.https`
+files as well, using a shared strucutre with other https flows.
 
 The input argument should be written as a single destructured object (supporting
 rest arguments), and the data will be provided via a hybrid of what is present

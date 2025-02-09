@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { createIpcReceiver } from "./ipc.js";
 import createCompiler from "../../compiler.js";
-import { AppContext } from "../../../core/app-context.js";
+import { PardonContext } from "../../../core/app-context.js";
 
 let localPort: MessagePort;
 
@@ -21,7 +21,7 @@ export function unregisterPardonLoader() {
   localPort.onmessage = null;
 }
 
-export async function registerPardonLoader(appContext: AppContext) {
+export async function registerPardonLoader(appContext: PardonContext) {
   const { Module } = await import("node:module");
 
   if (!Module.register) {

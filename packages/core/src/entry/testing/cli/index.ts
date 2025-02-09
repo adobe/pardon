@@ -15,7 +15,7 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 
 import trace from "../../../features/trace.js";
-import { initializePardon } from "../../../runtime/runtime.js";
+import { initializePardon } from "../../../runtime/initialize.js";
 import {
   chooseReportOutput,
   executeSelectedTests,
@@ -27,7 +27,7 @@ import {
 import { extractKVs } from "../../../util/kv-options.js";
 import remember from "../../../features/remember.js";
 import failfast, { executeWithFastFail } from "./failfast.js";
-import { parseSmokeConfig } from "../smoking.js";
+import { parseSmokeConfig } from "../smoke.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/json.js";
 import { mapObject } from "../../../util/mapping.js";

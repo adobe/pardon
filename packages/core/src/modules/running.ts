@@ -15,12 +15,8 @@ export {
   filterTestPlanning,
 } from "../entry/testing/cli/runner.js";
 export { initTrackingEnvironment } from "../runtime/environment.js";
-export { sequenceRegistry } from "../entry/testing/sequence.js";
 
-export {
-  awaitedSequences,
-  awaitedSteps,
-} from "../entry/testing/https-sequence.js";
+export { awaitedSequences, awaitedSteps } from "../entry/testing/https-flow.js";
 
 export {
   flushTrialRegistry,
@@ -32,7 +28,7 @@ export {
   applySmokeConfig,
   parseSmokeConfig,
   type SmokeConfig,
-} from "../entry/testing/smoking.js";
+} from "../entry/testing/smoke.js";
 
 export {
   default as describeCases,
@@ -46,7 +42,7 @@ export {
   notifyFastFailed,
 } from "../entry/testing/cli/failfast.js";
 
-export { type CompiledHttpsSequence } from "../entry/testing/https-sequence.js";
+export { type CompiledHttpsSequence } from "../entry/testing/https-flow.js";
 
 export {
   all_disconnected,

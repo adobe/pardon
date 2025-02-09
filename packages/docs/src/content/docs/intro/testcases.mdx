@@ -227,11 +227,9 @@ and these are run in parallel.
 Imagine we want to find pre-defined products named `"pen"` and `"pencil"`, we could
 define a unit that searches the products list and returns the id as `product` in the environment.
 
-We could define a `find-product.unit.https` sequence.  Making it a `unit`
-means that the result (given the inputs) would be cached/reused across
-tests in the test run.
+We could define a `find-product.flow.https` sequence.  
 
-```http title="sequences/find-product.unit.https"
+```http title="sequences/find-product.flow.https"
 context:
   - env
   - port?

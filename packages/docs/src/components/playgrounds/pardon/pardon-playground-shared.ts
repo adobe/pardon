@@ -33,7 +33,7 @@ export type PlaygroundOptions = {
 
 export function createExecutionMemo({
   context,
-  FetchExecution,
+  execution,
   input,
   env,
   restart,
@@ -42,7 +42,7 @@ export function createExecutionMemo({
   context: Accessor<{ application: ApplicationContext } | { error: unknown }>;
   input: Accessor<string>;
   env: Accessor<Record<string, unknown>>;
-  FetchExecution: typeof PardonFetchExecution;
+  execution: typeof PardonFetchExecution;
   restart: Accessor<object>;
   runtime?: (pardon: typeof pardonFn) => Record<string, unknown>;
 }) {
@@ -79,7 +79,7 @@ export function createExecutionMemo({
 
     const pardon: typeof pardonFn = (values = {}, executionContext) => {
       return pardonExecutionHandle({
-        FetchExecution,
+        execution,
         context: {
           app: () => ctx.application,
           durations: {},

@@ -9,9 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-export default function deferred<T = never>() {
+export default function deferred<T = void>() {
   let resolution: {
-    resolve: (value?: T) => void;
+    resolve: T extends void ? () => void : (value: T) => void;
     reject: (error: unknown) => void;
   };
 

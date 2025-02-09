@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import {
   HttpsFlowContext,
-  HttpsSequenceScheme,
+  HttpsFlowScheme,
   HttpsRequestStep,
   HttpsResponseStep,
   HttpsUnitConfig,
@@ -31,16 +31,16 @@ import {
 import { ScriptEnvironment } from "../../core/schema/core/script-environment.js";
 import { definedObject, mapObject } from "../../util/mapping.js";
 import {
-  UnitParamsDict,
+  FlowParamsDict,
   extractValuesDict,
   injectValuesDict,
   ejectValuesDict,
   execute,
-} from "./sequence.js";
+} from "./flow.js";
 import { createSequenceEnvironment } from "../../core/unit-environment.js";
 import { PardonAppContext } from "../../core/pardon.js";
 import { stubSchema } from "../../core/schema/definition/structures/stub.js";
-import { AppContext } from "../../core/app-context.js";
+import { PardonContext } from "../../core/app-context.js";
 import { intoURL } from "../../core/request/url-pattern.js";
 import {
   awaitedResults,
@@ -116,12 +116,12 @@ function parseIncome(income?: string) {
 function contextAsUnitParams(
   context: HttpsFlowContext,
   defined: Record<string, true | string> = {},
-): UnitParamsDict {
+): FlowParamsDict {
   if (typeof context === "string") {
     context = context.split(/\s*,\s*/);
   }
 
-  const params: UnitParamsDict = { dict: {}, required: false };
+  const params: FlowParamsDict = { dict: {}, required: false };
 
   for (let item of context) {
     // allow "x: y" as a synonym of "x as y"
@@ -180,14 +180,14 @@ function usageNeeded(
   return Object.keys(defined).some((key) => options[key] === undefined);
 }
 
-export function compileHttpsSequence(
-  scheme: HttpsSequenceScheme,
+export function compileHttpsFlow(
+  scheme: HttpsFlowScheme,
   { path, name }: { path: string; name: string },
 ): CompiledHttpsSequence {
   const { interactionMap, interactions, tries, configuration } =
     parseHttpsSequenceScheme(scheme);
   const definitions: Record<string, true | string> = {};
-  const params: UnitParamsDict | undefined =
+  const params: FlowParamsDict | undefined =
     configuration.context === undefined
       ? undefined
       : contextAsUnitParams(configuration.context, definitions);
@@ -225,10 +225,10 @@ export function compileHttpsSequence(
 }
 
 export type CompiledHttpsSequence = {
-  scheme: HttpsSequenceScheme;
+  scheme: HttpsFlowScheme;
   path: string;
   name: string;
-  params?: UnitParamsDict;
+  params?: FlowParamsDict;
   schema: Schema<Record<string, unknown>>;
   interactionMap: Record<string, number>;
   interactions: HttpsSequenceInteraction[];
@@ -308,9 +308,9 @@ export async function executeHttpsSequence(
   const definedValues = params ? extractValuesDict(params, values) : values;
 
   const sequenceEnvironment = createSequenceEnvironment({
-    sequenceScheme: sequence.scheme,
+    flowScheme: sequence.scheme,
     compiler,
-    sequencePath: sequence.path,
+    flowPath: sequence.path,
     values: definedValues,
   });
 
@@ -354,7 +354,7 @@ export async function executeHttpsSequence(
 
 async function executeFlowSequence(
   sequence: CompiledHttpsSequence,
-  compiler: AppContext["compiler"],
+  compiler: PardonContext["compiler"],
   effectiveValues: Record<string, unknown>,
 ) {
   let index = 0;
@@ -442,7 +442,7 @@ async function evaluateUsedUnits(
     ...(await Promise.all(
       (configuration.use ?? [])
         .filter((usage) => usageNeeded(usage.provides, effectiveValues))
-        .map(async ({ provides, context, sequence: unitOrFlow }) => {
+        .map(async ({ provides, context, flow: unitOrFlow }) => {
           const usageOptions = context
             ? injectValuesDict(contextAsUnitParams(context), {
                 ...environment,
@@ -468,8 +468,8 @@ function parseHttpsSequenceScheme({
   steps,
   mode,
   configuration = { context: [], use: [], defaults: {}, import: {} },
-}: HttpsSequenceScheme) {
-  if (mode !== "unit" && mode !== "flow") {
+}: HttpsFlowScheme) {
+  if (mode !== "flow") {
     throw new Error("invalid https seqeuence scheme, not a flow or unit");
   }
 
@@ -530,7 +530,7 @@ const coreValues = new Set([
 ]);
 
 async function executeHttpsSequenceStep(
-  { compiler }: Pick<AppContext, "compiler">,
+  { compiler }: Pick<PardonContext, "compiler">,
   {
     sequenceInteraction: interaction,
     sequenceScheme: sequenceScheme,
@@ -538,7 +538,7 @@ async function executeHttpsSequenceStep(
     values,
   }: {
     sequenceInteraction: HttpsSequenceInteraction;
-    sequenceScheme: HttpsSequenceScheme;
+    sequenceScheme: HttpsFlowScheme;
     sequencePath: string;
     values: Record<string, any>;
   },
@@ -560,8 +560,8 @@ async function executeHttpsSequenceStep(
   const requestRendering = await renderSchema(
     requestBase.schema,
     createSequenceEnvironment({
-      sequenceScheme: sequenceScheme,
-      sequencePath: sequenceFile,
+      flowScheme: sequenceScheme,
+      flowPath: sequenceFile,
       compiler,
       values,
     }),
@@ -699,13 +699,13 @@ type UnmatchedResponseOutcome = {
 type ResponseOutcome = MatchedResponseOutcome | UnmatchedResponseOutcome;
 
 async function responseOutcome(
-  { compiler }: Pick<AppContext, "compiler">,
+  { compiler }: Pick<PardonContext, "compiler">,
   {
     sequenceScheme,
     sequenceFile,
     values,
   }: {
-    sequenceScheme: HttpsSequenceScheme;
+    sequenceScheme: HttpsFlowScheme;
     sequenceFile: string;
     values: Record<string, any>;
   },
@@ -734,8 +734,8 @@ async function responseOutcome(
     if (merged.schema) {
       const previewEnv = createSequenceEnvironment({
         compiler,
-        sequenceScheme: sequenceScheme,
-        sequencePath: sequenceFile,
+        flowScheme: sequenceScheme,
+        flowPath: sequenceFile,
         values,
       });
 

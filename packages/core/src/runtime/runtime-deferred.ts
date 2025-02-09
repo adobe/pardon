@@ -9,20 +9,22 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { type AppContext } from "../core/app-context.js";
+import { type PardonContext } from "../core/app-context.js";
 import { PardonFetchExecution } from "../core/pardon.js";
+import deferred from "../util/deferred.js";
 
 export type PardonRuntime = {
-  context: AppContext;
-  FetchExecution: typeof PardonFetchExecution;
+  context: PardonContext;
+  execution: typeof PardonFetchExecution;
 };
 
-export let resolveRuntime: (runtime: PardonRuntime) => void;
-const runtimeResolution = new Promise<PardonRuntime>(
-  (resolve) => (resolveRuntime = resolve),
-);
+const { promise, resolution } = deferred<PardonRuntime>();
+
+export function resolveRuntime(runtime: PardonRuntime) {
+  resolution.resolve(runtime);
+}
 
 /** internal access to the loaded runtime context and fetch system */
-export function runtimeLoaded() {
-  return runtimeResolution;
+export function pardonRuntime() {
+  return promise;
 }

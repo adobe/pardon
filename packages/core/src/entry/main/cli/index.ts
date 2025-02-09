@@ -13,7 +13,7 @@ governing permissions and limitations under the License.
 import * as YAML from "yaml";
 
 import { opts, processOptions } from "./options.js";
-import { initializePardon } from "../../../runtime/runtime.js";
+import { initializePardon } from "../../../runtime/initialize.js";
 
 import { pardon } from "../../../api/pardon-wrapper.js";
 import { disarm } from "../../../util/promise.js";
@@ -54,8 +54,9 @@ function scalars(values: Record<string, unknown>): Record<string, string> {
 
 async function main() {
   const { positionals: args = [], values: options } = opts();
-  if(options.help) {
-    console.info(`
+  if (options.help) {
+    console.info(
+      `
 usage
 -----
 [making requests]
@@ -70,7 +71,8 @@ usage
   pardon ... --http
 [show secrets (in responses or previews)]
   pardon ... --secrets
-`.trim());
+`.trim(),
+    );
   }
 
   const { url, init, values } = await processOptions(options, ...args);

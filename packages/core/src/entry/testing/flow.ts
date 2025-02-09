@@ -18,59 +18,50 @@ import {
 import { shared } from "../../core/tracking.js";
 import { valueId } from "../../util/value-id.js";
 import { disarm } from "../../util/promise.js";
-import { UnitOrFlowName } from "../../core/formats/https-fmt.js";
+import { FlowName } from "../../core/formats/https-fmt.js";
+import { PardonContext } from "../../core/app-context.js";
+import { pardonRuntime } from "../../runtime/runtime-deferred.js";
 
-export type UnitParamBase = { required: boolean };
-export type UnitParamsItem = UnitParamBase & { name: string };
-export type UnitParam = UnitParamsDict | UnitParamsList | UnitParamsItem;
-export type UnitParamsList = UnitParamBase & {
-  list: UnitParam[];
+export type FlowParamBase = { required: boolean };
+export type FlowParamsItem = FlowParamBase & { name: string };
+export type FlowParam = FlowParamsDict | FlowParamsList | FlowParamsItem;
+export type FlowParamsList = FlowParamBase & {
+  list: FlowParam[];
   rested?: string;
 };
 
-export type UnitParamsDict = UnitParamBase & {
-  dict: Record<string, UnitParam>;
+export type FlowParamsDict = FlowParamBase & {
+  dict: Record<string, FlowParam>;
   rested?: string;
 };
 
-function isList(param: UnitParam): param is UnitParamsList {
+function isList(param: FlowParam): param is FlowParamsList {
   return "list" in param;
 }
 
-function isDict(param: UnitParam): param is UnitParamsDict {
+function isDict(param: FlowParam): param is FlowParamsDict {
   return "dict" in param;
 }
 
-function isItem(param: UnitParam): param is UnitParamsItem {
+function isItem(param: FlowParam): param is FlowParamsItem {
   return "name" in param;
 }
 
-export type UnitOptions = { target?: string };
+export type FlowOptions = { target?: string };
 
-type UnitFn = (
+type FlowFn = (
   values: Record<string, any>,
 ) => Promise<void | undefined | Record<string, any>>;
 
 type FlowAction = {
-  path: string;
   action: (
     values: Record<string, unknown>,
     key: string,
   ) => Promise<Record<string, any>>;
-  params: UnitParamsDict;
+  params: FlowParamsDict;
 };
 
-const units: Record<string, FlowAction> = {};
-const flows: Record<string, FlowAction> = {};
 const executions: Record<string, Promise<Record<string, any>>> = {};
-
-export function sequenceRegistry() {
-  const registry = mapObject({ units, flows }, (sequences) =>
-    mapObject(sequences, ({ path }) => path),
-  );
-
-  return registry as Pick<typeof registry, "units" | "flows">;
-}
 
 const pardonTestingSym = Symbol.for("pardon:testing");
 
@@ -88,66 +79,43 @@ export function onExecute(callback: typeof executeCallback) {
   executeCallback = (promise) => disarm(callback(promise));
 }
 
-export function createUnit(name: `${string}.unit`, fn: UnitFn) {
-  if (!name.endsWith(".unit")) {
-    throw new Error("createUnit expects name to end with .unit: " + name);
-  }
-
-  return registerUnit(name.slice(0, -".unit".length), {
-    path: "script",
+export function createFlow(fn: FlowFn): FlowAction {
+  return {
     params: parseParams(fn),
     async action(values = {}) {
-      await Promise.resolve();
+      await (null! as Promise<void>);
 
       return (await fn(values)) || {};
     },
-  });
+  };
 }
 
-export function registerFlow(name: string, info: FlowAction) {
-  flows[name] = info;
-}
-
-export function registerUnit(name: string, info: FlowAction) {
-  units[name] = info;
-}
-
-export function execute(
-  name: UnitOrFlowName,
+export async function execute(
+  name: FlowName,
   context?: Record<string, unknown>,
 ): Promise<Record<string, any>> {
-  if (name.endsWith(".unit")) {
-    return executeUnit(name.slice(0, -".unit".length), context);
-  } else if (name.endsWith(".flow")) {
-    return executeFlow(name.slice(0, -".flow".length), context);
+  if (name.endsWith(".flow")) {
+    const { context: appContext } = await pardonRuntime();
+
+    return executeFlow(appContext, name.slice(0, -".flow".length), context);
   }
 
-  throw new Error("execute only supports .unit and .flow sequences");
-}
-
-function executeUnit(
-  name: string,
-  context?: Record<string, unknown>,
-): Promise<Record<string, any>> {
-  return executeCallback(
-    runUnit(name, context).then((result) => {
-      if (result) {
-        environment = result;
-      }
-      return result;
-    }),
-  );
+  throw new Error("execute only supports .flow sequences");
 }
 
 export function runUnit(
   name: string,
   context?: Record<string, unknown>,
 ): Promise<Record<string, any>> {
-  if (!units[name]) {
-    throw new Error(`executeUnit(${JSON.stringify(name)}): unit not defined`);
+  if (!flows[name]) {
+    throw new Error(`runUnit(${JSON.stringify(name)}): unit not defined`);
   }
 
-  const { action, params } = units[name];
+  const { action, params } = flows[name];
+
+  if (!resource) {
+    throw new Error(`runUnit(${JSON.stringify(name)}): flow is not a resource`);
+  }
 
   const values = composeValuesDict(params, context, { ...environment });
 
@@ -155,7 +123,7 @@ export function runUnit(
   let execution = executions[key];
 
   if (!execution) {
-    console.info(`-- unit start: ${key}`);
+    console.info(`-- resource flow start: ${key}`);
 
     execution = executions[key] = shared(async () => {
       return await action(values, key);
@@ -163,11 +131,11 @@ export function runUnit(
 
     execution.then(
       () => {
-        console.info(`-- unit done: ${key}`);
+        console.info(`-- resource flow done: ${key}`);
       },
       (err) => {
-        console.info(`-- unit fail: ${key}`);
-        console.error(`Error in unit: ${key}`, err);
+        console.info(`-- resource flow fail: ${key}`);
+        console.error(`Error in resource flow: ${key}`, err);
       },
     );
   }
@@ -178,6 +146,7 @@ export function runUnit(
 let flowKeySeed = Date.now();
 
 function executeFlow(
+  { collection: { flows } }: PardonContext,
   name: string,
   context?: Record<string, unknown>,
 ): Promise<Record<string, any>> {
@@ -201,7 +170,7 @@ function executeFlow(
 }
 
 export function composeValuesDict(
-  params: UnitParamsDict,
+  params: FlowParamsDict,
   options?: Record<string, any>,
   environment?: Record<string, any>,
   required = params.required,
@@ -225,7 +194,7 @@ export function composeValuesDict(
 }
 
 function composeValuesList(
-  params: UnitParamsList,
+  params: FlowParamsList,
   options?: any[],
   env?: any[],
   required = params.required,
@@ -254,7 +223,7 @@ function composeValuesList(
 }
 
 function composeParam(
-  param: UnitParam,
+  param: FlowParam,
   option: any,
   env: any,
   required: boolean,
@@ -278,7 +247,7 @@ function composeParam(
 }
 
 export function extractValuesDict(
-  params: UnitParamsDict,
+  params: FlowParamsDict,
   values: Record<string, any>,
 ) {
   const result = arrayIntoObject(Object.entries(params.dict), ([k, m]) => {
@@ -318,7 +287,7 @@ export function extractValuesDict(
 }
 
 export function injectValuesDict(
-  params: UnitParamsDict,
+  params: FlowParamsDict,
   values: Record<string, any>,
 ) {
   const result = definedObject(
@@ -347,7 +316,7 @@ export function injectValuesDict(
 }
 
 export function ejectValuesDict(
-  params: UnitParamsDict,
+  params: FlowParamsDict,
   values: Record<string, any> | undefined,
 ) {
   const result = definedObject(
@@ -383,13 +352,13 @@ export function ejectValuesDict(
   return result;
 }
 
-function extractValuesList(params: UnitParamsList, values: any[]) {
+function extractValuesList(params: FlowParamsList, values: any[]) {
   void params;
   void values;
   throw new Error("unimplemented");
 }
 
-function parseParams(fn: UnitFn) {
+function parseParams(fn: FlowFn) {
   if (fn.length === 0) {
     return { dict: {}, required: false };
   }
@@ -421,7 +390,7 @@ function parseParams(fn: UnitFn) {
     pattern: acorn.ObjectPattern,
     required: boolean,
   ) {
-    return pattern.properties.reduce<UnitParamsDict>(
+    return pattern.properties.reduce<FlowParamsDict>(
       (result, property) => {
         if (property.type === "RestElement") {
           if (property.argument.type !== "Identifier") {
@@ -493,7 +462,7 @@ function parseParams(fn: UnitFn) {
     pattern: acorn.ArrayPattern,
     required: boolean,
   ) {
-    return pattern.elements.reduce<UnitParamsList>(
+    return pattern.elements.reduce<FlowParamsList>(
       (result, element, idx) => {
         if (!element) {
           return result;

@@ -71,16 +71,21 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
           source,
         };
       }
-      case /[.](mix|mux)[.](https)$/.test(name): {
-        const id = `pardon:${name}`;
+      case /[.](mix|mux)[.](https)$/.test(name):
         return {
           type: "mixin" as const,
           name,
-          id,
+          id: `pardon:${name}`,
           source,
         };
-      }
-      case /[.](https)$/.test(name):
+      case /[.]flow[.]https$/.test(name):
+        return {
+          type: "flow" as const,
+          name,
+          id: name.replace(/[.]https$/, ""),
+          source,
+        };
+      case /[.]https$/.test(name):
         return {
           type: "endpoint" as const,
           name,
@@ -178,6 +183,7 @@ export function buildCollection(
   const mixins: PardonCollection["mixins"] = {};
   const errors: PardonCollection["errors"] = [];
   const assets: PardonCollection["assets"] = {};
+  const flows: PardonCollection["flows"] = {};
   const resolutions: PardonCollection["resolutions"] = {};
   const identities: PardonCollection["identities"] = {};
 
@@ -375,6 +381,8 @@ export function buildCollection(
           identities[path] = `${id}?${resolution.length}`;
           resolution.push({ path, content });
         }
+        break;
+      case "flow":
         break;
       case "unknown":
       default:

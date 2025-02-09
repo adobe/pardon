@@ -16,7 +16,7 @@ export async function initTrackingEnvironment() {
   const { awaited: environmentUpdates, track: trackEnvironmentUpdate } =
     tracking<Record<string, unknown> | null>();
 
-  await Promise.resolve();
+  await (null! as Promise<void>);
 
   const values = () => {
     const stack = environmentUpdates();

@@ -1,7 +1,7 @@
 import { Show, createSignal, untrack, type ParentProps } from "solid-js";
 import CodeMirror from "@components/codemirror/CodeMirror.tsx";
 
-import { usePardonContext } from "@components/playgrounds/pardon/PardonApplication";
+import { usePardonApplicationContext } from "@components/playgrounds/pardon/PardonApplication";
 import { TbMoodConfuzed, TbPencil, TbSettings } from "solid-icons/tb";
 import { iconSize } from "@components/pardon-shared.ts";
 import { ProductsServerExecution } from "@components/products-server-hook.ts";
@@ -23,7 +23,7 @@ export default function PardonPlayground(
     options: PlaygroundOptions;
   }>,
 ) {
-  const context = usePardonContext()!;
+  const context = usePardonApplicationContext()!;
 
   const initialContext = untrack(context);
   if ("error" in initialContext) {
@@ -45,7 +45,7 @@ export default function PardonPlayground(
   const executionHandle = createExecutionMemo({
     context,
     env,
-    FetchExecution:
+    execution:
       server === "products" ? ProductsServerExecution : NullServerExecution,
     input,
     restart,

@@ -9,14 +9,14 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { AppContext } from "../core/app-context.js";
+import { PardonContext } from "../core/app-context.js";
 import { cacheOps, type CacheEntry } from "../db/entities/cache-entity.js";
-import { runtimeLoaded } from "../runtime/runtime-resolution.js";
+import { pardonRuntime } from "../runtime/runtime-deferred.js";
 
 export type { CacheEntry };
 
-let context: AppContext;
-runtimeLoaded().then((runtime) => ({ context } = runtime));
+let context: PardonContext;
+pardonRuntime().then((runtime) => ({ context } = runtime));
 
 export function cached<T>(
   ...[key, loader]: Parameters<ReturnType<typeof cacheOps>["cached"]>

@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  AppContext,
+  PardonContext,
   PardonAppContextOptions,
   createPardonApplicationContext,
 } from "../../core/app-context.js";
@@ -66,7 +66,7 @@ export async function establishPardonRuntime(
   }
 }
 
-async function registerModernLoader(context: AppContext) {
+async function registerModernLoader(context: PardonContext) {
   try {
     await registerPardonLoader(context);
   } catch (error) {

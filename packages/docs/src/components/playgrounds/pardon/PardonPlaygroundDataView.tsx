@@ -6,7 +6,7 @@ import { useSecretsSignal } from "@components/playgrounds/pardon/PardonPlaygroun
 import { useResponseSignal } from "@components/playgrounds/pardon/PardonPlaygroundResponseSignalContext";
 import { TbArrowBarDown, TbArrowBarRight, TbEye } from "solid-icons/tb";
 import { iconSize } from "@components/pardon-shared.ts";
-import { usePardonContext } from "@components/playgrounds/pardon/PardonApplication";
+import { usePardonApplicationContext } from "@components/playgrounds/pardon/PardonApplication";
 import { KV } from "pardon/playground";
 
 export default function PardonPlaygroundDataView(
@@ -16,7 +16,7 @@ export default function PardonPlaygroundDataView(
 ) {
   const { secrets, enabled: secretsEnabled } = useSecretsSignal();
   const [response] = useResponseSignal();
-  const context = usePardonContext();
+  const context = usePardonApplicationContext();
 
   const [reprocessedResponse] = createResource(
     () => ({ response: response(), context: context!() }),
