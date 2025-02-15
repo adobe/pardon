@@ -15,12 +15,12 @@ import {
   definedObject,
   mapObject,
 } from "../../util/mapping.js";
-import { shared } from "../../core/tracking.js";
-import { valueId } from "../../util/value-id.js";
 import { disarm } from "../../util/promise.js";
 import { FlowName } from "../../core/formats/https-fmt.js";
 import { PardonContext } from "../../core/app-context.js";
 import { pardonRuntime } from "../../runtime/runtime-deferred.js";
+import { PardonAppContext } from "../../core/pardon.js";
+import { CompiledHttpsSequence, traceSequenceExecution } from "./https-flow.js";
 
 export type FlowParamBase = { required: boolean };
 export type FlowParamsItem = FlowParamBase & { name: string };
@@ -60,8 +60,6 @@ type FlowAction = {
   ) => Promise<Record<string, any>>;
   params: FlowParamsDict;
 };
-
-const executions: Record<string, Promise<Record<string, any>>> = {};
 
 const pardonTestingSym = Symbol.for("pardon:testing");
 
@@ -103,63 +101,25 @@ export async function execute(
   throw new Error("execute only supports .flow sequences");
 }
 
-export function runUnit(
-  name: string,
-  context?: Record<string, unknown>,
-): Promise<Record<string, any>> {
-  if (!flows[name]) {
-    throw new Error(`runUnit(${JSON.stringify(name)}): unit not defined`);
-  }
-
-  const { action, params } = flows[name];
-
-  if (!resource) {
-    throw new Error(`runUnit(${JSON.stringify(name)}): flow is not a resource`);
-  }
-
-  const values = composeValuesDict(params, context, { ...environment });
-
-  const key = `${name}::${valueId(values)}`;
-  let execution = executions[key];
-
-  if (!execution) {
-    console.info(`-- resource flow start: ${key}`);
-
-    execution = executions[key] = shared(async () => {
-      return await action(values, key);
-    });
-
-    execution.then(
-      () => {
-        console.info(`-- resource flow done: ${key}`);
-      },
-      (err) => {
-        console.info(`-- resource flow fail: ${key}`);
-        console.error(`Error in resource flow: ${key}`, err);
-      },
-    );
-  }
-
-  return execution;
-}
-
-let flowKeySeed = Date.now();
-
 function executeFlow(
-  { collection: { flows } }: PardonContext,
+  appContext: PardonContext,
   name: string,
   context?: Record<string, unknown>,
 ): Promise<Record<string, any>> {
+  const {
+    collection: { flows },
+  } = appContext;
+
   if (!flows[name]) {
     throw new Error(`executeFlow(${JSON.stringify(name)}): flow not defined`);
   }
 
-  const { action, params } = flows[name];
+  const { action, params } = compileFlow(appContext, flows[name]);
 
   const values = composeValuesDict(params, context, { ...environment });
 
   return executeCallback(
-    action(values, `F${flowKeySeed++}`).then((result) => {
+    action(values).then((result) => {
       if (result) {
         environment = result;
       }
@@ -167,6 +127,25 @@ function executeFlow(
       return result;
     }),
   );
+}
+
+export function compileFlow(
+  { compiler }: PardonAppContext,
+  flow: CompiledHttpsSequence,
+) {
+  return {
+    params: flow.params ?? {
+      dict: {},
+      rested: "",
+      required: false,
+    },
+    async action(values?: Record<string, unknown>) {
+      return await traceSequenceExecution({ compiler }, flow, {
+        ...environment,
+        ...values,
+      });
+    },
+  };
 }
 
 export function composeValuesDict(

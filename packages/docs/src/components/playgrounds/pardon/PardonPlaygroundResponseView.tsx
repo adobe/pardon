@@ -137,7 +137,7 @@ export default function PardonPlaygroundResponseView(
           <PardonPlaygroundRenderView
             executionHandle={props.executionHandle}
             onRequest={() => {
-              untrack(gate)?.resolution.resolve(void 0);
+              untrack(gate)?.resolution.resolve();
             }}
             inflight={inflight()}
           />

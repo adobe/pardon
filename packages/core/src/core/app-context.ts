@@ -28,7 +28,7 @@ import { homely } from "../util/resolvehome.js";
 
 import fetchPolyfillReady from "../runtime/init/fetch-polyfill.js";
 import { KV } from "./formats/kv-fmt.js";
-import { HttpsFlowScheme } from "./formats/https-fmt.js";
+import { CompiledHttpsSequence } from "../modules/running.js";
 
 export type CollectionData = {
   values: Record<string, unknown>;
@@ -237,15 +237,21 @@ export async function createPardonApplicationContext(
 export type PardonCollection = {
   configurations: Record<string, Configuration>;
   endpoints: Record<string, LayeredEndpoint>;
-  flows: Record<string, HttpsFlowScheme>;
   data: Record<string, CollectionData>;
   mixins: Record<string, LayeredMixin>;
+  scripts: {
+    /** import "pardon:x" -> assets imported */
+    resolutions: Record<string, { path: string; content: string }[]>;
+    /** converse of resolutions, required name to import each asset */
+    identities: Record<string, string>;
+  };
+
+  flows: Record<string, CompiledHttpsSequence>;
+
+  /** all files, used by favor/editor */
   assets: Record<string, AssetInfo>;
+  /** errors when loading, also used by favor/editor */
   errors: AssetParseError[];
-  /** import "pardon:x" -> assets imported */
-  resolutions: Record<string, { path: string; content: string }[]>;
-  /** converse of resolutions, required name to import each asset */
-  identities: Record<string, string>;
 };
 
 export function resolvePardonApplicationCollection({

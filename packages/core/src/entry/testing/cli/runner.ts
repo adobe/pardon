@@ -9,20 +9,18 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { TracedResult, awaitedResults } from "../../../features/trace.js";
 import { HTTP } from "../../../core/formats/http-fmt.js";
-import { onExecute, registerFlow } from "../flow.js";
+import { onExecute } from "../flow.js";
 import {
   awaitedSequences,
-  compileHttpsFlow,
   SequenceReport,
   SequenceStepReport,
-  traceSequenceExecution,
 } from "../https-flow.js";
 import {
   all_disconnected,
@@ -31,10 +29,7 @@ import {
   shared,
   tracking,
 } from "../../../core/tracking.js";
-import { PardonAppContext } from "../../../core/pardon.js";
-import { HttpsFlowScheme } from "../../../core/formats/https-fmt.js";
 import { flushTrialRegistry, withGamutConfiguration } from "../trial.js";
-import { glob } from "glob";
 import { PardonContext } from "../../../core/app-context.js";
 import describeCases, { CaseContext, CaseHelpers } from "../testcases/index.js";
 import { notifyFastFailed } from "./failfast.js";
@@ -305,22 +300,20 @@ function writeReportFile(
           .map((line) => `# ${line}`),
       ),
       sequences.length && `>>>>>`,
-      ...sequences.flatMap(
-        ({ type, name, key, values, result, error, steps }) => [
-          `>>> ${name}.${type} : ${key}`,
-          `${KV.stringify(cleanObject(values), "\n", 2)}`,
-          ``,
-          `${steps.map((step) => `# ${formatTracedStep(step)}`).join("\n")}`,
-          `${
-            result
-              ? `  <<< ${result.outcome ?? "ok"}\n${resultKV(result, values)}\n`
-              : `  <<< error: ${error}\n${String(error?.["stack"] ?? error)
-                  .split("\n")
-                  .map((s) => `  # ${s}`)
-                  .join(`\n`)}\n`
-          }`,
-        ],
-      ),
+      ...sequences.flatMap(({ type, name, values, result, error, steps }) => [
+        `>>> ${name}.${type}`,
+        `${KV.stringify(cleanObject(values), "\n", 2)}`,
+        ``,
+        `${steps.map((step) => `# ${formatTracedStep(step)}`).join("\n")}`,
+        `${
+          result
+            ? `  <<< ${result.outcome ?? "ok"}\n${resultKV(result, values)}\n`
+            : `  <<< error: ${error}\n${String(error?.["stack"] ?? error)
+                .split("\n")
+                .map((s) => `  # ${s}`)
+                .join(`\n`)}\n`
+        }`,
+      ]),
       sequences.length && "<<<<<",
       KV.stringify(resultEnv(env, init) ?? {}, "\n", 2),
     ]
@@ -489,33 +482,6 @@ function fmtTraceId(trace: number | string) {
   return `000${trace}`.slice(-3);
 }
 
-export async function registerHttpsFlow(
-  { compiler }: PardonAppContext,
-  flowName: string,
-  flowPath: string,
-  flowScheme: HttpsFlowScheme,
-) {
-  if (flowScheme.mode !== "flow") {
-    throw new Error("flow sequence expected");
-  }
-
-  const sequence = compileHttpsFlow(flowScheme, {
-    path: flowPath,
-    name: flowName,
-  });
-
-  return registerFlow(flowName, {
-    path: flowPath,
-    params: sequence.params ?? { dict: {}, rested: "", required: false },
-    async action(values, key) {
-      return await traceSequenceExecution({ compiler }, sequence, key, {
-        ...environment,
-        ...values,
-      });
-    },
-  });
-}
-
 type TrialSelection = (
   initialEnv: Record<string, unknown>,
 ) => string | RegExp | (string | RegExp)[];
@@ -565,8 +531,6 @@ export async function loadTests(
   context: PardonContext,
   { testPath, concurrency }: TestLoadOptions,
 ) {
-  const cwd = dirname(testPath);
-
   const configuration = (
     await withGamutConfiguration(
       () => import(testPath, { with: { type: "tests" } }),
@@ -576,38 +540,6 @@ export async function loadTests(
   if (concurrency !== undefined) {
     configuration.concurrency = concurrency;
   }
-
-  configuration.sequences ??= ["./sequences/**"];
-
-  for (const sequenceRoot of configuration.sequences) {
-    if (!sequenceRoot.endsWith("/**")) {
-      throw new Error("expect sequences root glob to end with /**");
-    }
-  }
-
-  await Promise.all(
-    configuration.sequences.map(async (sequenceRoot) => {
-      const root = resolve(cwd, sequenceRoot);
-      const flowTemplates = await glob(join(root, "*.flow.https"), {
-        cwd,
-        nodir: true,
-        absolute: true,
-      });
-
-      const base = root.replace(/[/][*][*]$/, "/");
-
-      return await Promise.all(
-        flowTemplates.map(async (httpsFlow) => {
-          const name = httpsFlow
-            .slice(base.length)
-            .replace(/[.]flow[.]https$/, "");
-          const { default: schema } = await import(httpsFlow);
-
-          return registerHttpsFlow(context, name, httpsFlow, schema);
-        }),
-      );
-    }),
-  );
 
   const trialRegistry = await flushTrialRegistry(configuration);
 

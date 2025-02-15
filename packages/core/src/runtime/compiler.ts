@@ -76,7 +76,7 @@ const withIdentityTransfrom: (identity: string) => TsMorphTransform =
   };
 
 export default function createCompiler({
-  collection: { data, resolutions, identities, assets },
+  collection: { data, scripts },
 }: Pick<PardonContext, "collection">) {
   const project: Project = new Project({
     compilerOptions: {
@@ -102,7 +102,7 @@ export default function createCompiler({
       return translate.cache[path];
     }
 
-    const identity = identities[path];
+    const identity = scripts.identities[path];
 
     const compiled = project
       .createSourceFile(path, content)
@@ -144,13 +144,13 @@ export default function createCompiler({
     if (moduleSpecifier.startsWith("file:///")) {
       const pathname = new URL(moduleSpecifier).pathname;
 
-      if (identities[pathname]) {
+      if (scripts.identities[pathname]) {
         const { identity } = context.importAttributes;
         if (!identity) {
           throw new Error("illegal direct import of exported script");
         }
 
-        if (identity !== identities[pathname]) {
+        if (identity !== scripts.identities[pathname]) {
           throw new Error("improper import of exported script");
         }
 
@@ -166,7 +166,7 @@ export default function createCompiler({
 
     moduleSpecifier = moduleSpecifier.replace(/[.][tj]s$/, "");
 
-    const resolved = resolutions[moduleSpecifier];
+    const resolved = scripts.resolutions[moduleSpecifier];
 
     if (resolved) {
       if (index) {
@@ -223,42 +223,6 @@ export default function createCompiler({
             )} with { identity: ${JSON.stringify(`${identity}?${index}`)} };`,
         )
         .join("\n");
-    }
-
-    const httpsMatch = /[.](mix|mux|unit|flow)[.]https$/.exec(resolution);
-
-    if (httpsMatch) {
-      const [, type] = httpsMatch;
-
-      const asset = assets[resolution] ?? {
-        sources: [
-          {
-            path: resolved,
-            content: readFileSync(resolution, "utf-8"),
-          },
-        ],
-      };
-
-      if (asset.sources.length > 1) {
-        // note: we support overlapping mixins as configurations,
-        // but not sure how we would as script imports, doesn't make
-        // sense for unit/flow imports.
-        throw new Error("todo: support stacked mixins as imports?");
-      }
-
-      return `
-import { HTTPS } from 'pardon';
-
-function load() {
-  try { 
-    return HTTPS.parse(${JSON.stringify(asset.sources[0].content)}, ${JSON.stringify(type)});
-  } catch (error) {
-    throw new Error(${JSON.stringify(moduleSpecifier)} + ":" + (error?.message ?? error), { cause: error });
-  }
-}
-
-export default load();
-`.trimStart();
     }
 
     throw new Error(`${resolved}: compiler confused what to do here`);

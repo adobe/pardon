@@ -14,7 +14,6 @@ import {
   HttpsFlowScheme,
   HttpsRequestStep,
   HttpsResponseStep,
-  HttpsUnitConfig,
   HttpsFlowConfig,
 } from "../../core/formats/https-fmt.js";
 import { ResponseObject } from "../../core/request/fetch-pattern.js";
@@ -57,7 +56,6 @@ import { JSON } from "../../core/json.js";
 export type SequenceReport = {
   type: "unit" | "flow";
   name: string;
-  key: string;
   values: Record<string, unknown>;
   result?: Record<string, unknown>;
   error?: unknown;
@@ -167,7 +165,7 @@ function contextAsUnitParams(
 }
 
 function usageNeeded(
-  provides: HttpsUnitConfig["provides"],
+  provides: HttpsFlowConfig["provides"],
   options: Record<string, unknown>,
 ) {
   if (!provides) {
@@ -233,7 +231,7 @@ export type CompiledHttpsSequence = {
   interactionMap: Record<string, number>;
   interactions: HttpsSequenceInteraction[];
   tries: Record<number, number>;
-  configuration: HttpsFlowConfig | HttpsUnitConfig;
+  configuration: HttpsFlowConfig;
 };
 
 export async function traceSequenceExecution(
@@ -270,14 +268,12 @@ export async function traceSequenceExecution(
         name,
         scheme: { mode: type },
       },
-      key,
       values,
     ] = args;
 
     trackSequence({
       type,
       name,
-      key,
       values,
       deps,
       steps,
@@ -300,7 +296,6 @@ export async function traceSequenceExecution(
 export async function executeHttpsSequence(
   { compiler }: Pick<PardonAppContext, "compiler">,
   sequence: CompiledHttpsSequence,
-  key: string,
   values: Record<string, unknown>,
 ) {
   const { params } = sequence;
@@ -318,15 +313,12 @@ export async function executeHttpsSequence(
 
   let effectiveValues = definedObject(valuation.output) as Record<string, any>;
 
-  let attemptLimit: number | undefined;
+  const attemptLimit = sequence.configuration.attempts;
 
-  if (sequence.scheme.mode === "unit") {
-    attemptLimit = (sequence.configuration as HttpsUnitConfig).attempts;
-    effectiveValues = {
-      ...effectiveValues,
-      ...(await evaluateUsedUnits(sequence.configuration, effectiveValues)),
-    };
-  }
+  effectiveValues = {
+    ...effectiveValues,
+    ...(await evaluateUsedUnits(sequence.configuration, effectiveValues)),
+  };
 
   let attempts = 0;
   const sequenceRun = async () => {
@@ -434,7 +426,7 @@ async function executeFlowSequence(
 }
 
 async function evaluateUsedUnits(
-  configuration: HttpsUnitConfig,
+  configuration: HttpsFlowConfig,
   effectiveValues: Record<string, unknown>,
 ) {
   return Object.assign(

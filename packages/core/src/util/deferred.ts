@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-export default function deferred<T = void>() {
+export default function deferred<T = void>(): Deferred<T> {
   let resolution: {
     resolve: T extends void ? () => void : (value: T) => void;
     reject: (error: unknown) => void;
@@ -22,4 +22,10 @@ export default function deferred<T = void>() {
   return { resolution: resolution!, promise };
 }
 
-export type Deferred<T> = ReturnType<typeof deferred<T>>;
+export type Deferred<T> = {
+  resolution: {
+    resolve: T extends void ? () => void : (value: T) => void;
+    reject: (error: unknown) => void;
+  };
+  promise: Promise<T>;
+};

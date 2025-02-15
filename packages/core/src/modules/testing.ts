@@ -12,5 +12,5 @@ governing permissions and limitations under the License.
 export { semaphore } from "../core/tracking.js";
 export type { PardonTestConfiguration } from "../entry/testing/cli/runner.js";
 export { verify } from "../entry/testing/assertions.js";
-export { createUnit, execute } from "../entry/testing/flow.js";
+export { execute, createFlow } from "../entry/testing/flow.js";
 export { trial, gamut, cases } from "../entry/testing/trial.js";

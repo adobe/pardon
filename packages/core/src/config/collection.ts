@@ -22,6 +22,7 @@ import {
 } from "./collection-types.js";
 import {
   HTTPS,
+  HttpsFlowScheme,
   HttpsTemplateConfiguration,
   HttpsTemplateScheme,
 } from "../core/formats/https-fmt.js";
@@ -36,6 +37,7 @@ import {
 } from "../core/app-context.js";
 import { PardonError } from "../core/error.js";
 import { expandConfigMap } from "../core/schema/core/config-space.js";
+import { compileHttpsFlow } from "../entry/testing/https-flow.js";
 
 export async function loadCollectionLayer(root: string) {
   return {
@@ -184,8 +186,10 @@ export function buildCollection(
   const errors: PardonCollection["errors"] = [];
   const assets: PardonCollection["assets"] = {};
   const flows: PardonCollection["flows"] = {};
-  const resolutions: PardonCollection["resolutions"] = {};
-  const identities: PardonCollection["identities"] = {};
+  const scripts: PardonCollection["scripts"] = {
+    resolutions: {},
+    identities: {},
+  };
 
   for (const asset of Object.values(
     collate(
@@ -214,12 +218,12 @@ export function buildCollection(
           dirname(path),
           relative(configuration.path, configuration.export),
         );
-        const resolution = (resolutions[`pardon:${id}`] ??= []);
+        const resolution = (scripts.resolutions[`pardon:${id}`] ??= []);
         const identity = `pardon:${id}?${resolution.length}`;
         if (sourcepath in files) {
-          if ((identities[sourcepath] ??= identity) !== identity) {
+          if ((scripts.identities[sourcepath] ??= identity) !== identity) {
             throw new PardonError(
-              `cannot reidentify ${sourcepath} from ${identities[sourcepath]} to ${identity}`,
+              `cannot reidentify ${sourcepath} from ${scripts.identities[sourcepath]} to ${identity}`,
             );
           }
 
@@ -369,22 +373,28 @@ export function buildCollection(
         break;
       }
       case "script":
-        if (sources.some(({ path }) => identities[path])) {
-          if (!sources.every(({ path }) => identities[path])) {
+        if (sources.some(({ path }) => scripts.identities[path])) {
+          if (!sources.every(({ path }) => scripts.identities[path])) {
             console.warn(`inconsistent usage of script ${id}`);
           }
           break;
         }
 
         for (const { path, content } of sources) {
-          const resolution = (resolutions[id] ??= []);
-          identities[path] = `${id}?${resolution.length}`;
+          const resolution = (scripts.resolutions[id] ??= []);
+          scripts.identities[path] = `${id}?${resolution.length}`;
           resolution.push({ path, content });
         }
         break;
-      case "flow":
+      case "flow": {
+        const { content, path } = sources.slice(-1)[0];
+        const scheme = HTTPS.parse(content) as HttpsFlowScheme;
+        flows[id] = compileHttpsFlow(scheme, { path, name: id });
         break;
+      }
       case "unknown":
+        console.warn(`unknown asset: ${id}`);
+        break;
       default:
         break;
     }
@@ -394,13 +404,14 @@ export function buildCollection(
 
   return {
     assets,
+    errors,
+
     endpoints,
     configurations,
     data,
     mixins,
-    errors,
-    resolutions,
-    identities,
+    flows,
+    scripts,
   };
 }
 
