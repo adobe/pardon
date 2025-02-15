@@ -44,7 +44,7 @@ describe("schema structure", () => {
     assert.deepEqual(result.json, ["A", "B", "C"]);
 
     const ctx2 = renderCtx(s);
-    ctx2.scope.define(ctx2, "C", "D");
+    ctx2.evaluationScope.define(ctx2, "C", "D");
     const result2 = (await executeOp(s, "render", ctx2))!;
 
     assert.equal(result2.computed, '["a","b","d"]');
@@ -69,8 +69,12 @@ describe("schema structure", () => {
 
     const merged = merge(s, matchCtx);
     assert(merged);
-    deepStrictMatchEqual(matchCtx.scope.lookup("hello"), { value: "hola" });
-    deepStrictMatchEqual(matchCtx.scope.lookup("world"), { value: "earth" });
+    deepStrictMatchEqual(matchCtx.evaluationScope.lookup("hello"), {
+      value: "hola",
+    });
+    deepStrictMatchEqual(matchCtx.evaluationScope.lookup("world"), {
+      value: "earth",
+    });
   });
 
   it("should capture key-values structure", async () => {
@@ -89,7 +93,7 @@ describe("schema structure", () => {
 
     const merged = merge(s, matchCtx);
     assert(merged);
-    deepStrictMatchEqual(matchCtx.scope.resolvedValues(), {
+    deepStrictMatchEqual(matchCtx.evaluationScope.resolvedValues(), {
       named: { hello: { value: "hola" }, world: { value: "earth" } },
     });
   });

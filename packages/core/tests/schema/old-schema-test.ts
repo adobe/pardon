@@ -360,8 +360,8 @@ describe("schema tests", () => {
 
     merge(schema, matchCtx)!;
 
-    console.log(matchCtx.scope.subscopes);
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
+    console.log(matchCtx.evaluationScope.subscopes);
+    assert.deepEqual(matchCtx.evaluationScope.resolvedValues(), {
       a: [{ item: "x" }, { item: "y" }],
     });
   });
@@ -381,8 +381,8 @@ describe("schema tests", () => {
 
     merge(schema, matchCtx)!;
 
-    console.log(matchCtx.scope.subscopes);
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
+    console.log(matchCtx.evaluationScope.subscopes);
+    assert.deepEqual(matchCtx.evaluationScope.resolvedValues(), {
       list: [{ item: "x" }, { item: "y" }],
     });
   });
@@ -404,13 +404,15 @@ describe("schema tests", () => {
     const rCtx = renderCtx(merged);
     const rendered = await executeOp(merged, "render", rCtx)!;
 
-    console.log(JSON.stringify(matchCtx.scope.resolvedValues(), null, 2));
-    console.log(JSON.stringify(rCtx.scope.resolvedValues(), null, 2));
+    console.log(
+      JSON.stringify(matchCtx.evaluationScope.resolvedValues(), null, 2),
+    );
+    console.log(JSON.stringify(rCtx.evaluationScope.resolvedValues(), null, 2));
     console.log(JSON.stringify(rendered, null, 2));
 
     //const rendered = await executeOp(merged, "render", renderCtx(merged));
 
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
+    assert.deepEqual(matchCtx.evaluationScope.resolvedValues(), {
       q: ["a", "b"],
     });
   });
@@ -433,7 +435,7 @@ describe("schema tests", () => {
 
     merge(schema, matchCtx)!;
 
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
+    assert.deepEqual(matchCtx.evaluationScope.resolvedValues(), {
       q: [
         { sublist: [{ item: "x" }, { item: "y" }] },
         { sublist: [{ item: "p" }, { item: "q" }, { item: "r" }] },
@@ -504,7 +506,7 @@ describe("schema tests", () => {
       a: ["a", "b", "c", "d"],
     });
 
-    assert.deepEqual(result!.context.scope.resolvedValues(), {
+    assert.deepEqual(result!.context.evaluationScope.resolvedValues(), {
       list: ["a", "b", "c", "d"],
     });
   });
@@ -519,13 +521,16 @@ describe("schema tests", () => {
     });
 
     assert.deepEqual(
-      result!.context.scope.resolvedValues({ secrets: false }),
+      result!.context.evaluationScope.resolvedValues({ secrets: false }),
       {},
     );
 
-    assert.deepEqual(result!.context.scope.resolvedValues({ secrets: true }), {
-      list: ["a", "b", "c", "d"],
-    });
+    assert.deepEqual(
+      result!.context.evaluationScope.resolvedValues({ secrets: true }),
+      {
+        list: ["a", "b", "c", "d"],
+      },
+    );
   });
 
   it("should infer structural values length", async () => {
@@ -572,9 +577,11 @@ describe("schema tests", () => {
 
     merge(schema, matchCtx)!;
 
-    console.log(JSON.stringify(matchCtx.scope.resolvedValues(), null, 2));
+    console.log(
+      JSON.stringify(matchCtx.evaluationScope.resolvedValues(), null, 2),
+    );
 
-    assert.deepEqual(matchCtx.scope.resolvedValues(), {
+    assert.deepEqual(matchCtx.evaluationScope.resolvedValues(), {
       q: [
         { sublist: [{ item: "x" }, { item: "y" }] },
         { sublist: [{ item: "p" }, { item: "q" }, { item: "r" }] },
@@ -690,7 +697,7 @@ describe("schema tests", () => {
       ],
     });
 
-    assert.deepEqual(result!.context.scope.resolvedValues(), {
+    assert.deepEqual(result!.context.evaluationScope.resolvedValues(), {
       headers: {
         a: { value: "AAA" },
         b: { value: "BBB" },

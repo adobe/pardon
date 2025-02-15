@@ -187,7 +187,7 @@ function defineKeyedList<T>(self: KeyedListRepresentation<T, false>) {
           return undefined;
         }
 
-        const keyValue = tempcontext.scope.lookup("key");
+        const keyValue = tempcontext.evaluationScope.lookup("key");
 
         if (!isLookupValue(keyValue)) {
           return undefined;
@@ -301,7 +301,7 @@ function defineMvKeyedList<T>(self: KeyedListRepresentation<T, true>) {
           return undefined;
         }
 
-        const keyValue = tempcontext.scope.lookup("key");
+        const keyValue = tempcontext.evaluationScope.lookup("key");
 
         if (!isLookupValue(keyValue)) {
           diagnostic(tempcontext, "could not resolve key");

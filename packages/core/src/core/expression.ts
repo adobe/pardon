@@ -58,7 +58,7 @@ export function applyTsMorph(
     .getText();
 
   //   this would actually leave more state around from
-  //   the expression evaulation than not doing it.
+  //   the expression evaluation than not doing it.
   // exprSourceFile.deleteImmediatelySync();
 
   return awaitedExpr;

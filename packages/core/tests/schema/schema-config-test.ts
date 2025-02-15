@@ -226,7 +226,7 @@ describe("schema configuration magic", () => {
       },
       new ScriptEnvironment({
         config,
-        input: archContext.scope.resolvedValues(),
+        input: archContext.evaluationScope.resolvedValues(),
       }),
     )!;
 
@@ -234,7 +234,7 @@ describe("schema configuration magic", () => {
       prototype,
       new ScriptEnvironment({
         config,
-        input: protoContext.scope.resolvedValues(),
+        input: protoContext.evaluationScope.resolvedValues(),
       }).choose({}),
     );
     const natural = await executeOp(prototype, "render", naturalRenderContext);
@@ -269,7 +269,7 @@ describe("schema configuration magic", () => {
 
     const protoEnvironment = new ScriptEnvironment({
       config,
-      input: archContext.scope.resolvedValues(),
+      input: archContext.evaluationScope.resolvedValues(),
     });
 
     const { schema: prototype, context: protoContext } = extend(
@@ -285,7 +285,7 @@ describe("schema configuration magic", () => {
     console.log(protoEnvironment.implied());
 
     const protoValues = {
-      ...protoContext.scope.resolvedValues(),
+      ...protoContext.evaluationScope.resolvedValues(),
       ...protoEnvironment.implied(),
     };
 

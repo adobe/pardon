@@ -292,7 +292,7 @@ export const PardonFetchExecution = pardonExecution({
         ...redacted.output,
         values: getContextualValues(rendered.context),
       },
-      scope: rendered.context.scope,
+      evaluationScope: rendered.context.evaluationScope,
     };
   },
   async render({
@@ -352,7 +352,7 @@ export const PardonFetchExecution = pardonExecution({
         ...redacted.output,
         values: cleanRequestValues(getContextualValues(rendered.context)),
       } satisfies RequestObject,
-      scope: rendered.context.scope,
+      evaluationScope: rendered.context.evaluationScope,
     };
   },
   async fetch({ context: { timestamps }, outbound: { request, redacted } }) {
@@ -466,7 +466,7 @@ export const PardonFetchExecution = pardonExecution({
 
         return {
           output,
-          scope: context.scope,
+          evaluationScope: context.evaluationScope,
           values: cleanResponseValues(
             getContextualValues(context, { secrets }),
           ),
@@ -480,7 +480,7 @@ export const PardonFetchExecution = pardonExecution({
       inbound: {
         object: inbound,
         outcome: matchedOutcome,
-        scope: uncensored.scope,
+        evaluationScope: uncensored.evaluationScope,
         response: uncensored.output,
         secrets: uncensored.values,
         redacted: redacted.output,

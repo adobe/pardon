@@ -22,7 +22,7 @@ import { Pattern } from "./pattern.js";
 type SchemaContextBase = {
   mode: string;
   keys: (string | number)[];
-  scopes: string[];
+  evaluationScopePath: string[];
   diagnostics: SchemaWarnings[];
 };
 
@@ -38,7 +38,7 @@ export type SchemaWarnings = {
 export type SchemaMergingContext<T> = SchemaContextBase & {
   mode: "match" | "mix" | "mux" | "meld";
   phase: "validate" | "build";
-  scope: SchemaScope;
+  evaluationScope: EvaluationScope;
   environment: SchemaScriptEnvironment;
   template?: Template<T>;
   expand<T>(template?: Template<T>): Schema<T>;
@@ -137,7 +137,7 @@ export type Schema<T> = () => SchemaOps<T>;
  */
 export type SchemaRenderContext = SchemaContextBase & {
   mode: "render" | "prerender" | "postrender" | "preview";
-  scope: SchemaScope;
+  evaluationScope: EvaluationScope;
   environment: SchemaScriptEnvironment;
 };
 
@@ -172,10 +172,10 @@ export type ScopeIndex =
 
 export type ResolvedValueOptions = { secrets?: boolean };
 
-export type SchemaScope = {
-  subscope(name: string, index?: ScopeIndex): SchemaScope;
+export type EvaluationScope = {
+  subscope(name: string, index?: ScopeIndex): EvaluationScope;
 
-  tempscope(): SchemaScope;
+  tempscope(): EvaluationScope;
 
   declare(
     identifier: string,
@@ -217,11 +217,11 @@ export type SchemaScope = {
 
   resolvedValues(options?: ResolvedValueOptions): Record<string, unknown>;
 
-  rescope(scope: SchemaScope): SchemaScope;
+  rescope(evaluationScope: EvaluationScope): EvaluationScope;
 
   scopePath(): string[];
 
-  readonly parent?: SchemaScope;
+  readonly parent?: EvaluationScope;
 
   readonly path: string[];
 

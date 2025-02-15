@@ -79,7 +79,7 @@ export function createEndpointEnvironment({
       return resolvedDefaults(context, endpoint?.configuration?.defaults);
     },
     async evaluate(name, context) {
-      context.scope.imported(name, context);
+      context.evaluationScope.imported(name, context);
 
       return await resolveImport(
         name,

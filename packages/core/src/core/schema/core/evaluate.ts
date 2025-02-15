@@ -66,7 +66,7 @@ function synthesizeExpressionDeclaration(
   identifier: string,
   expression?: string,
 ): Omit<ExpressionDeclaration, "name" | "path"> {
-  const { scope } = context;
+  const { evaluationScope: scope } = context;
 
   const lookup = scope.lookup(identifier);
 
@@ -95,8 +95,8 @@ function renderIdentifierInExpression(
   expression?: string,
 ) {
   const decl = synthesizeExpressionDeclaration(context, name, expression);
-  const { scope } = context;
-  const rescoped = rescope(context, decl.context.scope);
+  const { evaluationScope: scope } = context;
+  const rescoped = rescope(context, decl.context.evaluationScope);
 
   return scope.rendering(context, name, async () => {
     const identifier = parseScopedIdentifier(name);
@@ -130,7 +130,7 @@ function renderIdentifierInExpression(
 }
 
 export function resolveIdentifier(context: SchemaContext, identifier: string) {
-  const { scope } = context;
+  const { evaluationScope: scope } = context;
   const resolution = scope.resolve(context, identifier);
 
   if (isLookupValue(resolution)) {

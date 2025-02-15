@@ -44,7 +44,7 @@ export default function remember(
         const {
           context,
           match,
-          outbound: { redacted, scope },
+          outbound: { redacted, evaluationScope: scope },
         } = info;
         const { app, ask } = context;
         const { database } = app();
@@ -173,7 +173,7 @@ export default function remember(
               });
             }
 
-            const responseValues = inbound.scope.resolvedValues({
+            const responseValues = inbound.evaluationScope.resolvedValues({
               secrets: false,
             });
 
@@ -188,7 +188,7 @@ export default function remember(
             }
 
             for (const { name: name, scope, value } of unredactedScalarValues(
-              inbound.scope,
+              inbound.evaluationScope,
             )) {
               if (scope === "" && name in responseValues) {
                 continue;

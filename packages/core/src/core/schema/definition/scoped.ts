@@ -79,7 +79,7 @@ function resolveScope<T>(
 
   const temp = tempContext(context);
   executeOp(scopekey, "scope", temp);
-  const keyValue = temp.scope.lookup("key");
+  const keyValue = temp.evaluationScope.lookup("key");
 
   if (!isLookupValue(keyValue)) {
     return undefined;

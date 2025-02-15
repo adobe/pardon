@@ -10,22 +10,21 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 export default function deferred<T = void>(): Deferred<T> {
-  let resolution: {
-    resolve: T extends void ? () => void : (value: T) => void;
-    reject: (error: unknown) => void;
-  };
+  let resolution: any;
 
   const promise = new Promise<T>(
-    (resolve, reject) => (resolution = { resolve: resolve as any, reject }),
+    (resolve, reject) => (resolution = { resolve: resolve, reject }),
   );
 
-  return { resolution: resolution!, promise };
+  return { promise, resolution } as Deferred<T>;
 }
 
 export type Deferred<T> = {
-  resolution: {
-    resolve: T extends void ? () => void : (value: T) => void;
-    reject: (error: unknown) => void;
-  };
   promise: Promise<T>;
+  resolution: {
+    // Thanks @Andarist for the [T] extends [void] hint.
+    // https://github.com/microsoft/TypeScript/issues/61186
+    resolve: [T] extends [void] ? () => void : (result: T) => void;
+    reject(error: unknown): void;
+  };
 };

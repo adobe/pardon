@@ -9,25 +9,15 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { muxing } from "../../core/schema/core/contexts.js";
-import { mergeSchema } from "../../core/schema/core/schema-utils.js";
 
-export function verify(subject: unknown) {
-  return {
-    matches(pattern: unknown) {
-      const schema = muxing(pattern);
+import { DataFlow } from "../../core/execution/flow/data-flow.js";
 
-      const matchResult = mergeSchema(
-        { mode: "match", phase: "validate" },
-        schema,
-        subject,
-      );
-
-      if (!matchResult) {
-        throw new Error("verification failed");
-      }
-
-      return matchResult.context.evaluationScope.resolvedValues();
-    },
-  };
-}
+export const AsyncDataFlow: DataFlow = {
+  merge(data) {
+    environment = data;
+    return this;
+  },
+  get environment() {
+    return environment;
+  },
+};

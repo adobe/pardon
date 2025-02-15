@@ -70,7 +70,7 @@ async function compose(
 
   const {
     output,
-    context: { scope },
+    context: { evaluationScope: scope },
   } = await renderSchema(
     merged,
     new ScriptEnvironment({ name: `${testname}/render`, input }),

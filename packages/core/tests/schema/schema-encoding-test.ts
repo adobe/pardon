@@ -61,8 +61,8 @@ describe("schema json tests", () => {
     const ctx = matchContext(s, sample);
     merge(s, ctx);
 
-    deepStrictMatchEqual(ctx.scope.lookup("a"), { value: "abc" });
-    deepStrictMatchEqual(ctx.scope.lookup("x"), { value: "xyz" });
+    deepStrictMatchEqual(ctx.evaluationScope.lookup("a"), { value: "abc" });
+    deepStrictMatchEqual(ctx.evaluationScope.lookup("x"), { value: "xyz" });
   });
 
   it("should parse and match a form", async () => {
@@ -80,7 +80,7 @@ describe("schema json tests", () => {
 
     const ctx = matchContext(s, "b=BbBb");
     merge(s, ctx);
-    deepStrictMatchEqual(ctx.scope.lookup("b"), { value: "BbBb" });
+    deepStrictMatchEqual(ctx.evaluationScope.lookup("b"), { value: "BbBb" });
 
     {
       const merged = merge(s, matchContext(s, "b=QRST"));
@@ -117,10 +117,10 @@ describe("schema json tests", () => {
     const merged = merge(m.schema!, ctx);
     const result = await executeOp(merged!, "render", renderCtx(merged!));
 
-    deepStrictMatchEqual(ctx.scope.lookup("x"), {
+    deepStrictMatchEqual(ctx.evaluationScope.lookup("x"), {
       value: "hello",
     });
-    deepStrictMatchEqual(ctx.scope.lookup("y"), {
+    deepStrictMatchEqual(ctx.evaluationScope.lookup("y"), {
       value: "world",
     });
 
@@ -154,7 +154,7 @@ describe("schema json tests", () => {
 
     const ctx = matchContext(s, "a=hello&a=world");
     const merged = merge(s, ctx);
-    assert.equal(ctx.scope.lookup("x")?.value, "hello");
+    assert.equal(ctx.evaluationScope.lookup("x")?.value, "hello");
 
     const result = await executeOp(merged!, "render", renderCtx(merged!));
     assert.match(result!, /a=hello[&]a=world/);

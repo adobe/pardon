@@ -30,9 +30,9 @@ export function createRenderContext<T>(
   const ctx = {
     mode: "render",
     keys: [],
-    scopes: [],
+    evaluationScopePath: [],
     environment,
-    scope: Scope.createRootScope(),
+    evaluationScope: Scope.createRootScope(),
     diagnostics: [],
   } satisfies SchemaRenderContext;
 
@@ -48,9 +48,9 @@ export function createPreviewContext<T>(
   const ctx = {
     mode: "preview",
     keys: [],
-    scopes: [],
+    evaluationScopePath: [],
     environment,
-    scope: Scope.createRootScope(),
+    evaluationScope: Scope.createRootScope(),
     diagnostics: [],
   } satisfies SchemaRenderContext;
 
@@ -66,9 +66,9 @@ export function createPrerenderContext<T>(
   const ctx = {
     mode: "prerender",
     keys: [],
-    scopes: [],
+    evaluationScopePath: [],
     environment,
-    scope: Scope.createRootScope(),
+    evaluationScope: Scope.createRootScope(),
     diagnostics: [],
   } satisfies SchemaRenderContext;
 
@@ -84,10 +84,10 @@ export function createPostrenderContext<T>(
   const ctx = {
     mode: "postrender",
     keys: [],
-    scopes: [],
+    evaluationScopePath: [],
     diagnostics: [],
     environment,
-    scope: Scope.createRootScope(),
+    evaluationScope: Scope.createRootScope(),
   } satisfies SchemaRenderContext;
 
   executeOp(scheme, "scope", ctx);
@@ -110,9 +110,9 @@ export function createMergingContext<T>(
     mode,
     phase,
     keys: [],
-    scopes: [],
+    evaluationScopePath: [],
     environment,
-    scope: Scope.createRootScope(),
+    evaluationScope: Scope.createRootScope(),
     template,
     diagnostics: [],
     expand(template) {
@@ -136,6 +136,6 @@ export function getContextualValues(
 ) {
   return {
     ...context.environment.implied(),
-    ...context.scope.resolvedValues(options),
+    ...context.evaluationScope.resolvedValues(options),
   };
 }

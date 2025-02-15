@@ -373,7 +373,7 @@ export function defineReference<T = unknown>(
       return anull ? (null as T) : undefined!;
     },
     scope(context) {
-      const { scope } = context;
+      const { evaluationScope: scope } = context;
 
       for (const ref of refs) {
         declareRef(context, { ref, hint });
@@ -397,7 +397,7 @@ export function defineReference<T = unknown>(
       return;
     }
 
-    const { scope } = context;
+    const { evaluationScope: scope } = context;
 
     scope.declare(ref, {
       context,
@@ -418,7 +418,7 @@ export function defineReference<T = unknown>(
 
     if (resolved !== undefined) {
       for (const ref of refs) {
-        context.scope.define(context, ref, resolved);
+        context.evaluationScope.define(context, ref, resolved);
       }
 
       return resolved;
@@ -432,12 +432,12 @@ export function defineReference<T = unknown>(
     }
 
     for (const ref of refs) {
-      const value = context.scope.resolve(context, ref);
+      const value = context.evaluationScope.resolve(context, ref);
 
       if (value != undefined) {
         for (const other of refs) {
           if (other !== ref) {
-            context.scope.define(context, other, value);
+            context.evaluationScope.define(context, other, value);
           }
         }
 
@@ -451,12 +451,12 @@ export function defineReference<T = unknown>(
     context: SchemaRenderContext,
   ) {
     for (const ref of refs) {
-      const value = context.scope.resolve(context, ref);
+      const value = context.evaluationScope.resolve(context, ref);
 
       if (value != undefined) {
         for (const other of refs) {
           if (other !== ref) {
-            context.scope.define(context, other, value);
+            context.evaluationScope.define(context, other, value);
           }
         }
 
@@ -477,8 +477,8 @@ export function defineReference<T = unknown>(
     for (const ref of refs) {
       const identifier = parseScopedIdentifier(ref);
 
-      if (!context.scope.evaluating(identifier.name)) {
-        context.scope.define(context, ref, result);
+      if (!context.evaluationScope.evaluating(identifier.name)) {
+        context.evaluationScope.define(context, ref, result);
       }
     }
 

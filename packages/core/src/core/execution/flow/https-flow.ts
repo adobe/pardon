@@ -10,48 +10,42 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  HttpsFlowContext,
   HttpsFlowScheme,
   HttpsRequestStep,
   HttpsResponseStep,
   HttpsFlowConfig,
-} from "../../core/formats/https-fmt.js";
-import { ResponseObject } from "../../core/request/fetch-pattern.js";
-import { pardon } from "../../api/pardon-wrapper.js";
+} from "../../formats/https-fmt.js";
+import { ResponseObject } from "../../request/fetch-pattern.js";
+import { pardon } from "../../../api/pardon-wrapper.js";
 import {
   mergeSchema,
   prerenderSchema,
   renderSchema,
-} from "../../core/schema/core/schema-utils.js";
+} from "../../schema/core/schema-utils.js";
 import {
   httpsRequestSchema,
   httpsResponseSchema,
-} from "../../core/request/https-template.js";
-import { ScriptEnvironment } from "../../core/schema/core/script-environment.js";
-import { definedObject, mapObject } from "../../util/mapping.js";
+} from "../../request/https-template.js";
+import { ScriptEnvironment } from "../../schema/core/script-environment.js";
+import { definedObject, mapObject } from "../../../util/mapping.js";
+import { execute } from "./flow.js";
+import { createSequenceEnvironment } from "../../unit-environment.js";
+import { PardonAppContext } from "../../pardon.js";
+import { stubSchema } from "../../schema/definition/structures/stub.js";
+import { PardonContext } from "../../app-context.js";
+import { HTTP } from "../../formats/http-fmt.js";
+//import { checkFastFailed, pendingFastFailure } from "./cli/failfast.js";
+import { TracedResult } from "../../../features/trace.js";
+import { Schema, EvaluationScope } from "../../schema/core/types.js";
+import { JSON } from "../../json.js";
+import { withoutEvaluationScope } from "../../schema/core/context-util.js";
 import {
-  FlowParamsDict,
-  extractValuesDict,
-  injectValuesDict,
+  contextAsFlowParams,
   ejectValuesDict,
-  execute,
-} from "./flow.js";
-import { createSequenceEnvironment } from "../../core/unit-environment.js";
-import { PardonAppContext } from "../../core/pardon.js";
-import { stubSchema } from "../../core/schema/definition/structures/stub.js";
-import { PardonContext } from "../../core/app-context.js";
-import { intoURL } from "../../core/request/url-pattern.js";
-import {
-  awaitedResults,
-  PardonTraceExtension,
-  withoutScope,
-} from "../../features/trace.js";
-import { HTTP } from "../../core/formats/http-fmt.js";
-import { disconnected, tracking } from "../../core/tracking.js";
-import { checkFastFailed, pendingFastFailure } from "./cli/failfast.js";
-import { TracedResult } from "../../features/trace.js";
-import { Schema, SchemaScope } from "../../core/schema/core/types.js";
-import { JSON } from "../../core/json.js";
+  extractValuesDict,
+  FlowParamsDict,
+  injectValuesDict,
+} from "./flow-params.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -67,14 +61,6 @@ export type SequenceReport = {
 export type SequenceStepReport = Awaited<
   ReturnType<typeof executeHttpsSequenceStep>
 >;
-
-const { awaited: awaitedSteps, track: trackStep } =
-  tracking<SequenceStepReport>();
-
-const { awaited: awaitedSequences, track: trackSequence } =
-  tracking<SequenceReport>();
-
-export { awaitedSequences, awaitedSteps };
 
 type HttpsSequenceInteraction = {
   request: HttpsRequestStep;
@@ -111,59 +97,6 @@ function parseIncome(income?: string) {
   return { name, retries: retries ? Number(retries) : undefined };
 }
 
-function contextAsUnitParams(
-  context: HttpsFlowContext,
-  defined: Record<string, true | string> = {},
-): FlowParamsDict {
-  if (typeof context === "string") {
-    context = context.split(/\s*,\s*/);
-  }
-
-  const params: FlowParamsDict = { dict: {}, required: false };
-
-  for (let item of context) {
-    // allow "x: y" as a synonym of "x as y"
-    if (
-      item &&
-      typeof item === "object" &&
-      !Array.isArray(item) &&
-      Object.keys(item).length === 1 &&
-      typeof item[Object.keys(item)[0]] === "string"
-    ) {
-      const [[k, v]] = Object.entries(item);
-
-      item = `${k} as ${v}`;
-    }
-
-    if (typeof item === "string") {
-      if (item.startsWith("...")) {
-        defined[(params.rested = item.slice(3).trim())] = true;
-      } else {
-        const [, name, question, value, expression] =
-          /(\w+)([?]?)(?:\s+as\s+(\w+))?(?:\s+(?:default|=)\s+(.*))?$/.exec(
-            item.trim(),
-          )!;
-
-        params.dict[name] = {
-          name: value ?? name,
-          required: !question,
-        };
-        defined[value ?? name] = expression ?? true;
-      }
-    } else if (Array.isArray(item)) {
-      throw new Error("unexpected array in context");
-    } else if (typeof item === "object") {
-      const [[k, v], ...other] = Object.entries(item);
-      if (other.length) {
-        throw new Error("unexpected");
-      }
-      params.dict[k] = contextAsUnitParams(v, defined);
-    } else throw new Error("unexpected non-object in context: " + typeof item);
-  }
-
-  return params;
-}
-
 function usageNeeded(
   provides: HttpsFlowConfig["provides"],
   options: Record<string, unknown>,
@@ -173,7 +106,7 @@ function usageNeeded(
   }
 
   const defined = {};
-  contextAsUnitParams(provides, defined);
+  contextAsFlowParams(provides, defined);
 
   return Object.keys(defined).some((key) => options[key] === undefined);
 }
@@ -188,7 +121,7 @@ export function compileHttpsFlow(
   const params: FlowParamsDict | undefined =
     configuration.context === undefined
       ? undefined
-      : contextAsUnitParams(configuration.context, definitions);
+      : contextAsFlowParams(configuration.context, definitions);
 
   const definitionSchemaTemplate = mapObject(definitions, {
     values(value, key) {
@@ -234,65 +167,6 @@ export type CompiledHttpsSequence = {
   configuration: HttpsFlowConfig;
 };
 
-export async function traceSequenceExecution(
-  ...args: Parameters<typeof executeHttpsSequence>
-) {
-  const preAwaitedExecutions = awaitedResults().length;
-  const preAwaitedSteps = awaitedSteps().length;
-  const preAwaitedSequences = awaitedSequences().length;
-
-  function trackSequenceOutcome(outcome: { result: any } | { error: unknown }) {
-    const deps = awaitedSequences().slice(preAwaitedSequences);
-
-    const preSequenceSteps = new Set(
-      deps.flatMap(({ steps }) => steps.map(({ trace }) => trace)),
-    );
-
-    const preSequenceExecutions = new Set(
-      deps.flatMap(({ executions }) =>
-        executions.map(({ context: { trace } }) => trace),
-      ),
-    );
-
-    const executions = awaitedResults()
-      .slice(preAwaitedExecutions)
-      .filter(({ context: { trace } }) => !preSequenceExecutions.has(trace));
-
-    const steps = awaitedSteps()
-      .slice(preAwaitedSteps)
-      .filter(({ trace }) => !preSequenceSteps.has(trace));
-
-    const [
-      ,
-      {
-        name,
-        scheme: { mode: type },
-      },
-      values,
-    ] = args;
-
-    trackSequence({
-      type,
-      name,
-      values,
-      deps,
-      steps,
-      executions,
-      ...outcome,
-    });
-  }
-
-  try {
-    const result = await executeHttpsSequence(...args);
-    trackSequenceOutcome({ result });
-    return result;
-  } catch (error) {
-    trackSequenceOutcome({ error });
-
-    throw error;
-  }
-}
-
 export async function executeHttpsSequence(
   { compiler }: Pick<PardonAppContext, "compiler">,
   sequence: CompiledHttpsSequence,
@@ -336,7 +210,7 @@ export async function executeHttpsSequence(
         console.warn(`attempt limit reached: ${sequence.name}`);
         throw error;
       }
-      checkFastFailed();
+      //checkFastFailed();
       console.warn(`reattempting unit: ${sequence.name}`);
     }
   };
@@ -356,7 +230,7 @@ async function executeFlowSequence(
   while (index < sequence.interactions.length) {
     const next = sequence.interactions[index];
 
-    checkFastFailed();
+    //checkFastFailed();
 
     if (retries[index] !== undefined) {
       if (--retries[index] < 0) {
@@ -376,11 +250,9 @@ async function executeFlowSequence(
       },
     );
 
-    trackStep(result);
-
     const outcome = result.outcome;
 
-    checkFastFailed();
+    //checkFastFailed();
 
     effectiveValues = {
       ...effectiveValues,
@@ -398,11 +270,11 @@ async function executeFlowSequence(
     if (outcome?.delay) {
       await Promise.race([
         new Promise((resolve) => setTimeout(resolve, outcome.delay)),
-        pendingFastFailure(),
+        //pendingFastFailure(),
       ]);
     }
 
-    checkFastFailed();
+    //checkFastFailed();
 
     if (index == sequence.interactions.length && outcome) {
       effectiveValues = {
@@ -419,7 +291,7 @@ async function executeFlowSequence(
           outcome: effectiveValues.outcome,
         }),
         ...injectValuesDict(
-          contextAsUnitParams(sequence.configuration.provides),
+          contextAsFlowParams(sequence.configuration.provides),
           effectiveValues,
         ),
       };
@@ -436,7 +308,7 @@ async function evaluateUsedUnits(
         .filter((usage) => usageNeeded(usage.provides, effectiveValues))
         .map(async ({ provides, context, flow: unitOrFlow }) => {
           const usageOptions = context
-            ? injectValuesDict(contextAsUnitParams(context), {
+            ? injectValuesDict(contextAsFlowParams(context), {
                 ...environment,
                 ...effectiveValues,
               })
@@ -448,7 +320,7 @@ async function evaluateUsedUnits(
 
           // only include the specified environment changes
           return ejectValuesDict(
-            contextAsUnitParams(provides),
+            contextAsFlowParams(provides),
             await execute(unitOrFlow, usageOptions),
           );
         }),
@@ -560,7 +432,7 @@ async function executeHttpsSequenceStep(
   );
 
   const renderedValues = mapObject(
-    valuesFromScope(requestRendering.context.scope),
+    valuesFromScope(requestRendering.context.evaluationScope),
     {
       filter(key) {
         return !coreValues.has(key);
@@ -597,9 +469,6 @@ error = ${error?.stack ?? error}
 
   const { outbound, inbound } = await execution.result;
 
-  const { trace } =
-    (await execution.context) as unknown as PardonTraceExtension;
-
   const matching =
     responseTemplates.length === 0
       ? ({ result: "matched" } as Awaited<ReturnType<typeof responseOutcome>>)
@@ -618,22 +487,8 @@ error = ${error?.stack ?? error}
           inbound.response,
         );
 
-  // makes unit tests better for now.
-  await disconnected(async () => {
-    const renderedRequest = (await execution).request;
-    const requestURL = intoURL(renderedRequest);
-    const { status, statusText } = inbound.response;
-
-    console.info(
-      `-- (${sequenceScheme.mode}) ${`000${trace}`.slice(-3)}: ${renderedRequest.method} ${requestURL} : ${status}${statusText ? ` ${statusText}` : ""}${!matching ? ` (!)` : ""}`,
-    );
-  });
-
   if (matching.result === "unmatched") {
     // TODO: surface this in the test report
-    console.info(
-      `--- failed to match response (${`000${trace}`.slice(-3)}) ---`,
-    );
     console.info(HTTP.responseObject.stringify(inbound.redacted));
 
     for (const { outcome, preview, diagnostics } of matching.templates) {
@@ -652,7 +507,7 @@ error = ${error?.stack ?? error}
 
   const {
     outcome: outcomeText,
-    match: { context: { scope = undefined } = {} } = {},
+    match: { context: { evaluationScope: scope = undefined } = {} } = {},
   } = matching;
 
   const outcome = parseOutcome(outcomeText);
@@ -665,9 +520,8 @@ error = ${error?.stack ?? error}
   }
 
   return {
-    trace,
-    inbound: withoutScope(inbound),
-    outbound: withoutScope(outbound),
+    inbound: withoutEvaluationScope(inbound),
+    outbound: withoutEvaluationScope(outbound),
     outcome,
     values: effectiveValues,
   };
@@ -766,7 +620,7 @@ async function responseOutcome(
   return { result: "unmatched", templates };
 }
 
-function valuesFromScope(scope?: SchemaScope): Record<string, unknown> {
+function valuesFromScope(scope?: EvaluationScope): Record<string, unknown> {
   if (!scope) {
     return {};
   }

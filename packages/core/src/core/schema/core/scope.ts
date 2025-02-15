@@ -22,7 +22,7 @@ import {
   ResolvedValueOptions,
   SchemaContext,
   SchemaRenderContext,
-  SchemaScope,
+  EvaluationScope,
   ScopeData,
   ScopeIndex,
   ValueDeclaration,
@@ -30,7 +30,7 @@ import {
   Identifier,
 } from "./types.js";
 
-export class Scope implements SchemaScope, ScopeData {
+export class Scope implements EvaluationScope, ScopeData {
   parent?: Scope;
   path: string[];
   index?: ScopeIndex;
@@ -147,24 +147,27 @@ export class Scope implements SchemaScope, ScopeData {
       this,
       [...this.path, name],
       index,
-    )) as SchemaScope;
+    )) as EvaluationScope;
   }
 
   tempscope() {
-    return new Scope(this, [...this.path]) as SchemaScope;
+    return new Scope(this, [...this.path]) as EvaluationScope;
   }
 
-  rescope(scope: SchemaScope): SchemaScope {
-    while (scope.parent) {
-      scope = scope.parent!;
+  rescope(evaluationScope: EvaluationScope): EvaluationScope {
+    while (evaluationScope.parent) {
+      evaluationScope = evaluationScope.parent!;
     }
 
-    return this.path.reduce<{ thisScope: SchemaScope; thatScope: SchemaScope }>(
+    return this.path.reduce<{
+      thisScope: EvaluationScope;
+      thatScope: EvaluationScope;
+    }>(
       ({ thisScope, thatScope }, part) => ({
         thatScope: thatScope.subscope(part, thisScope?.index),
         thisScope: thisScope?.subscopes[part] as Scope,
       }),
-      { thisScope: this, thatScope: scope },
+      { thisScope: this, thatScope: evaluationScope },
     ).thatScope as Scope;
   }
 
@@ -482,7 +485,7 @@ export function isLookupExpr(lookup: unknown): lookup is ExpressionDeclaration {
   return lookup?.["expression"] !== undefined;
 }
 
-function findDefinition(identifier: string, inScope: SchemaScope) {
+function findDefinition(identifier: string, inScope: EvaluationScope) {
   let firstRenderedDeclaration: ExpressionDeclaration | undefined;
   let firstExpressionDeclaration: ExpressionDeclaration | undefined;
 
@@ -510,7 +513,7 @@ function findValue(name: string, inScope: Scope) {
   }
 }
 
-function* scopeChain(scope?: SchemaScope) {
+function* scopeChain(scope?: EvaluationScope) {
   while (scope) {
     yield scope;
 
@@ -596,7 +599,7 @@ function mergeExports(exported: unknown, current: unknown) {
   return current ?? exported;
 }
 
-export function indexChain(scope: SchemaScope | undefined) {
+export function indexChain(scope: EvaluationScope | undefined) {
   const chain: ScopeIndex[] = [];
 
   while (scope) {

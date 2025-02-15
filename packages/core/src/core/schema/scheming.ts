@@ -78,7 +78,7 @@ function makeKeymapTemplate<T>(
     (parsed, item) => {
       const keyCtx = createMergingContext(context, keySchema, item as T);
       merge(keySchema, keyCtx);
-      const lookup = keyCtx.scope.lookup("key");
+      const lookup = keyCtx.evaluationScope.lookup("key");
       const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
 
       if (field != undefined) {
@@ -124,7 +124,7 @@ function makeMvKeymapTemplate<T>(
     (parsed, item) => {
       const keyCtx = createMergingContext(context, keySchema, item as T);
       merge(keySchema, keyCtx);
-      const lookup = keyCtx.scope.lookup("key");
+      const lookup = keyCtx.evaluationScope.lookup("key");
       const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
 
       if (field !== undefined) {

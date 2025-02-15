@@ -439,7 +439,7 @@ function defineArray<T>(self: ArrayRepresentation<T>): Schema<T | T[]> {
 
     const len = Math.max(
       elements ? elements.length : -1,
-      ...((templateContext.scope.index?.struts
+      ...((templateContext.evaluationScope.index?.struts
         ?.map((strut) => environment.resolve({ context, identifier: strut }))
         ?.map((strut) => (Array.isArray(strut) ? strut.length : undefined))
         ?.filter((n) => typeof n === "number") as number[]) || []),
@@ -461,7 +461,7 @@ function defineArray<T>(self: ArrayRepresentation<T>): Schema<T | T[]> {
       self.elements?.length ?? -1,
       ...((
         await Promise.all(
-          templateContext.scope.index?.struts.map((strut) =>
+          templateContext.evaluationScope.index?.struts.map((strut) =>
             environment.evaluate({ context, identifier: strut }),
           ) ?? [],
         )

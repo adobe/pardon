@@ -224,12 +224,14 @@ function defineObject<M extends Record<string, unknown>>(
         object,
         ...(
           await Promise.all(
-            inflationSchema.scope.index?.struts?.map(async (strut) => {
-              return await context.environment.evaluate({
-                context,
-                identifier: strut,
-              });
-            }) || [],
+            inflationSchema.evaluationScope.index?.struts?.map(
+              async (strut) => {
+                return await context.environment.evaluate({
+                  context,
+                  identifier: strut,
+                });
+              },
+            ) || [],
           )
         )
           .filter((values) => values !== undefined)
@@ -292,7 +294,7 @@ function inflatedObject<M extends Record<string, unknown>>(
   const keys = new Set([
     ...Object.keys(object),
     ...Object.keys(info?.object ?? {}),
-    ...(inflationContext.scope.index?.struts
+    ...(inflationContext.evaluationScope.index?.struts
       ?.map((strut) => {
         return context.environment.resolve({
           context,

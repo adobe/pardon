@@ -16,8 +16,6 @@ export {
 } from "../entry/testing/cli/runner.js";
 export { initTrackingEnvironment } from "../runtime/environment.js";
 
-export { awaitedSequences, awaitedSteps } from "../entry/testing/https-flow.js";
-
 export {
   flushTrialRegistry,
   runRegistrationTask,
@@ -42,7 +40,7 @@ export {
   notifyFastFailed,
 } from "../entry/testing/cli/failfast.js";
 
-export { type CompiledHttpsSequence } from "../entry/testing/https-flow.js";
+export { type CompiledHttpsSequence } from "../core/execution/flow/https-flow.js";
 
 export {
   all_disconnected,

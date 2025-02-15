@@ -123,7 +123,7 @@ function mergeRepresentation<T extends Scalar>(
         ? patternLiteral(String(template))
         : patternize(String(template), custom);
 
-    if (context.scope.parent) {
+    if (context.evaluationScope.parent) {
       if (
         !patterns.some((pattern) => patternsMatch(templatePattern, pattern))
       ) {
@@ -181,7 +181,7 @@ function arePatternsMeldable(
 function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
   return defineSchema<T>({
     scope(context) {
-      const { scope } = context;
+      const { evaluationScope: scope } = context;
       const { patterns } = self;
 
       // only consider expressions for the last-merged expressive definition.
@@ -210,7 +210,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
               p === pattern ||
               (isPatternSimple(p) &&
                 !isPatternExpressive(p) &&
-                !context.scope.lookupDeclaration(
+                !context.evaluationScope.lookupDeclaration(
                   parseScopedIdentifier(p.vars[0].param).name,
                 )?.rendered),
           )
@@ -389,9 +389,9 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
                 return false;
               }
 
-              const declaration = context.scope.lookup(variable.param) as
-                | ExpressionDeclaration
-                | undefined;
+              const declaration = context.evaluationScope.lookup(
+                variable.param,
+              ) as ExpressionDeclaration | undefined;
 
               if (
                 declaration?.expression ||
@@ -430,7 +430,7 @@ function renderScalar<T>(
   context: SchemaRenderContext,
   self: DatumRepresentation,
 ): Promise<T | undefined> | Exclude<T, undefined> {
-  const { scope } = context;
+  const { evaluationScope: scope } = context;
 
   // TODO: resolve scalar here if possible (optimization)
 
@@ -563,7 +563,7 @@ async function renderAndLookup(
 ) {
   await renderScalar(context, self);
 
-  const { scope } = context;
+  const { evaluationScope: scope } = context;
 
   const lookup = scope.lookup(param);
 
@@ -581,7 +581,7 @@ function resolveAndLookup<T extends Scalar>(
     return undefined;
   }
 
-  const { scope } = context;
+  const { evaluationScope: scope } = context;
 
   const lookup = scope.lookup(param);
 
@@ -613,7 +613,7 @@ function defineMatchesInScope<T extends Scalar>(
   value: Scalar,
   { unboxed }: { unboxed?: boolean },
 ) {
-  const { scope } = context;
+  const { evaluationScope: scope } = context;
 
   for (const pattern of patterns) {
     if (

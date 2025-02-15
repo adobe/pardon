@@ -10,17 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import * as acorn from "acorn";
+import { HttpsFlowContext } from "../../formats/https-fmt.js";
+import { FlowFn } from "./flow.js";
 import {
   arrayIntoObject,
   definedObject,
   mapObject,
-} from "../../util/mapping.js";
-import { disarm } from "../../util/promise.js";
-import { FlowName } from "../../core/formats/https-fmt.js";
-import { PardonContext } from "../../core/app-context.js";
-import { pardonRuntime } from "../../runtime/runtime-deferred.js";
-import { PardonAppContext } from "../../core/pardon.js";
-import { CompiledHttpsSequence, traceSequenceExecution } from "./https-flow.js";
+} from "../../../util/mapping.js";
 
 export type FlowParamBase = { required: boolean };
 export type FlowParamsItem = FlowParamBase & { name: string };
@@ -47,158 +43,57 @@ function isItem(param: FlowParam): param is FlowParamsItem {
   return "name" in param;
 }
 
-export type FlowOptions = { target?: string };
-
-type FlowFn = (
-  values: Record<string, any>,
-) => Promise<void | undefined | Record<string, any>>;
-
-type FlowAction = {
-  action: (
-    values: Record<string, unknown>,
-    key: string,
-  ) => Promise<Record<string, any>>;
-  params: FlowParamsDict;
-};
-
-const pardonTestingSym = Symbol.for("pardon:testing");
-
-if (globalThis[pardonTestingSym]) {
-  throw new Error("pardon module cannot be initialized twice!", {
-    cause: globalThis[pardonTestingSym],
-  });
-}
-
-globalThis[pardonTestingSym] = new Error("previously initialized here");
-
-let executeCallback: <T>(_: Promise<T>) => Promise<T> = (p) => p;
-
-export function onExecute(callback: typeof executeCallback) {
-  executeCallback = (promise) => disarm(callback(promise));
-}
-
-export function createFlow(fn: FlowFn): FlowAction {
-  return {
-    params: parseParams(fn),
-    async action(values = {}) {
-      await (null! as Promise<void>);
-
-      return (await fn(values)) || {};
-    },
-  };
-}
-
-export async function execute(
-  name: FlowName,
-  context?: Record<string, unknown>,
-): Promise<Record<string, any>> {
-  if (name.endsWith(".flow")) {
-    const { context: appContext } = await pardonRuntime();
-
-    return executeFlow(appContext, name.slice(0, -".flow".length), context);
+export function contextAsFlowParams(
+  context: HttpsFlowContext,
+  defined: Record<string, true | string> = {},
+): FlowParamsDict {
+  if (typeof context === "string") {
+    context = context.split(/\s*,\s*/);
   }
 
-  throw new Error("execute only supports .flow sequences");
-}
+  const params: FlowParamsDict = { dict: {}, required: false };
 
-function executeFlow(
-  appContext: PardonContext,
-  name: string,
-  context?: Record<string, unknown>,
-): Promise<Record<string, any>> {
-  const {
-    collection: { flows },
-  } = appContext;
+  for (let item of context) {
+    // allow "x: y" as a synonym of "x as y"
+    if (
+      item &&
+      typeof item === "object" &&
+      !Array.isArray(item) &&
+      Object.keys(item).length === 1 &&
+      typeof item[Object.keys(item)[0]] === "string"
+    ) {
+      const [[k, v]] = Object.entries(item);
 
-  if (!flows[name]) {
-    throw new Error(`executeFlow(${JSON.stringify(name)}): flow not defined`);
-  }
+      item = `${k} as ${v}`;
+    }
 
-  const { action, params } = compileFlow(appContext, flows[name]);
+    if (typeof item === "string") {
+      if (item.startsWith("...")) {
+        defined[(params.rested = item.slice(3).trim())] = true;
+      } else {
+        const [, name, question, value, expression] =
+          /(\w+)([?]?)(?:\s+as\s+(\w+))?(?:\s+(?:default|=)\s+(.*))?$/.exec(
+            item.trim(),
+          )!;
 
-  const values = composeValuesDict(params, context, { ...environment });
-
-  return executeCallback(
-    action(values).then((result) => {
-      if (result) {
-        environment = result;
+        params.dict[name] = {
+          name: value ?? name,
+          required: !question,
+        };
+        defined[value ?? name] = expression ?? true;
       }
-
-      return result;
-    }),
-  );
-}
-
-export function compileFlow(
-  { compiler }: PardonAppContext,
-  flow: CompiledHttpsSequence,
-) {
-  return {
-    params: flow.params ?? {
-      dict: {},
-      rested: "",
-      required: false,
-    },
-    async action(values?: Record<string, unknown>) {
-      return await traceSequenceExecution({ compiler }, flow, {
-        ...environment,
-        ...values,
-      });
-    },
-  };
-}
-
-export function composeValuesDict(
-  params: FlowParamsDict,
-  options?: Record<string, any>,
-  environment?: Record<string, any>,
-  required = params.required,
-) {
-  const values = definedObject(
-    mapObject(params.dict, (item, name) => {
-      return composeParam(
-        item,
-        options?.[name],
-        environment?.[name],
-        required && item.required,
-      );
-    }),
-  );
-
-  if (typeof params.rested === "string") {
-    return { ...options, ...values };
+    } else if (Array.isArray(item)) {
+      throw new Error("unexpected array in context");
+    } else if (typeof item === "object") {
+      const [[k, v], ...other] = Object.entries(item);
+      if (other.length) {
+        throw new Error("unexpected");
+      }
+      params.dict[k] = contextAsFlowParams(v, defined);
+    } else throw new Error("unexpected non-object in context: " + typeof item);
   }
 
-  return values;
-}
-
-function composeValuesList(
-  params: FlowParamsList,
-  options?: any[],
-  env?: any[],
-  required = params.required,
-) {
-  if (options !== undefined && !Array.isArray(options)) {
-    return undefined;
-  }
-  if (options === undefined && env !== undefined && !Array.isArray(env)) {
-    return undefined;
-  }
-
-  const values = params.list.map((item, idx) => {
-    return composeParam(
-      item,
-      options?.[idx],
-      env?.[idx],
-      required && item.required,
-    );
-  });
-
-  if (params.rested) {
-    return [values, ...(options?.slice(values.length) || [])];
-  }
-
-  return values;
+  return params;
 }
 
 function composeParam(
@@ -337,7 +232,7 @@ function extractValuesList(params: FlowParamsList, values: any[]) {
   throw new Error("unimplemented");
 }
 
-function parseParams(fn: FlowFn) {
+export function parseParams(fn: FlowFn) {
   if (fn.length === 0) {
     return { dict: {}, required: false };
   }
@@ -499,4 +394,57 @@ function parseParams(fn: FlowFn) {
       { list: [], required },
     );
   }
+}
+
+export function composeValuesDict(
+  params: FlowParamsDict,
+  options?: Record<string, any>,
+  environment?: Record<string, any>,
+  required = params.required,
+) {
+  const values = definedObject(
+    mapObject(params.dict, (item, name) => {
+      return composeParam(
+        item,
+        options?.[name],
+        environment?.[name],
+        required && item.required,
+      );
+    }),
+  );
+
+  if (typeof params.rested === "string") {
+    return { ...options, ...values };
+  }
+
+  return values;
+}
+
+function composeValuesList(
+  params: FlowParamsList,
+  options?: any[],
+  env?: any[],
+  required = params.required,
+) {
+  if (options !== undefined && !Array.isArray(options)) {
+    return undefined;
+  }
+  if (options === undefined && env !== undefined && !Array.isArray(env)) {
+    return undefined;
+  }
+
+  const values = params.list.map((item, idx) => {
+    return composeParam(
+      item,
+      options?.[idx],
+      env?.[idx],
+      required && item.required,
+    );
+  });
+
+  if (params.rested) {
+    return [values, ...(options?.slice(values.length) || [])];
+  }
+
+  return values;
 }

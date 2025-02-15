@@ -14,7 +14,7 @@ import {
   SchemaContext,
   SchemaMergingContext,
   SchemaRenderContext,
-  SchemaScope,
+  EvaluationScope,
 } from "./types.js";
 
 export type DereferenceType<
@@ -69,7 +69,11 @@ export function diagnostic(
   return error;
 }
 
-export function loc({ environment, scopes, keys }: SchemaContext) {
+export function loc({
+  environment,
+  evaluationScopePath: scopes,
+  keys,
+}: SchemaContext) {
   const name = environment?.name?.();
   return `${name ? `${name}: ` : ""}${scopes.map((s) => `:${s}`).join("")}|${keys
     .map((k) => `.${k}`)
@@ -77,7 +81,7 @@ export function loc({ environment, scopes, keys }: SchemaContext) {
 }
 
 export function isAbstractContext(context: SchemaContext<unknown>) {
-  return context.scope.path.some(
+  return context.evaluationScope.path.some(
     (part) => part.endsWith("[]") || part.endsWith("{}"),
   );
 }
@@ -106,14 +110,19 @@ export function elementScopeContext<
 >(context: C, key: Key): O {
   context = keyContext(context, key === -1 ? "[]" : key) as C;
 
-  const subscope = context.scope.subscope(context.keys.join("."), {
+  const subscope = context.evaluationScope.subscope(context.keys.join("."), {
     context,
     type: "element",
     key: key === -1 ? undefined : key,
     struts: [],
   });
 
-  return { ...context, scope: subscope, scopes: subscope.path, keys: [] } as O;
+  return {
+    ...context,
+    evaluationScope: subscope,
+    evaluationScopePath: subscope.path,
+    keys: [],
+  } as O;
 }
 
 export function fieldScopeContext<
@@ -123,30 +132,35 @@ export function fieldScopeContext<
 >(context: C, key: Key): O {
   context = keyContext(context, key ?? "{}") as C;
 
-  const subscope = context.scope.subscope(context.keys.join("."), {
+  const subscope = context.evaluationScope.subscope(context.keys.join("."), {
     context,
     type: "field",
     key,
     struts: [],
   });
 
-  return { ...context, scope: subscope, scopes: subscope.path, keys: [] } as O;
+  return {
+    ...context,
+    evaluationScope: subscope,
+    evaluationScopePath: subscope.path,
+    keys: [],
+  } as O;
 }
 
 export function tempContext<C extends SchemaContext>(context: C): C {
-  const { scope } = context as SchemaContext;
+  const { evaluationScope: scope } = context as SchemaContext;
 
-  return { ...context, scope: scope?.tempscope() };
+  return { ...context, evaluationScope: scope?.tempscope() };
 }
 
 export function rescope<T extends SchemaContext>(
   context: T,
-  scope: SchemaScope,
+  evaluationScope: EvaluationScope,
 ): T {
   return {
     ...context,
-    scope: scope.rescope(context.scope),
-    scopes: [...scope.scopePath()],
+    evaluationScope: evaluationScope.rescope(context.evaluationScope),
+    evaluationScopePath: [...evaluationScope.scopePath()],
   };
 }
 
@@ -154,7 +168,25 @@ export function metaScopeContext<C extends SchemaContext>(
   context: C,
   meta: string,
 ): C {
-  const subscope = context.scope.subscope([...context.keys, meta].join("."));
+  const subscope = context.evaluationScope.subscope(
+    [...context.keys, meta].join("."),
+  );
 
-  return { ...context, scope: subscope, scopes: subscope.path, keys: [] } as C;
+  return {
+    ...context,
+    evaluationScope: subscope,
+    evaluationScopePath: subscope.path,
+    keys: [],
+  } as C;
+}
+
+/*
+ * strips the evaluation scope object from a context,
+ * (the scope object is rather heavy in terms of holding promises and a lot of objects)
+ */
+export function withoutEvaluationScope<T extends { evaluationScope?: any }>({
+  evaluationScope: _,
+  ...thing
+}: T): Omit<T, "evaluationScope"> {
+  return thing;
 }

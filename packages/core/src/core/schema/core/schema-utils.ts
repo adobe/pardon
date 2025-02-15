@@ -108,7 +108,7 @@ export function unredactedScalarValues(
         name,
         {
           value,
-          context: { scopes },
+          context: { evaluationScopePath: scopes },
           expression,
         },
       ]) => {
@@ -142,7 +142,7 @@ export function unredactedValues(
         name,
         {
           value,
-          context: { scopes },
+          context: { evaluationScopePath: scopes },
           expression,
         },
       ]) => {

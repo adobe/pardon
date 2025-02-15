@@ -12,18 +12,19 @@ governing permissions and limitations under the License.
 import { PardonAppContext, PardonFetchExecution } from "../core/pardon.js";
 import { disconnected, tracking } from "../core/tracking.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
+import { withoutEvaluationScope } from "../core/schema/core/context-util.js";
 
 let notifier:
   | {
       onRenderStart(traced: TracedRequest): void;
       onRenderComplete(
         rendered: TracedRequest & {
-          outbound: Omit<ProcessedHookInput["outbound"], "scope">;
+          outbound: Omit<ProcessedHookInput["outbound"], "evaluationScope">;
         },
       ): void;
       onSend(
         rendered: TracedRequest & {
-          outbound: Omit<ProcessedHookInput["outbound"], "scope">;
+          outbound: Omit<ProcessedHookInput["outbound"], "evaluationScope">;
         },
       ): void;
       onResult(traced: TracedResult): void;
@@ -60,8 +61,8 @@ function traceResult({
   return {
     context,
     endpoint,
-    outbound: withoutScope(outbound),
-    inbound: withoutScope(inbound),
+    outbound: withoutEvaluationScope(outbound),
+    inbound: withoutEvaluationScope(inbound),
   };
 }
 
@@ -95,13 +96,6 @@ export function traced(
   return trace;
 }
 
-export function withoutScope<T extends { scope?: any }>({
-  scope: _,
-  ...thing
-}: T): Omit<T, "scope"> {
-  return thing;
-}
-
 export default function trace<Execution extends typeof PardonFetchExecution>(
   execution: Execution,
 ) {
@@ -133,7 +127,7 @@ export default function trace<Execution extends typeof PardonFetchExecution>(
     async fetch(info) {
       notifier?.onSend({
         ...traceRequest(info),
-        outbound: withoutScope(info.outbound),
+        outbound: withoutEvaluationScope(info.outbound),
       });
 
       return undefined!;

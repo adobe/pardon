@@ -151,7 +151,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   }
 
   config(context: SchemaContext, patterns: Pattern[]) {
-    if (context.scope?.scopePath()?.length) {
+    if (context.evaluationScope?.scopePath()?.length) {
       return patterns;
     }
 
@@ -264,7 +264,7 @@ export function resolveAccess(
     return value;
   }
 
-  const indices = indexChain(context.scope);
+  const indices = indexChain(context.evaluationScope);
 
   if (identifier.name.endsWith(".@key")) {
     const keyIndex = indices.length - identifier.path.length;
@@ -301,7 +301,7 @@ export function resolveAccess(
 }
 
 function resolvedScalars(context: SchemaMergingContext<unknown>) {
-  return mapObject(context.scope.resolvedValues({ secrets: false }), {
+  return mapObject(context.evaluationScope.resolvedValues({ secrets: false }), {
     values(value) {
       switch (typeof value) {
         case "string":

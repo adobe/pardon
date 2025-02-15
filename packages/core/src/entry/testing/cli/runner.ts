@@ -16,12 +16,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { TracedResult, awaitedResults } from "../../../features/trace.js";
 import { HTTP } from "../../../core/formats/http-fmt.js";
-import { onExecute } from "../flow.js";
+import { onExecute } from "../../../core/execution/flow/flow.js";
 import {
-  awaitedSequences,
   SequenceReport,
   SequenceStepReport,
-} from "../https-flow.js";
+} from "../../../core/execution/flow/https-flow.js";
 import {
   all_disconnected,
   disconnected,
@@ -162,7 +161,7 @@ export async function executeSelectedTests(
                 errors,
                 init,
                 env!,
-                awaitedSequences(),
+                [],
               );
             }
           }),
@@ -229,7 +228,6 @@ function formatTracedResult({
 }
 
 function formatTracedStep({
-  trace,
   outcome: { name } = { name: "ok" },
   outbound: {
     redacted: { method, origin, pathname },
@@ -238,7 +236,7 @@ function formatTracedStep({
     redacted: { status },
   },
 }: SequenceStepReport) {
-  return `${fmtTraceId(trace)} > ${method} ${origin}${pathname} ~ ${status}${name ? ` (${name})` : ""}`;
+  return `${method} ${origin}${pathname} ~ ${status}${name ? ` (${name})` : ""}`;
 }
 
 function writeHttpRequestResponseFile(

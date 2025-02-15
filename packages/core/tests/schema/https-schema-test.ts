@@ -63,7 +63,7 @@ describe("https-schema-tests", () => {
     });
     const extended = merge(httpsPattern, mctx)!;
 
-    mctx.scope.lookup("a");
+    mctx.evaluationScope.lookup("a");
 
     const rctx = renderCtx(httpsPattern);
     const rendered = await executeOp(httpsPattern, "render", rctx);
@@ -152,7 +152,7 @@ describe("https-schema-tests", () => {
     console.log(rendered);
 
     assert.equal(
-      context.scope.subscopes["body.x.0"].values["hello"].value,
+      context.evaluationScope.subscopes["body.x.0"].values["hello"].value,
       "world",
     );
   });
