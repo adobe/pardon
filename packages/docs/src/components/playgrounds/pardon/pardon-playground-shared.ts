@@ -95,8 +95,8 @@ export function createExecutionMemo({
       });
     };
 
-    compiler.import = async (sp, pa) => {
-      let resolved = compiler.resolve(sp, pa);
+    compiler.import = async (specifier, parentSpecifier) => {
+      let resolved = compiler.resolve(specifier, parentSpecifier);
       const configuration =
         collection.configurations[resolved.replace(/^pardon:/, "")];
 

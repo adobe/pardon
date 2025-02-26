@@ -184,9 +184,9 @@ export function metaScopeContext<C extends SchemaContext>(
  * strips the evaluation scope object from a context,
  * (the scope object is rather heavy in terms of holding promises and a lot of objects)
  */
-export function withoutEvaluationScope<T extends { evaluationScope?: any }>({
+export function withoutEvaluationScope<T>({
   evaluationScope: _,
   ...thing
-}: T): Omit<T, "evaluationScope"> {
+}: T & { evaluationScope?: any }): Omit<T, "evaluationScope"> {
   return thing;
 }

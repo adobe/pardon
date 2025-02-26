@@ -20,15 +20,17 @@ import type {
   Configuration,
   LayeredEndpoint,
   LayeredMixin,
-} from "../config/collection-types.js";
-import { connectDb, PardonDatabase } from "../db/sqlite.js";
-import { loadCollections, buildCollection } from "../config/collection.js";
-import createCompiler, { PardonCompiler } from "../runtime/compiler.js";
-import { homely } from "../util/resolvehome.js";
+  ResourceProcessingPhase,
+} from "../../config/collection-types.js";
+import { connectDb, PardonDatabase } from "../../db/sqlite.js";
+import { loadCollections, buildCollection } from "../../config/collection.js";
+import createCompiler from "../compiler.js";
+import { homely } from "../../util/resolvehome.js";
 
-import fetchPolyfillReady from "../runtime/init/fetch-polyfill.js";
-import { KV } from "./formats/kv-fmt.js";
-import { CompiledHttpsSequence } from "../modules/running.js";
+import fetchPolyfillReady from "./fetch-polyfill.js";
+import { KV } from "../../core/formats/kv-fmt.js";
+import { CompiledHttpsSequence } from "../../modules/running.js";
+import { PardonRuntime } from "../../core/pardon/types.js";
 
 export type CollectionData = {
   values: Record<string, unknown>;
@@ -49,29 +51,29 @@ export type AssetInfo = {
   sources: AssetSource[];
 };
 
-export type PardonContext = {
-  config: {
-    root: string;
-    collections: string[];
-  };
-  collection: PardonCollection;
-  samples?: string[];
-  example?: PardonRC["example"];
-  compiler: PardonCompiler;
-  database?: PardonDatabase;
-};
-
-type PardonConfigRC = {
-  collections?: string | string[];
-  samples?: string | string[];
-  example?:
-    | string
-    | {
+export type Workspace<
+  ProcessingPhase extends ResourceProcessingPhase = "runtime",
+> = ProcessingPhase extends "source"
+  ? {
+      collections?: string | string[];
+      samples?: string | string[];
+      example?:
+        | string
+        | {
+            request?: string;
+            values?: string | Record<string, unknown>;
+          };
+      database?: string | false;
+    }
+  : {
+      collections: string[];
+      samples: string[];
+      example: {
         request?: string;
-        values?: string | Record<string, unknown>;
+        values?: Record<string, unknown>;
       };
-  database?: string | false;
-};
+      database?: string | false;
+    };
 
 function* configurationFiles(cwd: string): Iterable<string> {
   let parentdir = cwd;
@@ -88,7 +90,9 @@ function* configurationFiles(cwd: string): Iterable<string> {
   yield join(os.homedir(), ".config", "pardon", "pardonrc.yaml");
 }
 
-async function loadPardonRC(path: string): Promise<PardonConfigRC | undefined> {
+async function loadPardonWorkspaceRoots(
+  path: string,
+): Promise<Workspace<"source"> | undefined> {
   if (path.endsWith("pardonrc.yaml")) {
     if (
       await stat(path)
@@ -112,16 +116,16 @@ async function loadPardonRC(path: string): Promise<PardonConfigRC | undefined> {
   return;
 }
 
-async function discoverPardonRC(
+async function discoverPardonWorkspace(
   cwd: string,
-): Promise<{ root: string; rc: PardonRC } | undefined> {
+): Promise<{ root: string; workspace: Workspace } | undefined> {
   for (const configfile of configurationFiles(cwd)) {
     const root = dirname(configfile);
 
     try {
-      const rc = await loadPardonRC(configfile);
+      const rc = await loadPardonWorkspaceRoots(configfile);
       if (rc) {
-        return { root, rc: normalizeRC(rc, root) };
+        return { root, workspace: normalizeRC(rc, root) };
       }
     } catch (error) {
       console.warn(`warning: error loading ${configfile} as pardonrc:`, error);
@@ -138,19 +142,10 @@ export type PardonAppContextOptions = {
   };
 };
 
-type PardonRC = Omit<PardonConfigRC, "collections" | "samples" | "example"> & {
-  collections: string[];
-  samples: string[];
-  example: {
-    request?: string;
-    values?: Record<string, unknown>;
-  };
-};
-
 function normalizeRC(
-  { collections, samples, example, ...rest }: PardonConfigRC,
+  { collections, samples, example, ...rest }: Workspace<"source">,
   root: string,
-): PardonRC {
+): Workspace {
   let request: string | undefined;
   let values: Record<string, unknown> | undefined;
 
@@ -190,14 +185,12 @@ function normalizePaths(paths: string | string[], configdir: string) {
     .map((dir) => resolve(configdir, homely(dir)));
 }
 
-export async function createPardonApplicationContext(
-  options?: PardonAppContextOptions,
-) {
+export async function loadPardonRuntime(options?: PardonAppContextOptions) {
   // Node16 support
   await fetchPolyfillReady;
 
   const {
-    rc: {
+    workspace: {
       collections,
       samples,
       example,
@@ -205,16 +198,16 @@ export async function createPardonApplicationContext(
     },
     root,
   } =
-    (await discoverPardonRC(options?.cwd ?? process.cwd())) ??
+    (await discoverPardonWorkspace(options?.cwd ?? process.cwd())) ??
     ({
-      rc: {
+      workspace: {
         collections: ["//fallback/collection"],
         database: false,
         samples: [],
         example: {},
       },
       root: "//fallback",
-    } satisfies { root: string; rc: PardonRC });
+    } satisfies { root: string; workspace: Workspace });
 
   const database =
     databaseLocation === false
@@ -222,7 +215,7 @@ export async function createPardonApplicationContext(
       : await connectDb(resolve(root, databaseLocation), options?.sqlite3);
   const layers = await loadCollections(collections);
 
-  return resolvePardonApplicationCollection({
+  return resolvePardonRuntime({
     config: {
       root: root,
       collections,
@@ -254,26 +247,26 @@ export type PardonCollection = {
   errors: AssetParseError[];
 };
 
-export function resolvePardonApplicationCollection({
+export function resolvePardonRuntime({
   config,
   layers,
   database,
   samples,
   example,
 }: {
-  config: PardonContext["config"];
+  config: PardonRuntime["config"];
   layers: Awaited<ReturnType<typeof loadCollections>>;
   samples: string[];
-  example: PardonRC["example"];
+  example: Workspace["example"];
   database?: PardonDatabase;
-}) {
+}): Omit<PardonRuntime, "execution"> {
   const collection = buildCollection(layers);
 
   const compiler = createCompiler({
     collection,
   });
 
-  const context: PardonContext = {
+  const runtime = {
     config,
     collection,
     compiler,
@@ -282,5 +275,5 @@ export function resolvePardonApplicationCollection({
     example,
   };
 
-  return context;
+  return runtime;
 }

@@ -10,7 +10,23 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 export { semaphore } from "../core/tracking.js";
-export type { PardonTestConfiguration } from "../entry/testing/cli/runner.js";
+export type { PardonTestConfiguration } from "../entry/testing/runner.js";
 export { verify } from "../entry/testing/assertions.js";
-export { execute, createFlow } from "../core/execution/flow/flow.js";
+export { createFlow } from "../core/execution/flow/flow.js";
 export { trial, gamut, cases } from "../entry/testing/trial.js";
+
+import { FlowContext } from "../core/execution/flow/data/flow-context.js";
+import { executeFlow } from "../core/execution/flow/flow.js";
+import { FlowName } from "../core/formats/https-fmt.js";
+import { TrackingFlowContext } from "../core/execution/flow/data/tracking-flow-context.js";
+import { pardonRuntime } from "../runtime/runtime-deferred.js";
+
+export async function execute(
+  name: FlowName,
+  context: Record<string, unknown>,
+  dataFlow: FlowContext = TrackingFlowContext,
+): Promise<FlowContext> {
+  const runtime = await pardonRuntime();
+
+  return executeFlow(runtime, name, context, dataFlow);
+}

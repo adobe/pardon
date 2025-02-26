@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { pardonExecution } from "./execution/pardon-execution.js";
+import { pardonExecution } from "../execution/pardon-execution.js";
 import {
   FetchObject,
   ResponseObject,
@@ -17,44 +17,48 @@ import {
   fetchIntoObject,
   intoFetchParams,
   intoResponseObject,
-} from "./request/fetch-pattern.js";
-import { PardonContext } from "./app-context.js";
-import { PardonOptions } from "../api/pardon-wrapper.js";
+} from "../request/fetch-pattern.js";
+import { PardonOptions } from "../../api/pardon-wrapper.js";
 import { matchRequest } from "./match.js";
-import { ProgressiveMatch } from "./progress.js";
-import { createEndpointEnvironment } from "./endpoint-environment.js";
+import { ProgressiveMatch } from "../schema/progress.js";
+import { createEndpointEnvironment } from "../endpoint-environment.js";
 import {
   previewSchema,
   renderSchema,
   postrenderSchema,
   mergeSchema,
-} from "./schema/core/schema-utils.js";
+} from "../schema/core/schema-utils.js";
 import {
   guessContentType,
   httpsRequestSchema,
   httpsResponseSchema,
-} from "./request/https-template.js";
-import { ScriptEnvironment } from "./schema/core/script-environment.js";
+} from "../request/https-template.js";
+import { ScriptEnvironment } from "../schema/core/script-environment.js";
 import {
   EndpointConfiguration,
   EndpointStepsLayer,
   LayeredEndpoint,
-} from "../config/collection-types.js";
-import { HttpsResponseStep } from "../core/formats/https-fmt.js";
-import { PardonError } from "./error.js";
-import { intoURL, parseURL } from "./request/url-pattern.js";
-import { HTTP, RequestObject } from "./formats/http-fmt.js";
-import { Schema, SchemaMergingContext } from "./schema/core/types.js";
-import { getContextualValues } from "../core/schema/core/context.js";
-import { definedObject } from "../util/mapping.js";
-import { JSON } from "./json.js";
+} from "../../config/collection-types.js";
+import { HttpsResponseStep } from "../formats/https-fmt.js";
+import { PardonError } from "../error.js";
+import { intoURL, parseURL } from "../request/url-pattern.js";
+import { HTTP, RequestObject } from "../formats/http-fmt.js";
+import {
+  EvaluationScope,
+  Schema,
+  SchemaMergingContext,
+} from "../schema/core/types.js";
+import { getContextualValues } from "../schema/core/context.js";
+import { definedObject } from "../../util/mapping.js";
+import { JSON } from "../json.js";
+import { PardonRuntime } from "./types.js";
 
 export type PardonAppContext = Pick<
-  PardonContext,
+  PardonRuntime,
   "collection" | "compiler" | "database"
 >;
 
-export type PardonMatch = {
+export type PardonExecutionMatch = {
   schema: Schema<FetchObject>;
   context: SchemaMergingContext<FetchObject>;
   endpoint: LayeredEndpoint;
@@ -75,10 +79,32 @@ export type PardonExecutionInit = {
   app(): PardonAppContext;
 };
 
+export type PardonExecutionOutbound = {
+  request: RequestObject;
+  redacted: RequestObject;
+  evaluationScope: EvaluationScope;
+};
+
+export type PardonExecutionInbound = ResponseObject;
+
+export type PardonExecutionResult = {
+  endpoint: string;
+  outbound: PardonExecutionOutbound;
+  inbound: {
+    object: ResponseObject;
+    outcome?: string;
+    response: ResponseObject;
+    secrets: Record<string, unknown>;
+    redacted: ResponseObject;
+    values: Record<string, unknown>;
+    evaluationScope: EvaluationScope;
+  };
+};
+
 type PardonSelectOne = (
-  matches: PardonMatch[],
+  matches: PardonExecutionMatch[],
   info: { context: PardonExecutionContext; fetchObject: FetchObject },
-) => PardonMatch;
+) => PardonExecutionMatch;
 
 const selectOne: PardonExecutionInit["select"] = (
   matches,
@@ -253,7 +279,7 @@ export const PardonFetchExecution = pardonExecution({
     const goodMatches = matches
       .filter((settled) => settled.status === "fulfilled")
       .map(({ value }) => value)
-      .filter(Boolean) as PardonMatch[];
+      .filter(Boolean) as PardonExecutionMatch[];
 
     return (
       context.select?.(goodMatches, { context, fetchObject }) ??

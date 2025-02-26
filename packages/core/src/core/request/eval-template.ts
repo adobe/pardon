@@ -10,7 +10,10 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { jsonSchemaTransform, syncEvaluation } from "../expression.js";
+import {
+  jsonSchemaTransform,
+  syncEvaluation,
+} from "../evaluation/expression.js";
 import { Schematic } from "../schema/core/types.js";
 import { referenceTemplate } from "../schema/definition/structures/reference.js";
 

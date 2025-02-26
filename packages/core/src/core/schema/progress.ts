@@ -9,9 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { mergeSchema } from "./schema/core/schema-utils.js";
-import { ScriptEnvironment } from "./schema/core/script-environment.js";
-import { Schema, SchemaMergingContext, Template } from "./schema/core/types.js";
+import { mergeSchema } from "./core/schema-utils.js";
+import { ScriptEnvironment } from "./core/script-environment.js";
+import { Schema, SchemaMergingContext, Template } from "./core/types.js";
 
 export interface ProgressiveMatchData<T> {
   object: Template<T>;

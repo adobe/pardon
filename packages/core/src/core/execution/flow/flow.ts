@@ -10,16 +10,16 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { disarm } from "../../../util/promise.js";
-import { FlowName } from "../../formats/https-fmt.js";
-import { PardonContext } from "../../app-context.js";
-import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
-import { PardonAppContext } from "../../pardon.js";
+import { PardonAppContext } from "../../pardon/pardon.js";
 import { CompiledHttpsSequence, executeHttpsSequence } from "./https-flow.js";
 import {
   composeValuesDict,
   FlowParamsDict,
   parseParams,
 } from "./flow-params.js";
+import { FlowContext } from "./data/flow-context.js";
+import { TrackingFlowContext } from "./data/tracking-flow-context.js";
+import { PardonRuntime } from "../../pardon/types.js";
 
 export type FlowOptions = { target?: string };
 
@@ -52,50 +52,33 @@ export function createFlow(fn: FlowFn): FlowAction {
   };
 }
 
-export async function execute(
-  name: FlowName,
-  context?: Record<string, unknown>,
-): Promise<Record<string, any>> {
-  if (name.endsWith(".flow")) {
-    const { context: appContext } = await pardonRuntime();
-
-    return executeFlow(appContext, name.slice(0, -".flow".length), context);
-  }
-
-  throw new Error("execute only supports .flow sequences");
-}
-
-function executeFlow(
-  appContext: PardonContext,
+export function executeFlow(
+  runtime: PardonRuntime,
   name: string,
-  context?: Record<string, unknown>,
-): Promise<Record<string, any>> {
+  context: Record<string, unknown>,
+  dataFlow: FlowContext,
+): Promise<FlowContext> {
   const {
     collection: { flows },
-  } = appContext;
+  } = runtime;
 
   if (!flows[name]) {
     throw new Error(`executeFlow(${JSON.stringify(name)}): flow not defined`);
   }
 
-  const { action, params } = compileFlow(appContext, flows[name]);
+  const { action, params } = compileFlow(runtime, flows[name]);
 
-  const values = composeValuesDict(params, context, { ...environment });
+  const values = composeValuesDict(params, context, {
+    ...dataFlow.environment,
+  });
 
-  return executeCallback(
-    action(values).then((result) => {
-      if (result) {
-        environment = result;
-      }
-
-      return result;
-    }),
-  );
+  return executeCallback(action(values));
 }
 
 export function compileFlow(
   { compiler }: PardonAppContext,
   flow: CompiledHttpsSequence,
+  dataFlow: FlowContext = TrackingFlowContext,
 ) {
   return {
     params: flow.params ?? {
@@ -104,10 +87,10 @@ export function compileFlow(
       required: false,
     },
     async action(values?: Record<string, unknown>) {
-      return await executeHttpsSequence({ compiler }, flow, {
-        ...environment,
-        ...values,
-      });
+      await (null! as Promise<any>);
+      dataFlow = dataFlow.mergeEnvironment(values);
+
+      return await executeHttpsSequence({ compiler }, flow, dataFlow);
     },
   };
 }

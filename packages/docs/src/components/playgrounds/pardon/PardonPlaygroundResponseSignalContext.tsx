@@ -1,11 +1,8 @@
 import type { ExecutionContinuation } from "@components/playgrounds/pardon/pardon-playground-shared";
-import { type PardonFetchExecution } from "pardon/playground";
 import { createContext, createSignal, useContext } from "solid-js";
 import type { ParentProps, Signal } from "solid-js";
 
-type PardonResult = Awaited<
-  ReturnType<(typeof PardonFetchExecution)["process"]>
->;
+type PardonResult = Awaited<ExecutionContinuation["result"]>;
 
 type PardonResponseSignalInfo = {
   result: PardonResult;

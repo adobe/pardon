@@ -12,9 +12,9 @@ governing permissions and limitations under the License.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 
-import describeCases from "./testcases/index.js";
+import describeCases from "../../core/testcases/index.js";
 import { disarm } from "../../util/promise.js";
-import { PardonTestConfiguration } from "./cli/runner.js";
+import { PardonTestConfiguration } from "./runner.js";
 
 const pendingRegistrationTasks: Promise<unknown>[] = [];
 

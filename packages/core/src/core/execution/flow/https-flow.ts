@@ -28,11 +28,9 @@ import {
 } from "../../request/https-template.js";
 import { ScriptEnvironment } from "../../schema/core/script-environment.js";
 import { definedObject, mapObject } from "../../../util/mapping.js";
-import { execute } from "./flow.js";
-import { createSequenceEnvironment } from "../../unit-environment.js";
-import { PardonAppContext } from "../../pardon.js";
+import { createSequenceEnvironment } from "./flow-environment.js";
+import { PardonAppContext } from "../../pardon/pardon.js";
 import { stubSchema } from "../../schema/definition/structures/stub.js";
-import { PardonContext } from "../../app-context.js";
 import { HTTP } from "../../formats/http-fmt.js";
 //import { checkFastFailed, pendingFastFailure } from "./cli/failfast.js";
 import { TracedResult } from "../../../features/trace.js";
@@ -46,6 +44,10 @@ import {
   FlowParamsDict,
   injectValuesDict,
 } from "./flow-params.js";
+import { FlowContext } from "./data/flow-context.js";
+import { executeFlow } from "./flow.js";
+import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
+import { PardonRuntime } from "../../pardon/types.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -170,11 +172,13 @@ export type CompiledHttpsSequence = {
 export async function executeHttpsSequence(
   { compiler }: Pick<PardonAppContext, "compiler">,
   sequence: CompiledHttpsSequence,
-  values: Record<string, unknown>,
-) {
+  dataFlow: FlowContext,
+): Promise<FlowContext> {
   const { params } = sequence;
 
-  const definedValues = params ? extractValuesDict(params, values) : values;
+  const definedValues = params
+    ? extractValuesDict(params, dataFlow.environment)
+    : dataFlow.environment;
 
   const sequenceEnvironment = createSequenceEnvironment({
     flowScheme: sequence.scheme,
@@ -183,15 +187,25 @@ export async function executeHttpsSequence(
     values: definedValues,
   });
 
-  const valuation = await renderSchema(sequence.schema, sequenceEnvironment);
+  const renderedTemplate = await renderSchema(
+    sequence.schema,
+    sequenceEnvironment,
+  );
 
-  let effectiveValues = definedObject(valuation.output) as Record<string, any>;
+  let effectiveValues = definedObject(renderedTemplate.output) as Record<
+    string,
+    any
+  >;
 
   const attemptLimit = sequence.configuration.attempts;
 
   effectiveValues = {
     ...effectiveValues,
-    ...(await evaluateUsedUnits(sequence.configuration, effectiveValues)),
+    ...(await evaluateDependentFlows(
+      sequence.configuration,
+      effectiveValues,
+      dataFlow,
+    )),
   };
 
   let attempts = 0;
@@ -201,6 +215,7 @@ export async function executeHttpsSequence(
         sequence,
         compiler,
         effectiveValues,
+        dataFlow,
       );
       return result;
     } catch (error) {
@@ -220,8 +235,9 @@ export async function executeHttpsSequence(
 
 async function executeFlowSequence(
   sequence: CompiledHttpsSequence,
-  compiler: PardonContext["compiler"],
+  compiler: PardonRuntime["compiler"],
   effectiveValues: Record<string, unknown>,
+  dataFlow: FlowContext,
 ) {
   let index = 0;
 
@@ -240,7 +256,7 @@ async function executeFlowSequence(
       }
     }
 
-    const result = await executeHttpsSequenceStep(
+    const { outcome, values } = await executeHttpsSequenceStep(
       { compiler },
       {
         sequenceInteraction: next,
@@ -248,15 +264,16 @@ async function executeFlowSequence(
         sequencePath: sequence.path,
         values: effectiveValues,
       },
+      dataFlow,
     );
 
-    const outcome = result.outcome;
+    dataFlow = dataFlow.mergeEnvironment(values);
 
     //checkFastFailed();
 
     effectiveValues = {
       ...effectiveValues,
-      ...result.values,
+      ...values,
     };
 
     // if the outcome is named in the flow, loop, else exit
@@ -297,31 +314,36 @@ async function executeFlowSequence(
       };
 }
 
-async function evaluateUsedUnits(
+async function evaluateDependentFlows(
   configuration: HttpsFlowConfig,
-  effectiveValues: Record<string, unknown>,
+  values: Record<string, unknown>,
+  dataFlow: FlowContext,
 ) {
+  const effectiveValues = {
+    ...dataFlow.environment,
+    ...values,
+  };
+
+  const runtime = await pardonRuntime();
+
   return Object.assign(
     {},
     ...(await Promise.all(
       (configuration.use ?? [])
-        .filter((usage) => usageNeeded(usage.provides, effectiveValues))
-        .map(async ({ provides, context, flow: unitOrFlow }) => {
-          const usageOptions = context
-            ? injectValuesDict(contextAsFlowParams(context), {
-                ...environment,
-                ...effectiveValues,
-              })
-            : { ...environment, ...effectiveValues };
+        .filter((usage) => usageNeeded(usage.provides, values))
+        .map(async ({ provides, context, flow }) => {
+          const flowValues = context
+            ? injectValuesDict(contextAsFlowParams(context), effectiveValues)
+            : effectiveValues;
 
           if (!provides) {
-            return await execute(unitOrFlow, usageOptions);
+            return await executeFlow(runtime, flow, flowValues, dataFlow);
           }
 
           // only include the specified environment changes
           return ejectValuesDict(
             contextAsFlowParams(provides),
-            await execute(unitOrFlow, usageOptions),
+            await executeFlow(runtime, flow, flowValues, dataFlow),
           );
         }),
     )),
@@ -334,7 +356,7 @@ function parseHttpsSequenceScheme({
   configuration = { context: [], use: [], defaults: {}, import: {} },
 }: HttpsFlowScheme) {
   if (mode !== "flow") {
-    throw new Error("invalid https seqeuence scheme, not a flow or unit");
+    throw new Error("invalid https seqeuence scheme, not a flow");
   }
 
   const start = steps[0];
@@ -394,7 +416,7 @@ const coreValues = new Set([
 ]);
 
 async function executeHttpsSequenceStep(
-  { compiler }: Pick<PardonContext, "compiler">,
+  { compiler }: Pick<PardonRuntime, "compiler">,
   {
     sequenceInteraction: interaction,
     sequenceScheme: sequenceScheme,
@@ -406,6 +428,7 @@ async function executeHttpsSequenceStep(
     sequencePath: string;
     values: Record<string, any>;
   },
+  dataFlow: FlowContext,
 ) {
   const { request, responses: responseTemplates } = interaction;
 
@@ -441,7 +464,7 @@ async function executeHttpsSequenceStep(
   );
 
   const executionValues = {
-    ...environment,
+    ...dataFlow.environment,
     ...renderedValues,
     ...values,
   };
@@ -478,7 +501,7 @@ error = ${error?.stack ?? error}
             sequenceScheme,
             sequenceFile,
             values: {
-              ...environment,
+              ...dataFlow.environment,
               ...renderedValues,
               ...values,
             },
@@ -524,6 +547,7 @@ error = ${error?.stack ?? error}
     outbound: withoutEvaluationScope(outbound),
     outcome,
     values: effectiveValues,
+    dataFlow,
   };
 }
 
@@ -545,7 +569,7 @@ type UnmatchedResponseOutcome = {
 type ResponseOutcome = MatchedResponseOutcome | UnmatchedResponseOutcome;
 
 async function responseOutcome(
-  { compiler }: Pick<PardonContext, "compiler">,
+  { compiler }: Pick<PardonRuntime, "compiler">,
   {
     sequenceScheme,
     sequenceFile,

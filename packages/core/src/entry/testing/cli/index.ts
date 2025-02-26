@@ -23,14 +23,16 @@ import {
   loadTests,
   PardonTestConfiguration,
   writeResultSummary,
-} from "./runner.js";
+} from "../runner.js";
 import { extractKVs } from "../../../util/kv-options.js";
 import remember from "../../../features/remember.js";
-import failfast, { executeWithFastFail } from "./failfast.js";
-import { parseSmokeConfig } from "../smoke.js";
+import failfast, {
+  executeWithFastFail,
+} from "../../../core/execution/flow/failfast.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/json.js";
 import { mapObject } from "../../../util/mapping.js";
+import { parseSmokeConfig } from "../smoke-config.js";
 
 // execute tests
 main().then(
@@ -100,7 +102,7 @@ async function main() {
 
   const argEnvironment = extractKVs(positionals, true);
 
-  const { testplanner, configuration } = await loadTests(context, {
+  const { testplanner, configuration } = await loadTests({
     testPath: resolvedTest,
   });
 

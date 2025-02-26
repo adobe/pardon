@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import {
   PardonExecutionContext,
   PardonFetchExecution,
-} from "../core/pardon.js";
+} from "../core/pardon/pardon.js";
 import { Id } from "../db/sqlite.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
 import { HTTP } from "../core/formats/http-fmt.js";

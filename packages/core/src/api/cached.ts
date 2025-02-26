@@ -9,23 +9,23 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { PardonContext } from "../core/app-context.js";
+import { PardonRuntime } from "../core/pardon/types.js";
 import { cacheOps, type CacheEntry } from "../db/entities/cache-entity.js";
 import { pardonRuntime } from "../runtime/runtime-deferred.js";
 
 export type { CacheEntry };
 
-let context: PardonContext;
-pardonRuntime().then((runtime) => ({ context } = runtime));
+let runtime: PardonRuntime;
+pardonRuntime().then((runtime_) => (runtime = runtime_));
 
 export function cached<T>(
   ...[key, loader]: Parameters<ReturnType<typeof cacheOps>["cached"]>
 ) {
-  if (!context) {
+  if (!runtime) {
     throw new Error("cached: no pardon runtime context loaded");
   }
 
-  return cacheOps(context.database).cached<T>(
+  return cacheOps(runtime.database).cached<T>(
     key,
     loader as () => Promise<CacheEntry<T>>,
   );

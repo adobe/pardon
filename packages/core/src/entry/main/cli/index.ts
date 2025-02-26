@@ -41,7 +41,7 @@ main()
     process.exit(1);
   });
 
-function exceptBody({ body, ...values }: Record<string, unknown>) {
+function exceptBody<T extends { body?: unknown }>({ body, ...values }: T) {
   return values;
 }
 
@@ -138,7 +138,7 @@ ${YAML.stringify({
     const rendered = options.secrets ? request : redacted;
 
     if (options.json) {
-      console.info(JSON.stringify(exceptBody(rendered.values), null, 2));
+      console.info(JSON.stringify(exceptBody(rendered.values ?? {}), null, 2));
     } else if (options.curl) {
       if (options.values) {
         const values = KV.stringify(rendered.values, "\n", 2)

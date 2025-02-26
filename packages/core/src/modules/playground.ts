@@ -12,13 +12,13 @@ governing permissions and limitations under the License.
 
 export { KV } from "../core/formats/kv-fmt.js";
 
-export { PardonFetchExecution } from "../core/pardon.js";
+export { PardonFetchExecution } from "../core/pardon/pardon.js";
 export { pardonExecutionHandle } from "../api/pardon-wrapper.js";
 
 export {
-  resolvePardonApplicationCollection,
+  resolvePardonRuntime,
   type PardonAppContextOptions,
-} from "../core/app-context.js";
+} from "../runtime/init/workspace.js";
 
 export { hookExecution } from "../core/execution/execution-hook.js";
 export {
@@ -30,7 +30,7 @@ export { getContextualValues } from "../core/schema/core/context.js";
 export {
   default as describeCases,
   type CaseContext,
-} from "../entry/testing/testcases/index.js";
+} from "../core/testcases/index.js";
 
 export { cases, gamut, trial } from "./testing.js";
 export {
@@ -42,4 +42,4 @@ export {
   applySmokeConfig,
   parseSmokeConfig,
   type SmokeConfig,
-} from "../entry/testing/smoke.js";
+} from "../entry/testing/smoke-config.js";

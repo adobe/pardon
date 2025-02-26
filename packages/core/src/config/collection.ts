@@ -34,7 +34,7 @@ import {
   AssetType,
   CollectionData,
   PardonCollection,
-} from "../core/app-context.js";
+} from "../runtime/init/workspace.js";
 import { PardonError } from "../core/error.js";
 import { expandConfigMap } from "../core/schema/core/config-space.js";
 import { compileHttpsFlow } from "../core/execution/flow/https-flow.js";
@@ -81,6 +81,7 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
           source,
         };
       case /[.]flow[.]https$/.test(name):
+        console.log("flow: " + name);
         return {
           type: "flow" as const,
           name,
@@ -94,15 +95,13 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
           id: name.replace(/[.]https$/, ""),
           source,
         };
-      case /[.][tj]s$/.test(name): {
-        const id = `pardon:${name.replace(/[.][tj]s$/, "")}`;
+      case /[.][tj]s$/.test(name):
         return {
           type: "script" as const,
           name,
-          id,
+          id: `pardon:${name.replace(/[.][tj]s$/, "")}`,
           source,
         };
-      }
       default:
         return {
           type: "unknown" as const,
@@ -388,7 +387,7 @@ export function buildCollection(
         break;
       case "flow": {
         const { content, path } = sources.slice(-1)[0];
-        const scheme = HTTPS.parse(content) as HttpsFlowScheme;
+        const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
         flows[id] = compileHttpsFlow(scheme, { path, name: id });
         break;
       }

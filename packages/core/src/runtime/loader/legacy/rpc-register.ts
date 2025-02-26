@@ -53,6 +53,7 @@ export function createRpcSender() {
 export function hostRpcChild(
   actions: Record<string, Function>, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
 ) {
+  // spawn a copy of the current process with --loader specified and wait for it.
   const child = spawn(
     process.argv0,
     [

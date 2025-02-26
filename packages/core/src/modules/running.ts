@@ -13,7 +13,7 @@ export {
   loadTests,
   executeTest,
   filterTestPlanning,
-} from "../entry/testing/cli/runner.js";
+} from "../entry/testing/runner.js";
 export { initTrackingEnvironment } from "../runtime/environment.js";
 
 export {
@@ -26,19 +26,19 @@ export {
   applySmokeConfig,
   parseSmokeConfig,
   type SmokeConfig,
-} from "../entry/testing/smoke.js";
+} from "../entry/testing/smoke-config.js";
 
 export {
   default as describeCases,
   type CaseContext,
-} from "../entry/testing/testcases/index.js";
+} from "../core/testcases/index.js";
 
 export {
   default as failfast,
   executeWithFastFail,
   checkFastFailed,
   notifyFastFailed,
-} from "../entry/testing/cli/failfast.js";
+} from "../core/execution/flow/failfast.js";
 
 export { type CompiledHttpsSequence } from "../core/execution/flow/https-flow.js";
 

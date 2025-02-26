@@ -13,30 +13,32 @@ import { join } from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
-import { TracedResult, awaitedResults } from "../../../features/trace.js";
-import { HTTP } from "../../../core/formats/http-fmt.js";
-import { onExecute } from "../../../core/execution/flow/flow.js";
+import { arrayIntoObject, mapObject } from "../../util/mapping.js";
+import { TracedResult, awaitedResults } from "../../features/trace.js";
+import { HTTP } from "../../core/formats/http-fmt.js";
+import { onExecute } from "../../core/execution/flow/flow.js";
 import {
   SequenceReport,
   SequenceStepReport,
-} from "../../../core/execution/flow/https-flow.js";
+} from "../../core/execution/flow/https-flow.js";
 import {
   all_disconnected,
   disconnected,
   semaphore,
   shared,
   tracking,
-} from "../../../core/tracking.js";
-import { flushTrialRegistry, withGamutConfiguration } from "../trial.js";
-import { PardonContext } from "../../../core/app-context.js";
-import describeCases, { CaseContext, CaseHelpers } from "../testcases/index.js";
-import { notifyFastFailed } from "./failfast.js";
-import { applySmokeConfig, SmokeConfig } from "../smoke.js";
+} from "../../core/tracking.js";
+import { notifyFastFailed } from "../../core/execution/flow/failfast.js";
 import * as YAML from "yaml";
-import { cleanObject } from "../../../util/clean-object.js";
-import { KV } from "../../../core/formats/kv-fmt.js";
-import { PardonError } from "../../../core/error.js";
+import { cleanObject } from "../../util/clean-object.js";
+import { KV } from "../../core/formats/kv-fmt.js";
+import { PardonError } from "../../core/error.js";
+import { flushTrialRegistry, withGamutConfiguration } from "./trial.js";
+import describeCases, {
+  CaseContext,
+  CaseHelpers,
+} from "../../core/testcases/index.js";
+import { applySmokeConfig, type SmokeConfig } from "./smoke-config.js";
 
 export type TestSetup = {
   test: () => Promise<void>;
@@ -525,10 +527,7 @@ export type TestLoadOptions = {
   concurrency?: number;
 };
 
-export async function loadTests(
-  context: PardonContext,
-  { testPath, concurrency }: TestLoadOptions,
-) {
+export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
   const configuration = (
     await withGamutConfiguration(
       () => import(testPath, { with: { type: "tests" } }),

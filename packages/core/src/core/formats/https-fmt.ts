@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import {
   Configuration,
-  ConfigurationProcessingPhase,
+  ResourceProcessingPhase,
 } from "../../config/collection-types.js";
 import { PardonError } from "../error.js";
 import {
@@ -71,12 +71,12 @@ export type HttpsSchemeType<Mode extends string, Configuration> = {
   steps: HttpsSteps;
 };
 
-export type HttpsScheme<Phase extends ConfigurationProcessingPhase> =
+export type HttpsScheme<Phase extends ResourceProcessingPhase> =
   | HttpsFlowScheme
   | HttpsTemplateScheme<Phase>;
 
 export type HttpsTemplateConfiguration<
-  Phase extends ConfigurationProcessingPhase = "runtime",
+  Phase extends ResourceProcessingPhase = "runtime",
 > = Pick<
   Configuration<Phase>,
   | "name"
@@ -94,7 +94,7 @@ export type HttpsTemplateConfiguration<
 export type HttpsFlowScheme = HttpsSchemeType<"flow", HttpsFlowConfig>;
 
 export type HttpsTemplateScheme<
-  Phase extends ConfigurationProcessingPhase = "runtime",
+  Phase extends ResourceProcessingPhase = "runtime",
 > = HttpsSchemeType<"mix" | "mux", HttpsTemplateConfiguration<Phase>>;
 
 export const HTTPS = { parse };

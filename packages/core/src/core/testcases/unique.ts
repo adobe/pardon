@@ -9,8 +9,19 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { valueId } from "../../util/value-id.js";
+import { fi } from "./core.js";
 
-export interface DataFlow {
-  merge(data: Record<string, unknown>): DataFlow;
-  readonly environment: Record<string, unknown>;
+export function unique(hash: (value: Record<string, any>) => string = valueId) {
+  const seen = new Set<string>();
+
+  return fi((env) => {
+    const key = hash(env);
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
 }

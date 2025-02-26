@@ -74,7 +74,6 @@ function createWindow() {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    // win.loadFile('dist/index.html')
     mainWindow.loadFile(join(PUBLIC, "index.html"));
   }
 }

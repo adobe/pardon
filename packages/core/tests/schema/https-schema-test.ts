@@ -27,7 +27,7 @@ import { Schema } from "../../src/core/schema/core/types.js";
 import {
   applyTsMorph,
   jsonSchemaTransform,
-} from "../../src/core/expression.js";
+} from "../../src/core/evaluation/expression.js";
 import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 
 describe("https-schema-tests", () => {

@@ -9,14 +9,13 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { PardonContext } from "../core/app-context.js";
 import { HTTP } from "../core/formats/http-fmt.js";
 
 import {
   PardonExecutionContext,
   PardonExecutionInit,
-  PardonFetchExecution,
-} from "../core/pardon.js";
+} from "../core/pardon/pardon.js";
+import { PardonRuntime } from "../core/pardon/types.js";
 import type { SimpleRequestInit } from "../core/request/fetch-pattern.js";
 import { intoURL } from "../core/request/url-pattern.js";
 import { pardonRuntime } from "../runtime/runtime-deferred.js";
@@ -27,11 +26,8 @@ export type PardonOptions = {
   parsecurl?: boolean;
 };
 
-let pardonContext: PardonContext;
-let execution: typeof PardonFetchExecution;
-pardonRuntime().then(
-  (runtime) => ({ context: pardonContext, execution } = runtime),
-);
+let runtime: PardonRuntime;
+pardonRuntime().then((runtime_) => (runtime = runtime_));
 
 type FetchArgs =
   | [URL | string]
@@ -46,19 +42,19 @@ export function pardon(
   values: Record<string, unknown> = {},
   executionContext?: Omit<Partial<PardonExecutionContext>, "values">,
 ) {
-  if (!pardonContext) {
+  if (!runtime) {
     throw new Error("pardon: no pardon runtime context loaded");
   }
 
   return pardonExecutionHandle({
     context: {
-      app: () => pardonContext,
+      app: () => runtime,
       durations: {},
       timestamps: {},
       values,
       ...executionContext,
     },
-    execution,
+    execution: runtime.execution,
   });
 }
 
@@ -67,7 +63,7 @@ export function pardonExecutionHandle({
   execution,
 }: {
   context: PardonExecutionContext;
-  execution: typeof PardonFetchExecution;
+  execution: PardonRuntime["execution"];
 }) {
   const http = (template: TemplateStringsArray, ...args: unknown[]) => {
     const http = String.raw(template, ...args);
@@ -140,7 +136,7 @@ export function pardonExecutionHandle({
 }
 
 export function template(source: string) {
-  if (!pardonContext) {
+  if (!runtime) {
     throw new Error("pardon: no pardon runtime context loaded");
   }
 

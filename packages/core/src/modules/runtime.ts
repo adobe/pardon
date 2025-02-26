@@ -22,11 +22,10 @@ export type {
 export type { EncodingTypes } from "../core/request/body-template.js";
 
 export type {
-  PardonContext,
   AssetType,
   AssetInfo,
   AssetSource,
   CollectionData,
   PardonAppContextOptions,
   PardonCollection,
-} from "../core/app-context.js";
+} from "../runtime/init/workspace.js";

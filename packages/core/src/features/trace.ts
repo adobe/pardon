@@ -9,7 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { PardonAppContext, PardonFetchExecution } from "../core/pardon.js";
+import {
+  PardonAppContext,
+  PardonFetchExecution,
+} from "../core/pardon/pardon.js";
 import { disconnected, tracking } from "../core/tracking.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
 import { withoutEvaluationScope } from "../core/schema/core/context-util.js";

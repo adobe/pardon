@@ -16,9 +16,12 @@ import { readFileSync } from "node:fs";
 import { Project, SourceFile, ts } from "ts-morph";
 
 import { PardonError } from "../core/error.js";
-import { PardonContext } from "../core/app-context.js";
-import { expressionTransform, TsMorphTransform } from "../core/expression.js";
+import {
+  expressionTransform,
+  TsMorphTransform,
+} from "../core/evaluation/expression.js";
 import { shared } from "../core/tracking.js";
+import { PardonRuntime } from "../core/pardon/types.js";
 
 const { join, normalize } = posix;
 
@@ -77,7 +80,7 @@ const withIdentityTransfrom: (identity: string) => TsMorphTransform =
 
 export default function createCompiler({
   collection: { data, scripts },
-}: Pick<PardonContext, "collection">) {
+}: Pick<PardonRuntime, "collection">) {
   const project: Project = new Project({
     compilerOptions: {
       outDir: "memory",

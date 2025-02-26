@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { arrayIntoObject } from "../../util/mapping.js";
-import { CaseHelpers } from "./testcases/index.js";
+import { CaseHelpers } from "../../core/testcases/index.js";
 
 export type SmokeConfig = {
   smoke: number | Record<string, number>;

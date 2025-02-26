@@ -26,10 +26,10 @@ export type ConfigurationImports = Record<string, string | string[]>;
 
 export type AssetParseError = { path: string; error: any };
 
-export type ConfigurationProcessingPhase = "source" | "runtime";
+export type ResourceProcessingPhase = "source" | "runtime";
 
 export type Configuration<
-  ProcessingPhase extends ConfigurationProcessingPhase = "runtime",
+  ProcessingPhase extends ResourceProcessingPhase = "runtime",
 > = {
   name: string;
   path: string;

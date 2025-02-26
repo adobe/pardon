@@ -13,20 +13,20 @@ import {
   LayeredEndpoint,
   EndpointConfiguration,
   EndpointStepsLayer,
-} from "../config/collection-types.js";
+} from "../../config/collection-types.js";
 import { PardonExecutionContext } from "./pardon.js";
-import { mapObject } from "../util/mapping.js";
-import { HttpsResponseStep } from "../core/formats/https-fmt.js";
+import { mapObject } from "../../util/mapping.js";
+import { HttpsResponseStep } from "../formats/https-fmt.js";
 import {
   HttpsRequestObject,
   httpsRequestSchema,
-} from "./request/https-template.js";
-import { mergeConfigurations } from "../config/collection.js";
-import { ScriptEnvironment } from "./schema/core/script-environment.js";
-import { ProgressiveMatch } from "./progress.js";
-import { Schema, SchemaMergingContext } from "./schema/core/types.js";
-import { createEndpointEnvironment } from "./endpoint-environment.js";
-import { isScalar } from "./schema/definition/scalar.js";
+} from "../request/https-template.js";
+import { mergeConfigurations } from "../../config/collection.js";
+import { ScriptEnvironment } from "../schema/core/script-environment.js";
+import { ProgressiveMatch } from "../schema/progress.js";
+import { Schema, SchemaMergingContext } from "../schema/core/types.js";
+import { createEndpointEnvironment } from "../endpoint-environment.js";
+import { isScalar } from "../schema/definition/scalar.js";
 
 function selectEndpoints(
   endpoints: Record<string, LayeredEndpoint>,

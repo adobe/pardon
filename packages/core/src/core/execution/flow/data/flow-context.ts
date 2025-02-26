@@ -10,14 +10,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { DataFlow } from "../../core/execution/flow/data-flow.js";
-
-export const AsyncDataFlow: DataFlow = {
-  merge(data) {
-    environment = data;
-    return this;
-  },
-  get environment() {
-    return environment;
-  },
-};
+export interface FlowContext {
+  mergeEnvironment(data?: Record<string, unknown>): FlowContext;
+  readonly environment: Record<string, unknown>;
+  fail(reason: unknown): void;
+  failed(): void;
+}

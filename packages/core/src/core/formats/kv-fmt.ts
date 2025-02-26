@@ -31,10 +31,10 @@ contain non identifier characters (a-z0-9$_)).
 //  a double-quoted string
 //  a backtick-quoted string. (with out ${...} interpolations)
 //  syntax characters, any of these: {}[]:,=
-//  a word token, which can contain letters, digits, underscores, $, @, +, - (as a minus or hyphen)
+//  a word token, which can contain letters, digits, underscores, $, @, +, - (as a minus or hyphen), and can contain :
 //  comment (starting with # till end of line)
 const tokenizer =
-  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}:[\],=]|-?[a-z0-9$@_./+-]+)|(?:#.*$)/im;
+  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}:[\],=]|-?(?!:)[a-z0-9$@_.:/+-]+)|(?:#.*$)/im;
 
 function tokenize(data: string) {
   // returns strings that alternate between values that match the tokenizer and the
@@ -43,7 +43,7 @@ function tokenize(data: string) {
 }
 
 // simple token should allow somewhat complex values like e.g., email addresses and paths without quotes
-const simpleToken = /^(?!-)[a-z0-9$@_./+-]*$/i;
+const simpleToken = /^(?!-)(?!:)[a-z0-9$@_.:/+-]*$/i;
 const simpleKey = /^@?[a-z0-9$_.-]*$/i;
 
 const unparsed = Symbol("unparsed");

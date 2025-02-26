@@ -1,5 +1,5 @@
 import { createContext, createMemo, useContext } from "solid-js";
-import { resolvePardonApplicationCollection } from "pardon/playground";
+import { resolvePardonRuntime } from "pardon/playground";
 import type { Accessor, ParentProps } from "solid-js";
 import type { AssetSource } from "pardon/runtime";
 
@@ -14,9 +14,7 @@ Object.defineProperty(globalThis, "environment", {
   configurable: false,
 });
 
-export type ApplicationContext = ReturnType<
-  typeof resolvePardonApplicationCollection
->;
+export type ApplicationContext = ReturnType<typeof resolvePardonRuntime>;
 
 type ConfigProps = {
   example?: string;
@@ -61,7 +59,7 @@ function createApplicationContext(props: ConfigProps) {
     ? layers.map((layer) => extractLayer(config, layer, ""))
     : [extractLayer(config, "/collection/", "/collection/")];
 
-  return resolvePardonApplicationCollection({
+  return resolvePardonRuntime({
     config: {
       root: "/",
       collections: layers ?? ["/collection/"],

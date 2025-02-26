@@ -10,15 +10,26 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { DataFlow } from "./data-flow.js";
+import { FlowContext } from "./flow-context.js";
 
-export function manualDataFlow(env: Record<string, unknown>): DataFlow {
+export function manualFlowContext(
+  env: Record<string, unknown>,
+  failure?: unknown,
+): FlowContext {
   return {
-    merge(data) {
-      return manualDataFlow({ ...env, ...data });
+    mergeEnvironment(data) {
+      return manualFlowContext({ ...env, ...data }, failure);
     },
     get environment() {
       return env;
+    },
+    fail(reason) {
+      failure = reason ?? null;
+    },
+    failed() {
+      if (failure !== undefined) {
+        throw failure;
+      }
     },
   };
 }

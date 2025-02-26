@@ -9,19 +9,22 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { valueId } from "../../../util/value-id.js";
-import { fi } from "./core.js";
 
-export function unique(hash: (value: Record<string, any>) => string = valueId) {
-  const seen = new Set<string>();
+import { FlowContext } from "./flow-context.js";
+import { checkFastFailed, notifyFastFailed } from "../failfast.js";
 
-  return fi((env) => {
-    const key = hash(env);
-    if (seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
-}
+export const TrackingFlowContext: FlowContext = {
+  mergeEnvironment(data = {}) {
+    environment = data;
+    return this;
+  },
+  get environment() {
+    return environment;
+  },
+  fail(reason) {
+    notifyFastFailed(reason);
+  },
+  failed() {
+    checkFastFailed();
+  },
+};

@@ -10,11 +10,10 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-interface Promise<T> {
-  await: T;
-}
-
 declare global {
+  /**
+   * this is available in NodeJS pardon environments only.
+   */
   export let environment: Record<string, unknown>;
 }
 

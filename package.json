@@ -7,7 +7,7 @@
     "lint": "prettier --check .",
     "lint-staged": "lint-staged",
     "postlint": "npm run lint --prefix=packages/core",
-    "prelint": "npm run check --prefix=packages/favor",
+    "prelint": "npm run lint --prefix=packages/favor",
     "test": "npm run test --prefix=packages/core",
     "format": "npx prettier -w ."
   },
