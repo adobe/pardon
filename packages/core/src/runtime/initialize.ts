@@ -13,6 +13,7 @@ import { PardonAppContextOptions } from "./init/workspace.js";
 import { establishPardonRuntime } from "./init/establish-pardon-runtime.js";
 import { PardonFetchExecution } from "../core/pardon/pardon.js";
 import { resolveRuntime } from "./runtime-deferred.js";
+import { makeTrackingFlowContext } from "../core/execution/flow/data/tracking-flow-context.js";
 
 export type FeatureHook<T> = (_: T) => T;
 
@@ -38,7 +39,13 @@ export async function initializePardon(
   // resolve the runtime promise so other
   // modules can receive these values.
   // (currently only internal modules are allowed to receive these)
-  resolveRuntime({ ...runtime, execution });
+  resolveRuntime({
+    ...runtime,
+    execution,
+    createFlowContext() {
+      return makeTrackingFlowContext(this);
+    },
+  });
 
   // Ideas:
   //  - simplify: move execution into the app context, or

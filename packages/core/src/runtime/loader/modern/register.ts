@@ -15,14 +15,12 @@ import { PardonRuntime } from "../../../core/pardon/types.js";
 
 let localPort: MessagePort;
 
-// hack that allows the unit tests to work.
-// TODO: file issue on nodejs
 export function unregisterPardonLoader() {
-  localPort.onmessage = null;
+  localPort.close();
 }
 
 export async function registerPardonLoader(
-  appContext: Omit<PardonRuntime, "execution">,
+  appContext: PardonRuntime<"loading">,
 ) {
   const { Module } = await import("node:module");
 
@@ -44,6 +42,11 @@ export async function registerPardonLoader(
     data: { port: port1 },
     transferList: [port1],
   });
+
+  appContext.cleanup = () => {
+    port2.close();
+    port1.close();
+  };
 
   await receiverReady;
 }

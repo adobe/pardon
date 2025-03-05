@@ -10,18 +10,17 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { PardonRuntime } from "../../../pardon/types.js";
+import { CollectionItemInfo } from "./Collections.tsx";
 
-export interface FlowContext {
-  runtime: PardonRuntime;
-  mergeEnvironment(data?: Record<string, unknown>): FlowContext;
-  overrideEnvironment(data?: Record<string, unknown>): FlowContext;
-  readonly environment: Record<string, unknown>;
-  /** abort in this context */
-  abort(reason: unknown): void;
-  /** never resolves, rejects if aborted */
-  aborting(): Promise<unknown>;
-  /** call this periodically to check if we should abort */
-  checkAborted(): void;
-  pending<T>(_: Promise<T>): Promise<T>;
-}
+export type Filters = {
+  endpoint?: boolean;
+  other?: boolean;
+};
+
+export type CollectionTreeItem = {
+  name: string;
+  key: string;
+  type: "endpoint" | "script" | "mixin" | "data" | "config" | "folder" | "flow";
+  info?: CollectionItemInfo;
+  items?: CollectionTreeItem[];
+};

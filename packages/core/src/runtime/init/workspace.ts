@@ -29,8 +29,8 @@ import { homely } from "../../util/resolvehome.js";
 
 import fetchPolyfillReady from "./fetch-polyfill.js";
 import { KV } from "../../core/formats/kv-fmt.js";
-import { CompiledHttpsSequence } from "../../modules/running.js";
 import { PardonRuntime } from "../../core/pardon/types.js";
+import { Flow } from "../../core/execution/flow/flow-core.js";
 
 export type CollectionData = {
   values: Record<string, unknown>;
@@ -44,9 +44,13 @@ export type AssetType =
   | "endpoint"
   | "script"
   | "unknown";
+
+export type AssetSubType = "flow";
+
 export type AssetSource = { path: string; content: string };
 export type AssetInfo = {
   type: AssetType;
+  subtype?: AssetSubType;
   name: string;
   sources: AssetSource[];
 };
@@ -239,7 +243,7 @@ export type PardonCollection = {
     identities: Record<string, string>;
   };
 
-  flows: Record<string, CompiledHttpsSequence>;
+  flows: Record<string, Flow>;
 
   /** all files, used by favor/editor */
   assets: Record<string, AssetInfo>;
@@ -259,7 +263,7 @@ export function resolvePardonRuntime({
   samples: string[];
   example: Workspace["example"];
   database?: PardonDatabase;
-}): Omit<PardonRuntime, "execution"> {
+}): PardonRuntime<"loading"> {
   const collection = buildCollection(layers);
 
   const compiler = createCompiler({

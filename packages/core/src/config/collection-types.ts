@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { type HttpsSteps } from "../core/formats/https-fmt.js";
+import { HttpsFlowConfig, type HttpsSteps } from "../core/formats/https-fmt.js";
 import { EncodingTypes } from "../core/request/body-template.js";
 import {
   DefaultsMap,
@@ -40,6 +40,7 @@ export type Configuration<
   encoding?: EncodingTypes;
   search?: "multi";
   type?: "service" | "config";
+  flow?: HttpsFlowConfig;
 } & (ProcessingPhase extends "source"
   ? {
       config?: ConfigMap | Record<string, string>[];

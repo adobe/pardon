@@ -51,18 +51,19 @@ export type HttpsFlowContext =
 type ValueMapping = (string | Record<string, ValueMapping>)[];
 
 export type HttpsFlowConfig = {
-  use?: UseFlow[];
-  attempts?: number;
-  import?: HttpsTemplateConfiguration["import"];
-  defaults?: HttpsTemplateConfiguration["defaults"];
   context?: HttpsFlowContext;
   provides?: string | ValueMapping;
+  use?: UseFlow[];
+  import?: HttpsTemplateConfiguration["import"];
+  defaults?: HttpsTemplateConfiguration["defaults"];
+  attempts?: number;
+  idempotent?: boolean;
 };
 
 export type UseFlow = {
   flow: FlowName;
-  provides?: string | ValueMapping;
   context?: HttpsFlowContext;
+  provides?: string | ValueMapping;
 };
 
 export type HttpsSchemeType<Mode extends string, Configuration> = {
@@ -189,6 +190,19 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
   scanComments(lines, { allowBlank: true });
 
   const requestLine = lines[0];
+  if (/^\s*(?:<<<|>>>)/.test(requestLine)) {
+    return {
+      type: "request",
+      request: fetchIntoObject("//", {
+        method: "ANY",
+      }),
+      computations,
+      values,
+      name,
+      source: [first, ...linesCopy.slice(0, -lines.length)].join("\n"),
+    };
+  }
+
   const requestMatch = /^\s*([A-Z]+)\s+((?:https?:)?[/][/].*)/.exec(
     requestLine!,
   )!;

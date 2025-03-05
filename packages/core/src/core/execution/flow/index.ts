@@ -10,18 +10,21 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { PardonRuntime } from "../../../pardon/types.js";
+import { PardonError } from "../../error.js";
+import { FlowName } from "../../formats/https-fmt.js";
+import { FlowContext } from "./data/flow-context.js";
+import { currentFlowContext, runFlow } from "./flow-core.js";
 
-export interface FlowContext {
-  runtime: PardonRuntime;
-  mergeEnvironment(data?: Record<string, unknown>): FlowContext;
-  overrideEnvironment(data?: Record<string, unknown>): FlowContext;
-  readonly environment: Record<string, unknown>;
-  /** abort in this context */
-  abort(reason: unknown): void;
-  /** never resolves, rejects if aborted */
-  aborting(): Promise<unknown>;
-  /** call this periodically to check if we should abort */
-  checkAborted(): void;
-  pending<T>(_: Promise<T>): Promise<T>;
+export async function flow(
+  name: FlowName,
+  input: Record<string, unknown>,
+  context?: FlowContext,
+) {
+  context ??= await currentFlowContext(context);
+  const flow = context?.runtime.collection.flows[name];
+  if (!flow) {
+    throw new PardonError(`no flow named ${name}`);
+  }
+
+  return runFlow(flow, input, context);
 }

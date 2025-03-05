@@ -81,7 +81,6 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
           source,
         };
       case /[.]flow[.]https$/.test(name):
-        console.log("flow: " + name);
         return {
           type: "flow" as const,
           name,
@@ -93,6 +92,14 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
           type: "endpoint" as const,
           name,
           id: name.replace(/[.]https$/, ""),
+          source,
+        };
+      case /[.]flow[.][tj]s$/.test(name):
+        return {
+          type: "script" as const,
+          subtype: "flow",
+          name,
+          id: `pardon:${name.replace(/[.][tj]s$/, "")}`,
           source,
         };
       case /[.][tj]s$/.test(name):
@@ -573,6 +580,7 @@ export function mergeConfigurations({
         | "type"
         | "encoding"
         | "search"
+        | "flow"
       >
     >(
       (
@@ -586,6 +594,7 @@ export function mergeConfigurations({
           type,
           search,
           encoding,
+          flow,
           //...other
         },
       ) => ({
@@ -635,6 +644,7 @@ export function mergeConfigurations({
           ...unmergedMixins(merged, mixin, target),
           ...(merged.mixin || []),
         ],
+        flow: flow ?? merged.flow,
         type:
           merged.type === "service" || type === "service"
             ? ("service" as const)

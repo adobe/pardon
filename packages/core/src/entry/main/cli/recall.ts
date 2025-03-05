@@ -15,7 +15,7 @@ import { PardonError } from "../../../core/error.js";
 import { PardonRuntime } from "../../../core/pardon/types.js";
 
 export function recall(
-  { database }: Omit<PardonRuntime, "execution">,
+  { database }: PardonRuntime<"loading">,
   lookup: string[],
   values: Record<string, string>,
   locale?: Intl.Locale,

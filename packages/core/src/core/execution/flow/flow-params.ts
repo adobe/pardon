@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import * as acorn from "acorn";
 import { HttpsFlowContext } from "../../formats/https-fmt.js";
-import { FlowFn } from "./flow.js";
+import { FlowFunction } from "./flow-core.js";
 import {
   arrayIntoObject,
   definedObject,
@@ -45,7 +45,7 @@ function isItem(param: FlowParam): param is FlowParamsItem {
 
 export function contextAsFlowParams(
   context: HttpsFlowContext,
-  defined: Record<string, true | string> = {},
+  definitions: Record<string, true | string> = {},
 ): FlowParamsDict {
   if (typeof context === "string") {
     context = context.split(/\s*,\s*/);
@@ -69,10 +69,10 @@ export function contextAsFlowParams(
 
     if (typeof item === "string") {
       if (item.startsWith("...")) {
-        defined[(params.rested = item.slice(3).trim())] = true;
+        definitions[(params.rested = item.slice(3).trim())] = true;
       } else {
         const [, name, question, value, expression] =
-          /(\w+)([?]?)(?:\s+as\s+(\w+))?(?:\s+(?:default|=)\s+(.*))?$/.exec(
+          /(\w+)([?]?)(?:\s+as\s+(\w+))?(?:(?:\s+default\s+|\s*=\s*)((?=\S).*))?$/.exec(
             item.trim(),
           )!;
 
@@ -80,7 +80,7 @@ export function contextAsFlowParams(
           name: value ?? name,
           required: !question,
         };
-        defined[value ?? name] = expression ?? true;
+        definitions[value ?? name] = expression ?? true;
       }
     } else if (Array.isArray(item)) {
       throw new Error("unexpected array in context");
@@ -89,7 +89,7 @@ export function contextAsFlowParams(
       if (other.length) {
         throw new Error("unexpected");
       }
-      params.dict[k] = contextAsFlowParams(v, defined);
+      params.dict[k] = contextAsFlowParams(v, definitions);
     } else throw new Error("unexpected non-object in context: " + typeof item);
   }
 
@@ -232,7 +232,7 @@ function extractValuesList(params: FlowParamsList, values: any[]) {
   throw new Error("unimplemented");
 }
 
-export function parseParams(fn: FlowFn) {
+export function flowFunctionSignature(fn: FlowFunction) {
   if (fn.length === 0) {
     return { dict: {}, required: false };
   }
@@ -243,7 +243,7 @@ export function parseParams(fn: FlowFn) {
     );
   }
 
-  const ast = acorn.parse(String(fn), { ecmaVersion: 2022 });
+  const ast = acorn.parse(`(${fn})`, { ecmaVersion: 2022 });
 
   const pattern =
     ast.body[0].type === "ExpressionStatement"
@@ -254,7 +254,7 @@ export function parseParams(fn: FlowFn) {
 
   if (pattern.type !== "ObjectPattern") {
     throw new Error(
-      "expected an ObjectPattern for the first argument of the unit",
+      "expected an ObjectPattern for the first argument of the flow function",
     );
   }
 

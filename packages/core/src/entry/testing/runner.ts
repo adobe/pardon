@@ -16,7 +16,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { arrayIntoObject, mapObject } from "../../util/mapping.js";
 import { TracedResult, awaitedResults } from "../../features/trace.js";
 import { HTTP } from "../../core/formats/http-fmt.js";
-import { onExecute } from "../../core/execution/flow/flow.js";
 import {
   SequenceReport,
   SequenceStepReport,
@@ -57,7 +56,8 @@ const inflight = new AsyncLocalStorage<{
   awaited: ReturnType<typeof tracking>;
 }>();
 
-onExecute((promise) => {
+void schedulePending; // TODO: hook up to data
+function schedulePending<T>(promise: Promise<T>): Promise<T> {
   const store = inflight.getStore();
 
   if (!store) {
@@ -71,7 +71,7 @@ onExecute((promise) => {
   return promise.finally(() => {
     awaited.track(promise);
   });
-});
+}
 
 export async function writeResultSummary(
   testResults: {

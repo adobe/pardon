@@ -28,6 +28,7 @@ type CollectionItemType = AssetType | "asset" | "root";
 export type CollectionItemInfo = {
   id: string;
   type?: CollectionItemType;
+  subtype?: "flow";
   archetype: string;
   bad?: boolean;
   sources?: AssetSource[];
@@ -58,7 +59,12 @@ export default function Collections(props: {
   filters: Filters;
 }) {
   const collection = createMemo(() => {
-    const { endpoints = {}, assets = {}, errors = [] } = manifest() || {};
+    const {
+      endpoints = {},
+      assets = {},
+      errors = [],
+      flows,
+    } = manifest() || {};
 
     const badPaths = new Set(errors.map(({ path }) => path));
 
@@ -69,7 +75,22 @@ export default function Collections(props: {
       }
     }
 
-    return Object.entries(assets)
+    return [
+      ...Object.entries(assets).filter(
+        ([, { subtype, type }]) => (subtype ?? type) !== "flow",
+      ),
+      ...flows.map(
+        (key) =>
+          [
+            key,
+            {
+              sources: [] as (typeof assets)[string]["sources"],
+              type: "flow",
+              name: key,
+            },
+          ] as const,
+      ),
+    ]
       .map(([id, asset]) => {
         return {
           ...asset,

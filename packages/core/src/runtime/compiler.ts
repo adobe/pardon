@@ -21,7 +21,7 @@ import {
   TsMorphTransform,
 } from "../core/evaluation/expression.js";
 import { shared } from "../core/tracking.js";
-import { PardonRuntime } from "../core/pardon/types.js";
+import { PardonCollection } from "./init/workspace.js";
 
 const { join, normalize } = posix;
 
@@ -80,7 +80,9 @@ const withIdentityTransfrom: (identity: string) => TsMorphTransform =
 
 export default function createCompiler({
   collection: { data, scripts },
-}: Pick<PardonRuntime, "collection">) {
+}: {
+  collection: PardonCollection;
+}) {
   const project: Project = new Project({
     compilerOptions: {
       outDir: "memory",

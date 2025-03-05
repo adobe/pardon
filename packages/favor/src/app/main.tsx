@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 
 import Collections, {
   CollectionItemInfo,
-} from "../components/collection/Collections.tsx";
+} from "../components/http/Collections.tsx";
 import {
   batch,
   createEffect,
@@ -63,19 +63,19 @@ import {
   TbTrash,
 } from "solid-icons/tb";
 import { manifest, samples } from "../signals/pardon-config.ts";
-import AssetEditor from "../components/collection/AssetEditor.tsx";
-import ResponsePanel from "../components/collection/inbound/ResponsePanel.tsx";
+import AssetEditor from "../components/http/AssetEditor.tsx";
+import ResponsePanel from "../components/http/inbound/ResponsePanel.tsx";
 import { ConfigurationDrawer } from "../components/ConfigurationDrawer.tsx";
 import RequestHistory, {
   startTracingRequestHistory,
 } from "../components/RequestHistory.tsx";
 import MultiView from "../components/MultiView.tsx";
-import PreviewPanel from "../components/collection/outbound/PreviewPanel.tsx";
+import PreviewPanel from "../components/http/outbound/PreviewPanel.tsx";
 import TbInterrobang from "../components/TbInterrobang.tsx";
 import RecallSystem from "../components/RecallSystem.tsx";
-import CornerControls from "../components/collection/CornerControls.tsx";
+import CornerControls from "../components/http/CornerControls.tsx";
 import { displayHttp } from "../components/display-util.ts";
-import Samples from "../components/collection/Samples.tsx";
+import Samples from "../components/http/Samples.tsx";
 import { mapObject } from "pardon/utils";
 import KeyValueCopier from "../components/KeyValueCopier.tsx";
 import { makePersisted } from "@solid-primitives/storage";

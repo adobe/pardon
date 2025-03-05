@@ -22,17 +22,12 @@ import {
   prerenderSchema,
   renderSchema,
 } from "../../schema/core/schema-utils.js";
-import {
-  httpsRequestSchema,
-  httpsResponseSchema,
-} from "../../request/https-template.js";
+import { httpsResponseSchema } from "../../request/https-template.js";
 import { ScriptEnvironment } from "../../schema/core/script-environment.js";
 import { definedObject, mapObject } from "../../../util/mapping.js";
 import { createSequenceEnvironment } from "./flow-environment.js";
-import { PardonAppContext } from "../../pardon/pardon.js";
 import { stubSchema } from "../../schema/definition/structures/stub.js";
 import { HTTP } from "../../formats/http-fmt.js";
-//import { checkFastFailed, pendingFastFailure } from "./cli/failfast.js";
 import { TracedResult } from "../../../features/trace.js";
 import { Schema, EvaluationScope } from "../../schema/core/types.js";
 import { JSON } from "../../json.js";
@@ -45,9 +40,9 @@ import {
   injectValuesDict,
 } from "./flow-params.js";
 import { FlowContext } from "./data/flow-context.js";
-import { executeFlow } from "./flow.js";
-import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
 import { PardonRuntime } from "../../pardon/types.js";
+import { Flow, FlowResult, makeFlowIdempotent } from "./flow-core.js";
+import { flow } from "./index.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -69,51 +64,61 @@ type HttpsSequenceInteraction = {
   responses: HttpsResponseStep[];
 };
 
-function parseOutcome(outcome?: string) {
-  if (!outcome?.trim()) {
-    return;
-  }
-  const [, name, delay, unit] = /^\s*([^\s+]+)(?:\s*[+](\d+)(ms|s)\s*)?$/.exec(
-    outcome.trim(),
-  )!;
-
-  if (delay) {
-    return {
-      name,
-      delay: Number(delay) * { ms: 1, s: 1000 }[unit ?? "ms"]!,
-    };
-  }
-
-  return { name };
-}
-
-function parseIncome(income?: string) {
-  if (!income?.trim()) {
-    return;
-  }
-
-  const [, name, retries] = /^([^\s/]+)(?:\s*[/]\s*(\d+))?$/.exec(
-    income.trim(),
-  )!;
-
-  return { name, retries: retries ? Number(retries) : undefined };
-}
-
-function usageNeeded(
-  provides: HttpsFlowConfig["provides"],
-  options: Record<string, unknown>,
-) {
-  if (!provides) {
-    return true;
-  }
-
-  const defined = {};
-  contextAsFlowParams(provides, defined);
-
-  return Object.keys(defined).some((key) => options[key] === undefined);
-}
-
 export function compileHttpsFlow(
+  scheme: HttpsFlowScheme,
+  { path, name }: { path: string; name: string },
+) {
+  const sequence = compileHttpsFlowSequence(scheme, { path, name });
+
+  const flow = createHttpsFlow(sequence);
+
+  if (sequence.configuration.idempotent) {
+    return makeFlowIdempotent(flow);
+  }
+
+  return flow;
+}
+
+function createHttpsFlow(sequence: CompiledHttpsSequence): Flow {
+  return {
+    signature: sequence.signature ?? {
+      dict: {},
+      rested: "",
+      required: false,
+    },
+    async action({ argument, context }) {
+      context = context.mergeEnvironment(argument);
+      return await executeHttpsSequence(
+        sequence,
+        context.mergeEnvironment(argument),
+      );
+    },
+    source: sequence,
+  };
+}
+
+function buildDefinitionSchema(definitions: Record<string, any>) {
+  const definitionSchemaTemplate = mapObject(definitions, {
+    values(value, key) {
+      if (value === true) {
+        return `{{?${key}}}`;
+      }
+
+      return `{{?${key} = $$expr(${JSON.stringify(value)})}}`;
+    },
+    filter(_key, defined) {
+      return Boolean(defined);
+    },
+  }) as Record<string, unknown>;
+
+  return mergeSchema(
+    { mode: "mux", phase: "build" },
+    stubSchema(),
+    definitionSchemaTemplate,
+  ).schema!;
+}
+
+function compileHttpsFlowSequence(
   scheme: HttpsFlowScheme,
   { path, name }: { path: string; name: string },
 ): CompiledHttpsSequence {
@@ -125,30 +130,13 @@ export function compileHttpsFlow(
       ? undefined
       : contextAsFlowParams(configuration.context, definitions);
 
-  const definitionSchemaTemplate = mapObject(definitions, {
-    values(value, key) {
-      if (value === true) {
-        return `{{?${key}}}`;
-      }
-
-      return `{{?${key} = ${value}}}`;
-    },
-    filter(_key, mapped) {
-      return Boolean(mapped);
-    },
-  }) as Record<string, unknown>;
-
-  const schema = mergeSchema(
-    { mode: "mux", phase: "build" },
-    stubSchema(),
-    definitionSchemaTemplate,
-  ).schema!;
+  const schema = buildDefinitionSchema(definitions);
 
   return {
     scheme,
     path,
     name,
-    params,
+    signature: params,
     schema,
     interactionMap,
     interactions,
@@ -161,7 +149,7 @@ export type CompiledHttpsSequence = {
   scheme: HttpsFlowScheme;
   path: string;
   name: string;
-  params?: FlowParamsDict;
+  signature?: FlowParamsDict;
   schema: Schema<Record<string, unknown>>;
   interactionMap: Record<string, number>;
   interactions: HttpsSequenceInteraction[];
@@ -170,15 +158,15 @@ export type CompiledHttpsSequence = {
 };
 
 export async function executeHttpsSequence(
-  { compiler }: Pick<PardonAppContext, "compiler">,
   sequence: CompiledHttpsSequence,
-  dataFlow: FlowContext,
-): Promise<FlowContext> {
-  const { params } = sequence;
+  flowContext: FlowContext,
+): Promise<FlowResult> {
+  const { signature: params } = sequence;
+  const { compiler } = flowContext.runtime;
 
   const definedValues = params
-    ? extractValuesDict(params, dataFlow.environment)
-    : dataFlow.environment;
+    ? extractValuesDict(params, flowContext.environment)
+    : flowContext.environment;
 
   const sequenceEnvironment = createSequenceEnvironment({
     flowScheme: sequence.scheme,
@@ -198,47 +186,51 @@ export async function executeHttpsSequence(
   >;
 
   const attemptLimit = sequence.configuration.attempts;
+  const dependentFlowResult = await evaluateDependentFlows(
+    sequence.configuration,
+    effectiveValues,
+    flowContext,
+  );
+
+  flowContext = dependentFlowResult.context;
 
   effectiveValues = {
     ...effectiveValues,
-    ...(await evaluateDependentFlows(
-      sequence.configuration,
-      effectiveValues,
-      dataFlow,
-    )),
+    ...dependentFlowResult.result,
   };
 
   let attempts = 0;
   const sequenceRun = async () => {
-    try {
-      const result = await executeFlowSequence(
-        sequence,
-        compiler,
-        effectiveValues,
-        dataFlow,
-      );
-      return result;
-    } catch (error) {
-      if (!attemptLimit) {
-        throw error;
-      } else if (++attempts >= attemptLimit) {
-        console.warn(`attempt limit reached: ${sequence.name}`);
-        throw error;
+    for (;;) {
+      try {
+        const result = await executeHttpsFlowSequence(
+          sequence,
+          effectiveValues,
+          flowContext,
+        );
+        return result;
+      } catch (error) {
+        if (!attemptLimit) {
+          throw error;
+        } else if (++attempts >= attemptLimit) {
+          console.warn(`attempt limit reached: ${sequence.name}`);
+          throw error;
+        }
+
+        flowContext.checkAborted();
+        console.warn(`reattempting unit: ${sequence.name}`);
       }
-      //checkFastFailed();
-      console.warn(`reattempting unit: ${sequence.name}`);
     }
   };
 
   return await sequenceRun();
 }
 
-async function executeFlowSequence(
+async function executeHttpsFlowSequence(
   sequence: CompiledHttpsSequence,
-  compiler: PardonRuntime["compiler"],
   effectiveValues: Record<string, unknown>,
-  dataFlow: FlowContext,
-) {
+  flowContext: FlowContext,
+): Promise<FlowResult> {
   let index = 0;
 
   const retries = { ...sequence.tries };
@@ -246,7 +238,7 @@ async function executeFlowSequence(
   while (index < sequence.interactions.length) {
     const next = sequence.interactions[index];
 
-    //checkFastFailed();
+    flowContext.checkAborted();
 
     if (retries[index] !== undefined) {
       if (--retries[index] < 0) {
@@ -257,19 +249,18 @@ async function executeFlowSequence(
     }
 
     const { outcome, values } = await executeHttpsSequenceStep(
-      { compiler },
       {
         sequenceInteraction: next,
         sequenceScheme: sequence.scheme,
         sequencePath: sequence.path,
         values: effectiveValues,
       },
-      dataFlow,
+      flowContext,
     );
 
-    dataFlow = dataFlow.mergeEnvironment(values);
+    flowContext = flowContext.mergeEnvironment(values);
 
-    //checkFastFailed();
+    flowContext.checkAborted();
 
     effectiveValues = {
       ...effectiveValues,
@@ -287,11 +278,11 @@ async function executeFlowSequence(
     if (outcome?.delay) {
       await Promise.race([
         new Promise((resolve) => setTimeout(resolve, outcome.delay)),
-        //pendingFastFailure(),
+        flowContext.aborting(),
       ]);
     }
 
-    //checkFastFailed();
+    flowContext.checkAborted();
 
     if (index == sequence.interactions.length && outcome) {
       effectiveValues = {
@@ -301,8 +292,13 @@ async function executeFlowSequence(
     }
   }
 
-  return !sequence.configuration.provides
-    ? effectiveValues
+  const result = !sequence.configuration.provides
+    ? {
+        ...(Boolean(effectiveValues.outcome) && {
+          outcome: effectiveValues.outcome,
+        }),
+        ...effectiveValues,
+      }
     : {
         ...(Boolean(effectiveValues.outcome) && {
           outcome: effectiveValues.outcome,
@@ -312,42 +308,61 @@ async function executeFlowSequence(
           effectiveValues,
         ),
       };
+
+  return { result, context: flowContext };
 }
 
 async function evaluateDependentFlows(
   configuration: HttpsFlowConfig,
   values: Record<string, unknown>,
-  dataFlow: FlowContext,
+  flowContext: FlowContext,
 ) {
   const effectiveValues = {
-    ...dataFlow.environment,
+    ...flowContext.environment,
     ...values,
   };
 
-  const runtime = await pardonRuntime();
-
-  return Object.assign(
+  const result = Object.assign(
     {},
     ...(await Promise.all(
       (configuration.use ?? [])
         .filter((usage) => usageNeeded(usage.provides, values))
-        .map(async ({ provides, context, flow }) => {
-          const flowValues = context
-            ? injectValuesDict(contextAsFlowParams(context), effectiveValues)
-            : effectiveValues;
+        .map(async ({ provides, context, flow: flowName }) => {
+          const useDefinitions = {};
+          const useParams = contextAsFlowParams(context ?? [], useDefinitions);
 
-          if (!provides) {
-            return await executeFlow(runtime, flow, flowValues, dataFlow);
+          const schema = buildDefinitionSchema(
+            mapObject(useDefinitions, {
+              filter(key) {
+                return effectiveValues[key] === undefined;
+              },
+            }),
+          );
+
+          const { output } = await renderSchema(
+            schema,
+            new ScriptEnvironment({
+              input: effectiveValues,
+            }),
+          );
+
+          const useValues = { ...effectiveValues, ...output };
+
+          const flowValues = context
+            ? injectValuesDict(useParams, useValues)
+            : useValues;
+
+          let { result } = await flow(flowName, flowValues, flowContext);
+          if (provides) {
+            result = ejectValuesDict(contextAsFlowParams(provides), result);
           }
 
-          // only include the specified environment changes
-          return ejectValuesDict(
-            contextAsFlowParams(provides),
-            await executeFlow(runtime, flow, flowValues, dataFlow),
-          );
+          return result;
         }),
     )),
   );
+
+  return { result, context: flowContext.mergeEnvironment(result) };
 }
 
 function parseHttpsSequenceScheme({
@@ -416,7 +431,6 @@ const coreValues = new Set([
 ]);
 
 async function executeHttpsSequenceStep(
-  { compiler }: Pick<PardonRuntime, "compiler">,
   {
     sequenceInteraction: interaction,
     sequenceScheme: sequenceScheme,
@@ -428,50 +442,22 @@ async function executeHttpsSequenceStep(
     sequencePath: string;
     values: Record<string, any>;
   },
-  dataFlow: FlowContext,
+  context: FlowContext,
 ) {
+  const { compiler } = context.runtime;
   const { request, responses: responseTemplates } = interaction;
 
-  const requestBase = mergeSchema(
-    { mode: "mux", phase: "build" },
-    httpsRequestSchema(undefined, { search: { multivalue: true } }),
-    request?.request,
-  );
-
-  if (!requestBase.schema) {
-    throw new Error(
-      "invalid request template: " + JSON.stringify(request?.request),
-    );
-  }
-
-  const requestRendering = await renderSchema(
-    requestBase.schema,
-    createSequenceEnvironment({
-      flowScheme: sequenceScheme,
-      flowPath: sequenceFile,
-      compiler,
-      values,
-    }),
-  );
-
-  const renderedValues = mapObject(
-    valuesFromScope(requestRendering.context.evaluationScope),
-    {
-      filter(key) {
-        return !coreValues.has(key);
-      },
-    },
-  );
-
   const executionValues = {
-    ...dataFlow.environment,
-    ...renderedValues,
+    ...context.environment,
     ...values,
   };
 
-  const execution = pardon(
-    executionValues,
-  )`${HTTP.stringify(requestRendering.output)}`.render();
+  const requestHttp = HTTP.stringify({
+    ...request.request,
+    values: request.values,
+  });
+
+  const execution = pardon(executionValues)`${requestHttp}`.render();
 
   try {
     await execution;
@@ -479,7 +465,7 @@ async function executeHttpsSequenceStep(
     console.warn(
       `\n\n
 --- error matching request to collection ---
-${HTTP.stringify(requestRendering.output)}
+${requestHttp}
 ---
 values = ${JSON.stringify(executionValues, null, 2)}
 ---
@@ -492,6 +478,13 @@ error = ${error?.stack ?? error}
 
   const { outbound, inbound } = await execution.result;
 
+  const outboundValues = mapObject(outbound.redacted.values ?? {}, {
+    filter(key) {
+      return !coreValues.has(key);
+    },
+  });
+  const inboundValues = inbound.values ?? {};
+
   const matching =
     responseTemplates.length === 0
       ? ({ result: "matched" } as Awaited<ReturnType<typeof responseOutcome>>)
@@ -501,8 +494,7 @@ error = ${error?.stack ?? error}
             sequenceScheme,
             sequenceFile,
             values: {
-              ...dataFlow.environment,
-              ...renderedValues,
+              ...context.environment,
               ...values,
             },
           },
@@ -535,7 +527,13 @@ error = ${error?.stack ?? error}
 
   const outcome = parseOutcome(outcomeText);
 
-  const effectiveValues = { ...renderedValues, ...valuesFromScope(scope) };
+  // TODO: determine optimal ordering/behavior here
+  const effectiveValues = {
+    ...outboundValues,
+    ...(responseTemplates.length === 0 && inboundValues),
+    ...executionValues,
+    ...valuesFromScope(scope),
+  };
 
   // makes unit tests better for now.
   if (outcome) {
@@ -547,7 +545,7 @@ error = ${error?.stack ?? error}
     outbound: withoutEvaluationScope(outbound),
     outcome,
     values: effectiveValues,
-    dataFlow,
+    context,
   };
 }
 
@@ -650,4 +648,48 @@ function valuesFromScope(scope?: EvaluationScope): Record<string, unknown> {
   }
 
   return scope.resolvedValues({ secrets: false });
+}
+
+function parseOutcome(outcome?: string) {
+  if (!outcome?.trim()) {
+    return;
+  }
+  const [, name, delay, unit] = /^\s*([^\s+]+)(?:\s*[+](\d+)(ms|s)\s*)?$/.exec(
+    outcome.trim(),
+  )!;
+
+  if (delay) {
+    return {
+      name,
+      delay: Number(delay) * { ms: 1, s: 1000 }[unit ?? "ms"]!,
+    };
+  }
+
+  return { name };
+}
+
+function parseIncome(income?: string) {
+  if (!income?.trim()) {
+    return;
+  }
+
+  const [, name, retries] = /^([^\s/]+)(?:\s*[/]\s*(\d+))?$/.exec(
+    income.trim(),
+  )!;
+
+  return { name, retries: retries ? Number(retries) : undefined };
+}
+
+function usageNeeded(
+  provides: HttpsFlowConfig["provides"],
+  options: Record<string, unknown>,
+) {
+  if (!provides) {
+    return true;
+  }
+
+  const defined = {};
+  contextAsFlowParams(provides, defined);
+
+  return Object.keys(defined).some((key) => options[key] === undefined);
 }

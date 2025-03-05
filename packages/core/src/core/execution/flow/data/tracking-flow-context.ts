@@ -11,20 +11,37 @@ governing permissions and limitations under the License.
 */
 
 import { FlowContext } from "./flow-context.js";
-import { checkFastFailed, notifyFastFailed } from "../failfast.js";
+import {
+  checkFastFailed,
+  notifyFastFailed,
+  pendingFastFailure,
+} from "../failfast.js";
+import { PardonRuntime } from "../../../pardon/types.js";
 
-export const TrackingFlowContext: FlowContext = {
-  mergeEnvironment(data = {}) {
-    environment = data;
-    return this;
-  },
-  get environment() {
-    return environment;
-  },
-  fail(reason) {
-    notifyFastFailed(reason);
-  },
-  failed() {
-    checkFastFailed();
-  },
-};
+export function makeTrackingFlowContext(runtime: PardonRuntime): FlowContext {
+  return {
+    runtime,
+    mergeEnvironment(data = {}) {
+      environment = data;
+      return this;
+    },
+    overrideEnvironment(data = {}) {
+      environment = null!;
+      environment = data;
+      return this;
+    },
+    get environment() {
+      return environment;
+    },
+    abort(reason) {
+      notifyFastFailed(reason);
+    },
+    checkAborted() {
+      checkFastFailed();
+    },
+    aborting() {
+      return pendingFastFailure();
+    },
+    pending: (p) => p,
+  };
+}

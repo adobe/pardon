@@ -14,9 +14,9 @@
         "tsx/esm",
         "--stack-trace-limit=100",
         "src/entry/main/cli/index.ts",
-        "test.http",
-        "--include",
-        "--http"
+        "--cwd=/Users/afreidin/code/corp/afreidin/pardon-example-todo",
+        "todo/get.flow",
+        "env=local"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",

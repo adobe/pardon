@@ -29,6 +29,7 @@ const compat = new FlatCompat({
   allConfig: js.configs.all,
 });
 
+/** @type {import("eslint").ESLint.ConfigData[]} */
 export default [
   ...compat.extends("eslint:recommended", "prettier"),
   {

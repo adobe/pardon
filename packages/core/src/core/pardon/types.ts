@@ -22,8 +22,9 @@ import {
   PardonExecutionResult,
 } from "./pardon.js";
 import { PardonCollection, Workspace } from "../../runtime/init/workspace.js";
+import { FlowContext } from "../execution/flow/data/flow-context.js";
 
-export type PardonRuntime = {
+export type PardonRuntime<Type extends "loading" | "ready" = "ready"> = {
   config: {
     root: string;
     collections: string[];
@@ -31,15 +32,24 @@ export type PardonRuntime = {
   database?: PardonDatabase;
   collection: PardonCollection;
   compiler: PardonCompiler;
+  cleanup?(): void;
 
   samples?: string[];
   example?: Workspace["example"];
-  execution: PardonExecution<
-    PardonExecutionInit,
-    PardonExecutionContext,
-    PardonExecutionMatch,
-    PardonExecutionOutbound,
-    PardonExecutionInbound,
-    PardonExecutionResult
-  >;
-};
+} & (Type extends "loading"
+  ? // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    {}
+  : Type extends "ready"
+    ? {
+        execution: PardonExecution<
+          PardonExecutionInit,
+          PardonExecutionContext,
+          PardonExecutionMatch,
+          PardonExecutionOutbound,
+          PardonExecutionInbound,
+          PardonExecutionResult
+        >;
+
+        createFlowContext(): FlowContext;
+      }
+    : never);

@@ -365,6 +365,7 @@ const handlers = {
       collections: app.config.collections.map((root) =>
         root.replace(/[\\]/g, "/"),
       ),
+      flows: Object.keys(app.collection.flows ?? {}),
       example: app.example,
       data: app.collection.data,
       mixins: app.collection.mixins,

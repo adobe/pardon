@@ -18,6 +18,7 @@ import createCompiler from "../compiler.js";
 import { PardonError } from "../../core/error.js";
 import { registerPardonLoader } from "../loader/modern/register.js";
 import { PardonRuntime } from "../../core/pardon/types.js";
+import { loadFlows } from "../../core/execution/flow/flow-registration.js";
 
 /**
  * ensures we have the pardon compiler/loader:
@@ -41,6 +42,7 @@ export async function establishPardonRuntime(
   // in the current process.
   if (major > 20 || (major == 20 && minor >= 6)) {
     await registerModernLoader(runtime);
+    await loadFlows(runtime);
     return runtime;
   }
 
@@ -51,6 +53,7 @@ export async function establishPardonRuntime(
     //
     // we could, (as an optimization), have for the host process send
     // the context here rather than re-doing the loading work.
+    await loadFlows(runtime);
     return runtime;
   }
 
@@ -63,7 +66,7 @@ export async function establishPardonRuntime(
   process.exit(await awaitChildProcess(child));
 }
 
-async function registerModernLoader(runtime: Omit<PardonRuntime, "execution">) {
+async function registerModernLoader(runtime: PardonRuntime<"loading">) {
   try {
     await registerPardonLoader(runtime);
   } catch (error) {

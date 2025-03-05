@@ -15,6 +15,7 @@ import { Match, splitProps, Switch } from "solid-js";
 import { manifest } from "../../signals/pardon-config.ts";
 import { CollectionTreeItem } from "./collection-tree-types.ts";
 import {
+  TbAB,
   TbDatabase,
   TbFolder,
   TbMist,
@@ -22,6 +23,7 @@ import {
   TbSettings,
 } from "solid-icons/tb";
 import HttpMethodIcon from "../HttpMethodIcon.tsx";
+import { twMerge } from "tailwind-merge";
 
 export default function CollectionItemIcon(
   props: IconProps & { item: CollectionTreeItem },
@@ -40,6 +42,12 @@ export default function CollectionItemIcon(
       </Match>
       <Match when={props.item.type === "data"}>
         <TbDatabase {...iconProps} />
+      </Match>
+      <Match when={props.item.type === "flow"}>
+        <TbAB
+          {...iconProps}
+          class={twMerge(iconProps.class, "text-purple-500")}
+        />
       </Match>
       <Match when={props.item.type === "mixin"}>
         <TbPolygon {...iconProps} />

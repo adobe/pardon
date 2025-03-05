@@ -73,7 +73,7 @@
     "build": "rollup --config",
     "test": "node --stack-trace-limit=100 --test --expose-gc --import tsx/esm tests/*/*.ts",
     "test:watch": "node --stack-trace-limit=100 --test --expose-gc --watch --import tsx/esm tests/*/*.ts",
-    "test:only": "node --stack-trace-limit=100 --test --test-only --expose-gc --import tsx/esm tests/*/*.ts",
+    "test:only": "node --stack-trace-limit=100 --enable-source-maps --test --test-only --expose-gc --import tsx/esm tests/*/*.ts",
     "test:watch:only": "node --stack-trace-limit=100 --test --test-only --expose-gc --watch --import tsx/esm tests/*/*.ts",
     "lint": "eslint src tests",
     "postlint": "tsc --noEmit --module Node16 src/entry/main/cli/index.ts src/entry/testing/cli/index.ts src/modules/loader.ts",

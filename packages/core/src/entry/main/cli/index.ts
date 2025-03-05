@@ -28,6 +28,8 @@ import remember from "../../../features/remember.js";
 import { inspect } from "node:util";
 import { mapObject } from "../../../util/mapping.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
+import { flow } from "../../../core/execution/flow/index.js";
+import { initTrackingEnvironment } from "../../../runtime/environment.js";
 
 main()
   .then((code) => process.exit(code))
@@ -75,12 +77,17 @@ usage
     );
   }
 
-  const { url, init, values } = await processOptions(options, ...args);
+  const {
+    flow: flowName,
+    url,
+    init,
+    values,
+  } = await processOptions(options, ...args);
 
-  const context = await initializePardon({ environment: values }, [
-    trace,
-    remember,
-  ]);
+  const context = await initializePardon(
+    { environment: values, cwd: options.cwd },
+    [trace, remember],
+  );
 
   if (options["show-root"]) {
     console.info(context.config.root);
@@ -96,6 +103,17 @@ usage
 
   if (options.preview || options.curl || options.http) {
     options.secrets ??= false;
+  }
+
+  if (flowName) {
+    initTrackingEnvironment();
+    const { result } = await flow(flowName, values);
+    if (options.json) {
+      console.info(JSON.stringify(result, null, 2));
+    } else {
+      console.info(KV.stringify(result, "\n", 2));
+    }
+    return;
   }
 
   const rendering = disarm(

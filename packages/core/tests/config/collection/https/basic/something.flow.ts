@@ -10,17 +10,6 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { CollectionItemInfo } from "./Collections.tsx";
+export default async function defaultFlowFn() {}
 
-export type Filters = {
-  endpoint?: boolean;
-  other?: boolean;
-};
-
-export type CollectionTreeItem = {
-  name: string;
-  key: string;
-  type: "endpoint" | "script" | "mixin" | "data" | "config" | "folder";
-  info?: CollectionItemInfo;
-  items?: CollectionTreeItem[];
-};
+export async function namedFlowFn() {}

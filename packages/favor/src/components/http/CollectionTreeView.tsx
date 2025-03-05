@@ -85,8 +85,8 @@ export function CollectionTreeView(
   function filterByType(type: CollectionTreeItem["type"], filter: Filters) {
     switch (type) {
       case "folder":
-        return true;
       case "endpoint":
+      case "flow":
         return true;
       default:
         return filter.other;

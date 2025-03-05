@@ -32,6 +32,9 @@ export function opts() {
         type: "boolean",
         short: "i",
       },
+      cwd: {
+        type: "string",
+      },
       // specify that output should not be reformated (JSON / form output).
       raw: {
         type: "string",
@@ -103,9 +106,9 @@ export function opts() {
         type: "boolean",
       },
       help: {
-        short: 'h',
-        type: "boolean"
-      }
+        short: "h",
+        type: "boolean",
+      },
     },
   });
 }
@@ -142,6 +145,12 @@ export async function processOptions(
     };
   }
 
+  const mainArg = args.shift();
+  if (mainArg?.endsWith(".flow")) {
+    // TODO: assert no other values in request.
+    return { flow: mainArg as `${string}.flow`, values };
+  }
+
   const request = await parseMainArgument(args.shift()!);
 
   Object.assign(
@@ -167,9 +176,9 @@ export async function processOptions(
     throw new Error("both --data and --data-raw should not be specified");
   }
 
-  data ??= dataRaw;
-
-  if (data) {
+  if (dataRaw) {
+    request.body = `{{${JSON.stringify(await readData(dataRaw))}}}`;
+  } else if (data) {
     request.body = await readData(data);
   }
 

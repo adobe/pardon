@@ -9,6 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+
+import deferred from "../../../util/deferred.js";
+
 export function createIpcSender(port: MessagePort) {
   let nextId = 100;
   const responses: Record<
@@ -44,16 +47,15 @@ export function createIpcReceiver(
   port: MessagePort,
   actions: Record<string, Function>, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
 ) {
-  let ready: (_: void | PromiseLike<void>) => void;
-  const initialized = new Promise<void>((resolve) => (ready = resolve));
+  const initialized = deferred();
 
   port.onmessage = ({
     data: { id, action, args },
   }: MessageEvent<{ id: number; action: string; args: unknown[] }>) => {
     if (action == "__ready") {
-      ready();
-      ready = () => {
-        throw new Error("ready already invoked");
+      initialized.resolution.resolve();
+      initialized.resolution.resolve = initialized.resolution.reject = () => {
+        throw new Error("already initialized");
       };
       return;
     }
@@ -67,5 +69,5 @@ export function createIpcReceiver(
       });
   };
 
-  return initialized;
+  return initialized.promise;
 }

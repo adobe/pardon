@@ -271,8 +271,9 @@ class PardonEndpointMatcher {
         }
 
         if (
+          request.method !== undefined &&
           behavior.request.method !== undefined &&
-          behavior.request.method !== (request.method ?? "GET")
+          request.method !== behavior.request.method
         ) {
           continue;
         }

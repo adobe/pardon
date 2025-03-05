@@ -10,26 +10,40 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import deferred, { Deferred } from "../../../../util/deferred.js";
+import { PardonRuntime } from "../../../pardon/types.js";
 import { FlowContext } from "./flow-context.js";
 
 export function manualFlowContext(
+  runtime: PardonRuntime,
   env: Record<string, unknown>,
-  failure?: unknown,
+  aborted: Deferred<unknown> & { reason?: unknown } = deferred(),
 ): FlowContext {
   return {
+    runtime,
     mergeEnvironment(data) {
-      return manualFlowContext({ ...env, ...data }, failure);
+      return manualFlowContext(runtime, { ...env, ...data }, aborted);
+    },
+    overrideEnvironment(data) {
+      return manualFlowContext(runtime, { ...data }, aborted);
     },
     get environment() {
       return env;
     },
-    fail(reason) {
-      failure = reason ?? null;
-    },
-    failed() {
-      if (failure !== undefined) {
-        throw failure;
+    abort(reason) {
+      if (aborted.reason === undefined) {
+        aborted.reason = reason;
+        aborted.resolution.reject(reason);
       }
     },
+    checkAborted() {
+      if (aborted.reason !== undefined) {
+        throw aborted.reason;
+      }
+    },
+    aborting() {
+      return aborted.promise;
+    },
+    pending: (p) => p,
   };
 }
