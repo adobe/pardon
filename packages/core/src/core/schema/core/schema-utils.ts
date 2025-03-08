@@ -132,35 +132,3 @@ export function unredactedScalarValues(
     ),
   ];
 }
-
-export function unredactedValues(
-  data: ScopeData,
-): { name: string; scope: string; value: unknown }[] {
-  const definitions = Object.entries(data.values)
-    .map(
-      ([
-        name,
-        {
-          value,
-          context: { evaluationScopePath: scopes },
-          expression,
-        },
-      ]) => {
-        return (
-          !isSecret(expression) && {
-            scope: scopes.map((part) => `:${part}`).join(""),
-            name,
-            value,
-          }
-        );
-      },
-    )
-    .filter(Boolean);
-
-  return [
-    ...definitions,
-    ...Object.values(data.subscopes || {}).flatMap((subscopeData) =>
-      unredactedScalarValues(subscopeData),
-    ),
-  ];
-}

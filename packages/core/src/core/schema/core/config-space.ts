@@ -20,6 +20,8 @@ import {
 } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { uniqReducer } from "../../../util/uniq-reducer.js";
+import { SchemaContext } from "./types.js";
+import { diagnostic } from "./context-util.js";
 
 export type ConfigMap = Record<string, ConfigMapping | ConfigMapping[]>;
 
@@ -55,8 +57,10 @@ export class ConfigSpace {
 
   choose(config: Record<string, unknown>) {
     Object.assign(this.chosen, config);
-    this.possibilities = this.possibilities.filter((possibility) =>
-      compatible(possibility, config),
+    this.possibilities = exhausting(
+      this.possibilities.filter((possibility) =>
+        compatible(possibility, config),
+      ),
     );
 
     return this;
@@ -66,24 +70,14 @@ export class ConfigSpace {
     return this.possibilities.length == 0;
   }
 
-  implied(override?: Record<string, string>) {
-    const implications = implied(...this.possibilities);
-
-    if (!override) {
-      return implications;
-    }
-
+  implied(override: Record<string, string>) {
     const inferred = implied(
       ...this.options.filter((option) => compatible(option, override)),
     );
-    const merged = {
-      ...implications,
-      ...inferred,
-    };
 
     return {
       ...implied(
-        ...this.options.filter((option) => compatible(option, merged)),
+        ...this.options.filter((option) => compatible(option, inferred)),
       ),
       ...override,
     };
@@ -120,11 +114,13 @@ export class ConfigSpace {
 
     // reduce the options for this schema merge pass down to whatever
     // is compatible with the current natural set.
-    this.possibilities = this.possibilities.filter((possibility) =>
-      alternatives.some(
-        ({ pattern, option }) =>
-          compatible(possibility, option) &&
-          arePatternsCompatible(template, pattern),
+    this.possibilities = exhausting(
+      this.possibilities.filter((possibility) =>
+        alternatives.some(
+          ({ pattern, option }) =>
+            compatible(possibility, option) &&
+            arePatternsCompatible(template, pattern),
+        ),
       ),
     );
 
@@ -196,21 +192,27 @@ export class ConfigSpace {
 
     // reduce alternatives down to those that are compatible with the
     // current possibilities and don't override any data in the natural interpretation.
-    let selected = alternatives.filter(
-      ({ option }) =>
-        compatible(option, compatibleNature) &&
-        this.possibilities.some((possibility) =>
-          compatible({ ...option, ...compatibleNature }, possibility),
-        ),
+    const candidates = alternatives.filter(({ option }) =>
+      compatible(option, compatibleNature),
     );
 
-    if (selected.length > 1) {
+    let selection = candidates.filter(({ option }) =>
+      this.possibilities.some((possibility) =>
+        compatible(possibility, { ...option, ...compatibleNature }),
+      ),
+    );
+
+    if (selection.length == 0) {
+      selection = candidates;
+    }
+
+    if (selection.length > 1) {
       const inferred = {
         ...this.chosen,
-        ...implied(...selected.map(({ option }) => option)),
+        ...implied(...selection.map(({ option }) => option)),
       };
 
-      selected = selected.filter(({ option }) =>
+      selection = selection.filter(({ option }) =>
         Object.entries(option).every(
           ([k, v]) =>
             inferred[k] ??
@@ -222,13 +224,13 @@ export class ConfigSpace {
     // rewrite any other mappings from the natural interpretation to the selected one.
     const rewritten = other.flatMap((pattern) =>
       naturally.flatMap(({ pattern: from }) =>
-        selected.flatMap(
+        selection.flatMap(
           ({ pattern: to }) => pattern.rewrite(from, to) ?? pattern,
         ),
       ),
     );
 
-    return [...selected.map(({ pattern }) => pattern), ...rewritten].reduce(
+    return [...selection.map(({ pattern }) => pattern), ...rewritten].reduce(
       ...uniqReducer<Pattern>((pattern) => pattern.source),
     );
   }
@@ -430,10 +432,17 @@ export function mergeOptions(
 }
 
 function implied(...options: Record<string, string>[]): Record<string, string> {
-  return arrayIntoObject([...new Set(options.flatMap(Object.keys))], (key) => {
+  const keyspace = [...new Set(options.flatMap(Object.keys))];
+
+  return arrayIntoObject(keyspace, (key) => {
     let value: string | undefined;
     for (const option of options) {
       const opt = option[key];
+
+      if (opt === undefined) {
+        continue;
+      }
+
       if (value === undefined) {
         value = opt;
       } else if (
@@ -499,4 +508,17 @@ function resolveDefault(
     const [k, v] = Object.entries(defaulted)[0];
     defaulted = v[values[k] ?? "default"];
   }
+}
+
+function exhausting(
+  possibilities: Record<string, string>[],
+  context?: SchemaContext,
+) {
+  if (possibilities.length === 0) {
+    if (context) {
+      diagnostic(context, "possibilies exhausted");
+    }
+  }
+
+  return possibilities;
 }

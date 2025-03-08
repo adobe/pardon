@@ -151,7 +151,7 @@ export async function processOptions(
     return { flow: mainArg as `${string}.flow`, values };
   }
 
-  const request = await parseMainArgument(args.shift()!);
+  const request = await parseMainArgument(mainArg!);
 
   Object.assign(
     values,

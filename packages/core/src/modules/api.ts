@@ -25,10 +25,6 @@ export { CURL } from "../core/formats/curl-fmt.js";
 export { KV } from "../core/formats/kv-fmt.js";
 
 export { type ScopeData } from "../core/schema/core/types.js";
-export {
-  unredactedValues,
-  unredactedScalarValues,
-} from "../core/schema/core/schema-utils.js";
 
 export { HTTPS, type HttpsScheme } from "../core/formats/https-fmt.js";
 export { PardonError } from "../core/error.js";

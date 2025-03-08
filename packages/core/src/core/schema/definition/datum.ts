@@ -123,7 +123,7 @@ function mergeRepresentation<T extends Scalar>(
         ? patternLiteral(String(template))
         : patternize(String(template), custom);
 
-    if (context.evaluationScope.parent) {
+    if (context.evaluationScope.path.length) {
       if (
         !patterns.some((pattern) => patternsMatch(templatePattern, pattern))
       ) {

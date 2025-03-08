@@ -296,15 +296,23 @@ export const PardonFetchExecution = pardonExecution({
       options: { "pretty-print": true },
     });
 
+    const rendered = await previewSchema(schema, previewingEnv);
+
+    const renderedValues = rendered.context.evaluationScope.resolvedValues({
+      secrets: false,
+    });
+
     const redactingEnv = createEndpointEnvironment({
       endpoint,
-      values,
+      values: {
+        ...values,
+        ...renderedValues,
+      },
       compiler,
       secrets: false,
       options: { "pretty-print": true },
     });
 
-    const rendered = await previewSchema(schema, previewingEnv);
     const redacted = await previewSchema(schema, redactingEnv);
 
     return {
@@ -338,16 +346,20 @@ export const PardonFetchExecution = pardonExecution({
       options: { "pretty-print": options?.pretty ?? false },
     });
 
+    const rendered = await renderSchema(schema, renderingEnv);
+
+    const renderedValues = rendered.context.evaluationScope.resolvedValues({
+      secrets: false,
+    });
+
     const redactingEnv = createEndpointEnvironment({
       endpoint,
-      values,
+      values: { ...values, ...renderedValues },
       compiler,
       runtime: {},
       secrets: false,
       options: { "pretty-print": options?.pretty ?? true },
     });
-
-    const rendered = await renderSchema(schema, renderingEnv);
 
     const redacting = mergeSchema(
       // build is a little more lenient than validate
