@@ -15,6 +15,7 @@ import { CollectionItemInfo } from "./Collections.tsx";
 export type Filters = {
   endpoint?: boolean;
   other?: boolean;
+  flow?: boolean;
 };
 
 export type CollectionTreeItem = {

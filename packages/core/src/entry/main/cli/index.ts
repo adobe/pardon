@@ -107,7 +107,7 @@ usage
 
   if (flowName) {
     initTrackingEnvironment();
-    const { result } = await flow(flowName, values);
+    const result = await flow(flowName, values);
     if (options.json) {
       console.info(JSON.stringify(result, null, 2));
     } else {

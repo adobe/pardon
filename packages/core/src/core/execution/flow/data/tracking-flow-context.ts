@@ -21,6 +21,10 @@ import { PardonRuntime } from "../../../pardon/types.js";
 export function makeTrackingFlowContext(runtime: PardonRuntime): FlowContext {
   return {
     runtime,
+    mergeWithContext() {
+      // noop for tracking context
+      return this;
+    },
     mergeEnvironment(data = {}) {
       environment = data;
       return this;

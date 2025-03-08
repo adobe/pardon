@@ -62,12 +62,12 @@ export type Flow = {
 
 const syncFlowContextStack: FlowContext[] = [];
 
+async function createFlowContext() {
+  return (await pardonRuntime()).createFlowContext();
+}
+
 export async function currentFlowContext(context?: FlowContext) {
-  return (
-    context ??
-    syncFlowContextStack[0] ??
-    (await pardonRuntime()).createFlowContext()
-  );
+  return context ?? syncFlowContextStack[0] ?? createFlowContext();
 }
 
 export async function runFlow(
@@ -98,7 +98,7 @@ export function makeFlow(fn: FlowFunction): Flow {
         return Promise.resolve(fn(argument, { context, signature })).then(
           (result) => ({
             result,
-            context: context.mergeEnvironment(result),
+            context,
           }),
         );
       } finally {

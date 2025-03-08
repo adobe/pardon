@@ -42,7 +42,8 @@ import {
 import { FlowContext } from "./data/flow-context.js";
 import { PardonRuntime } from "../../pardon/types.js";
 import { Flow, FlowResult, makeFlowIdempotent } from "./flow-core.js";
-import { flow } from "./index.js";
+import { executeFlowInContext } from "./index.js";
+import { intoURL } from "../../request/url-pattern.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -228,10 +229,12 @@ export async function executeHttpsSequence(
 
 async function executeHttpsFlowSequence(
   sequence: CompiledHttpsSequence,
-  effectiveValues: Record<string, unknown>,
+  flowValues: Record<string, unknown>,
   flowContext: FlowContext,
 ): Promise<FlowResult> {
   let index = 0;
+
+  let resultValues = { ...flowValues };
 
   const retries = { ...sequence.tries };
 
@@ -248,23 +251,36 @@ async function executeHttpsFlowSequence(
       }
     }
 
-    const { outcome, values } = await executeHttpsSequenceStep(
+    const {
+      outcome,
+      values: { input, send, recv, output },
+    } = await executeHttpsSequenceStep(
       {
         sequenceInteraction: next,
         sequenceScheme: sequence.scheme,
         sequencePath: sequence.path,
-        values: effectiveValues,
+        values: flowValues,
       },
       flowContext,
     );
 
-    flowContext = flowContext.mergeEnvironment(values);
+    flowContext = flowContext.mergeEnvironment(output);
 
     flowContext.checkAborted();
 
-    effectiveValues = {
-      ...effectiveValues,
-      ...values,
+    // return value from flow has lots of data
+    resultValues = {
+      ...resultValues,
+      ...input,
+      ...send,
+      ...recv,
+      ...output,
+    };
+
+    // flow values that feed back into successive calls are more selective
+    flowValues = {
+      ...flowValues,
+      ...output,
     };
 
     // if the outcome is named in the flow, loop, else exit
@@ -285,29 +301,24 @@ async function executeHttpsFlowSequence(
     flowContext.checkAborted();
 
     if (index == sequence.interactions.length && outcome) {
-      effectiveValues = {
+      flowValues = {
         outcome: outcome.name,
-        ...effectiveValues,
+        ...flowValues,
       };
     }
   }
 
-  const result = !sequence.configuration.provides
-    ? {
-        ...(Boolean(effectiveValues.outcome) && {
-          outcome: effectiveValues.outcome,
-        }),
-        ...effectiveValues,
-      }
-    : {
-        ...(Boolean(effectiveValues.outcome) && {
-          outcome: effectiveValues.outcome,
-        }),
-        ...injectValuesDict(
-          contextAsFlowParams(sequence.configuration.provides),
-          effectiveValues,
-        ),
-      };
+  const result = {
+    ...resultValues,
+    ...(Boolean(flowValues.outcome) && {
+      outcome: flowValues.outcome,
+    }),
+    ...(sequence.configuration.provides &&
+      injectValuesDict(
+        contextAsFlowParams(sequence.configuration.provides),
+        flowValues,
+      )),
+  };
 
   return { result, context: flowContext };
 }
@@ -322,47 +333,61 @@ async function evaluateDependentFlows(
     ...values,
   };
 
-  const result = Object.assign(
-    {},
-    ...(await Promise.all(
-      (configuration.use ?? [])
-        .filter((usage) => usageNeeded(usage.provides, values))
-        .map(async ({ provides, context, flow: flowName }) => {
-          const useDefinitions = {};
-          const useParams = contextAsFlowParams(context ?? [], useDefinitions);
+  const dependentResults = await Promise.all(
+    (configuration.use ?? [])
+      .filter((usage) => usageNeeded(usage.provides, values))
+      .map(async ({ provides, context, flow: flowName }) => {
+        const useDefinitions = {};
+        const useParams = contextAsFlowParams(context ?? [], useDefinitions);
 
-          const schema = buildDefinitionSchema(
-            mapObject(useDefinitions, {
-              filter(key) {
-                return effectiveValues[key] === undefined;
-              },
-            }),
-          );
+        const schema = buildDefinitionSchema(
+          mapObject(useDefinitions, {
+            filter(key) {
+              return effectiveValues[key] === undefined;
+            },
+          }),
+        );
 
-          const { output } = await renderSchema(
-            schema,
-            new ScriptEnvironment({
-              input: effectiveValues,
-            }),
-          );
+        const { output } = await renderSchema(
+          schema,
+          new ScriptEnvironment({
+            input: effectiveValues,
+          }),
+        );
 
-          const useValues = { ...effectiveValues, ...output };
+        const useValues = { ...effectiveValues, ...output };
 
-          const flowValues = context
-            ? injectValuesDict(useParams, useValues)
-            : useValues;
+        const flowValues = context
+          ? injectValuesDict(useParams, useValues)
+          : useValues;
 
-          let { result } = await flow(flowName, flowValues, flowContext);
-          if (provides) {
-            result = ejectValuesDict(contextAsFlowParams(provides), result);
-          }
+        let { result, context: resultContext } = await executeFlowInContext(
+          flowName,
+          flowValues,
+          flowContext,
+        );
 
-          return result;
-        }),
-    )),
+        if (provides) {
+          result = ejectValuesDict(contextAsFlowParams(provides), result);
+        }
+
+        return { result, context: resultContext };
+      }),
   );
 
-  return { result, context: flowContext.mergeEnvironment(result) };
+  const result = Object.assign(
+    {},
+    ...dependentResults.map(({ result }) => result),
+  );
+
+  const mergedContext = dependentResults.reduce(
+    (mergedContext, { context: resultContext }) => {
+      return mergedContext.mergeWithContext(resultContext);
+    },
+    flowContext,
+  );
+
+  return { result, context: mergedContext };
 }
 
 function parseHttpsSequenceScheme({
@@ -527,24 +552,27 @@ error = ${error?.stack ?? error}
 
   const outcome = parseOutcome(outcomeText);
 
-  // TODO: determine optimal ordering/behavior here
-  const effectiveValues = {
-    ...outboundValues,
-    ...(responseTemplates.length === 0 && inboundValues),
-    ...executionValues,
-    ...valuesFromScope(scope),
-  };
+  const flowResponseValues = valuesFromScope(scope);
 
   // makes unit tests better for now.
   if (outcome) {
     console.info(`  > ${outcome.name}`);
   }
 
+  console.log(
+    `${outbound.request.method} ${intoURL(outbound.request)} (${inbound.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
+  );
+
   return {
     inbound: withoutEvaluationScope(inbound),
     outbound: withoutEvaluationScope(outbound),
     outcome,
-    values: effectiveValues,
+    values: {
+      input: executionValues,
+      send: outboundValues,
+      recv: inboundValues,
+      output: flowResponseValues,
+    },
     context,
   };
 }

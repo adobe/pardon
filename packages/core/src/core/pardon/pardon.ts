@@ -52,7 +52,6 @@ import { getContextualValues } from "../schema/core/context.js";
 import { definedObject } from "../../util/mapping.js";
 import { JSON } from "../json.js";
 import { PardonRuntime } from "./types.js";
-import { flow } from "../execution/flow/index.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
@@ -236,7 +235,6 @@ export const PardonFetchExecution = pardonExecution({
           compiler,
           endpoint,
           values,
-          runtime: { flow },
         }),
       );
 
@@ -335,7 +333,7 @@ export const PardonFetchExecution = pardonExecution({
       endpoint,
       values,
       compiler,
-      runtime: { ...runtime, flow },
+      runtime,
       secrets: true,
       options: { "pretty-print": options?.pretty ?? false },
     });

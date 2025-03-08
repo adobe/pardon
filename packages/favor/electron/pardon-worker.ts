@@ -21,7 +21,15 @@ import { glob } from "glob";
 
 import { PardonAppContextOptions, initializePardon } from "pardon/runtime";
 import { arrayIntoObject, mapObject } from "pardon/utils";
-import { HTTP, HTTPS, PardonOptions, disconnected, pardon } from "pardon";
+import {
+  FlowName,
+  HTTP,
+  HTTPS,
+  PardonOptions,
+  disconnected,
+  flow,
+  pardon,
+} from "pardon";
 import { httpOps, valueOps } from "pardon/database";
 
 import { traced } from "pardon/features/trace";
@@ -540,6 +548,9 @@ const handlers = {
         };
       })
       .filter(Boolean);
+  },
+  async flow(name: FlowName, input: Record<string, unknown>) {
+    return await flow(name, input);
   },
 };
 

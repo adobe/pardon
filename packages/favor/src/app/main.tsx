@@ -42,6 +42,7 @@ import {
 import Toggle from "../components/Toggle.tsx";
 
 import {
+  TbAB,
   TbCopy,
   TbExclamationCircle,
   TbEye,
@@ -82,8 +83,10 @@ import { makePersisted } from "@solid-primitives/storage";
 import { secureData } from "../components/secure-data.ts";
 import { Text } from "@codemirror/state";
 import { persistJson } from "../util/persistence.ts";
+import Flower from "../components/Flower.tsx";
+import { FlowName } from "pardon";
 
-type SubPanelView = "history" | "editor" | "recall" | "samples";
+type SubPanelView = "history" | "editor" | "recall" | "samples" | "flow";
 
 export default function Main(
   props: VoidProps<{
@@ -428,6 +431,10 @@ ${previewText()}
   });
 
   startTracingRequestHistory(outbound);
+
+  function isFlowName(id?: string): id is FlowName {
+    return id?.endsWith(".flow");
+  }
 
   return (
     <Resizable orientation="vertical">
@@ -859,6 +866,7 @@ ${previewText()}
                     samples: <TbFolderCode />,
                     editor: <TbPencil />,
                     recall: <TbInterrobang />,
+                    flow: <TbAB />,
                   }}
                 />
                 <Toggle
@@ -889,6 +897,7 @@ ${previewText()}
                   filters={{
                     endpoint: true,
                     other: props.value === "editor",
+                    flow: props.value === "flow",
                   }}
                   expanded={new Set()}
                   endpoint={current()}
@@ -945,6 +954,16 @@ ${previewText()}
                           restoreFromHttp(content);
                         }
                       }}
+                    />
+                  </Match>
+                  <Match
+                    when={
+                      props.value == "flow" && isFlowName(collectionItem()?.id)
+                    }
+                  >
+                    <Flower
+                      flow={collectionItem()?.id as FlowName}
+                      input={globals()}
                     />
                   </Match>
                 </Switch>

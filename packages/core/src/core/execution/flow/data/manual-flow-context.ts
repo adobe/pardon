@@ -21,6 +21,13 @@ export function manualFlowContext(
 ): FlowContext {
   return {
     runtime,
+    mergeWithContext(other) {
+      return manualFlowContext(
+        runtime,
+        { ...env, ...other.environment },
+        aborted,
+      );
+    },
     mergeEnvironment(data) {
       return manualFlowContext(runtime, { ...env, ...data }, aborted);
     },

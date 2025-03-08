@@ -11,13 +11,10 @@ governing permissions and limitations under the License.
 */
 
 import { contextBridge, ipcRenderer } from "electron";
-import {
-  TestStepPayloads,
-  type PardonWorkerHandlers,
-  type TracingHookPayloads,
-} from "./pardon-worker.js";
+import { type PardonWorkerHandlers } from "./pardon-worker.js";
 
-export type { TracingHookPayloads };
+type TestStepPayloads = any;
+type TracingHookPayloads = any;
 
 const initialSettings = new Promise<Preferences>((resolve, reject) => {
   const timeout = setTimeout(() => {
@@ -63,6 +60,9 @@ const pardonWorkerApi: PardonWorkerHandlers = {
   },
   async recall(keys, other, limit) {
     return invokePardonWorker("recall", keys, other, limit);
+  },
+  async flow(name, input) {
+    return invokePardonWorker("flow", name, input);
   },
 };
 

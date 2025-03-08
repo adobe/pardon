@@ -12,8 +12,10 @@ governing permissions and limitations under the License.
 
 import { PardonError } from "../../error.js";
 import { FlowName } from "../../formats/https-fmt.js";
-import { FlowContext } from "./data/flow-context.js";
-import { currentFlowContext, runFlow } from "./flow-core.js";
+import type { FlowContext } from "./data/flow-context.js";
+import { currentFlowContext, FlowResult, runFlow } from "./flow-core.js";
+
+export type { FlowContext, FlowName, FlowResult };
 
 export async function flow(
   name: FlowName,
@@ -21,10 +23,19 @@ export async function flow(
   context?: FlowContext,
 ) {
   context ??= await currentFlowContext(context);
-  const flow = context?.runtime.collection.flows[name];
+  const { result } = await executeFlowInContext(name, input, context);
+  return result;
+}
+
+export async function executeFlowInContext(
+  name: FlowName,
+  input: Record<string, unknown>,
+  context: FlowContext,
+) {
+  const flow = context.runtime.collection.flows[name];
   if (!flow) {
     throw new PardonError(`no flow named ${name}`);
   }
 
-  return runFlow(flow, input, context);
+  return await runFlow(flow, input, context);
 }

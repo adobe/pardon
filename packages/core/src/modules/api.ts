@@ -10,7 +10,12 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 export { pardon, template, type PardonOptions } from "../api/pardon-wrapper.js";
-export { flow } from "../core/execution/flow/index.js";
+export {
+  flow,
+  type FlowContext,
+  type FlowResult,
+  type FlowName,
+} from "../core/execution/flow/index.js";
 
 export { cached, type CacheEntry } from "../api/cached.js";
 export { disconnected, shared } from "../core/tracking.js";

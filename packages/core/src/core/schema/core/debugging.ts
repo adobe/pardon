@@ -12,3 +12,14 @@ governing permissions and limitations under the License.
 
 // turn this on to capture stack traces into schemas and template objects.
 export const DEBUG = false;
+
+export function instrument(message: string) {
+  console.warn(
+    `${message}:\n` +
+      String(new Error("instrumentation").stack)
+        .split("\n")
+        .slice(1, 5)
+        .map((l) => `    ${l}`)
+        .join("\n"),
+  );
+}

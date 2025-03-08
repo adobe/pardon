@@ -25,6 +25,7 @@ import { mapObject } from "pardon/utils";
 import { persistJson } from "../util/persistence.ts";
 import localforage from "localforage";
 
+type TracingHookPayloads = any;
 export type Trace = {
   trace: number;
   tlr?: true;

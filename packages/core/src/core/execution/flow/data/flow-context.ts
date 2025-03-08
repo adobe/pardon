@@ -14,6 +14,7 @@ import { PardonRuntime } from "../../../pardon/types.js";
 
 export interface FlowContext {
   runtime: PardonRuntime;
+  mergeWithContext(other: FlowContext): FlowContext;
   mergeEnvironment(data?: Record<string, unknown>): FlowContext;
   overrideEnvironment(data?: Record<string, unknown>): FlowContext;
   readonly environment: Record<string, unknown>;
