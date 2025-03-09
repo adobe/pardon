@@ -41,7 +41,7 @@ import {
   ScalarType,
 } from "../scalar.js";
 import { datumTemplate } from "../datum.js";
-import { rescope } from "../../core/context-util.js";
+import { diagnostic, rescope } from "../../core/context-util.js";
 
 type ReferenceSchema<T> = {
   refs: Set<string>;
@@ -263,6 +263,7 @@ export function defineReference<T = unknown>(
         let merged = schema;
 
         if (info.encoding && encoding && info.encoding !== encoding) {
+          diagnostic(context, "incompatible encodings");
           return;
         }
 

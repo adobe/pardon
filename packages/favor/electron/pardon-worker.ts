@@ -27,7 +27,7 @@ import {
   HTTPS,
   PardonOptions,
   disconnected,
-  flow,
+  executeFlowInContext,
   pardon,
 } from "pardon";
 import { httpOps, valueOps } from "pardon/database";
@@ -550,7 +550,11 @@ const handlers = {
       .filter(Boolean);
   },
   async flow(name: FlowName, input: Record<string, unknown>) {
-    return await flow(name, input);
+    const runtime = await ready;
+    const context = runtime.app.createFlowContext();
+    return {
+      ...(await executeFlowInContext(name, input, context)).context.environment,
+    };
   },
 };
 

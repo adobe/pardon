@@ -174,6 +174,7 @@ export function bodySchema(
             ...context,
             template: evalBodyTemplate(`json(${source})`),
           }) as Schema<string>;
+
           return merged && bodySchema(encoding, merged);
         }
       } catch (error) {
@@ -183,6 +184,7 @@ export function bodySchema(
       }
 
       const effectiveEncoding = encoding ?? "json";
+
       const merged = merge(schema ?? stubSchema(), {
         ...context,
         template: evalBodyTemplate(

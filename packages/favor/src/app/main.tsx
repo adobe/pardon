@@ -964,6 +964,7 @@ ${previewText()}
                     <Flower
                       flow={collectionItem()?.id as FlowName}
                       input={globals()}
+                      output={setScratchValues}
                     />
                   </Match>
                 </Switch>

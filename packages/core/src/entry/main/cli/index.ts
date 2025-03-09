@@ -28,7 +28,7 @@ import remember from "../../../features/remember.js";
 import { inspect } from "node:util";
 import { mapObject } from "../../../util/mapping.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
-import { flow } from "../../../core/execution/flow/index.js";
+import { executeFlowInContext } from "../../../core/execution/flow/index.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
 
 main()
@@ -107,11 +107,16 @@ usage
 
   if (flowName) {
     initTrackingEnvironment();
-    const result = await flow(flowName, values);
+    const flowContext = context.createFlowContext();
+    const { context: resultContext } = await executeFlowInContext(
+      flowName,
+      values,
+      flowContext,
+    );
     if (options.json) {
-      console.info(JSON.stringify(result, null, 2));
+      console.info(JSON.stringify(resultContext.environment, null, 2));
     } else {
-      console.info(KV.stringify(result, "\n", 2));
+      console.info(KV.stringify(resultContext.environment, "\n", 2));
     }
     return;
   }

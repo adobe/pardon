@@ -10,13 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { createResource, createSignal, Show } from "solid-js";
+import { createResource, createSignal, Setter, Show } from "solid-js";
 import { KV } from "pardon/formats";
 import type { FlowName } from "pardon";
 
 export default function Flower(props: {
   flow: FlowName;
   input: Record<string, unknown>;
+  output: Setter<Record<string, unknown>>;
 }) {
   const [flowPromise, setFlowPromise] =
     createSignal<Promise<Record<string, unknown>>>();
@@ -31,7 +32,13 @@ export default function Flower(props: {
       <button
         onclick={() => {
           console.log("running flow: ", props.flow, props.input);
-          setFlowPromise(() => window.pardon.flow(props.flow, props.input));
+          setFlowPromise(
+            (async () => {
+              const result = await window.pardon.flow(props.flow, props.input);
+              props.output(result);
+              return result;
+            })(),
+          );
         }}
       ></button>
       <div>

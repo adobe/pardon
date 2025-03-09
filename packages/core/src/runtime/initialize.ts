@@ -39,16 +39,15 @@ export async function initializePardon(
   // resolve the runtime promise so other
   // modules can receive these values.
   // (currently only internal modules are allowed to receive these)
-  resolveRuntime({
+  //
+  // Ideas:
+  //  - simplify: move execution into the app context, or
+  //  - flexibility: make hooks dynamic per-request.
+  return resolveRuntime({
     ...runtime,
     execution,
     createFlowContext() {
       return makeTrackingFlowContext(this);
     },
   });
-
-  // Ideas:
-  //  - simplify: move execution into the app context, or
-  //  - flexibility: make hooks dynamic per-request.
-  return runtime;
 }

@@ -12,7 +12,12 @@ governing permissions and limitations under the License.
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
 import { PardonError } from "../../error.js";
-import { isNoExport, isOptional, isSecret } from "../definition/hinting.js";
+import {
+  isFlowExport,
+  isNoExport,
+  isOptional,
+  isSecret,
+} from "../definition/hinting.js";
 import { isScalar } from "../definition/scalar.js";
 import { diagnostic, loc } from "./context-util.js";
 import { DEBUG } from "./debugging.js";
@@ -60,8 +65,7 @@ export class Scope implements EvaluationScope, ScopeData {
       Object.values(this.values).filter(
         ({ identifier, path }) =>
           depth === path.length &&
-          !isNoExport(this.declarations[identifier]) &&
-          (options?.secrets || !isSecret(this.declarations[identifier])) &&
+          shouldExport(options, this.declarations[identifier]) &&
           !this.importedValues.has(identifier),
       ),
       ({ value, path, name }) => {
@@ -120,9 +124,7 @@ export class Scope implements EvaluationScope, ScopeData {
     const localValues = mapObject(this.values, {
       values: ({ value }) => value,
       select: ({ expression }, key) =>
-        !isNoExport(expression) &&
-        (options?.secrets || !isSecret(expression)) &&
-        !this.importedValues.has(key),
+        shouldExport(options, expression) && !this.importedValues.has(key),
     });
 
     const exportValues = this.exportValues(options);
@@ -284,7 +286,7 @@ export class Scope implements EvaluationScope, ScopeData {
         );
 
         // TODO: make this return undefined and propagate the error
-        //return undefined;
+        // return undefined;
       }
 
       throw diagnostic(
@@ -597,6 +599,25 @@ function mergeExports(exported: unknown, current: unknown) {
   }
 
   return current ?? exported;
+}
+
+function shouldExport(
+  options: ResolvedValueOptions,
+  declaration?: ExpressionDeclaration,
+) {
+  if (isNoExport(declaration)) {
+    return false;
+  }
+
+  if (isSecret(declaration) && !options.secrets) {
+    return false;
+  }
+
+  if (options.flow && !isFlowExport(declaration)) {
+    return false;
+  }
+
+  return true;
 }
 
 export function indexChain(scope: EvaluationScope | undefined) {

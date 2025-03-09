@@ -12,6 +12,7 @@ governing permissions and limitations under the License.
 export { pardon, template, type PardonOptions } from "../api/pardon-wrapper.js";
 export {
   flow,
+  executeFlowInContext,
   type FlowContext,
   type FlowResult,
   type FlowName,

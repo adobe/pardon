@@ -16,6 +16,7 @@ const { promise, resolution } = deferred<PardonRuntime>();
 
 export function resolveRuntime(runtime: PardonRuntime) {
   resolution.resolve(runtime);
+  return runtime;
 }
 
 /** internal access to the loaded runtime context and fetch system */

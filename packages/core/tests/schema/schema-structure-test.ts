@@ -78,11 +78,11 @@ describe("schema structure", () => {
   });
 
   it("should capture key-values structure", async () => {
-    //    const k = keyed(mixing({ name: "{{key}}" }));
-
     const s = mixing(
       evalBodyTemplate(`
-      keyed({ name: $key }, [{ value: $named.$value }])
+      { name: $key } * [
+       { value: $named.$value }
+      ]
     `),
     );
 

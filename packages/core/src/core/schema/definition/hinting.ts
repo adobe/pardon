@@ -51,3 +51,8 @@ export function isNoExport({ hint }: Hinting = {}) {
 export function isMelding({ hint }: Hinting = {}) {
   return hint?.includes("~");
 }
+
+// propagates values to flow context
+export function isFlowExport({ hint }: Hinting = {}) {
+  return hint?.includes("+");
+}

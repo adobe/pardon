@@ -160,8 +160,8 @@ class PardonEndpointMatcher {
         action,
         layers,
         values: {
-          ...values,
           ...requestContext?.environment.implied(implied),
+          ...values,
         },
       };
     }
@@ -202,7 +202,7 @@ class PardonEndpointMatcher {
       createEndpointEnvironment({
         endpoint,
         compiler,
-        values: implied,
+        values: { ...implied, ...this.context.values },
       })
         .init({ context: requestContext })
         .choose(implied)
@@ -214,7 +214,7 @@ class PardonEndpointMatcher {
     const environment = createEndpointEnvironment({
       compiler,
       endpoint,
-      values: implied,
+      values: { ...implied, ...this.context.values },
       context: requestContext,
     });
 
@@ -222,7 +222,7 @@ class PardonEndpointMatcher {
       schema: archetypeSchema,
       object: this.request,
       context: requestContext,
-      values: implied,
+      values: { ...implied, ...this.context.values },
     });
 
     const match = this.matchLayers({
@@ -392,12 +392,14 @@ function matchEndpoint(
 ): PromiseSettledResult<ReturnType<PardonEndpointMatcher["match"]>> {
   try {
     const match = new PardonEndpointMatcher(context, request, endpoint).match();
+
     if (!match?.schema) {
       return {
         status: "rejected",
         reason: match?.diagnostics,
       };
     }
+
     return {
       status: "fulfilled",
       value: match,

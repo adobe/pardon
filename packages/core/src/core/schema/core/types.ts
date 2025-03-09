@@ -170,7 +170,7 @@ export type ScopeIndex =
       key?: number;
     };
 
-export type ResolvedValueOptions = { secrets?: boolean };
+export type ResolvedValueOptions = { secrets?: boolean; flow?: boolean };
 
 export type EvaluationScope = {
   subscope(name: string, index?: ScopeIndex): EvaluationScope;
