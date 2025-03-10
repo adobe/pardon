@@ -62,13 +62,13 @@ export type Endpoint = {
   service: string;
   action: string;
   asset: string;
-  steps: HttpsSteps;
+  steps: HttpsSteps<"mix" | "mux">;
   configuration: EndpointConfiguration;
 };
 
 export type EndpointStepsLayer = {
   path: string;
-  steps: HttpsSteps;
+  steps: HttpsSteps<"mix" | "mux">;
   mode?: "mix" | "mux";
 };
 

@@ -66,11 +66,11 @@ export function convertScalar(
     case "string":
       return String(value);
     case "bigint":
-      if (value && value instanceof Number) {
+      if (value !== undefined && value instanceof Number) {
         return createBigInt(value["source"]);
       }
 
-      if (value && value instanceof BigInt) {
+      if (value !== undefined && value instanceof BigInt) {
         return value;
       }
 

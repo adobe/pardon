@@ -145,17 +145,19 @@ export async function evaluation(
   {
     binding,
     options,
+    transform,
   }: {
     binding?: (identifier: string) => unknown | Promise<unknown>;
     options?: acorn.Options;
+    transform?: TsMorphTransform;
   },
 ): Promise<unknown> {
-  const unboundIdentifiers = unbound(`(${expression})`, options);
+  const compiled = applyTsMorph(expression, transform);
+
+  const unboundIdentifiers = unbound(`(${compiled})`, options);
   const bound = [...unboundIdentifiers].map(
     (name) => [name, binding?.(name)] as const,
   );
-
-  const compiled = applyTsMorph(expression, expressionTransform);
 
   const fn = new Function(
     ...bound.map(([k]) => k),
@@ -308,6 +310,7 @@ const referenceHints = {
   optional: "?",
   required: "!",
   redact: "@",
+  flow: "+",
   meld: "~",
 };
 

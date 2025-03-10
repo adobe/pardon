@@ -9,7 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { evaluation } from "../../evaluation/expression.js";
+import {
+  evaluation,
+  expressionTransform,
+} from "../../evaluation/expression.js";
 import { rescope } from "./context-util.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";
@@ -54,9 +57,15 @@ function doRenderExpression(
     hint,
     evaluation: async () =>
       await evaluation(expression!, {
-        binding(unbound) {
-          return evaluateIdentifierWithExpression(context, unbound);
+        async binding(unbound) {
+          const evaluated = await evaluateIdentifierWithExpression(
+            context,
+            unbound,
+          );
+
+          return evaluated;
         },
+        transform: expressionTransform,
       }),
   });
 }

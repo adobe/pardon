@@ -435,7 +435,7 @@ export function defineReference<T = unknown>(
     for (const ref of refs) {
       const value = context.evaluationScope.resolve(context, ref);
 
-      if (value != undefined) {
+      if (value !== undefined) {
         for (const other of refs) {
           if (other !== ref) {
             context.evaluationScope.define(context, other, value);
@@ -454,7 +454,7 @@ export function defineReference<T = unknown>(
     for (const ref of refs) {
       const value = context.evaluationScope.resolve(context, ref);
 
-      if (value != undefined) {
+      if (value !== undefined) {
         for (const other of refs) {
           if (other !== ref) {
             context.evaluationScope.define(context, other, value);

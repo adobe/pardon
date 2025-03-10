@@ -427,7 +427,7 @@ export class Scope implements EvaluationScope, ScopeData {
   ): Promise<T> | Exclude<T, undefined> {
     const key = [...context.keys, ...keys].join(".");
 
-    return (this.cache[key] ??= (() => {
+    return (this.cache[key] ??= (async () => {
       try {
         const result = action();
 
@@ -435,7 +435,7 @@ export class Scope implements EvaluationScope, ScopeData {
           return Promise.resolve(result);
         }
 
-        return result;
+        return await result;
       } catch (error) {
         return disarm(Promise.reject(error));
       }

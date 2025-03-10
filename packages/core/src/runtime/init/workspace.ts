@@ -205,7 +205,7 @@ export async function loadPardonRuntime(options?: PardonAppContextOptions) {
     (await discoverPardonWorkspace(options?.cwd ?? process.cwd())) ??
     ({
       workspace: {
-        collections: ["//fallback/collection"],
+        collections: [],
         database: false,
         samples: [],
         example: {},

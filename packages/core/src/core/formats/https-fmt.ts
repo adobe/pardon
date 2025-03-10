@@ -39,7 +39,17 @@ export type HttpsRequestStep = {
   source?: string;
 };
 
-export type HttpsSteps = (HttpsRequestStep | HttpsResponseStep)[];
+export type HttpsScriptStep = {
+  type: "script";
+  label: string;
+  script: string;
+  source?: string;
+};
+
+export type HttpsSteps<Mode extends string> = Mode extends "flow"
+  ? (HttpsRequestStep | HttpsResponseStep | HttpsScriptStep)[]
+  : (HttpsRequestStep | HttpsResponseStep)[];
+
 export type HttpsMode = "mix" | "mux" | "flow" | "log";
 
 export type FlowName = `${string}.flow`;
@@ -69,7 +79,7 @@ export type UseFlow = {
 export type HttpsSchemeType<Mode extends string, Configuration> = {
   mode: Mode;
   configuration: Configuration;
-  steps: HttpsSteps;
+  steps: HttpsSteps<Mode>;
 };
 
 export type HttpsScheme<Phase extends ResourceProcessingPhase> =
@@ -102,13 +112,13 @@ export const HTTPS = { parse };
 
 function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
   const lines = file.split("\n");
-  const steps: HttpsSteps = [];
+  const steps: HttpsSteps<typeof mode> = [];
   const inlineConfiguration: string[] = [];
 
   try {
     while (lines.length) {
       scanComments(lines, { allowBlank: true });
-      if (/^\s*(?:>>>|<<<)/.test(lines[0])) {
+      if (/^\s*(?:>>>|<<<|!!!)/.test(lines[0])) {
         break;
       }
       if (lines.length) {
@@ -126,6 +136,13 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
       if (/^\s*<<</.test(lines[0])) {
         steps.push(scanResponse(lines, lines.shift()!));
         continue;
+      }
+
+      if (mode === "flow") {
+        if (/^\s*!!!/.test(lines[0])) {
+          (steps as HttpsSteps<"flow">).push(scanScript(lines, lines.shift()!));
+          continue;
+        }
       }
 
       throw new PardonError("invalid HTTPS flow start: " + lines[0]);
@@ -190,7 +207,7 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
   scanComments(lines, { allowBlank: true });
 
   const requestLine = lines[0];
-  if (/^\s*(?:<<<|>>>)/.test(requestLine)) {
+  if (/^\s*(?:<<<|>>>|!!!)/.test(requestLine)) {
     return {
       type: "request",
       request: fetchIntoObject("//", {
@@ -208,7 +225,12 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
   )!;
 
   if (!requestMatch) {
-    throw new PardonError("illegal https-request line: " + requestLine);
+    return {
+      type: "request",
+      computations,
+      values,
+      request: { headers: new Headers() },
+    };
   }
 
   let [, method, url] = requestMatch;
@@ -251,8 +273,7 @@ function scanSchema(lines: string[]): string {
 
   while (
     (scanComments(lines), lines.length) &&
-    !lines[0].startsWith("<<<") &&
-    !lines[0].startsWith(">>>")
+    !/^\s*(?:<<<|>>>|!!!)/.test(lines[0])
   ) {
     bodyLines.push(trimComment(lines.shift()!));
   }
@@ -290,6 +311,25 @@ function scanResponse(lines: string[], first: string): HttpsResponseStep {
     headers: new Headers(headers),
     body: schemaSource,
     outcome,
+    source: [
+      first,
+      ...(lines.length ? linesCopy.slice(0, -lines.length) : linesCopy),
+    ]
+      .join("\n")
+      .trim(),
+  };
+}
+
+function scanScript(lines: string[], first: string): HttpsScriptStep {
+  const linesCopy = lines.slice();
+
+  const [, label] = /^<<<\s*(.*?)\s*$/.exec(first) ?? [];
+  const script = scanSchema(lines);
+
+  return {
+    type: "script",
+    script,
+    label,
     source: [
       first,
       ...(lines.length ? linesCopy.slice(0, -lines.length) : linesCopy),

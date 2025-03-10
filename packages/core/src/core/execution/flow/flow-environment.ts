@@ -42,10 +42,15 @@ export function createSequenceEnvironment({
       Date,
     },
     resolve(name, context) {
-      return (
-        values[name] ||
-        resolveDefaults(name, sequenceScheme?.configuration?.defaults, context)
-      );
+      const value = values[name];
+
+      return value !== undefined
+        ? value
+        : resolveDefaults(
+            name,
+            sequenceScheme?.configuration?.defaults,
+            context,
+          );
     },
     async evaluate(name) {
       return await resolveImport(

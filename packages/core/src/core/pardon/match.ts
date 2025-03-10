@@ -39,7 +39,9 @@ function selectEndpoints(
         : `${service}/default` !== endpoint,
     )
     .filter(({ service }) =>
-      values.service ? values.service === service : "default" !== service,
+      values.service
+        ? values.service === service
+        : values.endpoint || "default" !== service,
     )
     .filter(({ action }) => !values.action || values.action === action);
 }

@@ -14,6 +14,7 @@ import {
   HttpsRequestStep,
   HttpsResponseStep,
   HttpsFlowConfig,
+  HttpsScriptStep,
 } from "../../formats/https-fmt.js";
 import { ResponseObject } from "../../request/fetch-pattern.js";
 import { pardon } from "../../../api/pardon-wrapper.js";
@@ -22,10 +23,7 @@ import {
   prerenderSchema,
   renderSchema,
 } from "../../schema/core/schema-utils.js";
-import {
-  httpsRequestSchema,
-  httpsResponseSchema,
-} from "../../request/https-template.js";
+import { httpsResponseSchema } from "../../request/https-template.js";
 import { ScriptEnvironment } from "../../schema/core/script-environment.js";
 import { definedObject, mapObject } from "../../../util/mapping.js";
 import { createSequenceEnvironment } from "./flow-environment.js";
@@ -46,7 +44,10 @@ import { FlowContext } from "./data/flow-context.js";
 import { PardonRuntime } from "../../pardon/types.js";
 import { Flow, FlowResult, makeFlowIdempotent } from "./flow-core.js";
 import { executeFlowInContext } from "./index.js";
-import { intoURL } from "../../request/url-pattern.js";
+import { KV } from "../../formats/kv-fmt.js";
+import { PardonError } from "../../error.js";
+import { evaluation, TsMorphTransform } from "../../evaluation/expression.js";
+import { SyntaxKind, ts } from "ts-morph";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -63,10 +64,20 @@ export type SequenceStepReport = Awaited<
   ReturnType<typeof executeHttpsSequenceStep>
 >;
 
-type HttpsSequenceInteraction = {
+type HttpScriptInterraction = {
+  type: "script";
+  script: HttpsScriptStep;
+};
+
+type HttpExchangeInterraction = {
+  type: "exchange";
   request: HttpsRequestStep;
   responses: HttpsResponseStep[];
 };
+
+type HttpsSequenceInteraction =
+  | HttpScriptInterraction
+  | HttpExchangeInterraction;
 
 export function compileHttpsFlow(
   scheme: HttpsFlowScheme,
@@ -124,6 +135,7 @@ function compileHttpsFlowSequence(
 ): CompiledHttpsSequence {
   const { interactionMap, interactions, tries, configuration } =
     parseHttpsSequenceScheme(scheme);
+
   const definitions: Record<string, true | string> = {};
   const params: FlowParamsDict | undefined =
     configuration.context === undefined
@@ -238,6 +250,32 @@ export async function executeHttpsSequence(
   return await sequenceRun();
 }
 
+export const flowScriptTransform: TsMorphTransform = ({
+  factory,
+  visitChildren,
+}) => {
+  const node = visitChildren();
+
+  if (
+    ts.isBinaryExpression(node) &&
+    node.operatorToken.kind === SyntaxKind.EqualsToken
+  ) {
+    const lhs = node.left;
+    if (ts.isIdentifier(lhs)) {
+      return factory.createBinaryExpression(
+        factory.createPropertyAccessExpression(
+          factory.createIdentifier("environment"),
+          lhs.text,
+        ),
+        node.operatorToken,
+        node.right,
+      );
+    }
+  }
+
+  return node;
+};
+
 async function executeHttpsFlowSequence(
   sequence: CompiledHttpsSequence,
   flowValues: Record<string, unknown>,
@@ -262,19 +300,38 @@ async function executeHttpsFlowSequence(
       }
     }
 
+    if (next.type === "script") {
+      const scriptValues = {};
+
+      await evaluation(next.script.script, {
+        binding(key) {
+          if (key === "environment") {
+            return scriptValues;
+          }
+
+          return resultValues[key];
+        },
+        transform: flowScriptTransform,
+      });
+
+      flowValues = { ...flowValues, ...scriptValues };
+      resultValues = { ...resultValues, ...scriptValues };
+      flowContext.mergeEnvironment(scriptValues);
+      index++;
+      continue;
+    }
+
     const {
       outcome,
       values: { send, recv },
       context: stepResultContext,
-    } = await executeHttpsSequenceStep(
-      {
-        sequenceInteraction: next,
-        sequenceScheme: sequence.scheme,
-        sequencePath: sequence.path,
-        values: flowValues,
-      },
-      flowContext,
-    );
+    } = await executeHttpsSequenceStep({
+      sequenceInteraction: next,
+      sequenceScheme: sequence.scheme,
+      sequencePath: sequence.path,
+      values: flowValues,
+      context: flowContext,
+    });
 
     flowContext = stepResultContext;
 
@@ -283,11 +340,6 @@ async function executeHttpsFlowSequence(
       ...resultValues,
       ...send,
       ...recv,
-    };
-
-    // flow values that feed back into successive calls are more selective
-    flowValues = {
-      ...flowValues,
     };
 
     // if the outcome is named in the flow, loop, else exit
@@ -404,8 +456,7 @@ function parseHttpsSequenceScheme({
     throw new Error("invalid https seqeuence scheme, not a flow");
   }
 
-  const start = steps[0];
-  if (!start) {
+  if (!steps.length) {
     return {
       interactions: [],
       interactionMap: {},
@@ -414,28 +465,57 @@ function parseHttpsSequenceScheme({
     };
   }
 
-  if (start.type !== "request") {
-    throw new Error("https schemes should start with a request");
-  }
-
-  let current: HttpsSequenceInteraction = { request: start, responses: [] };
-  const interactions: HttpsSequenceInteraction[] = [current];
+  let current: HttpExchangeInterraction | null = null;
+  const interactions: HttpsSequenceInteraction[] = [];
   const interactionMap: Record<string, number> = {
     fail: -1,
   };
 
-  if (start.name) {
-    interactionMap[start.name] = 0;
-  }
-
   const tries: Record<number, number> = {};
-  for (const flowItem of steps.slice(1)) {
+
+  steps = steps.slice();
+  while (steps.length) {
+    const flowItem = steps.shift()!;
+    if (flowItem.type === "script") {
+      interactions.push({ type: "script", script: flowItem });
+
+      if (flowItem.label) {
+        const { name, retries } = parseIncome(flowItem.label)! ?? {};
+        if (retries) {
+          tries[interactions.length - 1] = retries;
+        }
+
+        if (name) {
+          interactionMap[name] = interactions.length - 1;
+        }
+      }
+
+      current = null;
+      continue;
+    }
+
     if (flowItem.type === "response") {
+      if (!current) {
+        throw new PardonError("flow: unexpected response step after a request");
+      }
+
       current.responses.push(flowItem);
       continue;
     }
 
-    interactions.push((current = { request: flowItem, responses: [] }));
+    if (flowItem.type !== "request") {
+      throw new PardonError(
+        "unexpected flow item type: " + (flowItem as any).type,
+      );
+    }
+
+    interactions.push(
+      (current = {
+        type: "exchange",
+        request: flowItem,
+        responses: [],
+      }),
+    );
     if (flowItem.name) {
       const { name, retries } = parseIncome(flowItem.name)! ?? {};
       if (retries) {
@@ -468,20 +548,19 @@ function removeHttpValues(values?: Record<string, unknown>) {
   });
 }
 
-async function executeHttpsSequenceStep(
-  {
-    sequenceInteraction: interaction,
-    sequenceScheme: sequenceScheme,
-    sequencePath: sequenceFile,
-    values,
-  }: {
-    sequenceInteraction: HttpsSequenceInteraction;
-    sequenceScheme: HttpsFlowScheme;
-    sequencePath: string;
-    values: Record<string, any>;
-  },
-  flowContext: FlowContext,
-) {
+async function executeHttpsSequenceStep({
+  sequenceInteraction: interaction,
+  sequenceScheme: sequenceScheme,
+  sequencePath: sequenceFile,
+  values,
+  context: flowContext,
+}: {
+  sequenceInteraction: HttpsSequenceInteraction & { type: "exchange" };
+  sequenceScheme: HttpsFlowScheme;
+  sequencePath: string;
+  values: Record<string, any>;
+  context: FlowContext;
+}) {
   const { compiler } = flowContext.runtime;
   const { request: requestTemplate, responses: responseTemplates } =
     interaction;
@@ -491,30 +570,29 @@ async function executeHttpsSequenceStep(
     ...values,
   };
 
-  const requestHttp = HTTP.stringify({
+  let requestHttp = HTTP.stringify({
     ...requestTemplate.request,
     values: requestTemplate.values,
   });
 
-  const schema = mergeSchema(
-    { mode: "mux", phase: "build" },
-    httpsRequestSchema(),
-    requestTemplate.request,
-    new ScriptEnvironment({
-      input: { ...requestTemplate.values, ...executionValues },
-    }),
-  );
-  const rendered = await renderSchema(
-    schema.schema!,
-    schema.context.environment,
-  );
-  const preRendered = HTTP.stringify(rendered.output);
+  let requestValues = { ...executionValues };
+
+  if (requestTemplate.request.pathname || requestTemplate.request.origin) {
+    const prerender = await pardon({
+      ...requestTemplate.values,
+      ...executionValues,
+      endpoint: "default/default",
+    })`${HTTP.stringify(requestTemplate.request)}`.render();
+    requestHttp = HTTP.stringify({ ...prerender.request, values: undefined });
+    requestValues = values;
+  }
 
   flowContext.checkAborted();
 
-  const execution = pardon(
-    executionValues,
-  )`${preRendered ?? requestHttp}`.render();
+  console.log(`>>>
+${KV.stringify(requestValues, "\n", 2, "\n")}${requestHttp}`);
+
+  const execution = pardon(requestValues)`${requestHttp}`.render();
 
   try {
     await execution;
@@ -522,10 +600,6 @@ async function executeHttpsSequenceStep(
     console.warn(
       `\n\n
 --- error matching request to collection ---
-${requestHttp}
----
-values = ${JSON.stringify(executionValues, null, 2)}
----
 error = ${error?.stack ?? error}
 --------------------------------------------\n\n`,
     );
@@ -534,6 +608,9 @@ error = ${error?.stack ?? error}
   }
 
   const { outbound, inbound } = await execution.result;
+
+  console.log(`<<<
+${HTTP.responseObject.stringify(inbound.redacted)}`);
 
   const matching =
     responseTemplates.length === 0
@@ -552,19 +629,20 @@ error = ${error?.stack ?? error}
         );
 
   if (matching.result === "unmatched") {
-    // TODO: surface this in the test report
-    console.info(HTTP.responseObject.stringify(inbound.redacted));
-
+    console.info("=!= unmatched response");
     for (const { outcome, preview, diagnostics } of matching.templates) {
       console.info(`---`);
-      console.info(`<<< ${outcome ? ` ${outcome}` : ""}`);
-      for (const loc of diagnostics) {
-        console.info(`# mismatched at ${loc}`);
+      if (diagnostics.length == 0) {
+        console.info(`# oops, no diagnostics produced about the mismatch`);
+      } else {
+        for (const loc of diagnostics) {
+          console.info(`# mismatched at ${loc}`);
+        }
       }
 
+      console.info(`<<<${outcome ? ` ${outcome}` : ""}`);
       console.info(HTTP.responseObject.stringify(preview));
     }
-    console.info("--------------------------------");
 
     throw new Error("unmatched response");
   }
@@ -573,6 +651,10 @@ error = ${error?.stack ?? error}
     outcome: outcomeText,
     match: { context: { evaluationScope: scope = undefined } = {} } = {},
   } = matching;
+
+  console.log(`===
+>>>${outcomeText ? ` ${outcomeText}` : ""}
+${HTTP.responseObject.stringify(matching.preview)}`);
 
   const outcome = parseOutcome(outcomeText);
 
@@ -586,11 +668,9 @@ error = ${error?.stack ?? error}
     console.info(`  > ${outcome.name}`);
   }
 
-  console.log(
-    `${outbound.request.method} ${intoURL(outbound.request)} (${inbound.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
-  );
-  console.log(`>>> ${outbound.request.body}"}`);
-  console.log(`<<< ${inbound.response.body}"}`);
+  //  console.log(
+  //    `${outbound.request.method} ${intoURL(outbound.request)} (${inbound.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
+  //  );
 
   return {
     outbound: withoutEvaluationScope(outbound),
@@ -607,6 +687,7 @@ error = ${error?.stack ?? error}
 type MatchedResponseOutcome = {
   result: "matched";
   match: ReturnType<typeof mergeSchema>;
+  preview: ResponseObject;
   outcome?: string;
 };
 
@@ -690,7 +771,18 @@ async function matchResponseToOutcome(
       );
 
     if (match?.schema) {
-      return { result: "matched", outcome, match };
+      return {
+        result: "matched",
+        outcome,
+        match,
+        preview: templates.slice(-1)[0].preview,
+      } satisfies MatchedResponseOutcome;
+    } else if (match) {
+      templates
+        .slice(-1)[0]
+        .diagnostics.push(
+          ...(match?.context.diagnostics.map(({ loc }) => loc) || []),
+        );
     }
   }
 

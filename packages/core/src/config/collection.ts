@@ -23,6 +23,7 @@ import {
 import {
   HTTPS,
   HttpsFlowScheme,
+  HttpsSchemeType,
   HttpsTemplateConfiguration,
   HttpsTemplateScheme,
 } from "../core/formats/https-fmt.js";
@@ -120,26 +121,27 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
   });
 }
 
+const fallbackCollection = {
+  root: "//fallback/collection",
+  files: {
+    "default/service.yaml": {
+      content: "# built-in fallback service",
+      path: "//fallback/collection/default/service.yaml",
+    },
+    "default/default.https": {
+      content: "# built-in fallback endpoint\n>>>\nANY //",
+      path: "//fallback/collection/default/default.https",
+    },
+  },
+} satisfies Awaited<ReturnType<typeof loadCollectionLayer>>;
+
 export async function loadCollections(collectionRoots: string[]) {
-  return await Promise.all(
-    collectionRoots.map((root) =>
-      root === "//fallback/collection"
-        ? ({
-            root,
-            files: {
-              "default/service.yaml": {
-                content: "# built-in fallback service",
-                path: "//fallback/collection/default/service.yaml",
-              },
-              "default/default.https": {
-                content: "# built-in fallback endpoint\n>>>\nANY //",
-                path: "//fallback/collection/default/default.https",
-              },
-            },
-          } satisfies Awaited<ReturnType<typeof loadCollectionLayer>>)
-        : loadCollectionLayer(root),
-    ),
-  );
+  return [
+    ...(await Promise.all(
+      collectionRoots.map((root) => loadCollectionLayer(root)),
+    )),
+    fallbackCollection,
+  ];
 }
 
 function add<T>(array: T[] | undefined, value: T) {
@@ -361,7 +363,7 @@ export function buildCollection(
                 mode: mode as "mix" | "mux",
                 steps: [],
               }),
-            );
+            ) as HttpsSchemeType<"mix" | "mix", Configuration>;
 
             mixin.configuration = mergeConfigurations({
               name,
