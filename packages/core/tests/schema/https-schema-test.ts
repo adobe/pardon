@@ -128,7 +128,7 @@ describe("https-schema-tests", () => {
       origin: "https://www.example.com",
       pathname: "/test",
       body: `{
-        "x": unwrapSingle("{{hello}}")
+        "x": $$unwrapSingle("{{hello}}")
       }`,
     });
 
@@ -166,7 +166,7 @@ describe("https-schema-tests", () => {
         origin: "https://www.example.com",
         pathname: "/test",
         body: `{
-          "x": unwrapSingle("{{hello}}")
+          "x": $$unwrapSingle("{{hello}}")
         }`,
       }),
     )!;
@@ -230,7 +230,7 @@ describe("https-schema-tests", () => {
         origin: "https://www.example.com",
         pathname: "/test",
         body: `{
-          "x": unwrapSingle("{{hello}}")
+          "x": $$unwrapSingle("{{hello}}")
         }`,
       }),
     )!;
@@ -261,7 +261,7 @@ describe("https-schema-tests", () => {
       mixContext(jsonBaseSchema, {
         origin: "https://www.example.com",
         pathname: "/test",
-        body: `[{ "x": number("{{x = 5}}") }]`,
+        body: `[{ "x": $$number("{{x = 5}}") }]`,
       }),
     )!;
 
@@ -472,67 +472,69 @@ describe("https-schema-tests", () => {
   `);
 
   transforms("parens-as-assignments")
-    .from("$b = ('hello')")
+    .from("b = ('hello')")
     .to(`"{{ b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("parens-with-noexport-modifier")
-    .from("$b.noexport = ('hello')")
+    .from("b.$noexport = ('hello')")
     .to(`"{{ :b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("parens-with-redact-modifier")
-    .from("$b.redact = ('hello')")
+    .from("b.$redact = ('hello')")
     .to(`"{{ @b = $$expr(\\"'hello'\\") }}"`);
 
-  transforms("plus-as-mux").from("+['hello']").to(`mux(['hello'])`);
-  transforms("minus-as-mix").from("-{ d: 'world' }").to(`mix({ d: 'world' })`);
+  transforms("plus-as-mux").from("+['hello']").to(`$$mux(['hello'])`);
+  transforms("minus-as-mix")
+    .from("-{ d: 'world' }")
+    .to(`$$mix({ d: 'world' })`);
 
   // todo: create a template that can merge two templates,
   // maybe
   //        and("{{ a }}", "{{ b = c }}")
   transforms("reference-reference")
-    .from("$a = $b = (c)")
-    .to(`$a.of("{{ b = $$expr(\\"c\\") }}")`);
+    .from("a = b = (c)")
+    .to(`a.$("{{ b = $$expr(\\"c\\") }}")`);
 
   transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`);
 
-  transforms("regexp-binding").from("$a = /abc/").to(`"{{ a % /abc/ }}"`);
+  transforms("regexp-binding").from("a = /abc/").to(`"{{ a % /abc/ }}"`);
 
   transforms("regexp-binding-and-value")
-    .from("$a = (x) % /abc/")
+    .from("a = (x) % /abc/")
     .to(`"{{ a = $$expr(\\"x\\") % /abc/ }}"`);
 
   transforms("template-binding")
-    .from("`<<${ $abc }::${ $xyz.$pqr = 100+5 }>>`")
+    .from("`<<${ abc }::${ xyz.pqr = 100+5 }>>`")
     .to(`"<<{{ abc }}::{{ xyz.pqr = $$expr(\\"100+5\\") }}>>"`);
 
   transforms("kv-expression")
-    .from(`[$key, undefined] * [ [$headers.key, $headers.value] ]`)
-    .to("keyed([$key, undefined], [[$headers.key, $headers.value]])");
+    .from(`[key, undefined] * [ [headers.$key, headers.$value] ]`)
+    .to("$$keyed([key, undefined], [[headers.$key, headers.$value]])");
 
-  transforms("kv-expression")
-    .from(`{ id: $key } ** { id: $map.key, value: $map.value }`)
-    .to("keyed.mv({ id: $key }, { id: $map.key, value: $map.value })");
+  transforms("multi-kv-expression")
+    .from(`{ id: key } ** { id: map.$key, value: map.$value }`)
+    .to("$$keyed.mv({ id: key }, { id: map.$key, value: map.$value })");
 
   transforms("array-with-value")
-    .from(`{ x: [$a.value] }`)
-    .to(`{ x: [$a.value] }`);
+    .from(`{ x: [a.$value] }`)
+    .to(`{ x: [a.$value] }`);
 
   transforms("kv-with-computed-properties").from(
     `
-{ id: $key } * [{
-  id: $map.key,
+{ id: key } * [{
+  id: map.$key,
   a: "{{map.value}}",
   a1: ( value + 1 )
 }]`,
   ).to(`
-keyed({ id: $key }, [{
-        id: $map.key,
+$$keyed({ id: key }, [{
+        id: map.$key,
         a: "{{map.value}}",
         a1: "{{ = $$expr(\\"value + 1\\") }}"
     }])
 `);
 
   transforms("function-calls")
-    .from("form({ x: $a = 10 })")
-    .to('form({ x: $a.of($$number("10")) })');
+    .from("$$form({ x: a = 10 })")
+    .to('$$form({ x: a.$($$$number("10")) })');
 });

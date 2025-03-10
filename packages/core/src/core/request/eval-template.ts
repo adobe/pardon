@@ -27,10 +27,8 @@ export function evalTemplate(
         return globals[name];
       }
 
-      if (name.startsWith("$")) {
-        const ref = name.slice(1);
-
-        return referenceTemplate({ ref });
+      if (!name.startsWith("$")) {
+        return referenceTemplate({ ref: name });
       }
 
       return undefined;

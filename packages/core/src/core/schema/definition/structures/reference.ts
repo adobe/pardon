@@ -64,19 +64,19 @@ type ReferenceTemplate<T> = {
 };
 
 type ReferenceSchematic<T> = Schematic<T> & {
-  of<T>(template: Template<T>): ReferenceSchematic<T>;
-  readonly key: ReferenceSchematic<T>;
-  readonly value: ReferenceSchematic<T>;
-  readonly noexport: ReferenceSchematic<T>;
-  readonly optional: ReferenceSchematic<T>;
-  readonly redact: ReferenceSchematic<T>;
-  readonly meld: ReferenceSchematic<T>;
-  readonly string: ReferenceSchematic<string>;
-  readonly bool: ReferenceSchematic<boolean>;
-  readonly number: ReferenceSchematic<number>;
-  readonly bigint: ReferenceSchematic<bigint>;
-  readonly nullable: ReferenceSchematic<T | null>;
-  [_: `$${string}`]: ReferenceSchematic<T>;
+  <T>(template: Template<T>): ReferenceSchematic<T>;
+  readonly $key: ReferenceSchematic<T>;
+  readonly $value: ReferenceSchematic<T>;
+  readonly $noexport: ReferenceSchematic<T>;
+  readonly $optional: ReferenceSchematic<T>;
+  readonly $redact: ReferenceSchematic<T>;
+  readonly $meld: ReferenceSchematic<T>;
+  readonly $string: ReferenceSchematic<string>;
+  readonly $bool: ReferenceSchematic<boolean>;
+  readonly $number: ReferenceSchematic<number>;
+  readonly $bigint: ReferenceSchematic<bigint>;
+  readonly $nullable: ReferenceSchematic<T | null>;
+  [_: string]: ReferenceSchematic<any>;
 };
 
 export function isReferenceSchematic<T>(
@@ -139,98 +139,98 @@ export function referenceTemplate<T = unknown>(
 
   return new Proxy<any>(referenceSchematic, {
     get(target, property) {
-      if (typeof property === "symbol" || !property.startsWith("$")) {
-        return (
-          target[property] ??
-          {
-            get noexport() {
-              return referenceTemplate({
-                ...reference,
-                hint: `${reference.hint ?? ""}:`,
-              });
-            },
-            get optional() {
-              return referenceTemplate({
-                ...reference,
-                hint: `${reference.hint ?? ""}?`,
-              });
-            },
-            get required() {
-              return referenceTemplate({
-                ...reference,
-                hint: `${reference.hint ?? ""}!`,
-              });
-            },
-            get meld() {
-              return referenceTemplate({
-                ...reference,
-                hint: `${reference.hint ?? ""}~`,
-              });
-            },
-            get redact() {
-              return referenceTemplate({
-                ...reference,
-                hint: `${reference.hint ?? ""}@`,
-              });
-            },
-            ...(reference.ref && {
-              get value() {
-                return referenceTemplate({
-                  ...reference,
-                  ref: `${reference.ref}.@value`,
-                });
-              },
-              get key() {
-                return referenceTemplate({
-                  ...reference,
-                  ref: `${reference.ref}.@key`,
-                });
-              },
-            }),
-            of(template: Template<T>) {
-              return referenceTemplate({
-                ...reference,
-                template,
-              });
-            },
-            get string() {
-              return referenceTemplate({
-                ...reference,
-                encoding: "string",
-              });
-            },
-            get number() {
-              return referenceTemplate({
-                ...reference,
-                encoding: "number",
-              });
-            },
-            get bigint() {
-              return referenceTemplate({
-                ...reference,
-                encoding: "bigint",
-              });
-            },
-            get bool() {
-              return referenceTemplate({
-                ...reference,
-                encoding: "boolean",
-              });
-            },
-            get null() {
-              return referenceTemplate({
-                ...reference,
-                anull: true,
-              });
-            },
-          }[property]
-        );
+      if (typeof property !== "symbol" && !property.startsWith("$")) {
+        return referenceTemplate({
+          ...reference,
+          ref: `${reference.ref}.${property}`,
+        });
       }
 
-      return referenceTemplate({
-        ...reference,
-        ref: `${reference.ref}.${property.slice(1)}`,
-      });
+      return (
+        target[property] ??
+        {
+          get $noexport() {
+            return referenceTemplate({
+              ...reference,
+              hint: `${reference.hint ?? ""}:`,
+            });
+          },
+          get $optional() {
+            return referenceTemplate({
+              ...reference,
+              hint: `${reference.hint ?? ""}?`,
+            });
+          },
+          get $required() {
+            return referenceTemplate({
+              ...reference,
+              hint: `${reference.hint ?? ""}!`,
+            });
+          },
+          get $meld() {
+            return referenceTemplate({
+              ...reference,
+              hint: `${reference.hint ?? ""}~`,
+            });
+          },
+          get $redact() {
+            return referenceTemplate({
+              ...reference,
+              hint: `${reference.hint ?? ""}@`,
+            });
+          },
+          ...(reference.ref && {
+            get $value() {
+              return referenceTemplate({
+                ...reference,
+                ref: `${reference.ref}.@value`,
+              });
+            },
+            get $key() {
+              return referenceTemplate({
+                ...reference,
+                ref: `${reference.ref}.@key`,
+              });
+            },
+          }),
+          $(template: Template<T>) {
+            return referenceTemplate({
+              ...reference,
+              template,
+            });
+          },
+          get $string() {
+            return referenceTemplate({
+              ...reference,
+              encoding: "string",
+            });
+          },
+          get $number() {
+            return referenceTemplate({
+              ...reference,
+              encoding: "number",
+            });
+          },
+          get $bigint() {
+            return referenceTemplate({
+              ...reference,
+              encoding: "bigint",
+            });
+          },
+          get $bool() {
+            return referenceTemplate({
+              ...reference,
+              encoding: "boolean",
+            });
+          },
+          get $null() {
+            return referenceTemplate({
+              ...reference,
+              anull: true,
+            });
+          },
+        }[property]
+      );
     },
   });
 }

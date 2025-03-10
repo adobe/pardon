@@ -15,7 +15,7 @@
         "--stack-trace-limit=100",
         "src/entry/main/cli/index.ts",
         "env=local",
-        "todo=T1092",
+        "todo=T1002",
         "todo/toggle.flow"
       ],
       "console": "integratedTerminal",

@@ -127,8 +127,8 @@ describe("schema tests", () => {
 
   it("should render objects with expressions", async () => {
     const s = mixing({
-      a: bodyGlobals.number("{{abc = 1 + 1}}"),
-      b: bodyGlobals.number("{{xyz = 2 + 2}}"),
+      a: bodyGlobals.$$number("{{abc = 1 + 1}}"),
+      b: bodyGlobals.$$number("{{xyz = 2 + 2}}"),
       c: "{{pqr = abc + xyz}}",
     });
 
@@ -144,8 +144,8 @@ describe("schema tests", () => {
 
   it("should match objects without all values", async () => {
     const s = mixing({
-      a: bodyGlobals.number("{{abc = 1 + 1}}"),
-      b: bodyGlobals.number("{{xyz = 2 + 2}}"),
+      a: bodyGlobals.$$number("{{abc = 1 + 1}}"),
+      b: bodyGlobals.$$number("{{xyz = 2 + 2}}"),
       c: "{{pqr = abc + xyz}}",
       d: { x: "{{d}}" },
     });
@@ -195,7 +195,7 @@ describe("schema tests", () => {
 
   it("should merge and then render values in scope", async () => {
     const s = mixing({
-      global: bodyGlobals.number("{{g = '100'}}"),
+      global: bodyGlobals.$$number("{{g = '100'}}"),
       a: "{{a = 1}}",
       b: "{{b = 1}}",
       ab: "{{?ab = a + b}}",

@@ -28,6 +28,8 @@ export type AssetParseError = { path: string; error: any };
 
 export type ResourceProcessingPhase = "source" | "runtime";
 
+export { EncodingTypes };
+
 export type Configuration<
   ProcessingPhase extends ResourceProcessingPhase = "runtime",
 > = {

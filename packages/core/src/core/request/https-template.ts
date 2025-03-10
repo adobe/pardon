@@ -36,7 +36,7 @@ import {
   executeOp,
   merge,
 } from "../schema/core/schema-ops.js";
-import { EncodingTypes, evalBodyTemplate } from "./body-template.js";
+import { InternalEncodingTypes, evalBodyTemplate } from "./body-template.js";
 import { JSON } from "../json.js";
 import { mixing } from "../schema/core/contexts.js";
 
@@ -63,22 +63,22 @@ function looksLikeJson(template: unknown): template is string {
 export function guessContentType(
   headers: Headers,
   body: string,
-): EncodingTypes | undefined {
+): InternalEncodingTypes | undefined {
   const contentType = MIME.parse(headers.get("Content-Type")!);
 
   switch (contentType?.essence) {
     case "application/json":
-      return looksLikeJson(body) ? "json" : "raw";
+      return looksLikeJson(body) ? "$$json" : "$$raw";
     case "application/x-www-form-urlencoded":
-      return "form";
+      return "$$form";
     case "text/plain":
-      return "text";
+      return "$$text";
     default:
       if (contentType?.essence.endsWith("+json")) {
-        return looksLikeJson(body) ? "json" : "raw";
+        return looksLikeJson(body) ? "$$json" : "$$raw";
       }
 
-      return "text";
+      return "$$text";
   }
 }
 
@@ -90,15 +90,15 @@ export type HttpsRequestObject = FetchObject & {
 export function bodyReference(template: Template<string>): Schematic<string> {
   return referenceTemplate({
     ref: "body",
-  }).noexport.optional.of(template);
+  }).$noexport.$optional.$(template);
 }
 
 type BodySchematicOps = SchematicOps<string> & {
-  readonly body: { readonly encoding?: EncodingTypes };
+  readonly body: { readonly encoding?: InternalEncodingTypes };
 };
 
 export function bodySchema(
-  encoding?: EncodingTypes,
+  encoding?: InternalEncodingTypes,
   schema?: Schema<string>,
 ): Schema<string> {
   return defineSchema<string>({
@@ -141,14 +141,14 @@ export function bodySchema(
         const merged = merge(stubSchema(), {
           ...context,
           template:
-            encoding === "json"
+            encoding === "$$json"
               ? jsonEncoding(JSON.parse(source))
-              : encoding === "form"
+              : encoding === "$$form"
                 ? urlEncodedFormTemplate(source)
                 : textTemplate(source),
         }) as Schema<string>;
 
-        return merged && bodySchema(encoding ?? "json", merged);
+        return merged && bodySchema(encoding ?? "$$json", merged);
       }
 
       try {
@@ -172,7 +172,7 @@ export function bodySchema(
         ) {
           const merged = merge(schema ?? stubSchema(), {
             ...context,
-            template: evalBodyTemplate(`json(${source})`),
+            template: evalBodyTemplate(`$$json(${source})`),
           }) as Schema<string>;
 
           return merged && bodySchema(encoding, merged);
@@ -183,12 +183,12 @@ export function bodySchema(
         void error;
       }
 
-      const effectiveEncoding = encoding ?? "json";
+      const effectiveEncoding = encoding ?? "$$json";
 
       const merged = merge(schema ?? stubSchema(), {
         ...context,
         template: evalBodyTemplate(
-          `${effectiveEncoding}(${effectiveEncoding === "json" ? source : JSON.stringify(source)})`,
+          `${effectiveEncoding}(${effectiveEncoding === "$$json" ? source : JSON.stringify(source)})`,
         ) as Template<string>,
       });
 
@@ -197,7 +197,9 @@ export function bodySchema(
   });
 }
 
-export function bodyTemplate(encoding?: EncodingTypes): Schematic<string> {
+export function bodyTemplate(
+  encoding?: InternalEncodingTypes,
+): Schematic<string> {
   return defineSchematic<BodySchematicOps>({
     body: { encoding },
     expand(context) {
@@ -242,7 +244,7 @@ const pathnameTemplate = (base: string) =>
   });
 
 export function httpsRequestSchema(
-  encoding?: EncodingTypes,
+  encoding?: InternalEncodingTypes,
   { search: { multivalue } = {} }: { search?: { multivalue?: boolean } } = {},
 ) {
   return mixing<HttpsRequestObject>({
@@ -251,7 +253,7 @@ export function httpsRequestSchema(
     pathname: pathnameTemplate("{{...pathname}}"),
     searchParams: referenceTemplate<URLSearchParams>({
       ref: "search",
-    }).of(urlEncodedTemplate({ multivalue })),
+    }).$(urlEncodedTemplate({ multivalue })),
     headers: headersTemplate(),
     body: bodyReference(bodyTemplate(encoding)),
     computations: hiddenTemplate<Record<string, unknown>>(),
@@ -259,7 +261,7 @@ export function httpsRequestSchema(
 }
 
 export function httpsResponseSchema(
-  encoding?: EncodingTypes,
+  encoding?: InternalEncodingTypes,
 ): Schema<ResponseObject> {
   return mixing<ResponseObject>({
     ...scopedFields("res", {

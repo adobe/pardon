@@ -35,24 +35,27 @@ import {
 import { evalTemplate } from "./eval-template.js";
 
 const encodings = {
-  json(value: unknown | Template<unknown>) {
+  $$json(value: unknown | Template<unknown>) {
     return jsonEncoding(value);
   },
-  form(value: string | Record<string, string> | [string, string][]) {
+  $$form(value: string | Record<string, string> | [string, string][]) {
     return urlEncodedFormTemplate(value);
   },
-  base64(value: string | Template<string>) {
+  $$base64(value: string | Template<string>) {
     return base64Encoding(value);
   },
-  text(value: string) {
+  $$text(value: string) {
     return textTemplate(value);
   },
-  raw(value: string) {
+  $$raw(value: string) {
     return textTemplate(datums.antipattern<string>(value));
   },
 } satisfies Record<string, (...args: any) => Schematic<string>>;
 
-export type EncodingTypes = keyof typeof encodings;
+export type InternalEncodingTypes = keyof typeof encodings;
+export type EncodingTypes = InternalEncodingTypes extends `$$${infer Pretty}`
+  ? Pretty
+  : never;
 
 // error TS7056: The inferred type of this node exceeds the maximum length the compiler will serialize.
 // An explicit type annotation is needed.
@@ -61,20 +64,20 @@ export const bodyGlobals: Record<string, any> = {
   true: true,
   null: null,
   ...encodings,
-  bigint: <T>(x: Template<T>) => referenceTemplate<bigint>({}).of(x).bigint,
-  nullable: <T>(x: Template<T>) => referenceTemplate({}).of(x).nullable,
-  string: <T>(x: Template<T>) => referenceTemplate<string>({}).of(x).string,
-  number: <T>(x: Template<T>) => referenceTemplate<number>({}).of(x).number,
-  bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).of(x).bool,
-  redact,
-  mux: muxTemplate,
-  mix: mixTemplate,
-  match: matchTemplate,
-  hidden: hiddenTemplate,
-  keyed,
-  tuple,
-  unwrapSingle,
-  $$number(source: string) {
+  $$bigint: <T>(x: Template<T>) => referenceTemplate<bigint>({}).$(x).$bigint,
+  $$nullable: <T>(x: Template<T>) => referenceTemplate({}).$(x).$nullable,
+  $$string: <T>(x: Template<T>) => referenceTemplate<string>({}).$(x).$string,
+  $$number: <T>(x: Template<T>) => referenceTemplate<number>({}).$(x).$number,
+  $$bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).$(x).$bool,
+  $$redact: redact,
+  $$mux: muxTemplate,
+  $$mix: mixTemplate,
+  $$match: matchTemplate,
+  $$hidden: hiddenTemplate,
+  $$keyed: keyed,
+  $$tuple: tuple,
+  $$unwrapSingle: unwrapSingle,
+  $$$number(source: string) {
     return createNumber(source);
   },
 };
@@ -83,7 +86,7 @@ export function evalBodyTemplate(source: string) {
   return evalTemplate(source, bodyGlobals);
 }
 
-export function getContentEncoding(encoding: EncodingTypes) {
+export function getContentEncoding(encoding: InternalEncodingTypes) {
   return encodings[encoding]!;
 }
 

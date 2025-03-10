@@ -52,6 +52,7 @@ import { getContextualValues } from "../schema/core/context.js";
 import { definedObject } from "../../util/mapping.js";
 import { JSON } from "../json.js";
 import { PardonRuntime } from "./types.js";
+import { InternalEncodingTypes } from "../request/body-template.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
@@ -220,8 +221,9 @@ export const PardonFetchExecution = pardonExecution({
         },
       };
 
+      const encoding = endpoint.configuration.encoding ?? fetchObject.encoding;
       const archetype = httpsRequestSchema(
-        endpoint.configuration.encoding ?? fetchObject.encoding,
+        `$$${encoding}` as InternalEncodingTypes,
         {
           search: { multivalue: endpoint.configuration.search === "multi" },
         },
@@ -417,7 +419,7 @@ export const PardonFetchExecution = pardonExecution({
     const { layers, endpoint } = match;
     const now = Date.now();
     const encoding =
-      guessContentType(inbound.headers, inbound.body ?? "") ?? "raw";
+      guessContentType(inbound.headers, inbound.body ?? "") ?? "$$raw";
 
     let matchedSchema: Schema<ResponseObject> | undefined;
     let matchedOutcome: string | undefined;

@@ -220,7 +220,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   if (ts.isNumericLiteral(currentNode)) {
     return factory.createCallExpression(
-      factory.createIdentifier("$$number"),
+      factory.createIdentifier("$$$number"),
       undefined,
       [factory.createStringLiteral(currentNode.getText())],
     );
@@ -277,13 +277,13 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     switch (currentNode.operator) {
       case SyntaxKind.PlusToken:
         return factory.createCallExpression(
-          factory.createIdentifier("mux"),
+          factory.createIdentifier("$$mux"),
           undefined,
           [currentNode.operand],
         );
       case SyntaxKind.MinusToken:
         return factory.createCallExpression(
-          factory.createIdentifier("mix"),
+          factory.createIdentifier("$$mix"),
           undefined,
           [currentNode.operand],
         );
@@ -306,17 +306,17 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 };
 
 const referenceHints = {
-  noexport: ":",
-  optional: "?",
-  required: "!",
-  redact: "@",
-  flow: "+",
-  meld: "~",
+  $noexport: ":",
+  $optional: "?",
+  $required: "!",
+  $redact: "@",
+  $flow: "+",
+  $meld: "~",
 };
 
 const referenceSpecials = {
-  key: "@key",
-  value: "@value",
+  $key: "@key",
+  $value: "@value",
 };
 
 function identifierOf(node: ts.Expression) {
@@ -333,13 +333,13 @@ function identifierOf(node: ts.Expression) {
       hints.add(hint);
     } else if (special) {
       parts.unshift(special);
-    } else if (name.startsWith("$")) {
-      parts.unshift(name.slice(1));
+    } else if (!name.startsWith("$")) {
+      parts.unshift(name);
     } else {
       throw new Error(
         "illegal reference node name: " +
           name +
-          " (references must start with $)",
+          " (references must not start with $)",
       );
     }
 
@@ -354,14 +354,15 @@ function identifierOf(node: ts.Expression) {
 
   const name = node.text;
 
-  if (!name.startsWith("$")) {
+  if (name.startsWith("$")) {
     throw new Error(
       "illegal reference node name: " +
         name +
-        " (references must start with $)",
+        " (references must not start with $)",
     );
   }
-  parts.unshift(name.slice(1));
+
+  parts.unshift(name);
 
   return `${[...hints].join("")}${parts.join(".")}`;
 }
@@ -412,7 +413,7 @@ function binaryExpression(
       }
 
       return factory.createCallExpression(
-        factory.createPropertyAccessExpression(lhs, "of"),
+        factory.createPropertyAccessExpression(lhs, "$"),
         undefined,
         [rhs],
       );
@@ -425,14 +426,14 @@ function binaryExpression(
       break;
     case SyntaxKind.AsteriskToken:
       return factory.createCallExpression(
-        factory.createIdentifier("keyed"),
+        factory.createIdentifier("$$keyed"),
         undefined,
         [currentNode.left, currentNode.right],
       );
     case SyntaxKind.AsteriskAsteriskToken:
       return factory.createCallExpression(
         factory.createPropertyAccessExpression(
-          factory.createIdentifier("keyed"),
+          factory.createIdentifier("$$keyed"),
           "mv",
         ),
         undefined,

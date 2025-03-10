@@ -31,9 +31,9 @@ describe("schema structure", () => {
     const s = mixing({
       computed: "{{= body.toLowerCase()}}",
       json: referenceTemplate<string[]>({ ref: "json" }),
-      body: referenceTemplate({ ref: "body" }).of(
+      body: referenceTemplate({ ref: "body" }).$(
         jsonEncoding(
-          referenceTemplate({ ref: "json" }).of(["A", "B", '{{C = "C"}}']),
+          referenceTemplate({ ref: "json" }).$(["A", "B", '{{C = "C"}}']),
         ),
       ),
     });
@@ -54,10 +54,10 @@ describe("schema structure", () => {
   it("should capture key-values", async () => {
     const s = mixing(
       keyed(
-        { name: evalBodyTemplate("$key") as Schematic<string> },
+        { name: evalBodyTemplate("key") as Schematic<string> },
         {
           hello: { name: "hello", value: "{{hello}}" },
-          world: { name: "world", value: evalBodyTemplate("$world") },
+          world: { name: "world", value: evalBodyTemplate("world") },
         },
       ),
     );
@@ -80,8 +80,8 @@ describe("schema structure", () => {
   it("should capture key-values structure", async () => {
     const s = mixing(
       evalBodyTemplate(`
-      { name: $key } * [
-       { value: $named.$value }
+      { name: key } * [
+       { value: named.value }
       ]
     `),
     );
