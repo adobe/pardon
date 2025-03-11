@@ -12,14 +12,15 @@ governing permissions and limitations under the License.
 import * as acorn from "acorn";
 import * as walker from "acorn-walk";
 import {
+  type TransformTraversalControl,
   Project,
   ScriptTarget,
   ModuleKind,
   ts,
-  TransformTraversalControl,
   IndentationText,
   SyntaxKind,
 } from "ts-morph";
+import { PardonError } from "../error.js";
 
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 
@@ -39,29 +40,35 @@ const expressionProject = new Project({
 
 export function applyTsMorph(
   expression: string,
-  transform?: TsMorphTransform,
+  transform: TsMorphTransform = (control) => control.visitChildren(),
 ): string {
-  if (!transform) {
-    return expression;
-  }
-
   const exprSourceFile = expressionProject.createSourceFile(
     `__expr__.ts`,
     `export default ${expression}`,
     { overwrite: true },
   );
 
-  const awaitedExpr = exprSourceFile
+  exprSourceFile
     .getExportAssignment((assignment) => !assignment.isExportEquals())!
     .getExpression()!
-    .transform(transform)
-    .getText();
+    .transform(transform);
+
+  const result = expressionProject.emitToMemory({
+    targetSourceFile: exprSourceFile,
+  });
+
+  const compiledExpr = result
+    .getFiles()[0]
+    .text.replace(/^export default /, "")
+    .replace(/;\s+$/m, "");
+
+  exprSourceFile.forget();
 
   //   this would actually leave more state around from
   //   the expression evaluation than not doing it.
   // exprSourceFile.deleteImmediatelySync();
 
-  return awaitedExpr;
+  return compiledExpr;
 }
 
 export function unbound(
@@ -247,6 +254,15 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   currentNode = visitChildren();
 
+  if (ts.isAsExpression(currentNode)) {
+    const types = asTypes(currentNode.type);
+
+    return types.reduce<ts.Expression>(
+      (node, type) => factory.createPropertyAccessExpression(node, type),
+      currentNode.expression,
+    );
+  }
+
   if (ts.isBinaryExpression(currentNode)) {
     const expression = binaryExpression(currentNode, factory);
     if (expression) {
@@ -304,6 +320,55 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   return currentNode;
 };
+
+function asTypes(node: ts.TypeNode): string[] {
+  if (ts.isToken(node)) {
+    switch (node.kind) {
+      case SyntaxKind.UndefinedKeyword:
+        return ["$optional"];
+      case SyntaxKind.BooleanKeyword:
+        return ["$bool"];
+      case SyntaxKind.StringKeyword:
+        return ["$string"];
+      case SyntaxKind.NumberKeyword:
+        return ["$number"];
+      case SyntaxKind.BigIntKeyword:
+        return ["$bigint"];
+      case SyntaxKind.NullKeyword:
+        return ["$nullable"];
+      default:
+        throw new PardonError(
+          `unhandled as-type: SyntaxKind=${node.kind} (${ts.SyntaxKind[node.kind]})`,
+        );
+    }
+  }
+
+  if (ts.isTypeReferenceNode(node)) {
+    if (ts.isIdentifier(node.typeName)) {
+      switch (node.typeName.text) {
+        case "secret":
+        case "redacted":
+          return ["$redacted"];
+        case "internal":
+          return ["$noexport"];
+        case "bool":
+          return ["$bool"];
+        case "optional":
+          return ["$optional"];
+        case "flow":
+          return ["$flow"];
+        default:
+          throw new PardonError(`unhandled as-type: ${node.typeName.text}`);
+      }
+    }
+  }
+
+  if (ts.isUnionTypeNode(node)) {
+    return node.types.flatMap((type) => asTypes(type));
+  }
+
+  throw new PardonError(`unhandled as-type: ${node.getText()}`);
+}
 
 const referenceHints = {
   $noexport: ":",

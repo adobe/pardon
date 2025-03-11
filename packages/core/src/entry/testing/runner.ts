@@ -19,7 +19,7 @@ import { HTTP } from "../../core/formats/http-fmt.js";
 import {
   SequenceReport,
   SequenceStepReport,
-} from "../../core/execution/flow/https-flow.js";
+} from "../../core/execution/flow/https-flow-types.js";
 import {
   all_disconnected,
   disconnected,

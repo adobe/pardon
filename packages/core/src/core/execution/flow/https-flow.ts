@@ -11,10 +11,8 @@ governing permissions and limitations under the License.
 */
 import {
   HttpsFlowScheme,
-  HttpsRequestStep,
   HttpsResponseStep,
   HttpsFlowConfig,
-  HttpsScriptStep,
 } from "../../formats/https-fmt.js";
 import { ResponseObject } from "../../request/fetch-pattern.js";
 import { pardon } from "../../../api/pardon-wrapper.js";
@@ -46,8 +44,18 @@ import { Flow, FlowResult, makeFlowIdempotent } from "./flow-core.js";
 import { executeFlowInContext } from "./index.js";
 import { KV } from "../../formats/kv-fmt.js";
 import { PardonError } from "../../error.js";
-import { evaluation, TsMorphTransform } from "../../evaluation/expression.js";
+import {
+  applyTsMorph,
+  evaluation,
+  TsMorphTransform,
+  unbound,
+} from "../../evaluation/expression.js";
 import { SyntaxKind, ts } from "ts-morph";
+import {
+  HttpExchangeInterraction,
+  HttpsSequenceInteraction,
+  SequenceStepReport,
+} from "./https-flow-types.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -59,25 +67,6 @@ export type SequenceReport = {
   steps: SequenceStepReport[];
   executions: TracedResult[];
 };
-
-export type SequenceStepReport = Awaited<
-  ReturnType<typeof executeHttpsSequenceStep>
->;
-
-type HttpScriptInterraction = {
-  type: "script";
-  script: HttpsScriptStep;
-};
-
-type HttpExchangeInterraction = {
-  type: "exchange";
-  request: HttpsRequestStep;
-  responses: HttpsResponseStep[];
-};
-
-type HttpsSequenceInteraction =
-  | HttpScriptInterraction
-  | HttpExchangeInterraction;
 
 export function compileHttpsFlow(
   scheme: HttpsFlowScheme,
@@ -250,31 +239,30 @@ export async function executeHttpsSequence(
   return await sequenceRun();
 }
 
-export const flowScriptTransform: TsMorphTransform = ({
-  factory,
-  visitChildren,
-}) => {
-  const node = visitChildren();
+const flowScriptTransform: (freeVariables: Set<string>) => TsMorphTransform =
+  (freeVariables) =>
+  ({ factory, visitChildren }) => {
+    const node = visitChildren();
 
-  if (
-    ts.isBinaryExpression(node) &&
-    node.operatorToken.kind === SyntaxKind.EqualsToken
-  ) {
-    const lhs = node.left;
-    if (ts.isIdentifier(lhs)) {
-      return factory.createBinaryExpression(
-        factory.createPropertyAccessExpression(
-          factory.createIdentifier("environment"),
-          lhs.text,
-        ),
-        node.operatorToken,
-        node.right,
-      );
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === SyntaxKind.EqualsToken
+    ) {
+      const lhs = node.left;
+      if (ts.isIdentifier(lhs) && freeVariables.has(lhs.text)) {
+        return factory.createBinaryExpression(
+          factory.createPropertyAccessExpression(
+            factory.createIdentifier("environment"),
+            lhs.text,
+          ),
+          node.operatorToken,
+          node.right,
+        );
+      }
     }
-  }
 
-  return node;
-};
+    return node;
+  };
 
 async function executeHttpsFlowSequence(
   sequence: CompiledHttpsSequence,
@@ -303,7 +291,12 @@ async function executeHttpsFlowSequence(
     if (next.type === "script") {
       const scriptValues = {};
 
-      await evaluation(next.script.script, {
+      const script = `(() => { ${next.script.script} ;;; })()`;
+
+      const precomplied = applyTsMorph(script);
+      const freeVariables = unbound(precomplied);
+
+      await evaluation(script, {
         binding(key) {
           if (key === "environment") {
             return scriptValues;
@@ -311,7 +304,7 @@ async function executeHttpsFlowSequence(
 
           return resultValues[key];
         },
-        transform: flowScriptTransform,
+        transform: flowScriptTransform(freeVariables),
       });
 
       flowValues = { ...flowValues, ...scriptValues };
@@ -560,7 +553,7 @@ async function executeHttpsSequenceStep({
   sequencePath: string;
   values: Record<string, any>;
   context: FlowContext;
-}) {
+}): Promise<SequenceStepReport> {
   const { compiler } = flowContext.runtime;
   const { request: requestTemplate, responses: responseTemplates } =
     interaction;
@@ -614,7 +607,7 @@ ${HTTP.responseObject.stringify(inbound.redacted)}`);
 
   const matching =
     responseTemplates.length === 0
-      ? ({ result: "matched" } as Awaited<
+      ? ({ result: "matched", preview: inbound.redacted } as Awaited<
           ReturnType<typeof matchResponseToOutcome>
         >)
       : await matchResponseToOutcome(

@@ -32,7 +32,7 @@ import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 
 describe("https-schema-tests", () => {
   it("should abc", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json", {
+    const jsonBaseSchema = httpsRequestSchema("$$json", {
       search: { multivalue: false },
     });
 
@@ -93,7 +93,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should something todo", async () => {
-    const formBaseSchema = httpsRequestSchema("form");
+    const formBaseSchema = httpsRequestSchema("$$form");
 
     const httpsPattern = merge(
       formBaseSchema,
@@ -122,7 +122,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match unwrapped single elements", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const hctx = mixContext(jsonBaseSchema, {
       origin: "https://www.example.com",
@@ -158,7 +158,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match render missing single elements", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -190,7 +190,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match and render nulls", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -222,7 +222,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match and render nulls in lenient arrays", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -254,7 +254,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match defaulted numbers", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -284,7 +284,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match on identical values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -314,7 +314,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should fail on missing values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -344,7 +344,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should fail on missing template values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -374,7 +374,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should allow missing optional template values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("json");
+    const jsonBaseSchema = httpsRequestSchema("$$json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -476,7 +476,7 @@ describe("https-schema-tests", () => {
     .to(`"{{ b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("parens-with-noexport-modifier")
-    .from("b.$noexport = ('hello')")
+    .from("b as internal = ('hello')")
     .to(`"{{ :b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("parens-with-redact-modifier")

@@ -68,7 +68,9 @@ type ReferenceSchematic<T> = Schematic<T> & {
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
   readonly $noexport: ReferenceSchematic<T>;
+  readonly $redacted: ReferenceSchematic<T>;
   readonly $optional: ReferenceSchematic<T>;
+  readonly $flow: ReferenceSchematic<T>;
   readonly $redact: ReferenceSchematic<T>;
   readonly $meld: ReferenceSchematic<T>;
   readonly $string: ReferenceSchematic<string>;
@@ -155,6 +157,12 @@ export function referenceTemplate<T = unknown>(
               hint: `${reference.hint ?? ""}:`,
             });
           },
+          get $redacted() {
+            return referenceTemplate({
+              ...reference,
+              hint: `${reference.hint ?? ""}@`,
+            });
+          },
           get $optional() {
             return referenceTemplate({
               ...reference,
@@ -171,6 +179,12 @@ export function referenceTemplate<T = unknown>(
             return referenceTemplate({
               ...reference,
               hint: `${reference.hint ?? ""}~`,
+            });
+          },
+          get $flow() {
+            return referenceTemplate({
+              ...reference,
+              hint: `${reference.hint ?? ""}+`,
             });
           },
           get $redact() {

@@ -90,7 +90,8 @@ export type HttpsRequestObject = FetchObject & {
 export function bodyReference(template: Template<string>): Schematic<string> {
   return referenceTemplate({
     ref: "body",
-  }).$noexport.$optional.$(template);
+    hint: ":?",
+  }).$(template);
 }
 
 type BodySchematicOps = SchematicOps<string> & {
@@ -152,7 +153,11 @@ export function bodySchema(
       }
 
       try {
-        if (/^[a-z]+(?<!^mix|^mux|^match)\s*[(]/i.test(source.trim())) {
+        if (
+          /^[$]{2}[a-z]+(?<!^[$]{2}(?:mix|mux|match))\s*[(]/i.test(
+            source.trim(),
+          )
+        ) {
           const merged = merge(stubSchema(), {
             ...context,
             template: evalBodyTemplate(`${source}`),
