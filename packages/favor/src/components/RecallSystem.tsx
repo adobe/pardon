@@ -19,7 +19,7 @@ import {
   For,
   Suspense,
 } from "solid-js";
-import { HTTP, KV, ResponseJSON } from "pardon/formats";
+import { HTTP, JSON, KV, ResponseJSON } from "pardon/formats";
 import LoadingSplash from "./LoadingSplash.tsx";
 import { makePersisted } from "@solid-primitives/storage";
 import { RequestSummaryNode } from "./RequestSummaryTree.tsx";

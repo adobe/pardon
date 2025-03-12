@@ -1,5 +1,5 @@
 import CodeMirror from "@components/codemirror/CodeMirror.jsx";
-import { KV } from "pardon/formats";
+import { JSON, KV } from "pardon/formats";
 import { createMemo, createSignal } from "solid-js";
 
 export default function KvPlayground(props: { value: string }) {

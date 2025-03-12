@@ -25,6 +25,7 @@ import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
 import { mixing } from "../../src/core/schema/core/contexts.js";
+import { JSON } from "../../src/core/json.js";
 
 describe("schema json tests", () => {
   it("should parse and render json", async () => {

@@ -209,12 +209,13 @@ function ship<T>(value: T): T {
     case Array.isArray(value):
       return value.map(ship) as T;
     case value instanceof Number:
-    case value instanceof BigInt:
+    case value instanceof BigInt: {
       return {
         $$$type: value instanceof Number ? "number" : "bigint",
         value: value.valueOf(),
-        source: value["source"],
+        source: value["source"], // ?? String(value),
       } as T;
+    }
     default:
       return mapObject(value as any, ship) as T;
   }

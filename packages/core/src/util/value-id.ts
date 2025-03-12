@@ -11,6 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { isNumberObject, isBigIntObject } from "node:util/types";
+import { JSON } from "../core/json.js";
 
 export function valueId(value: unknown): string {
   switch (typeof value) {

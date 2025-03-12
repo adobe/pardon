@@ -57,6 +57,7 @@ function looksLikeJson(template: unknown): template is string {
       void error;
     }
   }
+
   return false;
 }
 

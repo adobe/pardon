@@ -22,6 +22,7 @@ import {
 } from "../core/evaluation/expression.js";
 import { shared } from "../core/tracking.js";
 import { PardonCollection } from "./init/workspace.js";
+import { JSON } from "../core/json.js";
 
 const { join, normalize } = posix;
 

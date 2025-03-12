@@ -39,6 +39,7 @@ import {
 import { PardonError } from "../core/error.js";
 import { expandConfigMap } from "../core/schema/core/config-space.js";
 import { compileHttpsFlow } from "../core/execution/flow/https-flow.js";
+import { JSON } from "../core/json.js";
 
 export async function loadCollectionLayer(root: string) {
   return {

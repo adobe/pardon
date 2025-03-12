@@ -10,6 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { JSON } from "pardon/formats";
+
 export function json(value: any) {
   return new Response(JSON.stringify(value), {
     headers: [["Content-Type", "application/json"]],

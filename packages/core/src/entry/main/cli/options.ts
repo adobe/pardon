@@ -17,6 +17,7 @@ import { PardonError } from "../../../core/error.js";
 import { mapObject } from "../../../util/mapping.js";
 import { intoURL, parseURL } from "../../../core/request/url-pattern.js";
 import { extractKVs } from "../../../util/kv-options.js";
+import { JSON } from "../../../core/json.js";
 
 export type CommandOptions = ReturnType<typeof opts>["values"];
 

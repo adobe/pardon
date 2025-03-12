@@ -32,7 +32,7 @@ export const persistJson: Pick<
     });
   },
   deserialize(data) {
-    return JSON.parse(data, (key, value, { source }) => {
+    return JSON.parse(data, (_key, value, { source }) => {
       if (typeof value === "number") {
         const numeric = Object.assign(new Number(value), {
           source,
@@ -60,20 +60,25 @@ export function recv<T>(value: T): T {
       return value;
     case Array.isArray(value):
       return value.map(recv) as T;
-    case value?.["$$$type"] === "number":
+    case value?.["$$$type"] === "number": {
+      const source = value["source"];
       return Object.assign(new Number(value["value"]), {
-        source: value["source"],
+        source,
         toJSON() {
-          return JSON.rawJSON(value["source"] as string);
+          return JSON.rawJSON(source as string);
         },
       }) as T;
-    case value?.["$$$type"] === "bigint":
+    }
+    case value?.["$$$type"] === "bigint": {
+      const source = value["source"];
+
       return Object.assign(Object(BigInt(value["value"])), {
-        source: value["source"],
+        source,
         toJSON() {
-          return JSON.rawJSON(value["source"] as string);
+          return JSON.rawJSON(source as string);
         },
       }) as T;
+    }
     default:
       return mapObject(value as any, recv) as T;
   }

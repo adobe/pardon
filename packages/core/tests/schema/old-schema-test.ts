@@ -25,6 +25,7 @@ import { Schema } from "../../src/core/schema/core/types.js";
 import { bodyGlobals } from "../../src/core/request/body-template.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 import { mixing } from "../../src/core/schema/core/contexts.js";
+import { JSON } from "../../src/core/json.js";
 
 describe("schema tests", () => {
   it("should create schemas for basic types", async () => {

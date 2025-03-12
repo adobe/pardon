@@ -476,7 +476,7 @@ describe("https-schema-tests", () => {
     .to(`"{{ b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("parens-with-noexport-modifier")
-    .from("b as internal = ('hello')")
+    .from("(b as internal) = ('hello')")
     .to(`"{{ :b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("parens-with-redact-modifier")

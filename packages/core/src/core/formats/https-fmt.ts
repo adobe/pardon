@@ -23,6 +23,7 @@ import {
 import { parseVariable } from "../schema/core/pattern.js";
 import YAML from "yaml";
 import { KV } from "./kv-fmt.js";
+import { JSON } from "../json.js";
 
 export type HttpsResponseStep = {
   type: "response";

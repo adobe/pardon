@@ -69,6 +69,7 @@ import {
   unboxObject,
 } from "./scalar.js";
 import { uniqReducer } from "../../../util/uniq-reducer.js";
+import { JSON } from "../../json.js";
 
 type DatumRepresentation = {
   patterns: Pattern[];
@@ -140,6 +141,7 @@ function mergeRepresentation<T extends Scalar>(
       if (!match) {
         return;
       }
+
       patterns = match.patterns;
     }
   }

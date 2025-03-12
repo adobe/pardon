@@ -30,6 +30,7 @@ import { mapObject } from "../../../util/mapping.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
 import { executeFlowInContext } from "../../../core/execution/flow/index.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
+import { JSON } from "../../../core/json.js";
 
 main()
   .then((code) => process.exit(code))

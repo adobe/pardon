@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { cleanObject, KV } from "pardon/formats";
+import { cleanObject, JSON, KV } from "pardon/formats";
 import { TbCopy, TbPlus } from "solid-icons/tb";
 import { ComponentProps, For, JSX, splitProps } from "solid-js";
 import { twMerge } from "tailwind-merge";

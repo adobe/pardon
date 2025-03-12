@@ -120,7 +120,7 @@ export class Scope implements EvaluationScope, ScopeData {
     return mergeExports(subscopeExports, currentExports);
   }
 
-  localValues(options: ResolvedValueOptions): Record<string, unknown> {
+  exportableValues(options: ResolvedValueOptions): Record<string, unknown> {
     const localValues = mapObject(this.values, {
       values: ({ value }) => value,
       select: ({ expression }, key) =>
@@ -140,7 +140,7 @@ export class Scope implements EvaluationScope, ScopeData {
   ): Record<string, unknown> {
     return {
       ...this.parent?.resolvedValues(options),
-      ...this.localValues(options),
+      ...this.exportableValues(options),
     };
   }
 

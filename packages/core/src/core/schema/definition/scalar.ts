@@ -139,15 +139,17 @@ export function createNumber(source: string, value?: number) {
 
   if (DEBUG) {
     const created = new Error("created-at");
-    Object.defineProperty(numberObject, "valueOf", {
-      value() {
-        return Number(value ?? source);
-      },
-    });
+
     Object.defineProperty(numberObject, "created", {
       value: created,
     });
   }
+
+  Object.defineProperty(numberObject, "valueOf", {
+    value() {
+      return value ?? Number(source);
+    },
+  });
 
   Object.defineProperty(numberObject, "toString", {
     value() {
@@ -175,8 +177,6 @@ export function createBigInt(source: string, value?: bigint) {
     },
   });
 
-  JSON.stringify({ test: bigintObject });
-
   return bigintObject;
 }
 
@@ -193,40 +193,6 @@ export function scalarFuzzyTypeOf<T>(
   }
 
   return scalarTypeOf(value);
-}
-
-export function boxScalar<T>(value: T): T {
-  if (!isScalar(value)) {
-    return value;
-  }
-
-  if (typeof value === "number") {
-    return createNumber(String(value)) as T;
-  }
-
-  if (typeof value === "bigint") {
-    return createBigInt(String(value)) as T;
-  }
-
-  return value;
-}
-
-export function boxObject<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map(boxObject) as T;
-  }
-
-  if (
-    value &&
-    typeof value === "object" &&
-    Object.getPrototypeOf(value) === Object.prototype
-  ) {
-    return mapObject(value as Record<string, unknown>, (value) =>
-      boxObject(value),
-    ) as T;
-  }
-
-  return boxScalar(value);
 }
 
 export function unboxValue<T>(value: T): T {

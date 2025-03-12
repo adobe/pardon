@@ -13,6 +13,7 @@ import {
   evaluation,
   expressionTransform,
 } from "../../evaluation/expression.js";
+import { JSON } from "../../json.js";
 import { rescope } from "./context-util.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";

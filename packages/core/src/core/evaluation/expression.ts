@@ -21,6 +21,7 @@ import {
   SyntaxKind,
 } from "ts-morph";
 import { PardonError } from "../error.js";
+import { JSON } from "../json.js";
 
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 
@@ -212,7 +213,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
         }
         parts.push(parsed.text);
       } else {
-        parts.push(`{{ ${identifierOf(expression)} }}`);
+        parts.push(`{{ ${identifierOf(expression, factory)} }}`);
       }
 
       parts.push(literal.text);
@@ -384,37 +385,45 @@ const referenceSpecials = {
   $value: "@value",
 };
 
-function identifierOf(node: ts.Expression) {
+function identifierOf(node: ts.Expression, factory: ts.NodeFactory) {
   const parts: string[] = [];
   const hints = new Set<string>();
 
-  while (ts.isPropertyAccessExpression(node)) {
-    const name = node.name.text;
+  while (!ts.isIdentifier(node)) {
+    if (ts.isPropertyAccessExpression(node)) {
+      const name = node.name.text;
 
-    const hint = referenceHints[name];
-    const special = referenceSpecials[name];
+      const hint = referenceHints[name];
+      const special = referenceSpecials[name];
 
-    if (hint) {
-      hints.add(hint);
-    } else if (special) {
-      parts.unshift(special);
-    } else if (!name.startsWith("$")) {
-      parts.unshift(name);
+      if (hint) {
+        hints.add(hint);
+      } else if (special) {
+        parts.unshift(special);
+      } else if (!name.startsWith("$")) {
+        parts.unshift(name);
+      } else {
+        throw new Error(
+          "illegal reference node name: " +
+            name +
+            " (references must not start with $)",
+        );
+      }
+
+      node = node.expression;
+    } else if (ts.isParenthesizedExpression(node)) {
+      node = node.expression;
+    } else if (ts.isAsExpression(node)) {
+      const types = asTypes(node.type);
+      node = types.reduce<ts.Expression>(
+        (node, type) => factory.createPropertyAccessExpression(node, type),
+        node.expression,
+      );
     } else {
       throw new Error(
-        "illegal reference node name: " +
-          name +
-          " (references must not start with $)",
+        `illegal reference node: ${node.getText()} (expected identifier)`,
       );
     }
-
-    node = node.expression;
-  }
-
-  if (!ts.isIdentifier(node)) {
-    throw new Error(
-      "illegal reference node: " + node.getText() + "(expected identifier)",
-    );
   }
 
   const name = node.text;
@@ -446,7 +455,7 @@ function binaryExpression(
           ts.isParenthesizedExpression(rhs) ? rhs.expression : rhs
         ).getText();
 
-        const pattern = `{{ ${identifierOf(lhs)} = $$expr(${JSON.stringify(text)}) }}`;
+        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
         return factory.createStringLiteral(pattern);
       } else if (
         ts.isBinaryExpression(rhs) &&
@@ -468,10 +477,10 @@ function binaryExpression(
         ).getText();
         const regex = rhs.right;
 
-        const pattern = `{{ ${identifierOf(lhs)} = $$expr(${JSON.stringify(text)}) % ${regex.text} }}`;
+        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) % ${regex.text} }}`;
         return factory.createStringLiteral(pattern);
       } else if (ts.isRegularExpressionLiteral(rhs)) {
-        const pattern = `{{ ${identifierOf(lhs)} % ${rhs.text} }}`;
+        const pattern = `{{ ${identifierOf(lhs, factory)} % ${rhs.text} }}`;
         return factory.createStringLiteral(pattern);
       } else if (ts.isBinaryExpression(rhs)) {
         rhs = binaryExpression(rhs, factory) ?? rhs;
@@ -485,7 +494,7 @@ function binaryExpression(
     }
     case SyntaxKind.PercentEqualsToken:
       if (ts.isRegularExpressionLiteral(currentNode.right)) {
-        const pattern = `{{ ${identifierOf(currentNode.left)} = % ${currentNode.right.text} }}`;
+        const pattern = `{{ ${identifierOf(currentNode.left, factory)} = % ${currentNode.right.text} }}`;
         return factory.createStringLiteral(pattern);
       }
       break;

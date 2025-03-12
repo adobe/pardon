@@ -310,6 +310,9 @@ function resolvedScalars(context: SchemaMergingContext<unknown>) {
         case "bigint":
           return String(value);
       }
+      if (value instanceof Number || value instanceof BigInt) {
+        return value["source"];
+      }
     },
     filter(_key, value) {
       return value !== undefined;

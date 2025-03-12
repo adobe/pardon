@@ -14,9 +14,7 @@
         "tsx/esm",
         "--stack-trace-limit=100",
         "src/entry/main/cli/index.ts",
-        "env=local",
-        "todo=T1002",
-        "todo/toggle.flow"
+        "test.http"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
