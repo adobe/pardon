@@ -37,7 +37,7 @@ import { Trace } from "./request-history.ts";
 import { displayHttp } from "./display-util.ts";
 import { RequestSummaryInfo } from "./RequestHistory.tsx";
 import { HTTP } from "pardon/formats";
-import { recv } from "../util/persistence.ts";
+import { recv } from "pardon/utils";
 
 export type HistoryTree = { trace: number; deps: HistoryTree[] };
 

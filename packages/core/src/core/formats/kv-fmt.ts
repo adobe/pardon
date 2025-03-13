@@ -498,7 +498,7 @@ function linewrappedStringify(v: unknown, jindent?: number) {
     }
 
     if (value instanceof BigInt || value instanceof Number) {
-      return JSON.rawJSON(value["source"] ?? String(value));
+      return JSON.rawJSON(value["source"]);
     }
 
     return value;

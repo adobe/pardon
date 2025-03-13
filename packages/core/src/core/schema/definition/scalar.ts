@@ -66,11 +66,11 @@ export function convertScalar(
     case "string":
       return String(value);
     case "bigint":
-      if (value !== undefined && value instanceof Number) {
+      if (value instanceof Number || value instanceof BigInt) {
         return createBigInt(value["source"]);
       }
 
-      if (value !== undefined && value instanceof BigInt) {
+      if (value instanceof BigInt) {
         return value;
       }
 
@@ -143,13 +143,20 @@ export function createNumber(source: string, value?: number) {
     Object.defineProperty(numberObject, "created", {
       value: created,
     });
-  }
 
-  Object.defineProperty(numberObject, "valueOf", {
-    value() {
-      return value ?? Number(source);
-    },
-  });
+    value ??= Number(source);
+
+    Object.defineProperty(numberObject, "valueOf", {
+      value() {
+        return value;
+      },
+    });
+    Object.defineProperty(numberObject, Symbol.toPrimitive, {
+      value() {
+        return value;
+      },
+    });
+  }
 
   Object.defineProperty(numberObject, "toString", {
     value() {

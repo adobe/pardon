@@ -19,7 +19,7 @@ import MakeRequestButton from "./MakeRequestButton.tsx";
 import { Show } from "solid-js";
 import ResponseView from "./ResponseView.tsx";
 import { setSecureData } from "../../secure-data.ts";
-import { recv } from "../../../util/persistence.ts";
+import { recv } from "pardon/utils";
 
 export default function ResponsePanel(props: {
   outbound: ReturnType<ReturnType<typeof executionResource>["outbound"]>;

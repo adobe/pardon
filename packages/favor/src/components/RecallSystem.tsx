@@ -26,8 +26,8 @@ import { RequestSummaryNode } from "./RequestSummaryTree.tsx";
 import { RequestSummaryInfoDrawerWrapper } from "./RequestHistory.tsx";
 import KeyValueCopier from "./KeyValueCopier.tsx";
 import { numericKeySort } from "../util/numeric-sort.ts";
-import { arrayIntoObject, mapObject } from "pardon/utils";
-import { persistJson, recv } from "../util/persistence.ts";
+import { arrayIntoObject, mapObject, recv, ship } from "pardon/utils";
+import { persistJson } from "../util/persistence.ts";
 
 const [prompt, setPrompt] = makePersisted(createSignal(""), {
   name: "recall:prompt",
@@ -62,7 +62,11 @@ export default function RecallSystem(props: {
     async ({ values, args, options: { limit = "30" } = {} }) => {
       const limitn = Number(limit);
       return recv(
-        await window.pardon.recall(args, values, isNaN(limitn) ? 30 : limitn),
+        await window.pardon.recall(
+          args,
+          ship(values),
+          isNaN(limitn) ? 30 : limitn,
+        ),
       ); // TODO: pagination
     },
   );

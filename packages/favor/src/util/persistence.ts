@@ -12,7 +12,6 @@ governing permissions and limitations under the License.
 
 import { type PersistenceOptions } from "@solid-primitives/storage";
 import { JSON } from "pardon/formats";
-import { mapObject } from "pardon/utils";
 
 export const persistJson: Pick<
   PersistenceOptions<any, any>,
@@ -53,33 +52,3 @@ export const persistJson: Pick<
     });
   },
 };
-
-export function recv<T>(value: T): T {
-  switch (true) {
-    case !value || typeof value !== "object":
-      return value;
-    case Array.isArray(value):
-      return value.map(recv) as T;
-    case value?.["$$$type"] === "number": {
-      const source = value["source"];
-      return Object.assign(new Number(value["value"]), {
-        source,
-        toJSON() {
-          return JSON.rawJSON(source as string);
-        },
-      }) as T;
-    }
-    case value?.["$$$type"] === "bigint": {
-      const source = value["source"];
-
-      return Object.assign(Object(BigInt(value["value"])), {
-        source,
-        toJSON() {
-          return JSON.rawJSON(source as string);
-        },
-      }) as T;
-    }
-    default:
-      return mapObject(value as any, recv) as T;
-  }
-}

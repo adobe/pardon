@@ -282,8 +282,6 @@ describe("schema configuration magic", () => {
       protoEnvironment,
     )!;
 
-    console.log(protoEnvironment.implied());
-
     const protoValues = {
       ...protoContext.evaluationScope.resolvedValues(),
       ...protoEnvironment.implied(),

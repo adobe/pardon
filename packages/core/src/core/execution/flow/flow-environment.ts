@@ -38,6 +38,12 @@ export function createSequenceEnvironment({
       undefined: null,
       String,
       Number,
+      BigInt(n: any) {
+        if (n instanceof Number || n instanceof BigInt) {
+          return BigInt(n["source"]);
+        }
+        return BigInt(n);
+      },
       Math,
       Date,
     },

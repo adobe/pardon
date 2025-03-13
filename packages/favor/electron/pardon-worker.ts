@@ -20,7 +20,7 @@ import * as YAML from "yaml";
 import { glob } from "glob";
 
 import { PardonAppContextOptions, initializePardon } from "pardon/runtime";
-import { arrayIntoObject, mapObject } from "pardon/utils";
+import { arrayIntoObject, mapObject, recv, ship } from "pardon/utils";
 import {
   FlowName,
   HTTP,
@@ -186,40 +186,17 @@ parentPort.on("message", async ({ id, action, args }) => {
       ship({
         id,
         status: "fulfilled",
-        value: await handling(action)(...args),
+        value: await handling(action)(...recv(args)),
       }),
     );
   } catch (error) {
-    parentPort.postMessage(
-      ship({
-        id,
-        status: "rejected",
-        reason: String(error?.message ?? error),
-      }),
-    );
+    parentPort.postMessage({
+      id,
+      status: "rejected",
+      reason: String(error?.message ?? error),
+    });
   }
 });
-
-function ship<T>(value: T): T {
-  switch (true) {
-    case typeof value === "function":
-      return undefined;
-    case !value || typeof value !== "object":
-      return value;
-    case Array.isArray(value):
-      return value.map(ship) as T;
-    case value instanceof Number:
-    case value instanceof BigInt: {
-      return {
-        $$$type: value instanceof Number ? "number" : "bigint",
-        value: value.valueOf(),
-        source: value["source"], // ?? String(value),
-      } as T;
-    }
-    default:
-      return mapObject(value as any, ship) as T;
-  }
-}
 
 function handling<Action extends keyof typeof handlers>(
   action: Action,
@@ -465,6 +442,16 @@ const handlers = {
 
     const { endpoint, outbound, inbound } = await flow.result;
 
+    const secure = {
+      outbound: {
+        request: HTTP.requestObject.json(outbound.request),
+      },
+      inbound: {
+        response: HTTP.responseObject.json(inbound.response),
+        values: inbound.secrets,
+      },
+    };
+
     return {
       context: { ask, trace, durations },
       endpoint,
@@ -476,15 +463,7 @@ const handlers = {
         response: HTTP.responseObject.json(inbound.redacted),
         values: inbound.values,
       },
-      secure: {
-        outbound: {
-          request: HTTP.requestObject.json(outbound.request),
-        },
-        inbound: {
-          response: HTTP.responseObject.json(inbound.response),
-          values: inbound.secrets,
-        },
-      },
+      secure: secure as typeof secure | undefined,
     };
   },
   async archetype(httpsMaybe: string) {

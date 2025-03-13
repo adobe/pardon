@@ -14,7 +14,8 @@
         "tsx/esm",
         "--stack-trace-limit=100",
         "src/entry/main/cli/index.ts",
-        "test.http"
+        "test.http",
+        "--http"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",

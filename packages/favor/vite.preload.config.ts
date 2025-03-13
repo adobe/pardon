@@ -10,11 +10,21 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { extendPreloadConfig } from "./vite.base.config.ts";
+import { resolve } from "node:path";
 
 // https://vitejs.dev/config
 export default extendPreloadConfig({
   resolve: {
     preserveSymlinks: true,
+    alias: Object.entries({
+      "util/types": "./src/poly/util-types.ts",
+      "node:util/types": "./src/poly/util-types.ts",
+      util: "node_modules/@pkgjs/parseargs",
+      "node:util": "node_modules/@pkgjs/parseargs",
+    }).map(([find, replacement]) => ({
+      find,
+      replacement: resolve(replacement),
+    })),
   },
   build: {
     sourcemap: "inline",

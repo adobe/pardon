@@ -19,9 +19,8 @@ import {
 } from "solid-js";
 import settle from "../util/settle.ts";
 import { manifest } from "./pardon-config.ts";
-import { deferred } from "pardon/utils";
+import { deferred, recv, ship } from "pardon/utils";
 import { setSecureData } from "../components/secure-data.ts";
-import { recv } from "../util/persistence.ts";
 
 function postfilter(selected: string) {
   return selected?.startsWith("endpoint:")
@@ -80,7 +79,7 @@ function previewResource(source: Accessor<PardonExecutionSource>) {
     async ({ source: { http, values, hint } }) => {
       return recv(
         await settle(
-          window.pardon.preview(http, values, {
+          window.pardon.preview(http, ship(values), {
             pretty: true,
             ...postfilter(hint),
           }),
@@ -112,7 +111,7 @@ function outboundResource(source: Accessor<PardonExecutionSource>) {
           : async (): Promise<ExecutionOutboundResult> => {
               try {
                 const { secure, ...render } = recv(
-                  await window.pardon.render(http, values, {
+                  await window.pardon.render(http, ship(values), {
                     ...postfilter(hint),
                   }),
                 );
