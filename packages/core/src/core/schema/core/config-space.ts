@@ -72,7 +72,7 @@ export class ConfigSpace {
 
   implied(override: Record<string, string>) {
     const inferred = implied(
-      ...this.options.filter((option) => compatible(option, override)),
+      ...this.possibilities.filter((option) => compatible(option, override)),
     );
 
     return {
