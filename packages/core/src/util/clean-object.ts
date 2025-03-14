@@ -14,6 +14,10 @@ export function cleanObject(thing: unknown) {
 
   switch (typeof thing) {
     case "object": {
+      if (thing instanceof Number || thing instanceof BigInt) {
+        return thing;
+      }
+
       if (Array.isArray(thing)) {
         if (thing.length === 0) {
           return undefined;
