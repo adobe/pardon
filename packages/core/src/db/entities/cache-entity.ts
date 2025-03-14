@@ -120,7 +120,7 @@ export function cacheOps(db?: PardonDatabase) {
     key: string,
     loader: () => Promise<CacheEntry<T>>,
   ): Promise<T> {
-    let { value, expires_in, expires_at } = (await loader()) ?? {};
+    let { value, expires_in, expires_at, nocache } = (await loader()) ?? {};
 
     if (value === undefined) {
       throw new PardonError(`failed to compute cached value for ${key}`);
@@ -135,11 +135,13 @@ export function cacheOps(db?: PardonDatabase) {
       expires_at: Number(expires_at),
     };
 
-    updateCache?.({
-      key,
-      value: JSON.stringify(value),
-      expires_at: new Date(expires_at).toISOString(),
-    });
+    if (!nocache) {
+      updateCache?.({
+        key,
+        value: JSON.stringify(value),
+        expires_at: new Date(expires_at).toISOString(),
+      });
+    }
 
     return value;
   }
@@ -148,14 +150,21 @@ export function cacheOps(db?: PardonDatabase) {
     key: string,
     loader: () => Promise<CacheEntry<T>>,
   ): Promise<T> {
+    const memcached = memoryCache[key];
+    const now = Date.now();
+
+    if (memcached) {
+      if ((memcached?.expires_at ?? 0) > now) {
+        return memcached.value as T;
+      }
+
+      delete memcached[key];
+    }
+
     const inflight = inflightCache[key];
 
     if (inflight) {
-      if (!memoryCache[key] || memoryCache[key].expires_at > Date.now()) {
-        return inflight as Promise<T>;
-      }
-
-      delete inflightCache[key];
+      return inflight as Promise<T>;
     }
 
     const entry = readCache?.(key) as string | undefined;
@@ -168,7 +177,7 @@ export function cacheOps(db?: PardonDatabase) {
       insertCache(key, loader),
     ));
 
-    result.catch(() => delete inflightCache[key]);
+    result.catch(() => {}).finally(() => delete inflightCache[key]);
 
     return result;
   }
