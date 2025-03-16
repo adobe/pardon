@@ -62,9 +62,9 @@ export default function FileListEditor(
         setIndex={setIndex}
       />
       <FileEditor
-        exists={file().exists}
-        content={file().content}
-        path={file().path}
+        exists={file()?.exists}
+        content={file()?.content}
+        path={file()?.path}
         onSave={props.onSave}
       />
     </div>

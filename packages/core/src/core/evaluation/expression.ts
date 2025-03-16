@@ -185,13 +185,12 @@ export async function evaluation(
 // operator overloading - JSON edition.
 //   - (...) -> don't transform the contents, this expression is to be evaluated by the pardon render engine
 //   - /.../ -> anonymous regex match /.../ :: "{{ % /.../ }}"
-//   - $x = (...) -> bind $x to the variable :: $x.of("{{ = (...) }}")
-//   - $x %= /.../ -> bind $x to the variable with regex /.../ :: $x.of("{{ % /.../ }}")
-//   - $x = (...) % /.../ -> bind $x to the variable with regex /.../ :: $x.of("{{ = (...) % /.../ }}")
-//   - $x = ... -> bind $x to the structure :: $x.of(...)
-//   - $x! -> mark $x required for match :: $x.required
-//   - void $x -> mark $x optional for match :: $x.optional
-//   - $x?.$y -> mark $y optional for match :: $x.$y.optional
+//   - x = 'value' -> bind x to the value :: x.of("value")
+//   - x = (...) -> bind x to the variable :: x.of("{{ = (...) }}")
+//   - x %= /.../ -> bind x to the variable with regex /.../ :: x.of("{{ % /.../ }}")
+//   - x = (...) % /.../ -> bind $x to the variable with regex /.../ :: x.of("{{ = (...) % /.../ }}")
+//   - x = ... -> bind x to the structure :: x.of(...)
+//   - x! -> mark x required for match :: x.$required (this only affects matching response templates)
 export const jsonSchemaTransform: TsMorphTransform = ({
   currentNode,
   visitChildren,
@@ -223,12 +222,12 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   }
 
   if (ts.isCallExpression(currentNode)) {
-    return visitChildren();
+    return decorateCall(visitChildren(), factory);
   }
 
   if (ts.isNumericLiteral(currentNode)) {
     return factory.createCallExpression(
-      factory.createIdentifier("$$$number"),
+      factory.createIdentifier("$$number"),
       undefined,
       [factory.createStringLiteral(currentNode.getText())],
     );
@@ -236,7 +235,8 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   if (
     ts.isBinaryExpression(currentNode) &&
-    (ts.isParenthesizedExpression(currentNode.right) ||
+    (ts.isAsExpression(currentNode.right) ||
+      ts.isParenthesizedExpression(currentNode.right) ||
       ts.isRegularExpressionLiteral(currentNode.right) ||
       (ts.isBinaryExpression(currentNode.right) &&
         ts.isRegularExpressionLiteral(currentNode.right.right)))
@@ -277,30 +277,17 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     return factory.createStringLiteral(pattern);
   }
 
-  if (
-    ts.isPropertyAccessChain(currentNode) &&
-    ts.isOptionalChain(currentNode)
-  ) {
-    currentNode = factory.createPropertyAccessExpression(
-      factory.createPropertyAccessExpression(
-        currentNode.expression,
-        currentNode.name,
-      ),
-      "optional",
-    );
-  }
-
   if (ts.isPrefixUnaryExpression(currentNode)) {
     switch (currentNode.operator) {
       case SyntaxKind.PlusToken:
         return factory.createCallExpression(
-          factory.createIdentifier("$$mux"),
+          factory.createIdentifier("$mux"),
           undefined,
           [currentNode.operand],
         );
       case SyntaxKind.MinusToken:
         return factory.createCallExpression(
-          factory.createIdentifier("$$mix"),
+          factory.createIdentifier("$mix"),
           undefined,
           [currentNode.operand],
         );
@@ -315,12 +302,56 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   if (ts.isNonNullExpression(currentNode)) {
     return factory.createPropertyAccessExpression(
       currentNode.expression,
-      "required",
+      "$required",
     );
   }
 
   return currentNode;
 };
+
+function decorateCall(expression: ts.Node, factory: ts.NodeFactory) {
+  if (!ts.isCallExpression(expression)) {
+    return expression;
+  }
+
+  const thisExpression = expression.expression;
+
+  if (
+    ts.isPropertyAccessChain(thisExpression) ||
+    ts.isPropertyAccessExpression(thisExpression)
+  ) {
+    const name = ts.isMemberName(thisExpression.name)
+      ? thisExpression.name.text
+      : thisExpression.name;
+
+    if (name.startsWith("$")) {
+      return expression;
+    }
+
+    return factory.createCallExpression(
+      factory.createPropertyAccessExpression(
+        thisExpression.expression,
+        `$${name}`,
+      ),
+      expression.typeArguments,
+      expression.arguments,
+    );
+  }
+
+  if (ts.isIdentifier(thisExpression)) {
+    if (thisExpression.text.startsWith("$")) {
+      return expression;
+    }
+
+    return factory.createCallExpression(
+      factory.createIdentifier(`$${thisExpression.text}`),
+      expression.typeArguments,
+      expression.arguments,
+    );
+  }
+
+  return expression;
+}
 
 function asTypes(node: ts.TypeNode): string[] {
   if (ts.isToken(node)) {
@@ -450,13 +481,41 @@ function binaryExpression(
     case SyntaxKind.EqualsToken: {
       const lhs = currentNode.left;
       let rhs = currentNode.right;
-      if (scalar || ts.isParenthesizedExpression(rhs)) {
+
+      if (scalar) {
+        const text = rhs.getText();
+
+        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
+        return factory.createStringLiteral(pattern);
+      } else if (ts.isAsExpression(rhs)) {
+        const text = rhs.expression.getText();
+        const types = asTypes(rhs.type);
+        const refValue = ts.isParenthesizedExpression(rhs.expression)
+          ? factory.createStringLiteral(
+              `{{ = $$expr(${JSON.stringify(text)}) }}`,
+            )
+          : rhs.expression;
+        const ref = types.reduce<ts.Expression>(
+          (node, type) => factory.createPropertyAccessExpression(node, type),
+          lhs,
+        );
+
+        return factory.createCallExpression(
+          factory.createPropertyAccessExpression(ref, "$of"),
+          undefined,
+          [refValue],
+        );
+      } else if (ts.isParenthesizedExpression(rhs)) {
         const text = (
           ts.isParenthesizedExpression(rhs) ? rhs.expression : rhs
         ).getText();
 
-        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
-        return factory.createStringLiteral(pattern);
+        const pattern = `{{ = $$expr(${JSON.stringify(text)}) }}`;
+        return factory.createCallExpression(
+          factory.createPropertyAccessExpression(lhs, "$of"),
+          undefined,
+          [factory.createStringLiteral(pattern)],
+        );
       } else if (
         ts.isBinaryExpression(rhs) &&
         (scalar || ts.isParenthesizedExpression(rhs.left)) &&
@@ -487,7 +546,7 @@ function binaryExpression(
       }
 
       return factory.createCallExpression(
-        factory.createPropertyAccessExpression(lhs, "$"),
+        factory.createPropertyAccessExpression(lhs, "$of"),
         undefined,
         [rhs],
       );
@@ -500,16 +559,13 @@ function binaryExpression(
       break;
     case SyntaxKind.AsteriskToken:
       return factory.createCallExpression(
-        factory.createIdentifier("$$keyed"),
+        factory.createIdentifier("$keyed"),
         undefined,
         [currentNode.left, currentNode.right],
       );
     case SyntaxKind.AsteriskAsteriskToken:
       return factory.createCallExpression(
-        factory.createPropertyAccessExpression(
-          factory.createIdentifier("$$keyed"),
-          "mv",
-        ),
+        factory.createIdentifier("$keyed$mv"),
         undefined,
         [currentNode.left, currentNode.right],
       );

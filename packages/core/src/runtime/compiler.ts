@@ -28,7 +28,7 @@ const { join, normalize } = posix;
 
 export type PardonCompiler = ReturnType<typeof createCompiler>;
 
-const withIdentityTransfrom: (identity: string) => TsMorphTransform =
+const withIdentityTransform: (identity: string) => TsMorphTransform =
   (identity) =>
   ({ factory, visitChildren, currentNode }) => {
     if (
@@ -113,7 +113,7 @@ export default function createCompiler({
     const compiled = project
       .createSourceFile(path, content)
       .transform(expressionTransform)
-      .transform(withIdentityTransfrom(identity))
+      .transform(withIdentityTransform(identity))
       .asKind(ts.SyntaxKind.SourceFile)!;
 
     const exports = [...(compiled?.getExportedDeclarations().entries() ?? [])]

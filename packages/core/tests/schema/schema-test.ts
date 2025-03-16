@@ -261,14 +261,14 @@ abc=[a,b,c]
 `();
 
 intent("array-reference-of")`
-abc.$(["a","b","c"])
+abc.of(["a","b","c"])
 ---
 abc=[a,b,c]
 ["a","b","c"]
 `();
 
 intent("reference-squashing")`
-abc.$("hello")
+abc.of("hello")
 ---
 xyz
 ---
@@ -278,9 +278,9 @@ xyz=hello
 `();
 
 intent("reference-squashing-of-a")`
-abc.$($xyz)
+abc.of(xyz)
 ---
-xyz.$(abc.$("hello"))
+xyz.of(abc.of("hello"))
 ---
 abc=hello
 xyz=hello
@@ -288,9 +288,9 @@ xyz=hello
 `();
 
 intent("reference-squashing-of-b")`
-abc.$(xyz).$("hello")
+abc.of(xyz).of("hello")
 ---
-xyz.$(abc)
+xyz.of(abc)
 ---
 abc=hello
 xyz=hello
@@ -307,13 +307,13 @@ abc=[a,b,c]
 `();
 
 intent("base64-json")`
-$$base64($$json({}))
+base64(json({}))
 ---
 "e30="
 `();
 
 intent("base64-json-enc-dec")`
-{ enc: $$base64($$json(a)), dec: a }
+{ enc: base64(json(a)), dec: a }
 ---
 { dec: "hello" }
 ---
@@ -322,7 +322,7 @@ a=hello
 `();
 
 intent("base64-json-dec-enc")`
-{ enc: $$base64($$json(a)), dec: a }
+{ enc: base64(json(a)), dec: a }
 ---
 { "enc": "ImhlbGxvIg==" }
 ---
@@ -331,9 +331,9 @@ a=hello
 `();
 
 intent("json-data-in-out")`
-{ enc: $$json({ a: '{{a=b+c}}', b }), c: "{{c}}" }
+{ enc: json({ a: '{{a=b+c}}', b }), c: "{{c}}" }
 ---
-{ enc: $$json({ a: '{{a=b+c}}', b }), c: "{{b = 10}}", a }
+{ enc: json({ a: '{{a=b+c}}', b }), c: "{{b = 10}}", a }
 ---
 a=20
 b=10
@@ -342,9 +342,9 @@ c=10
 `();
 
 intent("json-object-order")`
-{ x: $$json({ a: 1, b: 2 }), y: $$json({ b: 2, a: 1 }) }
+{ x: json({ a: 1, b: 2 }), y: json({ b: 2, a: 1 }) }
 ---
-{ x: $$json({ a: 1, b: 2 }), y: $$json({ a: 1, b: 2 }) }
+{ x: json({ a: 1, b: 2 }), y: json({ a: 1, b: 2 }) }
 ---
 { "x": "{\"a\":1,\"b\":2}", "y": "{\"b\":2,\"a\":1}" }
 `();
@@ -401,9 +401,9 @@ each=[{value=[1,2]}, {value=[2,4]}, {value=[3,6]}]
 `();
 
 intent("bind-layers")`
-outer.$($$base64(inner.$($$json({ a: 10, b }))))
+outer.of(base64(inner.of(json({ a: 10, b }))))
 ---
-outer2.$($$base64(inner2.$($$json({ b: 20, a: "{{a}}" }))))
+outer2.of(base64(inner2.of(json({ b: 20, a: "{{a}}" }))))
 ---
 a=10
 b=20
@@ -417,7 +417,7 @@ outer2=eyJhIjoxMCwiYiI6MjB9
 intent("mix-mux-array")`
 ["{{x}}"]
 ---
-$$mux(["x"])
+mux(["x"])
 ---
 ["x"]
 `();
@@ -428,14 +428,14 @@ intent("mix-mux-array-with-conflicting-value")`
 x=y
 ["{{x}}"]
 ---
-$$mux(["x"])
+mux(["x"])
 ---
 ["x"]
 `();
 
 intent.fails("mux-mux-array-with-conflicting-value")`
 x=y
-$$mux(["{{x}}"])
+mux(["{{x}}"])
 ---
 ["x"]
 ---
@@ -450,13 +450,13 @@ x=x
 `();
 
 intent.fails("mux-array-no-value")`
-$$mux(["{{x}}"])
+mux(["{{x}}"])
 ---
 []
 `();
 
 intent("mux-array-with-value")`
-$$mux(["{{x}}"])
+mux(["{{x}}"])
 ---
 ["x"]
 ---
@@ -466,7 +466,7 @@ x=x
 
 intent("mux-array-with-input")`
 x=x
-$$mux(["{{x}}"])
+mux(["{{x}}"])
 ---
 ["x"]
 ---
@@ -477,7 +477,7 @@ x=x
 intent("mux-pattern-with-mix-value")`
 ["x"]
 ---
-$$mux(["{{item.x}}"])
+mux(["{{item.x}}"])
 ---
 item=[{x=x}]
 ["x"]
@@ -492,7 +492,7 @@ intent("referential-consistency")`
   "a": "{{a = 1}}",
   "b": "{{b = 2}}",
   // hidden further prevents the render from triggering in the current scope
-  "ab": $$hidden("{{ab = a + b}}"),
+  "ab": hidden("{{ab = a + b}}"),
   "v": [{
     "a": "{{a = 10}}",
     "b": "{{b = 20}}",
@@ -501,7 +501,7 @@ intent("referential-consistency")`
   }]
 }
 ---
-{ v: $$mux([{}]) }
+{ v: mux([{}]) }
 ---
 *
 {
@@ -522,9 +522,9 @@ a=foo
 b=bar
 c=baz
 {
-  "a": $$unwrapSingle("{{a}}"),
-  "b": $$mux($$unwrapSingle("{{b}}")),
-  "c": $$unwrapSingle("{{c}}")
+  "a": unwrapSingle("{{a}}"),
+  "b": mux(unwrapSingle("{{b}}")),
+  "c": unwrapSingle("{{c}}")
 }
 ---
 {
@@ -536,7 +536,7 @@ c=baz
 intent("lenient-array-behavior-expanded-by-value")`
 a=[foo]
 {
-  "a": $$unwrapSingle("{{a.@value}}")
+  "a": unwrapSingle("{{a.@value}}")
 }
 ---
 a=[foo]
@@ -547,11 +547,11 @@ a=[foo]
 
 intent("lenient-array-behavior-valued-match-to-array")`
 {
-  "b": $$unwrapSingle("{{b.@value}}")
+  "b": unwrapSingle("{{b.@value}}")
 }
 ---
 {
-  "b": $$mux(["bar"])
+  "b": mux(["bar"])
 }
 ---
 b=[bar]
@@ -562,7 +562,7 @@ b=[bar]
 
 intent("lenient-array-behavior-valued-match-to-value")`
 {
-  "b": $$unwrapSingle("{{b.@value}}")
+  "b": unwrapSingle("{{b.@value}}")
 }
 ---
 {
@@ -577,8 +577,8 @@ b=[bar]
 
 intent("lenient-array-behavior-non-unit-case")`
 {
-  "a": $$unwrapSingle("{{a.@value}}"),
-  "b": $$unwrapSingle("{{b.@value}}")
+  "a": unwrapSingle("{{a.@value}}"),
+  "b": unwrapSingle("{{b.@value}}")
 }
 ---
 {
@@ -595,7 +595,7 @@ a=[1,2]
 
 intent("keyed-list-value-rendering")`
 map={ x=1, y=2 }
-$$keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, [{
   "id": "{{map.@key}}", // should this be implied from the match archetype?
   "a": "{{map.@value}}"
 }])
@@ -606,12 +606,12 @@ $$keyed({ id: "{{key}}" }, [{
 
 intent("keyed-list-merging-and-value-rendering")`
 map={ x={ a=1, b=2 }, y={ a=3, b=4 }}
-$$keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, [{
   "id": "{{map.@key}}", // should this be implied from the match archetype?
   "a": "{{map.a}}"
 }])
 ---
-$$keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, [{
   "b": "{{map.b}}"
 }])
 ---
@@ -621,12 +621,12 @@ $$keyed({ id: "{{key}}" }, [{
 
 intent("keyed-list-merging-and-value-rendering-reuse-value")`
 map={ x=xx, y=yy }
-$$keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, [{
   "id": "{{map.@key}}",
   "a": "{{map.@value}}"
 }])
 ---
-$$keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, [{
   "b": "{{map.@value}}"
 }])
 ---
@@ -636,7 +636,7 @@ $$keyed({ id: "{{key}}" }, [{
 `();
 
 intent("mv-keyed-list-matching")`
-$$keyed.mv({ id: "{{key}}" }, [{
+keyed$mv({ id: "{{key}}" }, [{
   "id": "{{map.a.@key}}", // should this be implied from the match archetype?
   "a": "{{map.a.@value}}"
 }])
@@ -655,7 +655,7 @@ map={x={a=[xx,xy]},y={a=[yy,yz]}}
 
 intent("mv-keyed-list-rendering-by-value")`
 map={x={a=[xx,xy]},y={a=[yy,yz]}}
-$$keyed.mv({ id: "{{key}}" }, [{
+keyed$mv({ id: "{{key}}" }, [{
   "id": "{{map.@key}}",
   "a": "{{map.a.@value}}"
 }])
@@ -668,7 +668,7 @@ $$keyed.mv({ id: "{{key}}" }, [{
 `();
 
 intent("keyed-tuple-list-mapping")`
-$$keyed(["{{key}}", undefined],
+keyed(["{{key}}", undefined],
 [["{{headers.@key}}", "{{headers.value}}"]])
 ---
 [["a", "AAA"],
@@ -681,7 +681,7 @@ headers={a={value=AAA}, b={value=BBB}}
 
 intent("keyed-tuple-list-value-rendering")`
 headers={a={value=AAA}, b={value=BBB}}
-$$keyed(["{{key}}", undefined],
+keyed(["{{key}}", undefined],
 [["{{headers.@key}}", "{{headers.value}}"]])
 ---
 *
@@ -690,7 +690,7 @@ $$keyed(["{{key}}", undefined],
 `();
 
 intent("mix-match")`
-$$mix(["{{array.@value}}"])
+mix(["{{array.@value}}"])
 ---
 ["a","b"]
 ---
@@ -739,9 +739,9 @@ map={ x={value=xx}, y={value=yy} }
 `();
 
 intent("nested-kv-export")`
-$$keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, [{
   id: "{{map.@key}}",
-  nested: $$keyed({ id: "{{key}}" }, [{
+  nested: keyed({ id: "{{key}}" }, [{
     id: "{{map.nested.@key}}",
     value: "{{map.nested.@value}}"
   }])
@@ -758,9 +758,9 @@ map={ hello={ nested={ x=y, p=q } } }
 
 intent("nested-kv-import")`
 map={ hello={ nested={ x=y, p=q } } }
-$$keyed({ id: key }, [{
+keyed({ id: key }, [{
   id: map.$key,
-  nested: $$keyed({ id: key }, [{
+  nested: keyed({ id: key }, [{
     id: map.nested.$key,
     value: map.nested.$value
   }])
@@ -781,9 +781,9 @@ intent("scalar-conversions")`
 {
   a: 100,
   ac: a,
-  as: $$string(a),
-  an: $$number(a),
-  ab: $$bool(a)
+  as: $string(a),
+  an: $number(a),
+  ab: $bool(a)
 }
 ---
 *
@@ -798,7 +798,7 @@ intent("scalar-conversions")`
 
 intent.fails("scalar-matching")`
 {
-  a: $$bool()
+  a: $bool()
 }
 ---
 {
@@ -813,7 +813,7 @@ intent.fails("scalar-matching")`
 
 intent("bigint")`
 {
-  a: $$bigint()
+  a: $bigint()
 }
 ---
 {

@@ -31,9 +31,9 @@ describe("schema structure", () => {
     const s = mixing({
       computed: "{{= body.toLowerCase()}}",
       json: referenceTemplate<string[]>({ ref: "json" }),
-      body: referenceTemplate({ ref: "body" }).$(
+      body: referenceTemplate({ ref: "body" }).$of(
         jsonEncoding(
-          referenceTemplate({ ref: "json" }).$(["A", "B", '{{C = "C"}}']),
+          referenceTemplate({ ref: "json" }).$of(["A", "B", '{{C = "C"}}']),
         ),
       ),
     });

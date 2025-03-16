@@ -32,7 +32,7 @@ import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 
 describe("https-schema-tests", () => {
   it("should abc", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json", {
+    const jsonBaseSchema = httpsRequestSchema("json", {
       search: { multivalue: false },
     });
 
@@ -93,7 +93,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should something todo", async () => {
-    const formBaseSchema = httpsRequestSchema("$$form");
+    const formBaseSchema = httpsRequestSchema("form");
 
     const httpsPattern = merge(
       formBaseSchema,
@@ -122,13 +122,13 @@ describe("https-schema-tests", () => {
   });
 
   it("should match unwrapped single elements", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const hctx = mixContext(jsonBaseSchema, {
       origin: "https://www.example.com",
       pathname: "/test",
       body: `{
-        "x": $$unwrapSingle("{{hello}}")
+        "x": unwrapSingle("{{hello}}")
       }`,
     });
 
@@ -158,7 +158,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match render missing single elements", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -166,7 +166,7 @@ describe("https-schema-tests", () => {
         origin: "https://www.example.com",
         pathname: "/test",
         body: `{
-          "x": $$unwrapSingle("{{hello}}")
+          "x": unwrapSingle("{{hello}}")
         }`,
       }),
     )!;
@@ -190,7 +190,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match and render nulls", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -222,7 +222,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match and render nulls in lenient arrays", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -230,7 +230,7 @@ describe("https-schema-tests", () => {
         origin: "https://www.example.com",
         pathname: "/test",
         body: `{
-          "x": $$unwrapSingle("{{hello}}")
+          "x": unwrapSingle("{{hello}}")
         }`,
       }),
     )!;
@@ -254,7 +254,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match defaulted numbers", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -284,7 +284,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should match on identical values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -314,7 +314,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should fail on missing values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -344,7 +344,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should fail on missing template values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -374,7 +374,7 @@ describe("https-schema-tests", () => {
   });
 
   it("should allow missing optional template values", async () => {
-    const jsonBaseSchema = httpsRequestSchema("$$json");
+    const jsonBaseSchema = httpsRequestSchema("json");
 
     const httpsPattern = merge(
       jsonBaseSchema,
@@ -473,27 +473,33 @@ describe("https-schema-tests", () => {
 
   transforms("parens-as-assignments")
     .from("b = ('hello')")
-    .to(`"{{ b = $$expr(\\"'hello'\\") }}"`);
+    .to(`b.$of("{{ = $$expr(\\"'hello'\\") }}")`);
 
   transforms("parens-with-noexport-modifier")
-    .from("(b as internal) = ('hello')")
-    .to(`"{{ :b = $$expr(\\"'hello'\\") }}"`);
+    .from("b = ('hello') as internal")
+    .to(`b.$noexport.$of("{{ = $$expr(\\"('hello')\\") }}")`);
+
+  transforms("no-parens") //
+    .from("b = 'hello'")
+    .to(`b.$of('hello')`);
+
+  transforms("no-parens-with-modifier")
+    .from("b = 'hello' as secret")
+    .to(`b.$redacted.$of('hello')`);
 
   transforms("parens-with-redact-modifier")
     .from("b.$redact = ('hello')")
-    .to(`"{{ @b = $$expr(\\"'hello'\\") }}"`);
+    .to(`b.$redact.$of("{{ = $$expr(\\"'hello'\\") }}")`);
 
-  transforms("plus-as-mux").from("+['hello']").to(`$$mux(['hello'])`);
-  transforms("minus-as-mix")
-    .from("-{ d: 'world' }")
-    .to(`$$mix({ d: 'world' })`);
+  transforms("plus-as-mux").from("+['hello']").to(`$mux(['hello'])`);
+  transforms("minus-as-mix").from("-{ d: 'world' }").to(`$mix({ d: 'world' })`);
 
   // todo: create a template that can merge two templates,
   // maybe
   //        and("{{ a }}", "{{ b = c }}")
   transforms("reference-reference")
     .from("a = b = (c)")
-    .to(`a.$("{{ b = $$expr(\\"c\\") }}")`);
+    .to(`a.$of(b.$of("{{ = $$expr(\\"c\\") }}"))`);
 
   transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`);
 
@@ -509,11 +515,11 @@ describe("https-schema-tests", () => {
 
   transforms("kv-expression")
     .from(`[key, undefined] * [ [headers.$key, headers.$value] ]`)
-    .to("$$keyed([key, undefined], [[headers.$key, headers.$value]])");
+    .to("$keyed([key, undefined], [[headers.$key, headers.$value]])");
 
   transforms("multi-kv-expression")
     .from(`{ id: key } ** { id: map.$key, value: map.$value }`)
-    .to("$$keyed.mv({ id: key }, { id: map.$key, value: map.$value })");
+    .to("$keyed$mv({ id: key }, { id: map.$key, value: map.$value })");
 
   transforms("array-with-value")
     .from(`{ x: [a.$value] }`)
@@ -527,7 +533,7 @@ describe("https-schema-tests", () => {
   a1: ( value + 1 )
 }]`,
   ).to(`
-$$keyed({ id: key }, [{
+$keyed({ id: key }, [{
         id: map.$key,
         a: "{{map.value}}",
         a1: "{{ = $$expr(\\"value + 1\\") }}"
@@ -535,6 +541,6 @@ $$keyed({ id: key }, [{
 `);
 
   transforms("function-calls")
-    .from("$$form({ x: a = 10 })")
-    .to('$$form({ x: a.$($$$number("10")) })');
+    .from("form({ x: a = 10 })")
+    .to('$form({ x: a.$of($$number("10")) })');
 });

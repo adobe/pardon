@@ -64,7 +64,7 @@ type ReferenceTemplate<T> = {
 };
 
 type ReferenceSchematic<T> = Schematic<T> & {
-  <T>(template: Template<T>): ReferenceSchematic<T>;
+  $of<T>(template: Template<T>): ReferenceSchematic<T>;
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
   readonly $noexport: ReferenceSchematic<T>;
@@ -78,6 +78,7 @@ type ReferenceSchematic<T> = Schematic<T> & {
   readonly $number: ReferenceSchematic<number>;
   readonly $bigint: ReferenceSchematic<bigint>;
   readonly $nullable: ReferenceSchematic<T | null>;
+} & {
   [_: string]: ReferenceSchematic<any>;
 };
 
@@ -207,7 +208,7 @@ export function referenceTemplate<T = unknown>(
               });
             },
           }),
-          $(template: Template<T>) {
+          $of(template: Template<T>) {
             return referenceTemplate({
               ...reference,
               template,

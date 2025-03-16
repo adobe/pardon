@@ -19,7 +19,7 @@ export type {
   LayeredMixin,
 } from "../config/collection-types.js";
 
-export type { InternalEncodingTypes as EncodingTypes } from "../core/request/body-template.js";
+export type { EncodingTypes } from "../core/request/body-template.js";
 
 export type {
   AssetType,

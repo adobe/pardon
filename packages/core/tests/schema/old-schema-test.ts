@@ -19,7 +19,7 @@ import {
 import { arrays } from "../../src/core/schema/definition/arrays.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
-import { keyed } from "../../src/core/schema/scheming.js";
+import { makeKeyed } from "../../src/core/schema/scheming.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
 import { bodyGlobals } from "../../src/core/request/body-template.js";
@@ -621,7 +621,7 @@ describe("schema tests", () => {
 
   it("should render map of headers", async () => {
     const schema = mixing({
-      a: keyed(
+      a: makeKeyed(
         ["{{key}}", undefined],
         [["{{headers.@key}}", "{{headers.value}}"]],
       ),
@@ -653,7 +653,7 @@ describe("schema tests", () => {
 
   it("should render a simple map", async () => {
     const schema = mixing({
-      a: keyed(
+      a: makeKeyed(
         ["{{key}}", "{{value}}"],
         [["{{headers.@key}}", "{{headers.@value}}"]],
       ),
@@ -685,7 +685,7 @@ describe("schema tests", () => {
 
   it("should export an object map", async () => {
     const schema = mixing({
-      a: keyed(
+      a: makeKeyed(
         ["{{key}}", undefined],
         [["{{headers.@key}}", "{{headers.value}}"]],
       ),

@@ -167,7 +167,7 @@ function makeMvKeymapTemplate<T>(
   );
 }
 
-export function keyed<T extends object>(
+export function makeKeyed<T extends object>(
   keyTemplate: Template<T>,
   valueTemplate: Template<T>[],
 ) {
@@ -197,7 +197,7 @@ export function keyed<T extends object>(
   });
 }
 
-keyed.mv = function mvkeyed<T extends object>(
+makeKeyed.mv = function makeMultivalueKeyed<T extends object>(
   keyTemplate: Template<T>,
   valueTemplate: Template<T>[],
 ) {

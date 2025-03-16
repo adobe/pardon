@@ -349,7 +349,7 @@ export function keyed<T>(
   return keyedList(keyTemplate, structure) as Schematic<T[]>;
 }
 
-keyed.mv = function mv<T>(
+keyed.mv = function keyed$mv<T>(
   keyTemplate: Template<Partial<NoInfer<T>>>,
   structure?: Template<Record<string, T[]>>,
 ): Schematic<T[]> {

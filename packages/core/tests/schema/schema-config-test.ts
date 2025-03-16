@@ -207,7 +207,7 @@ describe("schema configuration magic", () => {
 
   it("should render via config", async () => {
     const { schema: archetype, context: archContext } = extend(
-      httpsRequestSchema("$$json", { search: { multivalue: true } }),
+      httpsRequestSchema("json", { search: { multivalue: true } }),
       {
         origin: "https://example.com",
         pathname: "/v1/thing/{{thing}}",
@@ -257,7 +257,7 @@ describe("schema configuration magic", () => {
 
   it("should override naturally", async () => {
     const { schema: archetype, context: archContext } = extend(
-      httpsRequestSchema("$$json", { search: { multivalue: true } }),
+      httpsRequestSchema("json", { search: { multivalue: true } }),
       {
         origin: "https://example.com",
         pathname: "/v1/thing/{{thing}}",
