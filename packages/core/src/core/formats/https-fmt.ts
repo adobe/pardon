@@ -244,7 +244,7 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
     scanComments(lines);
   }
 
-  const headers = scanHeaders(lines);
+  const { headers, meta } = scanHeaders(lines);
 
   const body: SimpleRequestInit["body"] = scanSchema(lines);
 
@@ -261,7 +261,7 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
 
   return {
     type: "request",
-    request,
+    request: { ...request, meta },
     computations,
     values,
     name,
@@ -299,7 +299,7 @@ function scanResponse(lines: string[], first: string): HttpsResponseStep {
   const [, status, statusText] = match;
   lines.shift();
 
-  const headers = scanHeaders(lines);
+  const { headers } = scanHeaders(lines);
 
   const schemaSource = scanSchema(lines);
 
@@ -342,6 +342,7 @@ function scanScript(lines: string[], first: string): HttpsScriptStep {
 
 function scanHeaders(lines: string[]) {
   const headers: [string, string][] = [];
+  const meta: Record<string, string> = {};
 
   while ((scanComments(lines), lines.length > 0)) {
     const headerline = trimComment(lines.shift()!);
@@ -350,10 +351,19 @@ function scanHeaders(lines: string[]) {
       break;
     }
 
+    const metaMatch = /^\s*\[(\s*[^:\]]+)\s*\]\s*:\s*(.*)$/.exec(headerline)!;
+
+    if (metaMatch) {
+      const [, metaKey, metaValue] = metaMatch;
+      meta[metaKey] = metaValue;
+
+      continue;
+    }
+
     const match = /^\s*([^:]+):\s*(.*)$/.exec(headerline)!;
 
     if (!match) {
-      throw new PardonError("invalid header: " + headerline);
+      throw new PardonError("invalid headerline: " + headerline);
     }
 
     const [, header, value] = match;
@@ -361,7 +371,7 @@ function scanHeaders(lines: string[]) {
     headers.push([header.trimEnd(), value]);
   }
 
-  return headers;
+  return { headers, meta };
 }
 
 function trimComment(line: string) {

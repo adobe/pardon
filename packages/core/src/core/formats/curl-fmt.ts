@@ -209,6 +209,7 @@ function parse(command: string): {
       origin,
       pathname: pathname ?? (origin ? "/" : undefined),
       searchParams,
+      meta: {},
       headers,
       values,
       ...bodyAndEncoding,

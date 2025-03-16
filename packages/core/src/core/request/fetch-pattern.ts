@@ -13,6 +13,7 @@ import { type EncodingTypes } from "./body-template.js";
 import { intoURL } from "./url-pattern.js";
 
 export type SimpleRequestInit = Omit<RequestInit, "body"> & {
+  meta?: Record<string, string>;
   body?: string;
   encoding?: EncodingTypes;
 };
@@ -23,6 +24,7 @@ export type FetchObject = {
   pathname?: string;
   searchParams?: URLSearchParams;
   headers: Headers;
+  meta?: Record<string, string>;
   body?: string;
   encoding?: EncodingTypes;
 };
@@ -47,6 +49,7 @@ export function fetchObjectURL({
 }
 
 export function intoFetchParams({
+  meta,
   method,
   origin,
   pathname,
@@ -57,7 +60,7 @@ export function intoFetchParams({
 }: Partial<FetchObject>): [URL, SimpleRequestInit] {
   return [
     fetchObjectURL({ origin, pathname, searchParams }),
-    { method, headers, body, encoding },
+    { method, headers, body, encoding, meta },
   ];
 }
 
@@ -66,9 +69,10 @@ export function fetchIntoObject(
   init?: SimpleRequestInit,
 ): FetchObject {
   const { origin, pathname, searchParams } = intoURL(url ?? {});
-  const { method, headers, body } = init ?? {};
+  const { method, headers, body, meta } = init ?? {};
 
   return {
+    meta,
     method: method || undefined,
     origin: origin || undefined,
     pathname: pathname || undefined,

@@ -45,9 +45,11 @@ function requestObjectStringify({
   ...request
 }: Partial<RequestObject>) {
   const { origin, pathname, searchParams } = intoURL(request);
-  return `${KV.stringify(values ?? {}, "\n", 2, "\n\n")}${origin?.trim() ? (request.method ?? "GET") : ""} ${origin ?? ""}${pathname ?? ""}${searchParams ?? ""}${[
-    ...new Headers(request.headers),
-  ]
+  return `${KV.stringify(values ?? {}, "\n", 2, "\n\n")}${origin?.trim() ? (request.method ?? "GET") : ""} ${origin ?? ""}${pathname ?? ""}${
+    searchParams ?? ""
+  }${[...Object.entries(request.meta ?? {})]
+    .map(([k, v]) => `\n[${k}]: ${v}`)
+    .join("")}${[...new Headers(request.headers)]
     .map(([k, v]) => `\n${k}: ${v}`)
     .join("")}${request.body ? `\n\n${request.body}` : ""}`.trim();
 }
@@ -136,13 +138,14 @@ function parse(
     scanComments(lines);
   }
 
-  const headers = scanHeaders(lines);
+  const { headers, meta } = scanHeaders(lines);
 
   const body: SimpleRequestInit["body"] = scanBody(lines);
 
   return {
     ...parseURL(url),
     method,
+    meta,
     headers: new Headers(headers),
     ...(body && { body }),
     values,
@@ -155,7 +158,7 @@ function parseResponseObject(response: string): ResponseObject {
   scanComments(lines, { andBlankLines: true });
   const [, status, statusText] = /\s*(\d+)(?:\s*(.*))?$/.exec(lines.shift()!)!;
 
-  const headers = scanHeaders(lines);
+  const { headers } = scanHeaders(lines);
 
   const body = scanBody(lines);
 
@@ -164,11 +167,22 @@ function parseResponseObject(response: string): ResponseObject {
 
 function scanHeaders(lines: string[]) {
   const headers: [string, string][] = [];
+  const meta: Record<string, string> = {};
+
   while ((scanComments(lines), lines.length > 0)) {
     const headerline = trimComment(lines.shift()!);
 
     if (!headerline) {
       break;
+    }
+
+    const metaMatch = /^\s*\[(\s*[^:\]]+)\s*\]\s*:\s*(.*)$/.exec(headerline)!;
+
+    if (metaMatch) {
+      const [, metaKey, metaValue] = metaMatch;
+      meta[metaKey] = metaValue;
+
+      continue;
     }
 
     const match = /^\s*([^:]+):\s*(.*)$/.exec(headerline)!;
@@ -182,12 +196,13 @@ function scanHeaders(lines: string[]) {
     headers.push([header.trimEnd(), value]);
   }
 
-  return headers;
+  return { headers, meta };
 }
 
 export type RequestJSON = {
   method: string;
   url: string;
+  meta?: Record<string, string>;
   headers: [string, string][];
   body?: string;
   values?: Record<string, unknown>;
@@ -200,6 +215,7 @@ function requestObjectJson(request: Partial<RequestObject>): RequestJSON {
     headers: [...(request.headers || [])],
     body: request.body,
     values: request.values,
+    meta: request.meta,
   };
 }
 
@@ -212,6 +228,7 @@ function fromRequestObjectJson(
     origin,
     pathname,
     searchParams,
+    meta: request.meta,
     headers: new Headers(request.headers),
     body: request.body,
     values: request.values,

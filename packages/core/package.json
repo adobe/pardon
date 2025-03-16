@@ -51,6 +51,10 @@
       "import": "./dist/testing.js",
       "types": "./dist/types/testing.d.ts"
     },
+    "./features/undici": {
+      "import": "./dist/features/undici.js",
+      "types": "./dist/types/features/undici.d.ts"
+    },
     "./features/remember": {
       "import": "./dist/features/remember.js",
       "types": "./dist/types/features/remember.d.ts"

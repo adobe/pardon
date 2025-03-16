@@ -38,6 +38,7 @@ const input = {
   // just format parsing (should be browser-compatible deps only)
   formats: "src/modules/formats.ts",
   // built-in features
+  "features/undici": "src/features/undici.ts",
   "features/trace": "src/features/trace.ts",
   "features/remember": "src/features/remember.ts",
 };

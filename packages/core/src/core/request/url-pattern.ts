@@ -103,11 +103,13 @@ export function intoURL(url: string | URL | URLTemplate): URL {
 
     // TODO: stubs
     get host() {
-      return "";
+      return (origin ?? "")?.replace(/^[a-z][a-z0-9+.-]*:[/][/]/i, "");
     },
 
     get hostname() {
-      return "";
+      return (origin ?? "")
+        ?.replace(/^[a-z][a-z0-9+.-]*:[/][/]/i, "")
+        .replace(/:\d+$/, "");
     },
 
     get password() {
@@ -123,7 +125,10 @@ export function intoURL(url: string | URL | URLTemplate): URL {
     },
 
     get protocol() {
-      return "";
+      return (/^([a-z][a-z0-9+.-]*:)/i.exec(origin ?? "") ?? [
+        undefined,
+        "",
+      ])[1];
     },
   } satisfies URL;
 

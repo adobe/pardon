@@ -25,6 +25,7 @@ import { CURL } from "../../../core/formats/curl-fmt.js";
 import { recall } from "./recall.js";
 import trace from "../../../features/trace.js";
 import remember from "../../../features/remember.js";
+import undici from "../../../features/undici.js";
 import { inspect } from "node:util";
 import { mapObject } from "../../../util/mapping.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
@@ -87,7 +88,7 @@ usage
 
   const context = await initializePardon(
     { environment: values, cwd: options.cwd },
-    [trace, remember],
+    [undici, trace, remember],
   );
 
   if (options["show-root"]) {
