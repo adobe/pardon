@@ -46,7 +46,6 @@ import {
   TbCopy,
   TbExclamationCircle,
   TbEye,
-  TbFolderCode,
   TbLock,
   TbLockOpen,
   TbMist,
@@ -63,7 +62,7 @@ import {
   TbSettings2,
   TbTrash,
 } from "solid-icons/tb";
-import { manifest, samples } from "../signals/pardon-config.ts";
+import { manifest } from "../signals/pardon-config.ts";
 import AssetEditor from "../components/http/AssetEditor.tsx";
 import ResponsePanel from "../components/http/inbound/ResponsePanel.tsx";
 import { ConfigurationDrawer } from "../components/ConfigurationDrawer.tsx";
@@ -76,7 +75,6 @@ import TbInterrobang from "../components/TbInterrobang.tsx";
 import RecallSystem from "../components/RecallSystem.tsx";
 import CornerControls from "../components/http/CornerControls.tsx";
 import { displayHttp } from "../components/display-util.ts";
-import Samples from "../components/http/Samples.tsx";
 import { mapObject } from "pardon/utils";
 import KeyValueCopier from "../components/KeyValueCopier.tsx";
 import { makePersisted } from "@solid-primitives/storage";
@@ -86,7 +84,7 @@ import { persistJson } from "../util/persistence.ts";
 import Flower from "../components/Flower.tsx";
 import { FlowName } from "pardon";
 
-type SubPanelView = "history" | "editor" | "recall" | "samples" | "flow";
+type SubPanelView = "history" | "editor" | "recall" | "flow";
 
 export default function Main(
   props: VoidProps<{
@@ -856,18 +854,14 @@ ${previewText()}
                 <MultiView.Controls
                   view={value}
                   class="p-1 text-xl [&.multiview-selected]:bg-lime-400 [&.multiview-selected]:dark:bg-cyan-500"
-                  disabled={{
-                    samples: Boolean(
-                      samples?.state !== "ready" || !samples().length,
-                    ),
-                  }}
-                  controls={{
-                    history: <TbMist />,
-                    samples: <TbFolderCode />,
-                    editor: <TbPencil />,
-                    recall: <TbInterrobang />,
-                    flow: <TbAB />,
-                  }}
+                  controls={
+                    {
+                      history: <TbMist />,
+                      flow: <TbAB />,
+                      editor: <TbPencil />,
+                      recall: <TbInterrobang />,
+                    } as const
+                  }
                 />
                 <Toggle
                   class="relative mt-auto bg-inherit p-1 text-xl mix-blend-normal dark:active:!bg-neutral-500"
@@ -932,6 +926,17 @@ ${previewText()}
                   <Match when={props.value === "editor"}>
                     <AssetEditor id={asset()} />
                   </Match>
+                  <Match
+                    when={
+                      props.value == "flow" && isFlowName(collectionItem()?.id)
+                    }
+                  >
+                    <Flower
+                      flow={collectionItem()?.id as FlowName}
+                      input={globals()}
+                      output={setScratchValues}
+                    />
+                  </Match>
                   <Match when={props.value == "history"}>
                     <RequestHistory
                       onRestore={restoreFromHistory}
@@ -942,29 +947,6 @@ ${previewText()}
                     <RecallSystem
                       onRestore={restoreFromHistory}
                       isCurrent={createSelector(currentTrace)}
-                    />
-                  </Match>
-                  <Match when={props.value == "samples"}>
-                    <Samples
-                      expanded={new Set()}
-                      onDblClick={(_key, { content, path }) => {
-                        if (path.endsWith(".log.https")) {
-                          restoreFromLog(content);
-                        } else {
-                          restoreFromHttp(content);
-                        }
-                      }}
-                    />
-                  </Match>
-                  <Match
-                    when={
-                      props.value == "flow" && isFlowName(collectionItem()?.id)
-                    }
-                  >
-                    <Flower
-                      flow={collectionItem()?.id as FlowName}
-                      input={globals()}
-                      output={setScratchValues}
                     />
                   </Match>
                 </Switch>

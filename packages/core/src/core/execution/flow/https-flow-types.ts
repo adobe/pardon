@@ -47,20 +47,32 @@ export type SequenceStepReport = {
   context: FlowContext;
 };
 
-export type HttpScriptInterraction = {
-  type: "script";
-  script: HttpsScriptStep;
+type HttpInteractionCommon = {
+  name?: string;
+  retries?: number;
 };
 
-export type HttpExchangeInterraction = {
-  type: "exchange";
-  request: HttpsRequestStep;
-  responses: HttpsResponseStep[];
+type HttpInteractionTypes = {
+  script: {
+    type: "script";
+    script: HttpsScriptStep;
+  };
+  exchange: {
+    type: "exchange";
+    request: HttpsRequestStep;
+    responses: HttpsResponseStep[];
+  };
 };
 
-export type HttpsSequenceInteraction =
-  | HttpScriptInterraction
-  | HttpExchangeInterraction;
+type HttpInteraction<type extends keyof HttpInteractionTypes> =
+  HttpInteractionTypes[type] & HttpInteractionCommon;
+
+export type HttpScriptInterraction = HttpInteraction<"script">;
+export type HttpExchangeInterraction = HttpInteraction<"exchange">;
+
+export type HttpsSequenceInteraction = HttpInteraction<
+  keyof HttpInteractionTypes
+>;
 
 export type CompiledHttpsSequence = {
   scheme: HttpsFlowScheme;

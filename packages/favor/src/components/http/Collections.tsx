@@ -79,7 +79,7 @@ export default function Collections(props: {
       ...Object.entries(assets).filter(
         ([, { subtype, type }]) => (subtype ?? type) !== "flow",
       ),
-      ...flows.map(
+      ...Object.keys(flows).map(
         (key) =>
           [
             key,

@@ -18,6 +18,7 @@ import { FlowContext } from "./data/flow-context.js";
 import { valueId } from "../../../util/value-id.js";
 import { shared } from "../../tracking.js";
 import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
+import { CompiledHttpsSequence } from "./https-flow-types.js";
 
 /**
  * - Flows -
@@ -57,7 +58,12 @@ export type FlowResult = {
 export type Flow = {
   action(params: FlowParams): Promise<FlowResult>;
   signature: FlowParamsDict;
-  source?: any;
+  source?: FlowFunction | IdempotentFlowSource | CompiledHttpsSequence;
+};
+
+export type IdempotentFlowSource = {
+  idempotent: true;
+  flow: Flow;
 };
 
 const syncFlowContextStack: FlowContext[] = [];
@@ -121,6 +127,6 @@ export function makeFlowIdempotent(flow: Flow): Flow {
         }),
       )),
     signature: flow.signature,
-    source: flow,
+    source: { idempotent: true, flow },
   };
 }

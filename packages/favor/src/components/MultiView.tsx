@@ -77,9 +77,9 @@ export default function MultiView<Value extends string>(
 
 export function Controls<Value extends string>(
   props: {
-    view: Signal<Value>;
+    view: Signal<NoInfer<Value>>;
     controls: Record<Value, JSX.Element>;
-    disabled: boolean | Partial<Record<Value, boolean>>;
+    disabled?: boolean | Partial<Record<NoInfer<Value>, boolean>>;
   } & Omit<ComponentProps<"button">, "view" | "disabled">,
 ) {
   const selected = createSelector(props.view[0]);

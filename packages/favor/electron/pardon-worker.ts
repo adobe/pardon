@@ -22,6 +22,7 @@ import { glob } from "glob";
 import { PardonAppContextOptions, initializePardon } from "pardon/runtime";
 import { arrayIntoObject, mapObject, recv, ship } from "pardon/utils";
 import {
+  Flow,
   FlowName,
   HTTP,
   HTTPS,
@@ -36,7 +37,11 @@ import { traced } from "pardon/features/trace";
 import undici from "pardon/features/undici";
 import remember, { PardonHttpExecutionContext } from "pardon/features/remember";
 import { cleanObject, RequestJSON } from "pardon/formats";
-import { failfast, initTrackingEnvironment } from "pardon/running";
+import {
+  CompiledHttpsSequence,
+  failfast,
+  initTrackingEnvironment,
+} from "pardon/running";
 
 const [cwd] = argv.slice(2);
 
@@ -308,6 +313,12 @@ export type PardonWorkerOptions = PardonOptions & {
   service?: string;
 };
 
+function isFlowSequenceSource(
+  flow?: Flow["source"],
+): flow is CompiledHttpsSequence {
+  return flow?.["interactions"];
+}
+
 const handlers = {
   async manifest() {
     const { app } = await ready;
@@ -353,7 +364,10 @@ const handlers = {
       collections: app.config.collections.map((root) =>
         root.replace(/[\\]/g, "/"),
       ),
-      flows: Object.keys(app.collection.flows ?? {}),
+      flows: mapObject(app.collection.flows ?? {}, ({ signature, source }) => ({
+        signature,
+        interactions: isFlowSequenceSource(source) && source.interactions,
+      })),
       example: app.example,
       data: app.collection.data,
       mixins: app.collection.mixins,

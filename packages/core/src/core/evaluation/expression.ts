@@ -28,6 +28,8 @@ export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 const expressionProject = new Project({
   compilerOptions: {
     allowJs: true,
+    noCheck: true,
+    strict: false,
     target: ScriptTarget.ES2022,
     module: ModuleKind.ES2022,
   },
@@ -63,10 +65,12 @@ export function applyTsMorph(
     .text.replace(/^export default /, "")
     .replace(/;\s+$/m, "");
 
-  exprSourceFile.forget();
+  //   this would also actually leave more state around from
+  //   the expression evaluation than not doing it (blocking further evaluations)
+  // exprSourceFile.forget();
 
   //   this would actually leave more state around from
-  //   the expression evaluation than not doing it.
+  //   the expression evaluation than not doing it (blocking further evaluations)
   // exprSourceFile.deleteImmediatelySync();
 
   return compiledExpr;

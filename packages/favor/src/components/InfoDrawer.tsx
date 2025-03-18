@@ -14,7 +14,6 @@ import Drawer from "corvu/drawer";
 import { TbX } from "solid-icons/tb";
 import { createMemo, createSignal, splitProps, type JSX } from "solid-js";
 
-import "./InfoDrawer.pcss";
 import { twMerge } from "tailwind-merge";
 
 export function InfoDrawer(

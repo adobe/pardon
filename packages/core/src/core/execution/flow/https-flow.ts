@@ -28,7 +28,7 @@ import { createSequenceEnvironment } from "./flow-environment.js";
 import { stubSchema } from "../../schema/definition/structures/stub.js";
 import { HTTP } from "../../formats/http-fmt.js";
 import { TracedResult } from "../../../features/trace.js";
-import { Schema, EvaluationScope } from "../../schema/core/types.js";
+import { EvaluationScope } from "../../schema/core/types.js";
 import { JSON } from "../../json.js";
 import { withoutEvaluationScope } from "../../schema/core/context-util.js";
 import {
@@ -52,7 +52,9 @@ import {
 } from "../../evaluation/expression.js";
 import { SyntaxKind, ts } from "ts-morph";
 import {
+  CompiledHttpsSequence,
   HttpExchangeInterraction,
+  HttpScriptInterraction,
   HttpsSequenceInteraction,
   SequenceStepReport,
 } from "./https-flow-types.js";
@@ -145,18 +147,6 @@ function compileHttpsFlowSequence(
     configuration,
   };
 }
-
-export type CompiledHttpsSequence = {
-  scheme: HttpsFlowScheme;
-  path: string;
-  name: string;
-  signature?: FlowParamsDict;
-  schema: Schema<Record<string, unknown>>;
-  interactionMap: Record<string, number>;
-  interactions: HttpsSequenceInteraction[];
-  tries: Record<number, number>;
-  configuration: HttpsFlowConfig;
-};
 
 export async function executeHttpsSequence(
   sequence: CompiledHttpsSequence,
@@ -469,8 +459,14 @@ function parseHttpsSequenceScheme({
   steps = steps.slice();
   while (steps.length) {
     const flowItem = steps.shift()!;
+
     if (flowItem.type === "script") {
-      interactions.push({ type: "script", script: flowItem });
+      const interaction: HttpScriptInterraction = {
+        type: "script",
+        script: flowItem,
+      };
+
+      interactions.push(interaction);
 
       if (flowItem.label) {
         const { name, retries } = parseIncome(flowItem.label)! ?? {};
@@ -480,6 +476,7 @@ function parseHttpsSequenceScheme({
 
         if (name) {
           interactionMap[name] = interactions.length - 1;
+          interaction.name = name;
         }
       }
 
@@ -509,14 +506,18 @@ function parseHttpsSequenceScheme({
         responses: [],
       }),
     );
+
     if (flowItem.name) {
       const { name, retries } = parseIncome(flowItem.name)! ?? {};
+
       if (retries) {
         tries[interactions.length - 1] = retries;
+        current.retries = retries;
       }
 
       if (name) {
         interactionMap[name] = interactions.length - 1;
+        current.name = name;
       }
     }
   }

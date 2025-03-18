@@ -13,9 +13,31 @@ governing permissions and limitations under the License.
 import { PardonError } from "../../error.js";
 import { FlowName } from "../../formats/https-fmt.js";
 import type { FlowContext } from "./data/flow-context.js";
-import { currentFlowContext, FlowResult, runFlow } from "./flow-core.js";
+import {
+  Flow,
+  currentFlowContext,
+  FlowResult,
+  runFlow,
+  IdempotentFlowSource,
+  FlowFunction,
+  FlowParams,
+} from "./flow-core.js";
+export type {
+  FlowParam,
+  FlowParamsDict,
+  FlowParamsList,
+  FlowParamsItem,
+} from "./flow-params.js";
 
-export type { FlowContext, FlowName, FlowResult };
+export type {
+  Flow,
+  FlowContext,
+  FlowName,
+  FlowResult,
+  FlowFunction,
+  FlowParams,
+  IdempotentFlowSource,
+};
 
 export async function flow(
   name: FlowName,

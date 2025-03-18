@@ -13,9 +13,16 @@ export { pardon, template, type PardonOptions } from "../api/pardon-wrapper.js";
 export {
   flow,
   executeFlowInContext,
+  type Flow,
   type FlowContext,
   type FlowResult,
   type FlowName,
+  type IdempotentFlowSource,
+  type FlowFunction,
+  type FlowParams,
+  type FlowParamsDict,
+  type FlowParamsList,
+  type FlowParamsItem,
 } from "../core/execution/flow/index.js";
 
 export { cached, type CacheEntry } from "../api/cached.js";

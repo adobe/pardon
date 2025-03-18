@@ -40,7 +40,7 @@ export {
   notifyFastFailed,
 } from "../core/execution/flow/failfast.js";
 
-export { type CompiledHttpsSequence } from "../core/execution/flow/https-flow.js";
+export { type CompiledHttpsSequence } from "../core/execution/flow/https-flow-types.js";
 
 export {
   all_disconnected,
