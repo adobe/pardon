@@ -162,7 +162,8 @@ export function resolveDefaults(
       throw new Error(`invalid defaults: ${path.join("/")}`);
     }
     const mapping = defaulting[key];
-    const keyvalue = resolveIdentifier(context, key);
+    const keyvalue =
+      resolveIdentifier(context, key) ?? context.environment.implied({})[key];
 
     path.push(
       `${key}=${mapping?.[String(keyvalue)] ? (keyvalue as string) : "default"}`,
