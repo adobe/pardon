@@ -44,9 +44,6 @@
   - [ ] detect conflict in value `x=abc` + match `"/{{x}}"` with `"/xyz"`.
         (currently overrides `x=xyz`)
 
-- Maintenance
-  - [ ] upgrade to `@electron-forge/plugin-vite:^7.5.0`
-
 ### git-flow request graphs / UX Test Runner
 
 executions (from flow.https executions especially, i.e., unit tests) could
