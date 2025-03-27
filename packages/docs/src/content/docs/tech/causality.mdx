@@ -17,12 +17,12 @@ prev: false
 import "@components/inline-icon.pcss";
 import { SolidIcon } from "@components";
 
-Node's the async_hooks API has been "experimental" since it was introducted 
-in Node 8.
+Node's async_hooks API has been "experimental" since it was introducted 
+in Node 8:
 
 <div class="p-2 border-2 border-solid dark:border-neutral-600 border-neutral-300 rounded-sm">
 {/* directly adapted from https://nodejs.org/docs/latest/api/async_hooks.html (v22.3.0) */}
-<div class="bg-orange-700 rounded-sm px-3 py-2 text-white [&_code]:!bg-transparent [&_.href]:underline">
+<div class="bg-orange-600 dark:bg-orange-700 rounded-sm px-3 py-2 text-white [&_code]:!bg-transparent [&_.href]:underline">
 <span class='href'>Stability: 1</span> - Experimental. Please migrate away from this API, if you can.
 We do not recommend using the <span class='href'><code>createHook</code></span>, <span class='href'><code>AsyncHook</code></span>, and
 <span class='href'><code>executionAsyncResource</code></span> APIs as they have usability issues, safety risks,
@@ -36,22 +36,23 @@ create a more purpose-focused API.
 </div>
 </div>
 
-We're using it anyway. <span class='inline-icon'><SolidIcon name="wink" /></span>
+We're using it anyway! <span class='inline-icon'><SolidIcon size={20} name="wink" /></span>
 
-## Ordering Causality
+## Concurrent Serial Tests
 
 Other http frameworks provide a single thread of execution, and a global
 environment object which is used to configure each request and response in turn.
 
-With Pardon, we offer the same ergonomics of a "global object", but the behavior
-is independent of the execution order: since only _awaited_ assignments to the
-global object count.
+With Pardon, we offer the same ergonomics of a "global object" (`environment`), but the values assigned
+to this object are independent of the execution order: only _awaited_ updates are visible in
+the "global" object.
 
-The base of this is a tracking system that understands
-_what happened_ to reach a certain point, by way of a series of tracked values.
+Underlying this is a tracking system that understands
+_what happened_ to reach a certain point by way of a series of tracked values.
+(One might think of these as magic breadcrumbs).
 
-In a single threaded usage, `track(value)` looks like it pushes a value
-onto a list and `awaited()` returns that list.
+With single-threaded (non-concurrent) usage, `track(value)` looks like it pushes a value
+onto a list and `awaited()` returns that list:
 
 ```js
 const {
@@ -67,8 +68,8 @@ track('c');
 awaited(); // ['a', 'b', 'c']
 ```
 
-However if we have some asynchronous processes that track values,
-we won't see them get tracked until we we `await` those promises.
+However in an async context, a tracked value
+won't become visible until the execution that tracked it is awaited.
 
 ```js
 const { track, awaited } = tracker();
@@ -79,10 +80,9 @@ async function g() { await randomDelay(); track('g'); };
 const pf = f();
 const pg = g();
 
-awaited() // []
+... // we could await a delay here and it wouldn't change the next value of awaited
 
-const ppg = randomDelay().then(async () => { await pg; awaited(); /* ['g'] */});
-const ppgf = randomDelay().then(async () => { await pg; await pf; awaited(); /* ['g', 'f'] */});
+awaited() // []
 
 await pf;
 
@@ -92,31 +92,37 @@ await pg;
 
 awaited(); // ['f', 'g']
 
-// further awaits of ppg/ppgf here will not change the result.
+// further awaits of pf/pg here will not change the result.
 ```
 
-Notice that `awaited()` above can return any combination of `'f'` and/or `'g'`
-in different orders: depending purely on the order they were awaited,
-rather than the order the `track` calls were actually run!
+Notice that `awaited()` above will always return the tracked values in `awaited` order,
+despite the fact that the tracking might have been in the reverse order due to the `randomDelay()s`.
 
 This might feel a bit weird at first, but it is _stable_, as the composition/order of the `awaited()`
-values will be based only on the (stable) lexical shape of the code, rather than the
+values will be based only on the (stable) "lexical shape" of the code, rather than the
 unstable order of execution.
 
 In tests, we use this to track assignments to a global environment value.
 We also track dependent requests that might be executed via script helpers to
 surface dependent requests in `favor`.
 
-## How this Tracks
+:::caution
+Some async constructs are inherently inconsistent, such as `Promise.race`.
+
+You can still use these if you like but the guarantees get weaker.
+:::
+
+## How this tracks
 
 The tracked values are stored in nodes of an execution graph maintained
-with the `async_hooks` API NodeJS offers but tells us not to use.
+with the `async_hooks` API NodeJS discourages using.
 
-The nodes of the execution graph have two links:
+The nodes of the execution graph essentially have two links:
 - the `init` link is for the context in which the promise is created, and
 - the `trigger` link is to the promise that preceeds the execution.
 
-The creation of this a node looks something like this:
+The creation of an execution node looks something like this, with `init` being the node where a promise
+is created and `trigger` is the promise that must complete to start the execution.
 
 ```ts ins="promise" del=/trigger(?=[.])/
 function init(trigger: Promise<unknown>) {
@@ -124,56 +130,47 @@ function init(trigger: Promise<unknown>) {
 }
 ```
 
-Note that `trigger` is in general a still-pending operation,
-(as is `promise`, of course), while `init` is the context when
-the `promise` was created, so awaiting the promise will include
-tracked values from inside `init` (and wherever the function was called),
-and then the values that were tracked in the course of whatever `trigger`
-is waiting for.
+Calling `awaited()` effectively collects tracked values by searching this graph,
+with priority given to values tracked in the init execution before the trigger execution.
 
-Calling `awaited()` collects tracked values by searching this graph.
+The implementation has diverged from a graph search, for both efficiency and to
+facilitate garbage collection of the tracked values as the promise objects become unreachable.
 
 :::caution
-Another leak in the abstraction is that `async function`s are
+One gotcha is `async function`s are
 not run entirely async.
 
-In the following kind of case:
+In the following case:
 ```js
 async function hello() { 
   track('world');
   ...
 }
 
-hello(); // not awaited
-
-awaited(); // ['world']
+hello(); // not awaited, but track('world') is executed synchronously so...
+awaited(); // [..., 'world'] will be present here.
 ```
-
-Calling `hello()` results in the `'world'` value being tracked, without awaiting the promise,
-because NodeJS runs the body of an `async` function synchronously
-as far as it can.  (Similarly `new Promise(() => { ... })`
-executes synchronously as well, while
-`Promise.resolve().then(() => { ... })` is executed asynchronously).
 :::
 
-## Garbage
+## Garbage Collection
 
-Like all non-trivial abstractions, this one leaks: Memory.
+Like all non-trivial abstractions, this one leaks: in particular it leaks memory.
 
-The awaited values _are_ garbage-collected along with promises, as much as possible,
-but  we have two helpers to cut the graph for correctness and
-better garbage collection, respectively.
+The awaited values _are_ garbage-collected along with promises as much as possible,
+but sometimes we need to control this behavior.
 
- - `shared(() => { ... })` drops awaited values going into the execution of `...`.
- - `disconnected(() => { ... })` drops awaited values leaving the execution of `...`.
+ - `shared(() => { ... })` executes without any initial tracked values.
+ - `disconnected(() => { ... })` does not expose any values tracked in its execution.
 
 Both of these methods asynchronosuly start executing their function and
-return a promise for its result.
+return a promise for its result.  (These mechanisms are currently global
+across all track/awaited pairs.)
 
 ### Shared Execution
 
-`shared` should be used to wrap the creation of promises that are
-reused.  
+`shared()` is used for executing asynchronous operations where the promise may be cached/reused.
+It prevents the tracked values from the initial execution being part of the result, and 
+Awaiting a shared promise still integrates any values that were tracked during its execution.
 
 Consider the following,...
 ```js
@@ -200,10 +197,7 @@ Any values tracked inside `fetchAuthToken()` can still be awaited from the `auth
 
 ### Disconnected Execution
 
-The `disconnected` helper does the opposite: it prevents awaited values
-from escaping the `disconnected(() => { ... })` boundary. This is meant
-to be more of a garbage-collector hint than a behavioral mechanism.
+`disconnected()` is used to drop tracked values.  Awaiting a disconnected result does not add
+any more tracked values to the next `awaited()` call.
 
-For instance, when running hundreds of test cases we don't want the 
-async graphs to pile up in memory, and `disconnected` applied to
-the right places does the trick here.
+We use this to reduce the maximum impact of running a large number of test cases, for instance.

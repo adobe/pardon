@@ -34,17 +34,49 @@ contain non identifier characters (a-z0-9$_)).
 //  a word token, which can contain letters, digits, underscores, $, @, +, - (as a minus or hyphen), and can contain :
 //  comment (starting with # till end of line)
 const tokenizer =
-  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}:[\],=]|-?(?!:)[a-z0-9$@_.:/+-]+)|(?:#.*$)/im;
+  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\],]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
+const kesplitter = /^((?!['"])[^:=]+)([:=])(.*)$/im;
+const evsplitter = /^([:=])(.*)$/im;
 
 function tokenize(data: string) {
   // returns strings that alternate between values that match the tokenizer and the
-  // values inbetween (which should be empty strings until the end of the kv data).
-  return data.split(tokenizer);
+  // values in between (which should be empty strings until the end of the kv data).
+  //
+  // we use a two-pass tokenization to allow values with `=` and `:` in them.
+  // first pass tokenizes without splitting on `=` and `:`, second pass splits them
+  // unless the preceeding token was an `=` or `:`, in which case we don't (as we're in a value).
+  return data
+    .split(tokenizer)
+    .reduce<string[]>((retokenized, tokenOrSplit, index) => {
+      if (!(index & 1)) {
+        retokenized.push(tokenOrSplit);
+        return retokenized;
+      }
+
+      if (!inValue(retokenized)) {
+        const ke = kesplitter.exec(tokenOrSplit);
+        if (ke) {
+          const [, key, eq, value] = ke;
+          retokenized.push(key, "", eq, "", value);
+          return retokenized;
+        }
+
+        const ev = evsplitter.exec(tokenOrSplit);
+        if (ev) {
+          const [, eq, value] = ev;
+          retokenized.push(eq, "", value);
+          return retokenized;
+        }
+      }
+
+      retokenized.push(tokenOrSplit);
+      return retokenized;
+    }, []);
 }
 
 // simple token should allow somewhat complex values like e.g., email addresses and paths without quotes
-const simpleToken = /^(?!-)(?!:)[a-z0-9$@_.:/+-]*$/i;
-const simpleKey = /^@?[a-z0-9$_.-]*$/i;
+const simpleToken = /^[a-z0-9~!@#$%^&|*_./:=?+-]+$/i;
+const simpleKey = /^[a-z0-9$@_.-]*$/i;
 
 const unparsed = Symbol("unparsed");
 const upto = Symbol("upto");
@@ -72,7 +104,6 @@ export const KV: {
   stringifyKey(key: string): string;
   stringifyValue(v: unknown, limit: number, indent?: number): string;
   isSimpleKey(key: string): boolean;
-  isSimpleValue(value: string): boolean;
   tokenize(
     data: string,
   ): { token: string; key?: string; value?: unknown; span?: number }[];
@@ -86,6 +117,10 @@ export const KV: {
       [eoi]?: string;
       [upto]?: number;
     } = {};
+
+    const tokens = tokenize(data ?? "");
+    const stack: { (token: string): void; [eoi]?(): void | boolean }[] = [];
+    let parsed = 0;
 
     function decode(token: string) {
       switch (true) {
@@ -131,29 +166,27 @@ export const KV: {
       };
 
     const object =
-      (value: Record<string, unknown>, consumer: (value: unknown) => void) =>
+      (obj: Record<string, unknown>, consumer: (obj: unknown) => void) =>
       (token: string) => {
         switch (true) {
           case "}" === token:
-            consumer(value);
-            return;
+            return consumer(obj);
           case /^[:={[\],]/.test(token):
             throw new Error(`unexpected token in object: ${token}`);
           default:
             stack.push(
-              expect(/[,}]/, (token) => {
-                if (token === ",") {
-                  stack.push(object(value, consumer));
-                } else {
-                  consumer(value);
+              (token) => {
+                switch (true) {
+                  case "," == token:
+                    return stack.push(object(obj, consumer));
+                  default:
+                    return object(obj, consumer)(token);
                 }
-              }),
-            );
-            stack.push(
+              },
               expect(/[:=]/, () => {
                 stack.push(
-                  json((field: unknown) => {
-                    value[decode(token)] = field;
+                  value((field: unknown) => {
+                    obj[decode(token)] = field;
                   }),
                 );
               }),
@@ -162,47 +195,40 @@ export const KV: {
       };
 
     const array =
-      (value: unknown[], consumer: (value: unknown) => void) =>
+      (list: unknown[], consumer: (list: unknown[]) => void) =>
       (token: string) => {
         switch (true) {
           case "]" === token:
-            consumer(value);
-            return;
+            return consumer(list);
+          case "," === token:
+            list.push(undefined);
+            return stack.push(array(list, consumer));
           default:
-            stack.push(
-              expect(/[,\]]/, (token) => {
-                if (token === ",") {
-                  stack.push(array(value, consumer));
-                } else {
-                  consumer(value);
-                }
-              }),
-            );
+            stack.push((token) => {
+              switch (true) {
+                case "," === token:
+                  return stack.push(array(list, consumer));
+                default:
+                  return array(list, consumer)(token);
+              }
+            });
 
-            json((element: unknown) => {
-              value.push(element);
+            value((element: unknown) => {
+              list.push(element);
             })(token);
         }
       };
 
-    const json = (consumer: (value: unknown | typeof eoi) => void | boolean) =>
+    const value = (consumer: (token: unknown | typeof eoi) => void | boolean) =>
       Object.assign(
         (token: string) => {
           switch (true) {
             case "{" === token:
-              {
-                const value = {};
-                stack.push(object(value, consumer));
-              }
-              break;
+              return stack.push(object({}, consumer));
             case "[" === token:
-              {
-                const value: unknown[] = [];
-                stack.push(array(value, consumer));
-              }
-              break;
+              return stack.push(array([], consumer));
             default:
-              consumer(decode(token));
+              return consumer(decode(token));
           }
         },
         {
@@ -213,16 +239,16 @@ export const KV: {
     const key = Object.assign(
       (token: string) => {
         switch (true) {
-          case !simpleKey.test(token):
+          case !simpleKey.test(token) && !/^['"]/.test(token):
             throw new Error(`unexpected ${token}: expected key for key=value`);
           default:
             stack.push(
               expect("=", () =>
                 stack.push(
-                  json((value: unknown) => {
+                  value((value: unknown) => {
                     if (value === eoi) {
                       result[eoi] = decode(token);
-                      return true;
+                      return;
                     }
 
                     token = token.replace(/^@/, "");
@@ -241,14 +267,10 @@ export const KV: {
       },
     );
 
-    const tokens = tokenize(data ?? "");
-    let parsed = 0;
-    const stack: { (token: string): void; [eoi]?(): void | boolean }[] = [];
-
-    if (!parseMode && tokens[3] !== "=") {
+    if (!parseMode && nextNonBlankToken(tokens, 1) !== "=") {
       let result: unknown = undefined;
       stack.push(
-        json((value: unknown) => {
+        value((value: unknown) => {
           result = value;
         }),
       );
@@ -450,9 +472,6 @@ export const KV: {
   isSimpleKey(key: string) {
     return key ? simpleKey.test(key) : false;
   },
-  isSimpleValue(value: string) {
-    return value ? simpleToken.test(value) : false;
-  },
 
   unparsed,
   eoi,
@@ -586,11 +605,27 @@ function linewrappedStringify(v: unknown, jindent?: number) {
     .output.reduce((text, fn) => text + fn(), "");
 }
 
+function inValue(tokens: string[], i = tokens.length) {
+  while (tokens[--i] === "") {
+    const next = tokens[--i];
+
+    if (next?.trim()) {
+      if (["=", ":"].includes(tokens[i])) {
+        return !inValue(tokens, i);
+      }
+
+      return false;
+    }
+  }
+
+  return false;
+}
+
 function nextNonBlankToken(tokens: string[], i: number) {
   while (tokens[++i] === "") {
     const next = tokens[++i];
 
-    if (next?.trim() || next?.includes("\n")) {
+    if (next?.trim()) {
       return tokens[i];
     }
   }

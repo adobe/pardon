@@ -20,7 +20,7 @@ export default function KvPlayground(props: { value: string }) {
     <div class="not-content flex h-[30rem] flex-row gap-2 p-2">
       <CodeMirror
         readwrite
-        class="grow basis-32 overflow-auto rounded-lg bg-neutral-300 dark:bg-neutral-700"
+        class="flex-auto basis-80 overflow-auto rounded-lg bg-neutral-300 dark:bg-neutral-700"
         onValueChange={setKV}
         value={kv()}
       />

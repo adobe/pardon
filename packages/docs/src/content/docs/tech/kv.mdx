@@ -10,7 +10,7 @@
 # governing permissions and limitations under the License.
 
 title: The KV format
-description: Yet-another JSON.
+description: Another JSON-like format
 next: false
 prev: false
 ---
@@ -19,55 +19,51 @@ import { KvPlayground } from '@components';
 
 The KV format is a key-value text format that's basically JSON without the JavaScript compatibility.
 
-In the KV format a KV _value_ can be
+KV data consists of zero or more "`{key}={value}`" entries.
 
+Values in KV are
 - the keywords `true`, `false` or `null`,
-- a simple value like `hello`, or a quoted string like `"hello"` or `'world'`.
-- a number.
-- an array, starting with `[` and ending with `]`, with a series of comma-separated values (trailing comma allowed).
-- an object, starting with `{` and ending with `}`, with a series of `key=value` fields (key can be a quoted string).  (For compatibility with javascript, `key:value` is also allowed).
+- a JSON-compatible double quoted string, or a single quoted one.
+- a JSON number.
+- a value which can contain almost anything but spaces or delimiting characters like brackets `[]`, braces `{}`, or commas `,`.
+- an array, starting with `[` and ending with `]`, with a series of values separated by whitespace and maybe a comma.
+- an object, starting with `{` and ending with `}`, with a series of `key=value` and/or `key: value` fields separated by whitespace and maybe a comma.
 
-A "simple key" is a key which does not need quoting, which means a non-empty key consisting of 
-at most letters, numbers, periods, hyphens.  A simple value can also include slashes.
+Delimiters in KV are whitespace (spaces,tabs,newlines), brackets (`[]`), braces (`{}`) and commas (`,`).
+The equals (`=`) and colon (`:`) characters are sometimes-delimiters, they can appear on the value side but cannot appear
+in unquoted keys.
 
-Key-value data is a sequence of (simple key) `key=value` pairs, terminated by anything
-that doesn't match the format.
+Most URLs can be represented unquoted in KV.  Where keys are allowed, quoted strings can be used to include
+characters.
 
-```text
+For example, `kv` values can preceed an HTTP request because `GET` is not followed by `=`.
+
+```text /.=./
 a=b
 c=d
-GET ... # since GET doesn't end with an =, we know it's not part of the KV data.
+GET https://example.com
 ```
 
 This format is accepted at the top of any pardon `.http` template and allows
-us to specify values directly in-line with the request.
+us to specify values directly above the request without additional syntax.
 
 The main advantages of the KV format are
 
-- less syntax than JSON (quotes can often be elided)
-- trailing commas
-- using `=` inside objects so that object contents can be
-  copied to the top level.
+- less syntax than JSON (quotes / commas can be elided in many cases).
+- Human readable - easy to read and write.
+- JSON compatible values - easy to generate
 
-{/*
-# TODO: rewrite kv-fmt.ts so that the following is also supported.
+#### KV Playground
 
-a=b
-list=[1, 2, 3] # maybe even allow for list=[1 2 3] for lists of values?
-things=[
-  name=x p=q, # an array element starting with k=v implies a object
-  a=b c=d # also note no commas between fields here.
-]
-*/}
+Try experimenting here
 
-#### Interactive Parsing Demo
+<KvPlayground kv={/* nb, mdx removes first 2 leading spaces */`
+  a=b
+  url=http://a.com?q=true
 
-<KvPlayground kv={`
-a=b
-list=[1, 2, 3]
-things=[
-  { name=x, p=q },
-  { a=b, c=d }
-]
-`}>
-</KvPlayground>
+  json_list=[1, 2, 3]
+  kv_list = [1 2 3]
+
+  json_obj = { "p": q, "r": s }
+  kv_obj={ p=q r=s }
+`}/>
