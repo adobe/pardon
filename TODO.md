@@ -20,8 +20,8 @@
         reporting. (mostly done)
   - request chaining `*.flow.https` files
     - [x] in unit tests.
-    - [ ] outside of tests
-    - [ ] in `favor`
+    - [x] outside of tests
+    - [x] in `favor`
   - [x] unit test runner
     - [ ] add unit-centric reports (which tests were involved with each unit)
     - [ ] load from reports/ directory. (in `favor`)

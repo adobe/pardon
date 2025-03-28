@@ -35,7 +35,7 @@ contain non identifier characters (a-z0-9$_)).
 //  comment (starting with # till end of line)
 const tokenizer =
   /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\],]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
-const kesplitter = /^((?!['"])[^:=]+)([:=])(.*)$/im;
+const kevsplitter = /^((?!['"])[^:=]+)([:=])(.*)$/im;
 const evsplitter = /^([:=])(.*)$/im;
 
 function tokenize(data: string) {
@@ -45,33 +45,48 @@ function tokenize(data: string) {
   // we use a two-pass tokenization to allow values with `=` and `:` in them.
   // first pass tokenizes without splitting on `=` and `:`, second pass splits them
   // unless the preceeding token was an `=` or `:`, in which case we don't (as we're in a value).
-  return data
-    .split(tokenizer)
-    .reduce<string[]>((retokenized, tokenOrSplit, index) => {
+  return data.split(tokenizer).reduce<{ retokenized: string[]; ctx: string[] }>(
+    (state, tokenOrSplit, index) => {
       if (!(index & 1)) {
-        retokenized.push(tokenOrSplit);
-        return retokenized;
+        state.retokenized.push(tokenOrSplit);
+        return state;
       }
 
-      if (!inValue(retokenized)) {
-        const ke = kesplitter.exec(tokenOrSplit);
+      if (
+        !inValue(state.retokenized) &&
+        state.ctx[state.ctx.length - 1] != "["
+      ) {
+        const ke = kevsplitter.exec(tokenOrSplit);
         if (ke) {
           const [, key, eq, value] = ke;
-          retokenized.push(key, "", eq, "", value);
-          return retokenized;
+          state.retokenized.push(key, "", eq, "", value);
+          return state;
         }
 
         const ev = evsplitter.exec(tokenOrSplit);
         if (ev) {
           const [, eq, value] = ev;
-          retokenized.push(eq, "", value);
-          return retokenized;
+          state.retokenized.push(eq, "", value);
+          return state;
         }
       }
 
-      retokenized.push(tokenOrSplit);
-      return retokenized;
-    }, []);
+      state.retokenized.push(tokenOrSplit);
+      switch (tokenOrSplit) {
+        case "[":
+        case "{":
+          state.ctx.push(tokenOrSplit);
+          break;
+        case "]":
+        case "}":
+          state.ctx.pop();
+          break;
+      }
+
+      return state;
+    },
+    { retokenized: [], ctx: [] },
+  ).retokenized;
 }
 
 // simple token should allow somewhat complex values like e.g., email addresses and paths without quotes
