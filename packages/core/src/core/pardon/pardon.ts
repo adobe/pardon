@@ -52,6 +52,8 @@ import { getContextualValues } from "../schema/core/context.js";
 import { definedObject } from "../../util/mapping.js";
 import { JSON } from "../json.js";
 import { PardonRuntime } from "./types.js";
+import { valueId } from "../../util/value-id.js";
+import { PardonCompiler } from "../../runtime/compiler.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
@@ -82,6 +84,7 @@ export type PardonExecutionInit = {
 export type PardonExecutionOutbound = {
   request: RequestObject;
   redacted: RequestObject;
+  reduced: Record<string, unknown>;
   evaluationScope: EvaluationScope;
 };
 
@@ -284,7 +287,10 @@ export const PardonFetchExecution = pardonExecution({
       selectOne(goodMatches, { context, fetchObject })
     );
   },
-  async preview({ context: { app }, match: { schema, values, endpoint } }) {
+  async preview({
+    context: { app, values: inputValues },
+    match: { schema, values, endpoint },
+  }) {
     const { compiler } = app();
     const previewingEnv = createEndpointEnvironment({
       endpoint,
@@ -313,6 +319,14 @@ export const PardonFetchExecution = pardonExecution({
 
     const redacted = await previewSchema(schema, redactingEnv);
 
+    const reduced = reducedValues(
+      schema,
+      redacted.output,
+      endpoint,
+      compiler,
+      inputValues,
+    );
+
     return {
       request: {
         ...rendered.output,
@@ -324,11 +338,12 @@ export const PardonFetchExecution = pardonExecution({
         ...redacted.output,
         values: getContextualValues(rendered.context),
       },
+      reduced,
       evaluationScope: rendered.context.evaluationScope,
     };
   },
   async render({
-    context: { durations, app, runtime, options },
+    context: { durations, app, runtime, options, values: inputValues },
     match: { schema, values, endpoint },
   }) {
     const { compiler } = app();
@@ -373,6 +388,14 @@ export const PardonFetchExecution = pardonExecution({
 
     const redacted = await renderSchema(redacting.schema!, redactingEnv);
 
+    const reduced = reducedValues(
+      schema,
+      redacted.output,
+      endpoint,
+      compiler,
+      inputValues,
+    );
+
     durations.render = Date.now() - renderStart;
 
     return {
@@ -383,11 +406,12 @@ export const PardonFetchExecution = pardonExecution({
             secrets: true,
           }),
         ),
-      } satisfies RequestObject,
+      },
       redacted: {
         ...redacted.output,
         values: cleanRequestValues(getContextualValues(rendered.context)),
-      } satisfies RequestObject,
+      },
+      reduced,
       evaluationScope: rendered.context.evaluationScope,
     };
   },
@@ -566,4 +590,53 @@ function cleanResponseValues(response: Record<string, unknown>) {
     status: undefined,
     statusText: undefined,
   } as Record<string, unknown>);
+}
+
+function reducedValues(
+  schema: Schema<RequestObject>,
+  output: RequestObject,
+  endpoint: LayeredEndpoint,
+  compiler: PardonCompiler,
+  values: Record<string, unknown>,
+) {
+  const matchingEnv = createEndpointEnvironment({
+    endpoint,
+    values: {},
+    compiler,
+    runtime: {},
+    secrets: false,
+    options: {},
+  });
+
+  const reducedValues = { ...values };
+
+  try {
+    const matching = mergeSchema(
+      { mode: "match", phase: "build" },
+      schema,
+      output,
+      matchingEnv,
+    );
+
+    const resolvedValues = getContextualValues(matching.context);
+
+    for (const [key, value] of Object.entries(resolvedValues)) {
+      try {
+        if (
+          reducedValues[key] == value ||
+          valueId(reducedValues[key]) === valueId(value)
+        ) {
+          delete reducedValues[key];
+        }
+      } catch (error) {
+        /* ignore */
+        void error;
+      }
+    }
+  } catch (error) {
+    /* ignore */
+    void error;
+  }
+
+  return reducedValues;
 }

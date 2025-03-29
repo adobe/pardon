@@ -388,7 +388,7 @@ const handlers = {
   ) {
     const { options, select } = makeSelector(workerOptions);
 
-    const rendering = pardon(input, {
+    const preview = pardon(input, {
       options: { ...options, parsecurl: true },
       select,
     })`${http.trim() || [input.method ?? "GET", "//"].join(" ").trim()}`.preview();
@@ -399,14 +399,16 @@ const handlers = {
         action,
         service,
       },
-    } = await rendering.match;
-    const { redacted } = await rendering;
+    } = await preview.match;
+
+    const { redacted, reduced } = await preview;
 
     return {
       service,
       action,
       endpoint,
-      http: HTTP.stringify({ ...redacted }),
+      values: redacted.values,
+      http: HTTP.stringify({ ...redacted, values: reduced }),
       configuration,
       yaml: YAML.stringify(cleanObject(configuration))?.trim(),
     };
@@ -420,7 +422,7 @@ const handlers = {
     execution.catch(() => {});
 
     const handle = randomUUID() as string;
-    const { request, redacted } = await execution.outbound;
+    const { request, redacted, reduced } = await execution.outbound;
 
     const { trace, ask, durations } =
       (await execution.context) as PardonHttpExecutionContext;
@@ -432,7 +434,7 @@ const handlers = {
         durations,
       },
       outbound: {
-        request: HTTP.requestObject.json(redacted),
+        request: HTTP.requestObject.json({ ...redacted, values: reduced }),
       },
       secure: {
         outbound: {
@@ -450,13 +452,13 @@ const handlers = {
   },
   async continue(handle: string) {
     const {
-      execution: flow,
+      execution,
       render: {
         context: { ask, trace, durations },
       },
     } = ongoing[handle];
 
-    const { endpoint, outbound, inbound } = await flow.result;
+    const { endpoint, outbound, inbound } = await execution.result;
 
     const secure = {
       outbound: {
@@ -473,7 +475,10 @@ const handlers = {
       endpoint,
       outcome: inbound.outcome,
       outbound: {
-        request: HTTP.requestObject.json(outbound.redacted),
+        request: HTTP.requestObject.json({
+          ...outbound.redacted,
+          values: outbound.reduced,
+        }),
       },
       inbound: {
         response: HTTP.responseObject.json(inbound.redacted),
