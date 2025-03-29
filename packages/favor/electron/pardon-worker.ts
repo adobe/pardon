@@ -36,7 +36,7 @@ import { httpOps, valueOps } from "pardon/database";
 import { traced } from "pardon/features/trace";
 import undici from "pardon/features/undici";
 import remember, { PardonHttpExecutionContext } from "pardon/features/remember";
-import { cleanObject, RequestJSON } from "pardon/formats";
+import { cleanObject, HttpsRequestStep, RequestJSON } from "pardon/formats";
 import {
   CompiledHttpsSequence,
   failfast,
@@ -560,8 +560,9 @@ const handlers = {
 };
 
 function archetype({ steps }: Partial<ReturnType<typeof HTTPS.parse>> = {}) {
-  const request = steps?.find(({ type }) => type === "request") as any;
-
+  const request = steps?.find(
+    ({ type }) => type === "request",
+  ) as HttpsRequestStep;
   if (request) {
     // TODO: render and include sample body here?
     const { method, url } = HTTP.requestObject.json(request.request);

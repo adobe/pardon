@@ -24,6 +24,8 @@ export {
   type FlowParamsList,
   type FlowParamsItem,
 } from "../core/execution/flow/index.js";
+export { type HttpsFlowConfig } from "../core/formats/https-fmt.js";
+export { type HttpsSequenceInteraction } from "../core/execution/flow/https-flow-types.js";
 
 export { cached, type CacheEntry } from "../api/cached.js";
 export { disconnected, shared } from "../core/tracking.js";
