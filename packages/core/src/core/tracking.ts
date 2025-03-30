@@ -471,6 +471,24 @@ export function tracking<T>() {
 
       return value;
     },
+    async shared<R>(action: () => Promise<R> | R): Promise<R> {
+      await (null! as Promise<void>);
+
+      const values = currentValues();
+      values.splice(0, values.length);
+
+      return action();
+    },
+    async disconnected<R>(action: () => Promise<R> | R): Promise<R> {
+      await (null! as Promise<void>);
+
+      try {
+        return await action();
+      } finally {
+        const values = currentValues();
+        values.splice(0, values.length);
+      }
+    },
   };
 
   if (trackerCount++ === 0) {
@@ -486,6 +504,12 @@ export function tracking<T>() {
     track(value: T) {
       return tracker.track(value);
     },
+    shared<R>(action: () => R | Promise<R>): Promise<R> {
+      return tracker.shared(action);
+    },
+    disconnected<R>(action: () => R | Promise<R>): Promise<R> {
+      return tracker.disconnected(action);
+    },
   };
 }
 
@@ -494,45 +518,6 @@ export function tracking<T>() {
 // enough async hooks to track the registrations of all
 // the promises.  The following polyfills the behavior
 // to await every promise, and adds a couple related additional helpers.
-
-export const all_disconnected: PromiseConstructor["all"] = (
-  (all) =>
-  async (...[promises]: Parameters<typeof Promise.all>) => {
-    const allSettled = await allSettled_disconnected(promises);
-
-    return await all.call(Promise, allSettled.map(disturb));
-  }
-)(Promise.all);
-
-export async function allSettled_disconnected(
-  ...[promises]: Parameters<typeof Promise.allSettled>
-) {
-  // we need to pre-disarm the list of promises
-  // because an unhandled error from value[1]
-  // might terminate Node while we're awaiting value[0]
-  disarmPromises(promises);
-
-  await (null! as Promise<void>);
-
-  return await new Promise<PromiseSettledResult<unknown>[]>((resolve) => {
-    const list: unknown[] = [...promises];
-    let remaining = list.length;
-
-    if (remaining === 0) {
-      resolve(list as []);
-      return;
-    }
-
-    list.forEach(async (promise, i) => {
-      list[i] = await settle(promise);
-
-      if (--remaining === 0) {
-        _unlink();
-        resolve(list as PromiseSettledResult<unknown>[]);
-      }
-    });
-  });
-}
 
 Promise.all = (
   (all) =>
@@ -575,28 +560,6 @@ Promise.allSettled = (
     return await allSettled.call(Promise, promises);
   }
 )(Promise.allSettled);
-
-async function settle<T = unknown>(
-  promise: Promise<T> | T | unknown,
-): Promise<PromiseSettledResult<T>> {
-  try {
-    return {
-      status: "fulfilled",
-      value: (await Promise.resolve(promise)) as T,
-    };
-  } catch (reason) {
-    return { status: "rejected", reason };
-  }
-}
-
-async function disturb<T>(settled: PromiseSettledResult<T>): Promise<T> {
-  switch (settled.status) {
-    case "fulfilled":
-      return settled.value;
-    case "rejected":
-      throw settled.reason;
-  }
-}
 
 function disarmPromises(promises: Iterable<unknown>) {
   for (const promise of promises) {

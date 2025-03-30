@@ -12,7 +12,6 @@ governing permissions and limitations under the License.
 import test, { describe } from "node:test";
 import assert, { deepEqual } from "node:assert";
 import {
-  all_disconnected,
   disconnected,
   semaphore,
   shared,
@@ -561,6 +560,26 @@ describe("async", () => {
   );
 
   testing(
+    "test-local-shared-disconnected",
+    async ({ track, awaited, shared, disconnected }) => {
+      track("A");
+      const sharedAwaited = await shared(() => {
+        track("B");
+        return awaited();
+      });
+      assert.equal(sharedAwaited.join(""), "B");
+      assert.equal(awaited().join(""), "AB");
+      const disconnectedAwaited = await disconnected(() => {
+        track("C");
+        return awaited();
+      });
+      assert.equal(disconnectedAwaited.join(""), "ABC");
+      assert.equal(awaited().join(""), "AB");
+    },
+    "AB",
+  );
+
+  testing(
     "test-disconnected-gc-all",
     async ({ track, awaited }) => {
       let count = 0;
@@ -744,16 +763,18 @@ describe("async", () => {
     async ({ track }) => {
       const batch = 10;
       const concurrency = semaphore(batch);
-      await all_disconnected(
-        [...new Array(100)].map(async () => {
-          await concurrency(() => delay(10));
+      await Promise.all(
+        [...new Array(100)].map(() =>
+          disconnected(async () => {
+            await concurrency(() => delay(10));
 
-          track("x");
-          track("");
-          track("y");
-          track("");
-          track("z");
-        }),
+            track("x");
+            track("");
+            track("y");
+            track("");
+            track("z");
+          }),
+        ),
       );
     },
     "",

@@ -21,7 +21,6 @@ import {
   SequenceStepReport,
 } from "../../core/execution/flow/https-flow-types.js";
 import {
-  all_disconnected,
   disconnected,
   semaphore,
   shared,
@@ -125,7 +124,7 @@ export async function executeSelectedTests(
     notifyFastFailed(signal);
   });
 
-  const testResults = await all_disconnected(
+  const testResults = await Promise.all(
     selectedTests.map(
       async ({ test, testcase, testenv: { ...testenv } }) =>
         await concurrently(() =>
