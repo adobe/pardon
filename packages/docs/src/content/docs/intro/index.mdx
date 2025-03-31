@@ -27,77 +27,44 @@ import {
   ExerciseItem,
   IconicCode,
   PardonPlayground,
+  FlexyCodeGrid
  } from '@components';
 import pingExample from '@pardon/ping-example.ts'
 
 ## Why you never knew you needed another framework
 
-Most of the existing http frameworks are simply a UI for curl, adding some
-parameterization, formatting, and perhaps some support for handling Authorization.
+Pardon works differently that most HTTP frameworks.  With other frameworks,
+first the user selects a request or template to build a request.  Pardon
+inverts this by selecting a compatible template from the request.
 
-However, the existing frameworks do not attempt to _understand_ the requests being sent,...
-and not in some fuzzy semantic level like an AI, but simply
-"this is a request to stage, so we need to use stage authorization".
+This design focuses the user on the interesting parts of the requests, and the templates
+can supply all the nitty-gritty (Content-Type, Authorization, usually).
 
-Handling environment switches between stage and production (and local),
-the user is faced With the choice to copy, modify, or parameterize requests,
-suffering duplicated code (when they copy), request agility (when they modify),
-or readability (when they parameterize).
-
-These choices compound when the collections are shared between people or teams, especially
-if the copy and modify strategies are chosen.
-
-With a little help, Pardon can understand a request to `https://example.com` is production,
-and `https://stage.example.com` is stage, and can then switch or override a request's environment
-with a hint as little as `env=stage`.  This means the collection can nominally specify
+Pardon also can reconfigure requests for different environments.
+For instance, Pardon can understand a request to `https://service.example.com` is production,
+and `https://service-stage.example.com` is stage, and can switch between them.
+Collection can specify the nominal
 `https://example.com` (for legibility), but can be used in any environment.
 
 :::note
 Efforts like the OpenAPI specification do solve a subset of these issues, like
-offering a choice of base URLs. On the other hand, it also abandons the
-curl-request-document model, specifying API calls in a special json-schema
-format that [looks nothing like](https://spec.openapis.org/oas/latest.html#request-body-examples)
-the data going over the wire.
+offering a choice of base URLs.  But the format is very much machine-oriented.
 :::
 
-## Pardon's approach
+### Focus on HTTP APIs
 
-Pardon's approach to collection management is different.  Rather than having
-collections of requests, Pardon has collections of endpoint templates.
+Requests are written in a format based on HTTP, so they are easier to understand and maintain
+in any editor (or source-control) than a json-schema or other proprietary format.
 
-Endpoint template collections are meant to both document and be directly useable by
-implementation teams for locally and remotely making requests to their services.
-
-Collection layering (to be described later), allows teams to have collections 
-designed for internal use (e.g., adding a local environment) which extend
-the shared version.
-
-### Endpoints
-
-Endpoints are written in a format based on HTTP, so it's easier to read and edit
-directly in your choice of text editor (or in the Pardon application directly).
-Pardon uses endpoint templates to both generate _and_ understand requests, as well
-as for parsing and understanding responses.
-
-The user of a collection specifies what request they want, ... more or less.
-The specified request needs to contain enough information to uniquely match an endpoint,
-and then pardon can take it from there, adding any required headers or authorization,
-and can even transforming the call to be made to a different environment (stage, production, and/or
-calling the local environment).
-
-:::note
-In these tutorials, we will refer to the input request as the "ask",
-in contrast to the "request", which is what Pardon would send out to an API.
-:::
+Both requests and request templates share the same HTTP language.
 
 ## Demo time
 
-Let's explore a more concrete example. Consider an `example.com/ping` API
+Let's explore a more concrete example. Consider an `example.com/ping` API that
 
- - is also hosted on `stage.example.com`,
+ - also has a stage environnment, `stage.example.com`,
  - requires an explicit `Accept` header,
- - and also needs some kind of `apikey`, ...
-   - which is (with no justification besides being useful as an example), different between staging and production.
+ - and needs an environment-specific `apikey`.
 
 This `ping.https` endpoint template describes that call.
 
@@ -113,41 +80,63 @@ Accept: text/plain
 api-key: {{ apikey = (env === "prod" ? "system" : "staging") }}
 ```
 
-The `config` section informs Pardon about the `env=stage` and `env=prod` environments,
-associating the two values of `{{origin}}` (which is the `https://example.com` part of the URL)
-with those environments. Pardon can then use that `env` value when evaluating the
-expression for `apikey`.
+This is a configuration section and then an http request template (after the `>>>`),
+the template is interpretted by parsing it and then merging it into the following structure:
 
-All Pardon needs to use this template is an _ask_ which could be to either `https://example.com/ping`
-or `https://stage.example.com/ping`.  Pardon would match either of those to the template, determine
-the `env` value from the, and then compute related values like the header from it.
+<FlexyCodeGrid centered>
+```json
+{
+  "method": "GET",
+  "origin": "https://example.com",
+  "pathname": "/ping",
+  "headers": [
+    ["accept", "text/plain"],
+    ["api-key", "{{ apikey = ... }}"]
+  ]
+}
+```
+```js
+{
+  method: "{{method}}",
+  origin: "{{origin}}",
+  pathname: "{{pathname}}",
+  searchParams: ...,
+  headers: ...,
+  body: ...
+}
+```
+</FlexyCodeGrid>
 
-The `pardon` command line utility can, (using only this template), generate (or make)
+Where patterns (`"{{method}}"`) merge with values (`"GET"`), Pardon resolves the value of`method` to equal `GET`.
+
+The `config` map in the configuration section teaches Pardon about the `env=stage` and `env=prod` environments,
+associating the two values of `{{origin}}` to those environments, and vice-versa.
+
+Using this template, the input request (which we call the "ask"), can be as simple as
+"https://example.com/ping" or "https://stage.example.com".
+For safety, pardon will assume an unspecified method is `GET` and, finding
+only one template compatible with such a request,
+fill in all the other details to flesh out rest of the request.
+
+For example the `pardon` command line utility can, (using only this template), generate (or make)
 the full requests directly.
 
 <Tabs>
   <TabItem label="production">
-`pardon` can generate curl-compatible requests.
-Using `--curl` tells pardon to render the request rather than send it.
 ```bash title="https://example.com/ping"
-% pardon https://example.com/ping --curl
-curl "https://example.com/ping" \
-  --header "accept: text/plain" \
-  --header "api-key: system"
+% pardon https://example.com/ping
+pong # from prod
 ```
   </TabItem>
   <TabItem label="staging">
-Pardon produces a different request for the stage origin (not just the URL but also the `api-key` header).
-```http frame="terminal" title="https://stage.example.com/ping --curl"
-% pardon https://stage.example.com/ping --curl
-curl "https://stage.example.com/ping" \
-  --header "accept: text/plain" \
-  --header "api-key: staging"
+```bash frame="terminal" title="https://stage.example.com/ping"
+% pardon https://stage.example.com/ping
+pong # from stage
 ```
   </TabItem>
   <TabItem label="staging / http">
-`pardon` also emits an http format, which is a little easier to read, IMHO.
-```http frame="terminal" title="https://stage.example.com/ping --http"
+`pardon` can emit the http request (without making the call)
+```bash frame="terminal" title="https://stage.example.com/ping --http"
 % pardon https://stage.example.com/ping --http
 GET https://stage.example.com/ping
 accept: text/plain
@@ -155,15 +144,14 @@ api-key: staging
 ```
   </TabItem>
   <TabItem label="env=stage">
-By adding `env=stage` into the request (anywhere in the command line), we can configure
-the request for stage without having to remember the stage origin (perhaps some services
-have a `https://stage.example.com` subdomain and others might be hosted on domains
-like `https://example-stage.com` etc...).
-```http frame="terminal" title="https://example.com/ping --http env=stage"
-% pardon https://example.com/ping --http env=stage
-GET https://stage.example.com/ping
-accept: text/plain
-api-key: staging
+By adding `env=stage` into the request we can rewrite the ask to use stage.
+
+Here we see the output of pardon's "`--curl`" output.
+```bash frame="terminal" title="https://example.com/ping --curl env=stage"
+% pardon https://example.com/ping --curl env=stage
+curl "https://stage.example.com/ping" \
+  --header "accept: text/plain" \
+  --header "api-key: staging"
 ```
   </TabItem>
 </Tabs>
