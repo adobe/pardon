@@ -25,20 +25,19 @@ import {
   CollectionLinkCard,
   Exercises,
   ExerciseItem,
-  IconicCode,
   PardonPlayground,
   FlexyCodeGrid
  } from '@components';
 import pingExample from '@pardon/ping-example.ts'
 
-## Why you never knew you needed another framework
+## Focused interaction
 
 Pardon works differently that most HTTP frameworks.  With other frameworks,
 first the user selects a request or template to build a request.  Pardon
 inverts this by selecting a compatible template from the request.
 
 This design focuses the user on the interesting parts of the requests, and the templates
-can supply all the nitty-gritty (Content-Type, Authorization, usually).
+can supply all the nitty-gritty (Content-Type, Authorization, except).
 
 Pardon also can reconfigure requests for different environments.
 For instance, Pardon can understand a request to `https://service.example.com` is production,
@@ -107,12 +106,14 @@ the template is interpretted by parsing it and then merging it into the followin
 ```
 </FlexyCodeGrid>
 
-Where patterns (`"{{method}}"`) merge with values (`"GET"`), Pardon resolves the value of`method` to equal `GET`.
+Where the template strings `"{{method}}"`and `"{{origin}}"` merge with the
+values `"GET"` and `"https://example.com"`.  
+
 
 The `config` map in the configuration section teaches Pardon about the `env=stage` and `env=prod` environments,
-associating the two values of `{{origin}}` to those environments, and vice-versa.
+associating the two values of `{{origin}}` to those environments, and vice-versa.  
 
-Using this template, the input request (which we call the "ask"), can be as simple as
+Using this template, the input request can be as simple as
 "https://example.com/ping" or "https://stage.example.com".
 For safety, pardon will assume an unspecified method is `GET` and, finding
 only one template compatible with such a request,
@@ -144,7 +145,7 @@ api-key: staging
 ```
   </TabItem>
   <TabItem label="env=stage">
-By adding `env=stage` into the request we can rewrite the ask to use stage.
+By adding `env=stage` into the request we can rewrite the request to use stage.
 
 Here we see the output of pardon's "`--curl`" output.
 ```bash frame="terminal" title="https://example.com/ping --curl env=stage"
@@ -156,55 +157,48 @@ curl "https://stage.example.com/ping" \
   </TabItem>
 </Tabs>
 
-Let's see how Pardon behaves with this collection.
-
-With the following three exercies, you will see Pardon
-expand (render) the _ask_ into the request it would send.
+Let's explore this further, in a playground environment:
 
 <PardonPlayground example="https://example.com/ping" config={pingExample}>
   <Exercises>
-    <ExerciseItem label="📖"
-      prompt="interactive tutorials">
-      In these tutorials, exercises are provided to guide the interaction with the playground
-      shown below.  Please select the other tabs but feel free to experiment.
-    </ExerciseItem>
     <ExerciseItem label='↔'
       prompt="change the request to the stage server">
       Change the host here to to see how pardon
       automatically updates the request. (keep an eye on the `api-key` header)
-      <IconicCode name="pencil">
-```http ins="stage."
+```http ins="stage." copy=playground
 https://stage.example.com/ping
 ```
-      </IconicCode>
     </ExerciseItem>
     <ExerciseItem label='?'
       prompt='add a query to the input request'>
-      Pardon integrates additional query parameters to be included with requests.
+      Pardon integrates additional query parameters to be included with requests, without
+      requiring any changes to the templates.
 
-      <IconicCode name="pencil">
-```http ins="?hello=world"
-https://stage.example.com/ping?hello=world
+```http ins="?hello=world" copy=playground
+https://example.com/ping?hello=world
 ```
-      </IconicCode>
     </ExerciseItem>
     <ExerciseItem label='+'
       prompt='add a header to the input request'>
       Pardon integrates additional headers to be included in requests.
 
-      <IconicCode name="pencil">
-```http ins={2}
-https://stage.example.com/ping?hello=world
+```http ins={2} copy=playground
+https://example.com/ping?hello=world
 User-Agent: pardon
 ```
-      </IconicCode>
+    </ExerciseItem>
+    <ExerciseItem label="!"
+      prompt='override the request with configuration'>
+Any KV (key-value) data can go above the HTTP request to configure it.
+```http ins="env=stage" copy=playground
+env=stage
+https://example.com/ping
+```
+Notice how this overwrites the origin in the input with the
+correct one for the stage environment.  
     </ExerciseItem>
   </Exercises>
 </PardonPlayground>
-
-One more point to drive this home: this example should be factored as three separate files,
-separating the concerns of service configuration (applying to all requests for the service),
-the ping endpoint itself, and the (reusable!) apikey selection mixin:
 
 <Tabs>
 <TabItem label="service.yaml">

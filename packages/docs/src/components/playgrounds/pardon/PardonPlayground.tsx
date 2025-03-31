@@ -1,8 +1,8 @@
 import { Show, createSignal, untrack, type ParentProps } from "solid-js";
-import CodeMirror from "@components/codemirror/CodeMirror.tsx";
+import CodeMirror, { EditorView } from "@components/codemirror/CodeMirror.tsx";
 
 import { usePardonApplicationContext } from "@components/playgrounds/pardon/PardonApplication";
-import { TbMoodConfuzed, TbPencil, TbSettings } from "solid-icons/tb";
+import { TbPencil } from "solid-icons/tb";
 import { iconSize } from "@components/pardon-shared.ts";
 import { ProductsServerExecution } from "@components/products-server-hook.ts";
 import {
@@ -26,16 +26,15 @@ export default function PardonPlayground(
   const context = usePardonApplicationContext()!;
 
   const initialContext = untrack(context);
+
   if ("error" in initialContext) {
     throw new Error("invalid initial application context", {
       cause: initialContext.error,
     });
   }
 
-  const { values, server, secrets } = props.options;
-  const initial = values === true ? "" : values || "";
+  const { server, secrets } = props.options;
 
-  const [env, setEnv] = createSignal(KV.parse(initial, "object"));
   const [input, setInput] = createSignal(
     (initialContext.application.example?.request || "").trim(),
   );
@@ -44,42 +43,63 @@ export default function PardonPlayground(
 
   const executionHandle = createExecutionMemo({
     context,
-    env,
     execution:
       server === "products" ? ProductsServerExecution : NullServerExecution,
     input,
     restart,
   });
 
-  const [valuesError, setValuesError] = createSignal();
+  const [inputEditorView, setInputEditorView] = createSignal<EditorView>();
 
   return (
     <SecretsSignalContext secrets={secrets ? secrets === "shown" : undefined}>
       <ResponseSignalContext>
-        <div class="not-content pp-app grid gap-2">
+        <div
+          class="not-content pp-app grid gap-2"
+          data-pardon-playground
+          ref={(element) => {
+            (element as any).pardonPlayground = {
+              update(value: string) {
+                const view = inputEditorView()!;
+
+                const doc = view.state.doc.toString();
+                const {
+                  [KV.unparsed]: rest,
+                  [KV.eoi]: _eoi,
+                  [KV.upto]: _upto,
+                  ...kv
+                } = KV.parse(doc, "stream");
+
+                const {
+                  [KV.unparsed]: http,
+                  [KV.eoi]: _eoi_,
+                  [KV.upto]: _upto_,
+                  ...values
+                } = KV.parse(value, "stream");
+
+                const updatedHttp = http?.trim() || rest?.trim();
+                const result =
+                  KV.stringify(
+                    { ...kv, ...values },
+                    "\n",
+                    2,
+                    updatedHttp?.trim() ? "\n" : "",
+                  ) + (updatedHttp?.trim() ?? "");
+
+                view.dispatch([
+                  view.state.update({
+                    changes: {
+                      from: 0,
+                      to: view.state.doc.length,
+                      insert: result,
+                    },
+                  }),
+                ]);
+              },
+            };
+          }}
+        >
           {props.children}
-          <Show when={props.options.values}>
-            <CodeMirror
-              icon={
-                <div class="icon-grid icon-grid-col">
-                  <TbSettings color="gray" size={iconSize} />
-                  <Show when={valuesError()}>
-                    <TbMoodConfuzed color="gray" size={iconSize} />
-                  </Show>
-                </div>
-              }
-              class="rounded-md bg-white p-2 shadow dark:bg-gray-700"
-              value={initial}
-              onValueChange={(value) => {
-                try {
-                  setEnv(KV.parse(value, "object"));
-                  setValuesError(undefined);
-                } catch (error) {
-                  setValuesError(error);
-                }
-              }}
-            />
-          </Show>
           <CodeMirror
             icon={
               <div
@@ -98,6 +118,7 @@ export default function PardonPlayground(
             }
             class="rounded-md bg-white p-2 shadow dark:bg-gray-700"
             value={untrack(input)}
+            editorViewRef={setInputEditorView}
             onValueChange={setInput}
           />
           <Show

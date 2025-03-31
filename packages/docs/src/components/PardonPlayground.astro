@@ -37,7 +37,7 @@ const { secrets, editor, values, data, response, ...props } = Astro.props;
 ---
 
 <PardonPlaygroundLoader
-  client:visible
+  client:load
   options={{ secrets, values, editor, data, response, server }}
   {...props}
 >
@@ -46,7 +46,7 @@ const { secrets, editor, values, data, response, ...props } = Astro.props;
 
 <style is:global>
   .pp-container {
-    @apply mt-4 overflow-clip rounded-md border-8 border-transparent bg-[--astro-code-color-background] bg-clip-border p-2 pb-4;
+    @apply mt-4 overflow-clip rounded-md border-8 border-transparent bg-zinc-100 bg-clip-border p-2 pb-4 dark:bg-zinc-800;
   }
   .pp-app-container {
     @apply border-0 border-t-2 border-dashed border-zinc-400 px-2 pt-5 dark:border-sky-700;

@@ -16,7 +16,7 @@ export { default as Exercises } from "./Exercises.astro";
 export { default as ExerciseItem } from "./ExerciseItem.astro";
 export { default as ExerciseItemPrompt } from "./ExerciseItemPrompt.astro";
 export { default as FlexyCodeGrid } from "./FlexyCodeGrid.astro";
-export { default as IconicCode } from "./IconicCode.astro";
+// export { default as IconicCode } from "./IconicCode.astro";
 export { default as PardonPlayground } from "./PardonPlayground.astro";
 export { default as ProductsView } from "./ProductsView.astro";
 export { default as SolidIcon } from "./SolidIcon.astro";

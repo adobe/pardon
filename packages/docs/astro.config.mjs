@@ -16,6 +16,8 @@ import { defineConfig } from "astro/config";
 import tailwind from "@astrojs/tailwind";
 import starlight from "@astrojs/starlight";
 import solid from "@astrojs/solid-js";
+import { pluginFrames } from "astro-expressive-code";
+import { copypastePlugin } from "./src/code/copypaste-plugin";
 
 // https://astro.build/config
 export default defineConfig({
@@ -102,6 +104,13 @@ export default defineConfig({
         PageFrame: "@components/starlight/PageFrame.astro",
         Footer: "@components/starlight/Footer.astro",
       },
+      expressiveCode: {
+        frames: false,
+        plugins: [
+          copypastePlugin(),
+          pluginFrames({ showCopyToClipboardButton: false }),
+        ],
+      },
     }),
     solid(),
     tailwind({ applyBaseStyles: false }),
@@ -152,5 +161,8 @@ export default defineConfig({
         replacement: resolve(replacement),
       })),
     },
+  },
+  experimental: {
+    clientPrerender: true,
   },
 });

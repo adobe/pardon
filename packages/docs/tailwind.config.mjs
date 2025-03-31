@@ -11,6 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import tailwind3d from "tailwindcss-3d";
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./src/**/*.{astro,html,js,jsx,md,mdx,ts,tsx,pcss}"],
@@ -21,7 +22,7 @@ export default {
   plugins: [
     tailwind3d({ legacy: true }),
     ({ addVariant }) => {
-      addVariant("light", "@media (prefers-color-scheme: light)");
+      addVariant("light", '[data-theme="light"] &');
     },
   ],
 };

@@ -1,8 +1,8 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "exclude": ["**/dist/**", "**/__coverage__/**", "src/code/**"],
+  "include": ["src/code/**/*.tsx"],
   "compilerOptions": {
-    "baseUrl": ".",
+    "baseUrl": "../..",
     "paths": {
       "@layouts/*": ["./src/layouts/*"],
       "@assets/*": ["./src/assets/*"],
@@ -11,6 +11,7 @@
       "@pardon/*": ["./src/pardon/*"]
     },
     "jsx": "preserve",
-    "jsxImportSource": "solid-js"
+    "jsxFactory": "h",
+    "jsxImportSource": "@expressive-code/core/hast"
   }
 }

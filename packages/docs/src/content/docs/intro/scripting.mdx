@@ -30,7 +30,6 @@ import {
   ExerciseItem,
   ExerciseItemPrompt,
   FlexyCodeGrid,
-  IconicCode,
   PardonPlayground,
   ProductsView,
   SolidIcon,
@@ -235,22 +234,19 @@ of `pardon:example/products`, to do this, we'll make a few changes:
   <TabItem label="1. Setup export">
 First we add a `config.yaml` in products
 to define its export.
-<IconicCode name="editor" titled>
-```yaml title="example/products/config.yaml" ins={1}
+```yaml title="example/products/config.yaml" ins={1} copy=collection
 export: ./products-helper.ts
 ```
 :::note
 Be sure to edit the `example/products/config.https` file here.
 :::
-</IconicCode>
   </TabItem>
   <TabItem label="2. Use in expression">
 
 Next we import the `info` method inside the endpoint we'd like to
 use it from and add.
 
-<IconicCode name="editor" titled>
-```http title="example/orders/create.https" ins={1-3} ins=" = price({ product, env })"
+```http title="example/orders/create.https" ins={1-3} ins=" = price({ product, env })" copy=collection
 import:
   pardon:example/products:
     - price
@@ -268,23 +264,18 @@ POST https://example.com/orders
 :::note
 Be sure to edit the `example/orders/create.https` file here.
 :::
-</IconicCode>
   </TabItem>
   <TabItem label="3. Make the Call">
 
 Set the input data.
-<IconicCode name="setting">
-```
+```text copy=playground
 items=[{ product: P1001 }, { product: P1002 }]
 ```
-</IconicCode>
 
 And select the correct endpoint:
-<IconicCode name="pencil">
-```
+```text copy=playground
 POST https://example.com/orders
 ```
-</IconicCode>
 
 And now we automatically pass the `price` as `cost`
 in the requests.
@@ -323,15 +314,13 @@ but the `cost` needs to be the `price` multiplied by the `quantity` for each ite
   <ExerciseItem label="setup quantities"
     prompt="Assign quantities to order items">
 First let's set some quantity on these products:
-<IconicCode name="setting">
-```text ins=/, quantity: \d+/
+```text ins=/, quantity: \d+/ copy=playground
 items=[
   { product: P1001, quantity: 15 },
   { product: P1003, quantity: 15 }
 ]
 ```
 Notice the costs are not updated yet.
-</IconicCode>
   </ExerciseItem>
   <ExerciseItem label="multiply"
     prompt="multiply the price by quantity to get the cost">
@@ -340,8 +329,7 @@ Here we need to `await` the result since it's an asynchronous request,
 and then multiply by the `quantity`. (otherwise Javascript attempts to multiply
 a `Promise` by a `number` and that simply doesn't work.)
 
-<IconicCode name="editor" titled>
-```http title="example/orders/create.https" ins=".await * quantity"
+```http title="example/orders/create.https" ins=".await * quantity" copy=collection
 import:
   ../products/products-helper.ts:
     - price
@@ -356,7 +344,6 @@ POST https://example.com/orders
   }]
 }
 ```
-</IconicCode>
 
 Now the costs are multiplied by the quantities.
 

@@ -21,7 +21,6 @@ import {
   PardonPlayground,
   Exercises,
   ExerciseItem,
-  IconicCode,
   FlexyCodeGrid,
   CollectionLinkCard
 } from '@components';
@@ -94,8 +93,7 @@ update defaults, and add or customize mixins.
 
     Let's try this out! First, we extend the our
     service configuration with a local environment:
-    <IconicCode titled name="editor">
-```http title="/extension/example/service.yaml" ins={1-4}
+```http title="/extension/example/service.yaml" ins={1-4} copy=collection
 config:
   origin:
     env:
@@ -103,16 +101,13 @@ config:
       prod: ...
       local: http://localhost:8080
 ```
-    </IconicCode>
     We want to retain the `stage` and `prod` configs here but
     by specifying `...` we don't need to repeat their definitions.
 
     Then we can configure the request for local
-    <IconicCode name="setting">
-```
+```text copy=playground
 env=local
 ```
-    </IconicCode>
     You can also try setting the URL to `http://localhost:8080/ping`
     instead, as always, feel free to experiment.
   </ExerciseItem>
@@ -124,21 +119,17 @@ env=local
     time.
 
     As you might expect, we can do this with a default port number variable.
-    <IconicCode titled name="editor">
-```http title="/extension/example/service.yaml" ins=/[{][{].*}}/
+```http title="/extension/example/service.yaml" ins=/[{][{].*}}/ copy=collection
 config:
   origin:
     env:
       local: http://localhost:{{port=8080}}
 ```
-    </IconicCode>
 
     Then we can configure the request for local
-    <IconicCode name="setting">
-```
+```text copy=playground
 env=local port=8081
 ```
-    </IconicCode>
   </ExerciseItem>
 </Exercises>
 </PardonPlayground>
@@ -179,11 +170,9 @@ x-sample: true
     prompt="Disambiguate an ambiguous request.">
     Try changing the request to a localhost ping, observe
     that pardon doesn't quite know how to handle it.
-    <IconicCode name="pencil">
-```
+```http copy=playground
 http://localhost:1337/ping
 ```
-    </IconicCode>
     To help pardon out, specify a `service` value (<span class="inline-icon"><SolidIcon name="setting"/></span>)
 <FlexyCodeGrid centered>
 ```text "service" ins="example"

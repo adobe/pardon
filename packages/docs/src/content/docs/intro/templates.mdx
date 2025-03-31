@@ -23,7 +23,6 @@ import {
   ExerciseItemPrompt,
   CodeGrid,
   FlexyCodeGrid,
-  IconicCode,
   PardonPlayground,
   SolidIcon,
 } from '@components';
@@ -335,8 +334,7 @@ become `"price": 9`.
 Conversely, providing arrays or objects for these fields will currently confuse Pardon.
 (note: I have not decided if this is a bug or just how things work.)
 
-    <IconicCode name="pencil">
-```http ins="Fez"
+```http ins="Fez" copy=playground
 POST https://example.com/products
 
 {
@@ -344,15 +342,13 @@ POST https://example.com/products
   "price": 9.99
 }
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="Adding fields"
     prompt="Add another field to the request body.">
 
 Other fields can be added freely into the template.
 
-    <IconicCode name="pencil">
-```http ins=/(?<=9),/ ins=/.*description.*/
+```http ins=/(?<=9),/ ins=/.*description.*/ copy=playground
 POST https://example.com/products
 
 {
@@ -361,14 +357,12 @@ POST https://example.com/products
   "description": "Fezzes are cool"
 }
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="Adding queries"
     prompt="Add a query param to the request url.">
 
 We can also add query params and pardon can integrate it into the request.
-    <IconicCode name="pencil">
-```http ins=/(?<=9),/ ins="?hello=world"
+```http ins=/(?<=9),/ ins="?hello=world" copy=playground
 POST https://example.com/products?hello=world
 
 {
@@ -376,7 +370,6 @@ POST https://example.com/products?hello=world
   "price": 9.99
 }
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="Adding headers"
     prompt="Add a header to the request.">
@@ -385,8 +378,7 @@ Headers and query params can also be added, the
 base template does not restrict additional data so long
 as the additional data can be merged in.
 
-    <IconicCode name="pencil">
-```http ins={2}
+```http ins={2} copy=playground
 POST https://example.com/products
 Bowties: also cool
 
@@ -396,7 +388,6 @@ Bowties: also cool
   "description": "fezzes are cool"
 }
 ```
-    </IconicCode>
 
     <Aside type="caution" title="if you are typing this example out">
     Same as the HTTP wire protocol, a blank line separates the body from the headers.
@@ -436,8 +427,7 @@ config={productsExample}>
 You can see the `price` value change automatically as
 you add or remove letters from the name value.
 
-    <IconicCode name="pencil">
-```http ins="pardon‽"
+```http ins="pardon‽" copy=playground
 POST https://example.com/products
 
 {
@@ -445,7 +435,6 @@ POST https://example.com/products
   "price": "{{ price = name.length * 10 }}"
 }
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="Changing Expressions"
     prompt="Set the price to a quarter per letter.">
@@ -454,8 +443,7 @@ Inflation has dropped the demand for luxury letters: we need
 to make a drastic price-cut to maintain our order flow rates,
 price is now 25 cents a letter.
 
-    <IconicCode name="pencil">
-```http ins="name.length / 4"
+```http ins="name.length / 4" copy=playground
 POST https://example.com/products
 
 {
@@ -463,7 +451,6 @@ POST https://example.com/products
   "price": "{{ price = name.length / 4 }}"
 }
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="Adding Computed Fields"
     prompt="Add another field to the request body.">
@@ -471,8 +458,7 @@ POST https://example.com/products
 That didn't drive orders enough and management is desperate:
 we need to highlight our payment plan offering:
 
-<IconicCode name="pencil">
-```http ins=/(?<=[}]"),/ ins=/.*description.*/ ins=/.*toUpperCase.*/
+```http ins=/(?<=[}]"),/ ins=/.*description.*/ ins=/.*toUpperCase.*/ copy=playground
 POST https://example.com/products
 
 {
@@ -484,8 +470,6 @@ POST https://example.com/products
 ```
 
 (note that parameter expressions don't need a name, we just start with `{{=`...)
-</IconicCode>
-
   </ExerciseItem>
 </Exercises>
 

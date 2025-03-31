@@ -35,13 +35,11 @@ export function createExecutionMemo({
   context,
   execution,
   input,
-  env,
   restart,
   runtime,
 }: {
   context: Accessor<{ application: ApplicationContext } | { error: unknown }>;
   input: Accessor<string>;
-  env: Accessor<Record<string, unknown>>;
   execution: typeof PardonFetchExecution;
   restart: Accessor<object>;
   runtime?: (pardon: typeof pardonFn) => Record<string, unknown>;
@@ -141,9 +139,12 @@ export function createExecutionMemo({
     const { pardon } = ctx;
 
     try {
-      const handle = pardon(env(), {
-        runtime: runtime?.(pardon),
-      });
+      const handle = pardon(
+        {},
+        {
+          runtime: runtime?.(pardon),
+        },
+      );
       const http = input();
       const execution = http ? handle`${input()}`.init() : handle.match("");
 

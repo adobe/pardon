@@ -29,9 +29,9 @@ import {
   Exercises,
   ExerciseItem,
   ExerciseItemPrompt,
-  IconicCode,
   SolidIcon,
   PardonPlayground,
+  FlexyCodeGrid,
 } from '@components';
 
 import {
@@ -126,27 +126,24 @@ explore this mechanism (the <span class='inline-icon'><Icon name="setting" /></s
     `config` choices can be overridden with values.  This allows
     any request to be easily repurposed to a different environment
     (in particular, replaying tests).
-    <IconicCode name="setting">
-```properties ins="env=stage"
+```properties ins="env=stage" copy=playground
 env=stage
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="Values override"
     prompt="Override the the request input">
     Set `env=prod` to override `https://stage.example.com`.
 
-    (try the other way as well).
-    <IconicCode name="setting">
-```properties ins="prod"
+<FlexyCodeGrid column>
+```properties ins="prod" copy=playground
 env=prod
-```
-    </IconicCode>
-    <IconicCode name="pencil">
-```http
 GET https://stage.example.com/ping
 ```
-    </IconicCode>
+```properties ins="stage" copy=playground
+env=stage
+GET https://example.com/ping
+```
+</FlexyCodeGrid>
   </ExerciseItem>
 </Exercises>
 </PardonPlayground>
@@ -247,11 +244,9 @@ With all this set up we can finally explore how pardon works with a collection o
     a request body at all!
 
     Many simple requests can be parameterized to take advantage of this abbreviated input mechanism.
-    <IconicCode name="setting">
-```http ins="name=thneed"
+```http ins="name=thneed" copy=playground
 env=stage name=thneed
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="Parameterized value"
     prompt="Add a parameterized query param"
@@ -260,17 +255,13 @@ env=stage name=thneed
 In the spirit of progressive enhancement,
 we can add a parameterized value in our input,
 
-    <IconicCode name="pencil">
-```http ins="?type={{type}}"
+```http ins="?type={{type}}" copy=playground
 GET https://stage.example.com/products?type={{type}}
 ```
-    </IconicCode>
     and then define it.
-    <IconicCode name="setting">
-```http ins="type=pencils"
+```http ins="type=pencils" copy=playground
 env=prod type=pencils
 ```
-    </IconicCode>
     <ExerciseItemPrompt>How can we make supplying the `type` optional?</ExerciseItemPrompt>
   </ExerciseItem>
   <ExerciseItem label="No-HTTP usage"
@@ -281,19 +272,15 @@ env=prod type=pencils
     even attempts to evaluate.
 
     First, please delete the entire input. We don't need it!
-    <IconicCode name="pencil">
     <div class="[&_code]:!min-h-5 [&_.copy]:!hidden no-copy">
-```http del=/.*/
+```http del=/POST.*/
 POST https://example.com/products
 ```
     </div>
-    </IconicCode>
     Then select the endpoint directly.
-    <IconicCode name="setting">
-```http ins="endpoint=example/products/list"
+```http ins="endpoint=example/products/list" copy=playground
 endpoint=example/products/list
 ```
-    </IconicCode>
     you can try different endpoints, and/or `env=stage` if you like,
     for the get/update/delete endpoints, you'll need to specify a
     `product=...` value as well.
@@ -303,11 +290,9 @@ endpoint=example/products/list
     Non-GET endpoints need the `method` specified as well, this
     adds a little friction to prevent accidental `POST` requests.
 
-<IconicCode name="setting">
-```
+```text copy=playground
 endpoint=example/products/create method=POST name=thneed
 ```
-</IconicCode>
     :::
   </ExerciseItem>
 </Exercises>
@@ -353,7 +338,7 @@ Specifying `env=prod` implies the origin value and vice-versa,
 and `env` becomes a value that can be used in scripts.
 
 Patterns, with expressions, can be included, e,g., this config
-```plain ins="origin" ins=/https?:.*/ "env" "prod" "stage" "local"
+```text ins="origin" ins=/https?:.*/ "env" "prod" "stage" "local"
 config:
   origin:
     env:
@@ -582,39 +567,25 @@ and provides some additional controls we explore here:
   <ExerciseItem label="ping" >
     Notice the authorization header is gone, because
     it's disabled for ping by default now.
-    <IconicCode name="pencil">
-```http ins="ping"
+```http ins="ping" copy=playground
 GET https://example.com/ping
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="ping w/auth"
     prompt="Send authorization to ping anyway?">
     Override the default `authorization` to force an authenticated ping request!
-    <IconicCode name="setting">
-```properties ins="authorization=token"
+```properties ins="authorization=token" copy=playground
 authorization=token
-```
-    </IconicCode>
-    <IconicCode name="pencil">
-```http
 GET https://example.com/ping
 ```
-    </IconicCode>
   </ExerciseItem>
   <ExerciseItem label="disable auth"
     prompt="Send an unauthenticated request to products.">
     Override the default `authorization` to force an unauthenticated products request.
-    <IconicCode name="setting">
-```properties ins="authorization=token"
+```properties ins="authorization=token" copy=playground
 authorization=none
-```
-    </IconicCode>
-    <IconicCode name="pencil">
-```http ins="products"
 GET https://example.com/products
 ```
-    </IconicCode>
   </ExerciseItem>
 </Exercises>
 </PardonPlayground>
@@ -630,7 +601,7 @@ Since multiple services can have defaults, we probably want to use defaults only
 <Tabs>
   <TabItem label="config arrays">
   To specify a subset of environments, you can use a list in the config mapping.
-```http title="example/default.https" ins={3-4} ins="env"
+```http title="example/default.https" ins={3-4} ins="env" copy="collection"
 config:
   env:
     - stage

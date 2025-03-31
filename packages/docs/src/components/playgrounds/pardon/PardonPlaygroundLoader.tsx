@@ -75,7 +75,7 @@ export default function PardonPlaygroundLoader(
   );
 
   return (
-    <div class="pp-container grid gap-2">
+    <div class="pp-container copypaste-context grid gap-2">
       <div>{props.children}</div>
       <div class="pp-app-container not-content !mt-0">
         <Suspense fallback={loading}>
