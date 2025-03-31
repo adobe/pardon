@@ -31,6 +31,10 @@ export type PardonCompiler = ReturnType<typeof createCompiler>;
 const withIdentityTransform: (identity: string) => TsMorphTransform =
   (identity) =>
   ({ factory, visitChildren, currentNode }) => {
+    if (!identity) {
+      return currentNode;
+    }
+
     if (
       ts.isImportDeclaration(currentNode) ||
       ts.isExportDeclaration(currentNode)
@@ -113,7 +117,11 @@ export default function createCompiler({
     const compiled = project
       .createSourceFile(path, content)
       .transform(expressionTransform)
-      .transform(withIdentityTransform(identity))
+      .transform(
+        identity
+          ? withIdentityTransform(identity)
+          : ({ currentNode }) => currentNode,
+      )
       .asKind(ts.SyntaxKind.SourceFile)!;
 
     const exports = [...(compiled?.getExportedDeclarations().entries() ?? [])]

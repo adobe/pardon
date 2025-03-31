@@ -1,6 +1,6 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "include": ["src/code/**/*.tsx"],
+  "include": ["./**/*.tsx"],
   "compilerOptions": {
     "baseUrl": "../..",
     "paths": {
