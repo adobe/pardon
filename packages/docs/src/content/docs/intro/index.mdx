@@ -107,36 +107,38 @@ the template is interpretted by parsing it and then merging it into the followin
 </FlexyCodeGrid>
 
 Where the template strings `"{{method}}"`and `"{{origin}}"` merge with the
-values `"GET"` and `"https://example.com"`.  
-
+values `"GET"` and `"https://example.com"`, which has the effect of assigning
+these values to `method` and `origin`.
 
 The `config` map in the configuration section teaches Pardon about the `env=stage` and `env=prod` environments,
-associating the two values of `{{origin}}` to those environments, and vice-versa.  
+associating the two values of `{{origin}}` to those environments, and vice-versa.
+Literal configured values can be overridden or changed in some cases.
 
 Using this template, the input request can be as simple as
 "https://example.com/ping" or "https://stage.example.com".
-For safety, pardon will assume an unspecified method is `GET` and, finding
-only one template compatible with such a request,
-fill in all the other details to flesh out rest of the request.
+When pardon finds only one template compatible with such a request,
+it will use it to fill in all the other details.
 
 For example the `pardon` command line utility can, (using only this template), generate (or make)
 the full requests directly.
 
 <Tabs>
   <TabItem label="production">
+Pardon can execute a simple request, like curl, but using templates reduces the noise.
 ```bash title="https://example.com/ping"
 % pardon https://example.com/ping
 pong # from prod
 ```
   </TabItem>
   <TabItem label="staging">
+Pinging stage is just as easy.
 ```bash frame="terminal" title="https://stage.example.com/ping"
 % pardon https://stage.example.com/ping
 pong # from stage
 ```
   </TabItem>
   <TabItem label="staging / http">
-`pardon` can emit the http request (without making the call)
+`pardon` can emit the http request (without making the call), just add `--http`:
 ```bash frame="terminal" title="https://stage.example.com/ping --http"
 % pardon https://stage.example.com/ping --http
 GET https://stage.example.com/ping
@@ -145,11 +147,11 @@ api-key: staging
 ```
   </TabItem>
   <TabItem label="env=stage">
-By adding `env=stage` into the request we can rewrite the request to use stage.
+By adding `env=stage` we can rewrite the request to use stage!
 
 Here we see the output of pardon's "`--curl`" output.
 ```bash frame="terminal" title="https://example.com/ping --curl env=stage"
-% pardon https://example.com/ping --curl env=stage
+% pardon https://example.com/ping env=stage --curl
 curl "https://stage.example.com/ping" \
   --header "accept: text/plain" \
   --header "api-key: staging"
@@ -163,8 +165,7 @@ Let's explore this further, in a playground environment:
   <Exercises>
     <ExerciseItem label='↔'
       prompt="change the request to the stage server">
-      Change the host here to to see how pardon
-      automatically updates the request. (keep an eye on the `api-key` header)
+      Change the host here, watch how pardon updates the request. (keep an eye on the `api-key` header)
 ```http ins="stage." copy=playground
 https://stage.example.com/ping
 ```
@@ -172,16 +173,15 @@ https://stage.example.com/ping
     <ExerciseItem label='?'
       prompt='add a query to the input request'>
       Pardon integrates additional query parameters to be included with requests, without
-      requiring any changes to the templates.
-
+      any changes to the template.
 ```http ins="?hello=world" copy=playground
 https://example.com/ping?hello=world
 ```
     </ExerciseItem>
     <ExerciseItem label='+'
       prompt='add a header to the input request'>
-      Pardon integrates additional headers to be included in requests.
-
+      Pardon also integrates additional headers to be included in requests, without
+      any changes to the templates.
 ```http ins={2} copy=playground
 https://example.com/ping?hello=world
 User-Agent: pardon
@@ -194,11 +194,12 @@ Any KV (key-value) data can go above the HTTP request to configure it.
 env=stage
 https://example.com/ping
 ```
-Notice how this overwrites the origin in the input with the
-correct one for the stage environment.  
+Notice how this changes the request.
     </ExerciseItem>
   </Exercises>
 </PardonPlayground>
+
+{/* ---
 
 <Tabs>
 <TabItem label="service.yaml">
@@ -228,7 +229,7 @@ api-key: {{ apikey = (env === "prod" ? "system" : "staging") }}
 </TabItem>
 </Tabs>
 
-{/* --- in conclusion? --- */}
+--- */}
 
 ## Next Steps
 

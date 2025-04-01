@@ -17,7 +17,7 @@ import { Project, SourceFile, ts } from "ts-morph";
 
 import { PardonError } from "../core/error.js";
 import {
-  expressionTransform,
+  dotAwaitTransform,
   TsMorphTransform,
 } from "../core/evaluation/expression.js";
 import { shared } from "../core/tracking.js";
@@ -116,7 +116,7 @@ export default function createCompiler({
 
     const compiled = project
       .createSourceFile(path, content)
-      .transform(expressionTransform)
+      .transform(dotAwaitTransform)
       .transform(
         identity
           ? withIdentityTransform(identity)

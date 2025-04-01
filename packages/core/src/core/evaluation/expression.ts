@@ -104,7 +104,7 @@ export function unbound(
 // helper for recompiling x.await to (await x).
 // because: fetch().await.json().await.x
 // is easier to read than: (await (await fetch()).json()).x
-export const expressionTransform: TsMorphTransform = ({
+export const dotAwaitTransform: TsMorphTransform = ({
   factory,
   visitChildren,
 }) => {

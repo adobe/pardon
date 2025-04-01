@@ -22,11 +22,10 @@ import { SolidIcon, CollectionLinkCard } from '@components';
 
 :::tip
 These docs assume a NodeJS installation and basic experience with 
-`git`, `node`, and `npm`, and `README.md` files.
+`git`, `node`, and `npm`.
 
 The quickstart here is intended to quickly showcase Pardon's features
-without going into the details of how it works.  The other tutorials
-are intended to explain more.
+without going into the details of how it works.
 :::
 
 The `example/todo` repo contains a sample server and Pardon collection.
@@ -41,7 +40,7 @@ $ cd pardon
 $ npm install
 $ npm install --prefix=packages/core
 $ npm install --prefix=packages/favor
-$ npm run package --prefix=packages/favor # this also rebuilds pardon's core
+$ npm run package --prefix=packages/favor # this also builds pardon's core
 ```
 
 <Aside type="caution" title="Building on Windows">
@@ -61,14 +60,12 @@ $ npm run package
 </Aside>
 
 The Pardon application is built into `./packages/favor/out/...`
-(path depends on your plaform, osx and windows should both work,
-have not tested any linux flavors yet.)
+(path depends on your plaform, have not tested any linux flavors yet.)
 
 Optionally, you can link the built application as a command-line tool as well.
 ```bash title="optional"
 $ cd packages/core
-$ npm link .
-# undo this with npm uninstall -g pardon
+$ npm link . # remove with: npm uninstall -g pardon
 ```
 
 ## Setup the example-todo service
@@ -81,9 +78,9 @@ $ cd example-todo
 $ npm start # runs a local server
 ```
 
-This runs a simple in-memory-store "TODO list" application as a local service.
-This will give the ability to make basic CRUD operations via pardon
-and view the current list of tasks (in a browser)
+This runs a simple in-memory "TODO list" application as a local service.
+We can use pardon to run basic CRUD operations (create, read, update, delete)
+to explore how pardon works.
 
 The repository contains a simple server:
 <FileTree>
