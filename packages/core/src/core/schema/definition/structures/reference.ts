@@ -63,7 +63,7 @@ type ReferenceTemplate<T> = {
   anull?: true;
 };
 
-type ReferenceSchematic<T> = Schematic<T> & {
+export type ReferenceSchematic<T> = Schematic<T> & {
   $of<T>(template: Template<T>): ReferenceSchematic<T>;
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
@@ -482,7 +482,30 @@ export function defineReference<T = unknown>(
 
     const result = schema && (await executeOp(schema, "render", context));
 
-    return defineReferenceValue(context, result);
+    if (
+      typeof result == "string" &&
+      context.mode === "preview" &&
+      /^{{\s*=\s*[$][$]expr[(]"/.test(result)
+    ) {
+      const [, expr] =
+        /^{{\s*=\s*[$][$]expr[(]"(.*)"[)]\s*}}$/.exec(result) ?? [];
+      if (expr) {
+        return `{{ ${referenceSchema.hint ?? ""}${[...refs][0]} = ${expr} }}`;
+      }
+    }
+
+    const defined = defineReferenceValue(context, result);
+
+    if (
+      isSecret(referenceSchema) &&
+      typeof defined === "string" &&
+      context.mode !== "preview" &&
+      "{{redacted}}" == defined
+    ) {
+      return `{{ @${[...refs][0]} }}`;
+    }
+
+    return defined;
   }
 
   function defineReferenceValue(context: SchemaContext<T>, result?: T) {

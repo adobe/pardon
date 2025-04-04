@@ -10,114 +10,58 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { intoSearchParams } from "../../../request/search-pattern.js";
-import { arrays } from "../arrays.js";
-import { keyed } from "../structures/keyed-list.js";
-import { EncodingType, encodingTemplate } from "./encoding.js";
-import { objects } from "../objects.js";
-import { arrayIntoObject } from "../../../../util/mapping.js";
-import { diagnostic } from "../../core/context-util.js";
-import { Schematic, Template } from "../../core/types.js";
+import { EncodingType } from "./encoding.js";
 
-const formEncodingType: EncodingType<string, URLSearchParams> = {
+export const queryEncodingType: EncodingType<
+  URLSearchParams,
+  string | Record<string, string> | [string, string][]
+> = {
   as: "string",
+  encode(output) {
+    return output !== undefined
+      ? intoSearchParams(output as string)
+      : undefined;
+  },
   decode({ template }) {
     return template !== undefined
-      ? intoSearchParams(`?${template}`)
+      ? [...(template as URLSearchParams).entries()]
       : undefined;
-  },
-  encode(output) {
-    return output !== undefined ? output.toString().slice(1) : undefined;
   },
 };
 
-const queryEncodingType: EncodingType<string, URLSearchParams> = {
+export function parseForm(
+  template?: string | Record<string, string> | [string, string][],
+) {
+  return template === undefined
+    ? undefined
+    : [
+        ...intoSearchParams(
+          typeof template === "string"
+            ? `?${template ?? ""}`
+            : (template as Record<string, string> | [string, string][]),
+        ).entries(),
+      ];
+}
+
+export const formEncodingType: EncodingType<
+  string | Record<string, string> | [string, string][],
+  [string, string][]
+> = {
   as: "string",
   decode({ template }) {
-    return template !== undefined
-      ? intoSearchParams(template as string)
-      : undefined;
-  },
-  encode(output) {
-    return output !== undefined ? output.toString() : undefined;
-  },
-};
-
-const urlSearchParamsType: EncodingType<URLSearchParams, [string, string][]> = {
-  as: "string",
-  decode(context) {
-    const { template } = context;
-    if (typeof template === "function") {
-      throw diagnostic(context, "unknown template in urlsearchparams");
-    }
-
-    return template !== undefined
-      ? [...(template as URLSearchParams)]
-      : undefined;
-  },
-  encode(output) {
-    return output !== undefined ? intoSearchParams(output) : undefined;
-  },
-};
-
-export function urlEncodedTemplate({
-  params,
-  multivalue = typeof params == "string" || Array.isArray(params),
-}: {
-  params?: string | Record<string, string> | [string, string][];
-  multivalue?: boolean;
-} = {}): Template<URLSearchParams> {
-  const searchParamTemplate = params
-    ? [...intoSearchParams(params).entries()]
-    : [];
-
-  return encodingTemplate(
-    urlSearchParamsType,
-    multivalue
-      ? keyed.mv<[string, string]>(
-          arrays.tuple(["{{key}}", undefined!]) as Template<[string, string]>,
-          objects.object(
-            {} as Record<string, [string, string][]>,
-            arrays.multivalue(
-              searchParamTemplate,
-              arrays.tuple([undefined, undefined]) as unknown as Template<
-                [string, string]
-              >,
-            ),
-          ),
+    return template
+      ? parseForm(
+          template as string | Record<string, string> | [string, string][],
         )
-      : keyed<[string, string]>(
-          arrays.tuple(["{{key}}", undefined!]) as Template<[string, string]>,
-          objects.object(
-            arrayIntoObject(searchParamTemplate, ([k, v]) => ({
-              [k]: [k, v],
-            })),
-          ),
-        ),
-  );
-}
-
-// assume multivalue unless initialized with a {...object}.
-export function urlEncodedFormTemplate(
-  template?: string | Record<string, string> | [string, string][],
-  multivalue: boolean = typeof template === "undefined" ||
-    typeof template !== "object" ||
-    Array.isArray(template),
-): Schematic<string> {
-  return encodingTemplate(
-    formEncodingType,
-    urlEncodedTemplate({
-      params: typeof template === "string" ? `?${template}` : template,
-      multivalue,
-    }),
-  );
-}
-
-export function urlEncodedQueryTemplate(
-  template?: string | Record<string, string> | [string, string][],
-  multivalue?: boolean,
-): Schematic<string> {
-  return encodingTemplate(
-    queryEncodingType,
-    urlEncodedTemplate({ params: template, multivalue }),
-  );
-}
+      : undefined;
+  },
+  encode(output) {
+    return String(
+      intoSearchParams(
+        typeof output === "string"
+          ? `?${output}`
+          : (output as Record<string, string> | [string, string][]),
+      ),
+    ).slice(1);
+  },
+};

@@ -34,7 +34,7 @@ export function templateSchematic<
   T,
   E extends Record<string, unknown> = Record<never, never>,
 >(
-  expand: (context: SchemaMergingContext<T>) => Schema<T> | Template<T>,
+  expand: (context: SchemaMergingContext<T>) => Schema<T>,
   extension: E,
 ): Schematic<T> {
   return defineSchematic({
@@ -83,16 +83,22 @@ export function expandInContext<T>(
     );
   }
 
-  if (typeof template === "function") {
+  if (isSchematic(template)) {
     const ops = exposeSchematic<SchematicOps<T> & SchemaOps<T>>(
       template as Schematic<T>,
     );
 
     if (ops.expand && !ops.render) {
       return ops.expand(context);
-    } else {
-      return template as Schema<T>;
     }
+  } else if (typeof template === "function") {
+    // this shouldn't happen
+    console.warn(
+      `${loc(context)}: unexpected schema (?) found expanding template: ` +
+        template,
+    );
+
+    return template as Schema<T>;
   }
 
   return stubSchema(); // scalars.any(schema as string | number | boolean);

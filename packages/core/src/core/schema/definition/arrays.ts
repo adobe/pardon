@@ -390,7 +390,7 @@ function defineArray<T>(self: ArrayRepresentation<T>): Schema<T | T[]> {
     async render(context) {
       const len = await renderArrayLength(context);
 
-      const result =
+      let result =
         len === -1
           ? undefined
           : await Promise.all(
@@ -403,6 +403,10 @@ function defineArray<T>(self: ArrayRepresentation<T>): Schema<T | T[]> {
                   ) as Promise<T>,
               ),
             );
+
+      if (self.multivalue) {
+        result = result?.filter((value) => value !== undefined);
+      }
 
       if (result?.every((value) => value !== undefined)) {
         if (result.length === 1 && self.lenient && self.single) {

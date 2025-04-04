@@ -27,7 +27,6 @@ import { ProgressiveMatch } from "../schema/progress.js";
 import { Schema, SchemaMergingContext } from "../schema/core/types.js";
 import { createEndpointEnvironment } from "../endpoint-environment.js";
 import { isScalar } from "../schema/definition/scalar.js";
-import { EncodingTypes } from "../request/body-template.js";
 
 function selectEndpoints(
   endpoints: Record<string, LayeredEndpoint>,
@@ -96,11 +95,7 @@ class PardonEndpointMatcher {
 
     this.implied = scalars(context.values);
 
-    const encoding: EncodingTypes | undefined = endpoint.configuration.encoding;
-
-    this.archetypeSchema = httpsRequestSchema(encoding, {
-      search: { multivalue: endpoint.configuration.search === "multi" },
-    }) as Schema<HttpsRequestObject>;
+    this.archetypeSchema = httpsRequestSchema() as Schema<HttpsRequestObject>;
   }
 
   match() {

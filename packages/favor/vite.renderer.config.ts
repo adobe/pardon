@@ -12,6 +12,9 @@ governing permissions and limitations under the License.
 import { resolve } from "node:path";
 import { extendRendererConfig } from "./vite.base.config.ts";
 import solid from "vite-plugin-solid";
+import Icons from "unplugin-icons/vite";
+import AutoImport from "unplugin-auto-import/vite";
+import IconsResolver from "unplugin-icons/resolver";
 
 // https://vitejs.dev/config
 export default extendRendererConfig({
@@ -30,7 +33,18 @@ export default extendRendererConfig({
   define: {
     global: "globalThis",
   },
-  plugins: [solid()],
+  plugins: [
+    solid(),
+    AutoImport({
+      resolvers: [
+        IconsResolver({
+          prefix: "Icon",
+          extension: "jsx",
+        }),
+      ],
+    }),
+    Icons({ compiler: "solid" }),
+  ],
   build: {
     sourcemap: "inline",
     minify: false,

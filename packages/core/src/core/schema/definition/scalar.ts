@@ -128,7 +128,7 @@ export function scalarTypeOf(value?: unknown): ScalarType | undefined {
 }
 
 // 0, 100, 1.1e+10, 1.1e-10
-const numberRegex = /^-?(?:0|[1-9][0-9]*(?:[.][0-9]+)?)(?:e[-+]?[0-9]+)?$/;
+const numberRegex = /^[+-]?(?:0|[1-9][0-9]*(?:[.][0-9]+)?)(?:e[-+]?[0-9]+)?$/;
 
 export function isValidNumberToken(n: string) {
   return numberRegex.test(n);

@@ -14,7 +14,7 @@ governing permissions and limitations under the License.
   .corvu-drawer-close-button {
     @apply absolute aspect-square border-2 border-current p-1;
     .corvu-drawer-left > & {
-      @apply -right-3 bottom-2;
+      @apply -right-4 top-5;
     }
     .corvu-drawer-right > & {
       @apply -left-3 bottom-2;
@@ -86,8 +86,42 @@ governing permissions and limitations under the License.
   }
 
   .corvu-handle-colors {
-    @apply text-white corvu-active:text-rose-300 corvu-dragging:text-rose-400;
-    @apply dark:text-stone-500 corvu-active:dark:text-stone-400 corvu-dragging:dark:text-stone-300;
+    @apply text-neutral-300 shadow-sm corvu-active:text-neutral-400 corvu-dragging:text-neutral-400;
+    @apply shadow-none dark:text-stone-500 corvu-active:dark:text-stone-400 corvu-dragging:dark:text-stone-300;
+
+    @apply outline-none;
+
+    & {
+      @apply overflow-visible outline-none;
+      &::before {
+        content: "";
+        @apply absolute inset-0;
+        @apply corvu-dragging:border-1;
+        @apply corvu-dragging:border-neutral-300/50;
+        @apply corvu-dragging:dark:border-stone-300/50;
+
+        [data-orientation="vertical"] > & {
+          @apply -inset-y-1 corvu-dragging:border-x-0;
+        }
+        [data-orientation="horizontal"] > & {
+          @apply -inset-x-1 corvu-dragging:border-y-0;
+        }
+      }
+    }
+
+    &:focus-visible {
+      @apply overflow-visible outline-none;
+      &::before {
+        content: "";
+        @apply absolute z-10 border-2 border-orange-500/70;
+        [data-orientation="vertical"] > & {
+          @apply -inset-y-0.5 border-x-0;
+        }
+        [data-orientation="horizontal"] > & {
+          @apply -inset-x-0.5 border-y-0;
+        }
+      }
+    }
   }
 }
 
@@ -107,5 +141,5 @@ governing permissions and limitations under the License.
   @apply corvu-handle-colors;
   @apply bg-current;
   @apply transition-[color,opacity] duration-300;
-  @apply corvu-dragging:z-10 corvu-dragging:outline corvu-dragging:outline-1 corvu-dragging:outline-current;
+  @apply corvu-dragging:z-10;
 }

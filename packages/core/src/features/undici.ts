@@ -69,6 +69,10 @@ async function fetchSNI(
       ? serverhost
       : (await dns.resolve(serverhost, "A"))[0]);
 
+  if (hostip) {
+    console.info(`undici: resolved ${serverhost} = ${hostip}`);
+  }
+
   const servername = hostip ? url.host : undefined;
   const requestUrl = `${hostip ? `${url.protocol}//${hostip}` : url.origin}${url.pathname}${url.search}`;
 
@@ -77,14 +81,12 @@ async function fetchSNI(
     rheaders.append("host", servername!);
   }
 
+  method ??= "GET";
   // note: returns undici response, not fetch response.
   const response = await request(requestUrl, {
     hostname: url.hostname,
     servername: hostip ? servername : undefined,
-
-    method:
-      (method as Exclude<Parameters<typeof request>[1], undefined>["method"]) ??
-      "GET",
+    method,
     headers: rheaders,
     body,
   } as Parameters<typeof request>[1] & { servername: string });

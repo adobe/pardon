@@ -24,6 +24,7 @@ import {
   patternize,
   patternsMatch,
   renderTrivialPattern,
+  arePatternsCompatible,
 } from "../core/pattern.js";
 import {
   isNonEmpty,
@@ -100,31 +101,35 @@ function mergeRepresentation<T extends Scalar>(
   if (template !== undefined) {
     const source = String(template);
 
-    const pattern = literal
-      ? patternLiteral(source)
-      : patternize(source, custom ?? defaultScalarBuilding);
+    const templatePattern =
+      context.mode === "match" || literal
+        ? patternLiteral(source)
+        : patternize(source, custom ?? defaultScalarBuilding);
 
     if (
       context.mode === "meld" &&
       patterns.length &&
-      !isPatternTrivial(pattern) &&
-      !pattern.vars.some((param) => isMelding(param))
+      !isPatternTrivial(templatePattern) &&
+      !templatePattern.vars.some((param) => isMelding(param))
     ) {
       if (
         !patterns?.some((existing) =>
-          arePatternsMeldable(context, existing, pattern),
+          arePatternsMeldable(context, existing, templatePattern),
         )
       ) {
         return;
       }
     }
 
-    const templatePattern =
-      context.mode === "match"
-        ? patternLiteral(String(template))
-        : patternize(String(template), custom);
-
     if (context.evaluationScope.path.length) {
+      if (
+        !patterns.every((pattern) =>
+          arePatternsCompatible(pattern, templatePattern),
+        )
+      ) {
+        return;
+      }
+
       if (
         !patterns.some((pattern) => patternsMatch(templatePattern, pattern))
       ) {
@@ -132,7 +137,7 @@ function mergeRepresentation<T extends Scalar>(
       }
     } else {
       const match = context.environment.match(
-        context.mode === "match"
+        context.mode === "match" || literal
           ? patternLiteral(String(template))
           : patternize(String(template), custom),
         patterns,
@@ -323,7 +328,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
       let appraised = resolved[0] ?? tryResolve(context, patterns);
 
       if (
-        context.mode === "match" &&
+        (context.mode === "match" || info?.literal) &&
         appraised !== undefined &&
         info?.template === undefined
       ) {
@@ -344,7 +349,10 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         appraised = convertScalar(appraised, type, { unboxed }) as T;
       }
 
-      if (appraised === undefined && context.mode === "match") {
+      if (
+        appraised === undefined &&
+        (context.mode === "match" || info?.literal)
+      ) {
         if (
           patterns.some(
             (pattern) =>
@@ -419,8 +427,9 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 
       return defineScalar<T>(mergedSelf);
     },
-    render(context) {
-      return renderScalar(context, self) as T | Promise<T>;
+    async render(context) {
+      const result = (await renderScalar(context, self)) as T | Promise<T>;
+      return result;
     },
     resolve(context) {
       return resolveScalar(context, self, false);
@@ -512,7 +521,10 @@ async function doRenderScalar<T>(
   if (mode === "render" || mode === "prerender" || mode === "postrender") {
     if (result === undefined) {
       result = convertScalar(
-        (await evaluateScalar(context, configuredPatterns)) as Scalar,
+        (await evaluateScalar(
+          context,
+          configuredPatterns as PatternRegex[],
+        )) as Scalar,
         type,
         { unboxed },
       );
@@ -717,10 +729,10 @@ function resolveOrEvaluate(
 
 async function evaluateScalar(
   context: SchemaRenderContext,
-  patterns: Pattern[],
+  patterns: PatternRegex[],
 ) {
   // otherwise, we find the first pattern with expressions.
-  let pattern = (patterns as PatternRegex[]).find(isPatternExpressive);
+  let pattern = patterns.find(isPatternExpressive);
 
   // if we can't find one and every pattern is defined as optional,
   // that's fine: we return undefined.  We shouldn't get here if there are any literals,
@@ -734,15 +746,32 @@ async function evaluateScalar(
     return undefined;
   }
 
-  // pick a pattern to attempt to evaluate.
   if (!pattern) {
-    pattern = patterns[0] as PatternRegex;
+    // find the first pattern that has named parameters
+    pattern = patterns.find((pattern) =>
+      pattern.vars.every(({ param }) => param),
+    );
   }
 
-  if (!pattern) {
-    return undefined;
+  pattern ??= patterns[0] as PatternRegex;
+
+  if (pattern) {
+    return evaluatePattern(context, pattern);
   }
 
+  for (const pattern of patterns) {
+    const result = await evaluatePattern(context, pattern);
+    if (result === undefined) {
+      continue;
+    }
+
+    return result;
+  }
+
+  return undefined;
+}
+
+async function evaluatePattern(context: SchemaRenderContext, pattern: Pattern) {
   if (isPatternSimple(pattern)) {
     return await resolveOrEvaluate(
       context,
@@ -750,17 +779,27 @@ async function evaluateScalar(
       pattern.vars[0].expression,
     );
   } else {
+    if (isPatternTrivial(pattern)) {
+      return patternRender(pattern, []);
+    }
+
+    const params = await Promise.all(
+      pattern.vars.map(async ({ param, expression, re }) =>
+        param || expression
+          ? resolveOrEvaluate(context, param, expression)
+          : re?.test("")
+            ? ""
+            : undefined,
+      ),
+    );
+
+    if (params.some((value) => value === undefined)) {
+      return undefined;
+    }
+
     return patternRender(
       pattern,
-      isPatternTrivial(pattern)
-        ? []
-        : await Promise.all(
-            pattern.vars.map(async ({ param, expression }) => {
-              return String(
-                await resolveOrEvaluate(context, param, expression),
-              );
-            }),
-          ),
+      params.map((p) => String(p)),
     );
   }
 }
@@ -807,7 +846,7 @@ function extractDatumInfo<T>(
     ? undefined
     : {
         template: template as T,
-        literal: context.mode === "match",
+        literal: context.mode === "match" ? true : undefined,
         type: scalarFuzzyTypeOf(context, template as T),
       };
 }

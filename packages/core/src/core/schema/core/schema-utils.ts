@@ -14,7 +14,7 @@ import {
   createRenderContext,
   createPrerenderContext,
   createPostrenderContext,
-  SchemaMergeType,
+  ContextMeta,
   createMergingContext,
 } from "./context.js";
 import {
@@ -48,7 +48,7 @@ function applySchema<T>(
 }
 
 export function mergeSchema<T>(
-  how: SchemaMergeType,
+  how: ContextMeta,
   schema: Schema<T>,
   template: Template<T>,
   environment?: SchemaScriptEnvironment,

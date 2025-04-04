@@ -10,8 +10,10 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { Accessor } from "solid-js";
 import {
   ComponentProps,
+  createContext,
   createEffect,
   createMemo,
   createSelector,
@@ -21,30 +23,52 @@ import {
   on,
   Signal,
   splitProps,
+  useContext,
 } from "solid-js";
 import { twMerge } from "tailwind-merge";
 
+const MultiviewContext = createContext<{
+  controls: Record<any, JSX.Element>;
+  controlProps?: Accessor<
+    | Partial<Record<any, ComponentProps<"button">>>
+    | {
+        (
+          viewSignal: Signal<any>,
+        ): Partial<Record<any, ComponentProps<"button">>>;
+      }
+  >;
+  disabled?: Accessor<boolean | Partial<Record<any, boolean>>>;
+  viewSignal: Signal<any>;
+  defaulting: Accessor<any[]>;
+}>();
+
 export default function MultiView<Value extends string>(
   props: {
-    side?: "top" | "left" | "right" | "bottom";
-    value: Value;
-    onChange?: (value: Value) => void;
-    controls: (value: Signal<NoInfer<Value>>) => JSX.Element;
-    children: (props: { value: NoInfer<Value> }) => JSX.Element;
+    controls: Record<Value, JSX.Element>;
+    controlProps?:
+      | Partial<Record<NoInfer<Value>, ComponentProps<"button">>>
+      | {
+          (
+            viewSignal: Signal<NoInfer<Value>>,
+          ): Partial<Record<NoInfer<Value>, ComponentProps<"button">>>;
+        };
+    view: NoInfer<Value>;
+    disabled?: boolean | Partial<Record<NoInfer<Value>, boolean>>;
+    onChange?: (value: NoInfer<Value>) => void;
+    children: (viewSignal: Signal<NoInfer<Value>>) => JSX.Element;
+    defaulting?: Accessor<readonly NoInfer<Value>[]>;
   } & Omit<ComponentProps<"div">, "children">,
 ) {
-  const [, divProps] = splitProps(props, [
-    "side",
-    "value",
-    "onChange",
-    "controls",
-    "children",
-  ]);
-  const [view, setView] = createSignal<Value>(props.value);
-  const side = createMemo(() => props.side ?? "left");
+  const [contextProps, , divProps] = splitProps(
+    props,
+    ["controls", "disabled"],
+    ["view", "onChange", "children"],
+  );
+  const [view, setView] = createSignal<Value>(props.view);
+
   createEffect(
     on(
-      () => props.value,
+      () => props.view,
       (value) => setView(() => value),
     ),
   );
@@ -52,74 +76,91 @@ export default function MultiView<Value extends string>(
   createEffect(on(view, (view) => props.onChange?.(view), { defer: true }));
 
   return (
-    <div
-      {...divProps}
-      class={twMerge("multiview-root", divProps.class)}
-      classList={{
-        "multiview-left": side() === "left",
-        "multiview-right": side() === "right",
-        "multiview-top": side() === "top",
-        "multiview-bottom": side() === "bottom",
-        ...divProps.classList,
+    <MultiviewContext.Provider
+      value={{
+        ...contextProps,
+        controlProps: createMemo(() => props.controlProps) as Accessor<
+          Record<any, ComponentProps<"button">>
+        >,
+        disabled: createMemo(() => contextProps.disabled),
+        viewSignal: [view, setView],
+        defaulting: createMemo(
+          () => (props.defaulting?.() as any[]) ?? Object.keys(props.controls),
+        ),
       }}
     >
-      <div class="multiview-controls">{props.controls([view, setView])}</div>
-      <div class="multiview-content">
-        {props.children({
-          get value() {
-            return view();
-          },
-        })}
+      <div {...divProps} class={twMerge("multiview-root", divProps.class)}>
+        {props.children([view, setView])}
       </div>
-    </div>
+    </MultiviewContext.Provider>
   );
 }
 
 export function Controls<Value extends string>(
-  props: {
-    view: Signal<NoInfer<Value>>;
-    controls: Record<Value, JSX.Element>;
-    disabled?: boolean | Partial<Record<NoInfer<Value>, boolean>>;
-  } & Omit<ComponentProps<"button">, "view" | "disabled">,
+  props: ComponentProps<"button">,
 ) {
-  const selected = createSelector(props.view[0]);
-  const [, buttonProps] = splitProps(props, ["view", "controls"]);
+  const {
+    viewSignal: [view, setView],
+    controls,
+    disabled,
+    defaulting,
+    controlProps,
+  } = useContext(MultiviewContext);
+  const selected = createSelector(view);
 
   // resets selection of current tab when disabled.
   createEffect(
-    on(
-      () => props.disabled,
-      (disabled) => {
-        if (disabled && typeof disabled === "object") {
-          if (disabled[props.view[0]()]) {
-            for (const key of Object.keys(props.controls)) {
-              if (!disabled[key]) {
-                props.view[1](() => key as Value);
-                return;
-              }
+    on(disabled, (disabled) => {
+      if (disabled && typeof disabled === "object") {
+        if (disabled[view()]) {
+          const defaults = defaulting();
+
+          for (const key of defaults) {
+            if (!disabled[key]) {
+              setView(() => key as Value);
+              return;
             }
           }
         }
-      },
-    ),
+      }
+    }),
   );
 
+  const controlPropsObject = createMemo(() => {
+    const cp = controlProps();
+    if (!cp) return;
+    if (typeof cp === "function") {
+      return cp([view, setView]);
+    }
+    return cp;
+  });
+
   return (
-    <For each={Object.entries(props.controls)}>
+    <For each={Object.entries(controls)}>
       {([key, control]) => (
         <button
-          {...buttonProps}
-          class={twMerge("multiview-button", buttonProps.class)}
+          {...props}
+          {...controlPropsObject()?.[key]}
+          class={twMerge(
+            "multiview-button",
+            props.class,
+            controlPropsObject()?.[key]?.class,
+          )}
           classList={{
             "multiview-selected": selected(key as Value),
-            ...buttonProps.classList,
+            ...props.classList,
+            ...controlPropsObject()?.[key]?.classList,
           }}
           value={key}
-          onClick={() => props.view[1](() => key as Value)}
+          onClick={(event) => {
+            (controlPropsObject()?.[key]?.onClick as any)?.(event);
+
+            if (!event.defaultPrevented) {
+              setView(() => key as Value);
+            }
+          }}
           disabled={
-            props.disabled
-              ? props.disabled === true || props.disabled?.[key] || false
-              : false
+            disabled() ? disabled() === true || disabled()[key] || false : false
           }
         >
           {control as JSX.Element}

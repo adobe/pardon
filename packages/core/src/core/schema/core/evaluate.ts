@@ -54,14 +54,9 @@ function doRenderExpression(
     source,
     hint,
     evaluation: async () =>
-      await evaluation(expression!, {
+      evaluation(expression!, {
         async binding(unbound) {
-          const evaluated = await evaluateIdentifierWithExpression(
-            context,
-            unbound,
-          );
-
-          return evaluated;
+          return evaluateIdentifierWithExpression(context, unbound);
         },
         transform: dotAwaitTransform,
       }),
@@ -111,14 +106,12 @@ function renderIdentifierInExpression(
     if (decl.expression) {
       const { expression, source, hint } = decl;
 
-      const expressionResult = await doRenderExpression(rescoped, {
+      return doRenderExpression(rescoped, {
         identifier,
         expression,
         source,
         hint,
       });
-
-      return expressionResult;
     }
 
     const ambientResult = await decl?.rendered?.(rescoped);
@@ -127,12 +120,10 @@ function renderIdentifierInExpression(
       return ambientResult;
     }
 
-    const evaluatedResult = await context.environment.evaluate({
+    return context.environment.evaluate({
       context,
       identifier,
     });
-
-    return evaluatedResult;
   });
 }
 

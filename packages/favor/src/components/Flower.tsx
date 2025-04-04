@@ -22,12 +22,7 @@ import {
 } from "solid-js";
 import { KV } from "pardon/formats";
 import type { FlowName } from "pardon";
-import CornerControls from "./http/CornerControls.tsx";
-import {
-  TbPlayerPauseFilled,
-  TbPlayerPlayFilled,
-  TbPlayerStop,
-} from "solid-icons/tb";
+import CornerControls from "./CornerControls.tsx";
 import { manifest } from "../signals/pardon-config.ts";
 import Accordion from "corvu/accordion";
 import Resizable from "corvu/resizable";
@@ -104,9 +99,9 @@ export default function Flower(props: {
         class="bg-neutral-300 p-1 dark:bg-stone-700"
         placement="tr"
         icons={{
-          play: <TbPlayerPlayFilled />,
-          pause: <TbPlayerPauseFilled />,
-          stop: <TbPlayerStop />,
+          play: <IconTablerPlayerPlayFilled />,
+          pause: <IconTablerPlayerPauseFilled />,
+          stop: <IconTablerPlayerStop />,
         }}
         actions={{
           play: () => {

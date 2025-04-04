@@ -13,9 +13,6 @@ governing permissions and limitations under the License.
 import { contextBridge, ipcRenderer } from "electron";
 import { type PardonWorkerHandlers } from "./pardon-worker.js";
 
-type TestStepPayloads = any;
-type TracingHookPayloads = any;
-
 const initialSettings = new Promise<Preferences>((resolve, reject) => {
   const timeout = setTimeout(() => {
     reject("timeout");
@@ -28,17 +25,17 @@ const initialSettings = new Promise<Preferences>((resolve, reject) => {
 });
 
 const pardonWorkerApi: PardonWorkerHandlers = {
-  async preview(http, input, options) {
+  async context(http, input, options) {
     if (!http && !input?.endpoint) {
       throw "";
     }
-    return await invokePardonWorker("preview", http, input, options);
+    return await invokePardonWorker("context", http, input, options);
   },
-  async render(http, input, options) {
-    if (!http && !input?.endpoint) {
-      throw "";
-    }
-    return await invokePardonWorker("render", http, input, options);
+  async preview(handle) {
+    return await invokePardonWorker("preview", handle);
+  },
+  async render(handle) {
+    return await invokePardonWorker("render", handle);
   },
   async continue(handle) {
     return await invokePardonWorker("continue", handle);
@@ -111,9 +108,6 @@ const pardonElectronApi = {
   registerHistoryForwarder(forwarder: typeof pardonHistoryFowarder) {
     pardonHistoryFowarder = forwarder;
   },
-  registerTestSystemForwarder(forwarder: typeof pardonTestSystemFowarder) {
-    pardonTestSystemFowarder = forwarder;
-  },
 };
 
 export type PardonElectronApi = typeof pardonElectronApi;
@@ -125,14 +119,8 @@ let pardonHistoryFowarder:
   | {
       [Callback in keyof TracingHookPayloads]: (
         trace: number,
-        data: TracingHookPayloads[Callback]["trace"],
+        data: TracingHookPayloads[Callback],
       ) => void;
-    };
-
-let pardonTestSystemFowarder:
-  | undefined
-  | {
-      [Id in keyof TestStepPayloads]: (data: TestStepPayloads[Id]) => void;
     };
 
 ipcRenderer.addListener("trace:rendering", (_event, data) => {
@@ -151,14 +139,16 @@ ipcRenderer.addListener("trace:completed", (_event, data) => {
   pardonHistoryFowarder?.onResult(data.trace, data);
 });
 
-ipcRenderer.addListener("trace:error", (_event, message) => {
-  pardonHistoryFowarder?.onError(message.trace, message);
+ipcRenderer.addListener("trace:error", (_event, data) => {
+  pardonHistoryFowarder?.onError(data.trace, data);
 });
 
-ipcRenderer.addListener("test:event", (_event, message) => {
-  pardonTestSystemFowarder?.[
-    (message as TestStepPayloads[keyof TestStepPayloads]).type
-  ]?.(message as any);
+ipcRenderer.on("pardon:zen-mode", (_event, checked) => {
+  if (checked) {
+    document.getElementById("zen-mode-style").removeAttribute("media");
+  } else {
+    document.getElementById("zen-mode-style").setAttribute("media", "disabled");
+  }
 });
 
 ipcRenderer.addListener("pardon:lifecycle", async (_event, message) => {
@@ -168,10 +158,16 @@ ipcRenderer.addListener("pardon:lifecycle", async (_event, message) => {
   }
 });
 
-// typesafety
-function invokePardonWorker<Action extends keyof PardonWorkerHandlers>(
+// typesafety and exception handling
+async function invokePardonWorker<Action extends keyof PardonWorkerHandlers>(
   action: Action,
   ...args: Parameters<PardonWorkerHandlers[Action]>
-): ReturnType<PardonWorkerHandlers[Action]> {
-  return ipcRenderer.invoke("pardon", action, ...args) as any;
+): Promise<Awaited<ReturnType<PardonWorkerHandlers[Action]>>> {
+  const result = (await ipcRenderer.invoke("pardon", action, ...args)) as any;
+
+  if (result.exception) {
+    throw result.exception;
+  }
+
+  return result;
 }

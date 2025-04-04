@@ -24,7 +24,8 @@ type CornerControlPlacement =
   | "t"
   | "tt"
   | "b"
-  | "bb";
+  | "bb"
+  | "none";
 
 export type CornerControlProps<Actions extends string = string> = {
   flex?: "col" | "row" | "none";

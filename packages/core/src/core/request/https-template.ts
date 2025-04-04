@@ -10,17 +10,15 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import MIME from "whatwg-mimetype";
-import { jsonEncoding } from "../schema/definition/encodings/json-encoding.js";
-import { referenceTemplate } from "../schema/definition/structures/reference.js";
-import { FetchObject, ResponseObject } from "./fetch-pattern.js";
 import {
-  urlEncodedTemplate,
-  urlEncodedFormTemplate,
-} from "../schema/definition/encodings/url-encoded.js";
+  referenceTemplate,
+  ReferenceTemplateOps,
+} from "../schema/definition/structures/reference.js";
+import { FetchObject, ResponseObject } from "./fetch-pattern.js";
+import { queryEncodingType } from "../schema/definition/encodings/url-encoded.js";
 import { headersTemplate } from "../schema/definition/encodings/headers-encoding.js";
 import { datums } from "../schema/definition/datum.js";
-import { scopedFields } from "../schema/scheming.js";
-import { textTemplate } from "../schema/definition/encodings/text-encoding.js";
+import { mvKeyedTuples, scopedFields } from "../schema/scheming.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { diagnostic } from "../schema/core/context-util.js";
 import { stubSchema } from "../schema/definition/structures/stub.js";
@@ -34,52 +32,52 @@ import {
   defineSchema,
   defineSchematic,
   executeOp,
+  exposeSchematic,
+  isSchematic,
   merge,
 } from "../schema/core/schema-ops.js";
-import { EncodingTypes, evalBodyTemplate } from "./body-template.js";
+import { encodings, EncodingTypes } from "./body-template.js";
 import { JSON } from "../json.js";
 import { mixing } from "../schema/core/contexts.js";
+import { encodingTemplate } from "../schema/definition/encodings/encoding.js";
 
-function looksLikeJson(template: unknown): template is string {
-  if (typeof template !== "string") {
+function isJson(body: string) {
+  try {
+    JSON.parse(body);
+    return true;
+  } catch (ignore) {
+    void ignore;
     return false;
   }
-
-  // https://github.com/microsoft/TypeScript/issues/27706 !!!
-  // template = template.trim()
-  const trimmed = template.trim();
-  if (trimmed === "null" || /[{["1-9]/.test(trimmed)) {
-    try {
-      JSON.parse(template);
-      return true;
-    } catch (error) {
-      // oops.
-      void error;
-    }
-  }
-
-  return false;
 }
 
 export function guessContentType(
-  headers: Headers,
   body: string,
+  headers?: Headers,
 ): EncodingTypes | undefined {
+  if (!headers) {
+    if (isJson(body)) {
+      return "json";
+    }
+
+    return "raw";
+  }
+
   const contentType = MIME.parse(headers.get("Content-Type")!);
 
   switch (contentType?.essence) {
     case "application/json":
-      return looksLikeJson(body) ? "json" : "raw";
+      return isJson(body) ? "json" : "raw";
     case "application/x-www-form-urlencoded":
       return "form";
     case "text/plain":
       return "text";
     default:
       if (contentType?.essence.endsWith("+json")) {
-        return looksLikeJson(body) ? "json" : "raw";
+        return isJson(body) ? "json" : "raw";
       }
 
-      return "text";
+      return "raw";
   }
 }
 
@@ -95,14 +93,20 @@ export function bodyReference(template: Template<string>): Schematic<string> {
   }).$of(template);
 }
 
+export function searchReference(
+  template: Template<URLSearchParams>,
+): Schematic<URLSearchParams> {
+  return referenceTemplate({
+    ref: "search",
+    hint: ":?",
+  }).$of(template);
+}
+
 type BodySchematicOps = SchematicOps<string> & {
-  readonly body: { readonly encoding?: EncodingTypes };
+  readonly body: object;
 };
 
-export function bodySchema(
-  encoding?: EncodingTypes,
-  schema?: Schema<string>,
-): Schema<string> {
+export function bodySchema(schema?: Schema<string>): Schema<string> {
   return defineSchema<string>({
     scope(context) {
       if (schema) {
@@ -110,103 +114,113 @@ export function bodySchema(
       }
     },
     async render(context) {
-      return schema
-        ? await executeOp(schema ?? stubSchema(), "render", context)
+      const result = schema
+        ? await executeOp(schema, "render", context)
         : undefined;
+
+      return result;
     },
     merge(context) {
-      const { template: source } = context;
+      const { template } = context;
 
-      if (source === undefined || source === "") {
-        return bodySchema(encoding, schema);
+      if (template === undefined || template === "") {
+        return bodySchema(schema);
       }
 
-      if (typeof source === "function") {
+      if (typeof template !== "string") {
         throw diagnostic(
           context,
-          `body schema only works with strings not (${Object.keys(source()).join("/")})`,
+          `body schema only works with strings not (${typeof template})`,
         );
       }
 
-      if (typeof source !== "string") {
-        throw diagnostic(
-          context,
-          `body schema only works with strings not (${typeof source})`,
-        );
-      }
+      let encoding = context.meta?.body as EncodingTypes | undefined;
 
       if (context.mode === "match") {
         if (schema) {
-          return bodySchema(encoding, merge(schema, { ...context }));
+          return bodySchema(merge(schema, { ...context }));
         }
 
+        encoding ??= guessContentType(template) ?? "raw";
+        const matchTemplate =
+          encoding === "json" ? JSON.parse(template) : template;
+
+        const merged = merge(schema ?? stubSchema(), {
+          ...context,
+          template: encodings[`$${encoding}`](matchTemplate),
+        });
+
+        return merged && bodySchema(merged);
+      }
+
+      if (encoding) {
+        const encodedTemplate = encodings[`$${encoding}`](template);
+
+        const encodedMergeContext = {
+          ...context,
+          template: encodedTemplate,
+        };
+
+        const merged = merge(schema ?? stubSchema(), encodedMergeContext);
+
+        if (merged) {
+          return bodySchema(merged);
+        }
+      }
+
+      try {
+        const templateEncoded = encodings.$template(template);
+
+        // special case to enable "xyz=123" single-value forms that otherwise parse as valid
+        // templates to be still treated as forms.
+        if (
+          schema &&
+          isSchematic(templateEncoded) &&
+          exposeSchematic<ReferenceTemplateOps<unknown>>(templateEncoded)
+            .reference
+        ) {
+          throw new Error("cannot merge body reference template encodings");
+        }
+
+        const merged = merge(schema ?? stubSchema(), {
+          ...context,
+          template: templateEncoded,
+        });
+        if (merged) {
+          return merged && bodySchema(merged);
+        }
+      } catch (error) {
+        void error;
+      }
+
+      // on error, final fallback to any existing schema with no template encoding.
+      if (schema) {
+        const merged = merge(schema, context);
+        if (merged) {
+          return bodySchema(merged);
+        }
+      }
+
+      // if that fails and there wasn't an encoding, encode as raw
+      if (!encoding) {
         const merged = merge(stubSchema(), {
           ...context,
-          template:
-            encoding === "json"
-              ? jsonEncoding(JSON.parse(source))
-              : encoding === "form"
-                ? urlEncodedFormTemplate(source)
-                : textTemplate(source),
-        }) as Schema<string>;
-
-        return merged && bodySchema(encoding ?? "json", merged);
-      }
-
-      try {
-        if (
-          /^[$]?[a-z]+(?<!^[$]?(?:mix|mux|match))\s*[(]/i.test(source.trim())
-        ) {
-          const merged = merge(stubSchema(), {
-            ...context,
-            template: evalBodyTemplate(`${source}`),
-          }) as Schema<string>;
-
-          return merged && bodySchema(encoding, merged);
+          template: encodings.$raw(template),
+        });
+        if (merged) {
+          return bodySchema(merged);
         }
-      } catch (error) {
-        //... oops?
-        console.warn(error);
-        void error;
       }
-
-      try {
-        if (
-          /^([0-9]|[[{"'+-]|null|(?:mix|mix|match)[(])/i.test(source.trim())
-        ) {
-          const merged = merge(schema ?? stubSchema(), {
-            ...context,
-            template: evalBodyTemplate(`json(${source})`),
-          }) as Schema<string>;
-
-          return merged && bodySchema(encoding, merged);
-        }
-      } catch (error) {
-        //... oops?
-        console.warn(error);
-        void error;
-      }
-
-      const effectiveEncoding = encoding ?? "json";
-
-      const merged = merge(schema ?? stubSchema(), {
-        ...context,
-        template: evalBodyTemplate(
-          `${effectiveEncoding}(${effectiveEncoding === "json" ? source : JSON.stringify(source)})`,
-        ) as Template<string>,
-      });
-
-      return merged && bodySchema(effectiveEncoding, merged);
     },
   });
 }
 
-export function bodyTemplate(encoding?: EncodingTypes): Schematic<string> {
+export function bodyTemplate(): Schematic<string> {
   return defineSchematic<BodySchematicOps>({
-    body: { encoding },
     expand(context) {
-      return merge(bodySchema(encoding), context)!;
+      return merge(bodySchema(), context)!;
     },
+    body: {},
   });
 }
 
@@ -245,26 +259,21 @@ const pathnameTemplate = (base: string) =>
     },
   });
 
-export function httpsRequestSchema(
-  encoding?: EncodingTypes,
-  { search: { multivalue } = {} }: { search?: { multivalue?: boolean } } = {},
-) {
+export function httpsRequestSchema() {
   return mixing<HttpsRequestObject>({
     method: "{{method = 'GET'}}",
     origin: originTemplate("{{?:origin}}"),
     pathname: pathnameTemplate("{{...pathname}}"),
-    searchParams: referenceTemplate<URLSearchParams>({
-      ref: "search",
-    }).$of(urlEncodedTemplate({ multivalue })),
+    searchParams: searchReference(
+      encodingTemplate(queryEncodingType, mvKeyedTuples),
+    ),
     headers: headersTemplate(),
-    body: bodyReference(bodyTemplate(encoding)),
+    body: bodyReference(bodyTemplate()),
     computations: hiddenTemplate<Record<string, unknown>>(),
   });
 }
 
-export function httpsResponseSchema(
-  encoding?: EncodingTypes,
-): Schema<ResponseObject> {
+export function httpsResponseSchema(): Schema<ResponseObject> {
   return mixing<ResponseObject>({
     ...scopedFields("res", {
       status: datums.pattern<string>("{{status}}", {
@@ -275,6 +284,6 @@ export function httpsResponseSchema(
       statusText: datums.datum("{{?statusText}}"),
     }),
     headers: headersTemplate(),
-    body: bodyReference(bodyTemplate(encoding)),
+    body: bodyReference(bodyTemplate()),
   });
 }

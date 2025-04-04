@@ -109,21 +109,16 @@ function defineKeyedList<T>(self: KeyedListRepresentation<T, false>) {
     },
     merge(context) {
       const { key, object, multivalued } = self;
-      const { template } = context;
+      let { template } = context;
 
       if (typeof template === "function") {
-        const keyedOps = exposeSchematic<KeyedTemplateOps<T>>(template);
-        if (!keyedOps.keyed) {
-          diagnostic(
-            context,
-            `cannot merge keyed list with other schematic (${Object.keys(keyedOps).join("/")})`,
-          );
-          return undefined;
+        const templateOps = exposeSchematic<KeyedTemplateOps<T>>(template);
+
+        if (templateOps.keyed) {
+          template = templateOps.keyed(context);
         }
 
-        const keyed = keyedOps.keyed(context);
-
-        const ops = exposeSchematic<KeyedListOps<T, false>>(keyed);
+        const ops = exposeSchematic<KeyedListOps<T, false>>(template);
         if (!ops.keymap) {
           diagnostic(
             context,

@@ -40,7 +40,7 @@ import {
 } from "./flow-params.js";
 import { FlowContext } from "./data/flow-context.js";
 import { PardonRuntime } from "../../pardon/types.js";
-import { Flow, FlowResult, makeFlowIdempotent } from "./flow-core.js";
+import { Flow, FlowResult } from "./flow-core.js";
 import { executeFlowInContext } from "./index.js";
 import { KV } from "../../formats/kv-fmt.js";
 import { PardonError } from "../../error.js";
@@ -75,12 +75,7 @@ export function compileHttpsFlow(
   { path, name }: { path: string; name: string },
 ) {
   const sequence = compileHttpsFlowSequence(scheme, { path, name });
-
   const flow = createHttpsFlow(sequence);
-
-  if (sequence.configuration.idempotent) {
-    return makeFlowIdempotent(flow);
-  }
 
   return flow;
 }

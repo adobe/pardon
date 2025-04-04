@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { templateSchematic } from "./template.js";
 import * as KeyedList from "./definition/structures/keyed-list.js";
-import { createMergingContext } from "./core/context.js";
+import { contextMeta, createMergingContext } from "./core/context.js";
 import { isLookupValue } from "./core/scope.js";
 import { objects } from "./definition/objects.js";
 import { arrays } from "./definition/arrays.js";
@@ -76,7 +76,11 @@ function makeKeymapTemplate<T>(
     archetype?: Template<unknown>;
   }>(
     (parsed, item) => {
-      const keyCtx = createMergingContext(context, keySchema, item as T);
+      const keyCtx = createMergingContext(
+        contextMeta(context),
+        keySchema,
+        item as T,
+      );
       merge(keySchema, keyCtx);
       const lookup = keyCtx.evaluationScope.lookup("key");
       const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
@@ -122,7 +126,12 @@ function makeMvKeymapTemplate<T>(
     archetype?: Template<T[keyof T][]>;
   }>(
     (parsed, item) => {
-      const keyCtx = createMergingContext(context, keySchema, item as T);
+      const { mode, phase, meta } = context;
+      const keyCtx = createMergingContext(
+        { mode, phase, ...meta },
+        keySchema,
+        item as T,
+      );
       merge(keySchema, keyCtx);
       const lookup = keyCtx.evaluationScope.lookup("key");
       const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
@@ -149,7 +158,7 @@ function makeMvKeymapTemplate<T>(
       keyTemplate,
       objects.object(
         multivalues,
-        mixTemplate(arrays.multiscope([archetype])),
+        mixTemplate(arrays.multiscope([archetype!])),
       ) as Schematic<Record<string, T[]>>,
     );
   }
@@ -162,7 +171,7 @@ function makeMvKeymapTemplate<T>(
     keyTemplate,
     objects.scoped(
       multivalues,
-      mixTemplate(arrays.multiscope([archetype])),
+      mixTemplate(arrays.multiscope([archetype!])),
     ) as Schematic<Record<string, T[]>>,
   );
 }
@@ -278,3 +287,14 @@ export function scopedFields<M extends object & Record<string, unknown>>(
     scoped(keyTemplate, field, { field: true }),
   ) as M;
 }
+
+export const mvKeyedTuples = KeyedList.keyed.mv<[string, string]>(
+  arrays.tuple(["{{key}}", undefined!]) as Template<[string, string]>,
+  objects.object<Record<string, [string, string][]>>(
+    {},
+    arrays.multivalue(
+      [],
+      arrays.tuple([undefined! as string, undefined!] as [string, string]),
+    ),
+  ),
+);

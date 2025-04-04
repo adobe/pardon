@@ -71,7 +71,11 @@ describe("schema tests", () => {
   });
 
   it("should merge templates into values", async () => {
-    const s = mixing(arrays.multivalue(["xq{{z}}", "abc{{z}}"].map(mixing)));
+    const s = mixing(
+      arrays.multivalue(
+        ["xq{{z}}", "abc{{z}}"].map((template) => mixing(template)),
+      ),
+    );
     const z = merge(s, muxContext(s, ["xqz"]))!;
 
     assert.deepEqual(await executeOp(z, "render", renderCtx(z)), [
@@ -299,16 +303,15 @@ describe("schema tests", () => {
       ],
     });
 
-    s = merge(
-      s,
-      muxContext(s, {
-        list: [
-          {
-            a: "{{@a = 'a:a:a'}}:{{qqq = 'q:q'}}",
-          },
-        ],
-      }),
-    )!;
+    const mc = muxContext(s, {
+      list: [
+        {
+          a: "{{@a = 'a:a:a'}}:{{qqq = 'q:q'}}",
+        },
+      ],
+    });
+
+    s = merge(s, mc)!;
 
     const rendered = await executeOp(s, "render", renderCtx(s));
 

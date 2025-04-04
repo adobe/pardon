@@ -9,11 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { keyed } from "../structures/keyed-list.js";
 import { EncodingType, encodingTemplate } from "./encoding.js";
-import { arrays } from "../arrays.js";
-import { objects } from "../objects.js";
 import { Template } from "../../core/types.js";
+import { mvKeyedTuples } from "../../scheming.js";
 
 const headersEncodingType: EncodingType<Headers, [string, string][]> = {
   as: "Headers",
@@ -26,15 +24,5 @@ const headersEncodingType: EncodingType<Headers, [string, string][]> = {
 };
 
 export function headersTemplate(): Template<Headers> {
-  const template = keyed.mv<[string, string]>(
-    arrays.tuple(["{{key}}", undefined!]) as Template<[string, string]>,
-    objects.object<Record<string, [string, string][]>>(
-      {},
-      arrays.multivalue(
-        [],
-        arrays.tuple([undefined! as string, undefined!] as [string, string]),
-      ),
-    ),
-  );
-  return encodingTemplate(headersEncodingType, template);
+  return encodingTemplate(headersEncodingType, mvKeyedTuples);
 }

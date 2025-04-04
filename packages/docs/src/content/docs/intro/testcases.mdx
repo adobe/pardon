@@ -98,19 +98,17 @@ set to both `stage` and `prod`, but also allows `local`)
 </Tabs>
 
 
-## Sequences: Units and Flows
+## Flows
 
 Pardon's test engine is built to flow data as naturally as possible:
 Tests accept a single argument, the "environment", which is
-used/modified by executing sequences of requests.
-
-Units and flows are both seqeunces, pardon considers units as idempotent.
+used/modified by executing flows of requests.
 
 The syntax for unit and flow files is basically the same as the collection
 endpoint and mixin https files, but initial yaml schema and
 the overall semantics are different.
 
-```http title="sequences/ping.flow.https" {1-3}
+```http title="flows/ping.flow.https" {1-3}
 context:
   - env
   - port?
@@ -123,9 +121,9 @@ https://example.com/ping
 pong
 ```
 
-Unlike an endpoint or mixin, the requests and responses here are not "alternatives
-for making a single request", but rather a list of requests to make (with
-control flow and retry limits included).
+Unlike an endpoint or mixin, the requests and responses here are not alternatives
+for making a single request, but rather a list of requests
+(and immediately following response templates) which can control flow.
 
 So this flow specifies the following steps.
 

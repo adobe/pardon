@@ -88,16 +88,17 @@ export default function createCompiler({
 }: {
   collection: PardonCollection;
 }) {
-  const project: Project = new Project({
+  const project = new Project({
     compilerOptions: {
       outDir: "memory",
       module: ts.ModuleKind.ES2022,
       target: ts.ScriptTarget.ES2022,
       lib: ["lib.es2022.d.ts"], // assume 2022 runtime.
       allowJs: true,
-      sourceMap: true,
+      noCheck: true,
+      strict: false,
+      noEmitOnError: true,
       inlineSourceMap: true,
-      mapRoot: "file:///",
     },
     useInMemoryFileSystem: true,
   });
@@ -115,7 +116,9 @@ export default function createCompiler({
     const identity = scripts.identities[path];
 
     const compiled = project
-      .createSourceFile(path, content)
+      .createSourceFile(path, content, {
+        scriptKind: path.endsWith(".js") ? ts.ScriptKind.JS : ts.ScriptKind.TS,
+      })
       .transform(dotAwaitTransform)
       .transform(
         identity

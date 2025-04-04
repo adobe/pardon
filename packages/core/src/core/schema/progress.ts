@@ -9,6 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { RequestObject, ResponseObject } from "../formats/http-fmt.js";
 import { mergeSchema } from "./core/schema-utils.js";
 import { ScriptEnvironment } from "./core/script-environment.js";
 import { Schema, SchemaMergingContext, Template } from "./core/types.js";
@@ -27,7 +28,9 @@ export interface ProgressiveMatchData<T> {
  *
  * Both the extended schema and the schema with the object matched are returned.
  */
-export class ProgressiveMatch<T> implements ProgressiveMatchData<T> {
+export class ProgressiveMatch<T extends RequestObject | ResponseObject>
+  implements ProgressiveMatchData<T>
+{
   object: Template<T>;
   schema: Schema<T>;
   context?: SchemaMergingContext<T>;
@@ -57,7 +60,7 @@ export class ProgressiveMatch<T> implements ProgressiveMatchData<T> {
     },
   ) {
     const extended = mergeSchema(
-      { mode: options.mode ?? "mix", phase: "build" },
+      { mode: options.mode ?? "mix", phase: "build", ...extension.meta },
       this.schema,
       extension,
       options.environment,
@@ -68,7 +71,11 @@ export class ProgressiveMatch<T> implements ProgressiveMatchData<T> {
     const matching =
       extended.schema &&
       mergeSchema(
-        { mode: this.match ? "match" : "mux", phase: "validate" },
+        {
+          mode: this.match ? "match" : "mux",
+          phase: "validate",
+          ...(this.object as any)?.meta,
+        },
         extended.schema,
         this.object,
         options.environment,

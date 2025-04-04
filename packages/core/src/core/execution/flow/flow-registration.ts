@@ -10,23 +10,15 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { HTTP } from "../../formats/http-fmt.js";
+import { HttpsRequestStep } from "../../formats/https-fmt.js";
 import { PardonRuntime } from "../../pardon/types.js";
-import { FlowFunction, makeFlow, makeFlowIdempotent } from "./flow-core.js";
+import { FlowFunction, makeFlow } from "./flow-core.js";
 import { compileHttpsFlow } from "./https-flow.js";
-
-const idempotent = Symbol("idempotent");
 
 export async function loadFlows({
   collection: { scripts, flows, endpoints, assets, errors },
 }: PardonRuntime<"loading">) {
-  Object.defineProperty(Function.prototype, "idempotent", {
-    configurable: true,
-    get() {
-      this[idempotent] = true;
-      return this;
-    },
-  });
-
   for (const [name, sources] of Object.entries(scripts.resolutions).filter(
     ([name]) => name.endsWith(".flow"),
   )) {
@@ -36,11 +28,7 @@ export async function loadFlows({
     ) as [string, FlowFunction][];
 
     for (const [flowKey, flowFn] of funEntries) {
-      let flow = makeFlow(flowFn);
-
-      if (flowFn[idempotent]) {
-        flow = makeFlowIdempotent(flow);
-      }
+      const flow = makeFlow(flowFn);
 
       const prefix = name.replace(/^pardon:/, "");
       const flowName =
@@ -92,12 +80,14 @@ export async function loadFlows({
             request: { headers: new Headers() },
             computations: {},
             name: "",
+            source: `
+>>> inline ${endpoint.configuration.name}
+${HTTP.stringify((endpoint.layers[0].steps[0] as HttpsRequestStep).request)}
+`.trim(),
           },
         ],
       },
       { name, path: "#" },
     );
   }
-
-  delete (Function.prototype as any).idempotent;
 }

@@ -10,7 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { app, dialog, Menu, MenuItemConstructorOptions } from "electron";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  Menu,
+  MenuItemConstructorOptions,
+} from "electron";
 import { recreatePardonWorker } from "./pardon-worker-runner";
 
 export function createMainMenu() {
@@ -63,7 +69,7 @@ export function createMainMenu() {
                 }
 
                 await recreatePardonWorker(
-                  browserWindow.webContents,
+                  (browserWindow as BrowserWindow).webContents,
                   configDir,
                 );
               } catch (error) {
@@ -100,6 +106,18 @@ export function createMainMenu() {
           { role: "zoomOut" },
           { type: "separator" },
           { role: "togglefullscreen" },
+          {
+            label: "Zen Mode",
+            accelerator: "Meta+Option+Z",
+            type: "checkbox",
+            id: "zen-mode",
+            click(menuItem, window) {
+              (window as BrowserWindow).webContents.send(
+                "pardon:zen-mode",
+                menuItem.checked,
+              );
+            },
+          },
         ],
       },
     ] as const),

@@ -11,7 +11,6 @@ governing permissions and limitations under the License.
 */
 
 import Drawer from "corvu/drawer";
-import { TbX } from "solid-icons/tb";
 import { createMemo, createSignal, splitProps, type JSX } from "solid-js";
 
 import { twMerge } from "tailwind-merge";
@@ -69,7 +68,7 @@ export function InfoDrawer(
               {ourProps.content}
               {ourProps["no-close-button"] ? undefined : (
                 <Drawer.Close class="corvu-drawer-close-button">
-                  <TbX />
+                  <IconTablerX />
                 </Drawer.Close>
               )}
             </Drawer.Content>

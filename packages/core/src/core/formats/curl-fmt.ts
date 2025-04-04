@@ -9,8 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+
 import { extractKVs, intoArgs } from "../../util/kv-options.js";
-import { FetchObject } from "../request/fetch-pattern.js";
+import { FetchObject, RequestMeta } from "../request/fetch-pattern.js";
 import { parseArgs } from "node:util";
 import { intoSearchParams } from "../request/search-pattern.js";
 import { arrayIntoObject } from "../../util/mapping.js";
@@ -45,13 +46,15 @@ function headerList(headers: HeadersInit = []) {
 
 function stringify(
   request: FetchObject,
-  { include, location }: { include?: boolean; location?: boolean } = {},
+  { include }: { include?: boolean } = {},
 ) {
-  const { method, headers, body } = request;
+  const { method, headers, body, meta: { resolve } = {} } = request;
   const url = intoURL(request);
 
+  const port = url.port || (url.protocol == "https:" ? 443 : 80);
+
   return [
-    `curl ${method !== "GET" ? `--request ${method} ` : ""}${location ? "--location " : ""}"${quot(url)}"${
+    `curl ${method !== "GET" ? `--request ${method} ` : ""}"${quot(url)}"${resolve ? `\\\n  --resolve "${url.hostname}:${port}:$(dig +short ${resolve} | tail -1)" \\\n ` : ""}${
       include ? " --include" : ""
     }`,
     ...headerList(headers).map(
@@ -166,7 +169,7 @@ function parse(command: string): {
 
   const bodyAndEncoding: {
     body?: string;
-    encoding?: FetchObject["encoding"];
+    encoding?: RequestMeta["body"];
   } =
     opts.data !== undefined
       ? { body: opts.data }

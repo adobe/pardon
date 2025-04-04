@@ -33,7 +33,6 @@ import { resolvePardonRelativeImport } from "../runtime/compiler.js";
 import {
   AssetSource,
   AssetType,
-  CollectionData,
   PardonCollection,
 } from "../runtime/init/workspace.js";
 import { PardonError } from "../core/error.js";
@@ -41,11 +40,23 @@ import { expandConfigMap } from "../core/schema/core/config-space.js";
 import { compileHttpsFlow } from "../core/execution/flow/https-flow.js";
 import { JSON } from "../core/json.js";
 
-export async function loadCollectionLayer(root: string) {
+type CollectionLayer = {
+  root: string;
+  files: Record<string, AssetSource>;
+};
+
+type PardonCollectionSource = {
+  collections: CollectionLayer[];
+  filesystem: Record<string, string>;
+};
+
+export async function loadCollectionLayer(
+  root: string,
+): Promise<CollectionLayer> {
   return {
     root,
     files: await globfiles(root, ["**/*"], async (content, path) => {
-      return { path: resolve(root, path), content } as AssetSource;
+      return { path: resolve(root, path), content } satisfies AssetSource;
     }),
   };
 }
@@ -134,7 +145,7 @@ const fallbackCollection = {
       path: "//fallback/collection/default/default.https",
     },
   },
-} satisfies Awaited<ReturnType<typeof loadCollectionLayer>>;
+} satisfies CollectionLayer;
 
 export async function loadCollections(collectionRoots: string[]) {
   return [
@@ -175,12 +186,12 @@ function priorityOf(type: AssetType) {
 }
 
 export function buildCollection(
-  collections: Awaited<ReturnType<typeof loadCollectionLayer>>[],
+  collections: CollectionLayer[],
 ): PardonCollection {
   const layers = collections.map(({ files }) => processCollectionLayer(files));
-  const files = collections
+  const filesystem = collections
     .flatMap(({ files }) => Object.values(files))
-    .reduce(
+    .reduce<Record<string, string>>(
       (files, { path, content }) =>
         Object.assign(files, {
           [path]: content,
@@ -188,16 +199,23 @@ export function buildCollection(
       {},
     );
 
-  const configurations: PardonCollection["configurations"] = {};
-  const endpoints: PardonCollection["endpoints"] = {};
-  const data: PardonCollection["data"] = {};
-  const mixins: PardonCollection["mixins"] = {};
-  const errors: PardonCollection["errors"] = [];
-  const assets: PardonCollection["assets"] = {};
-  const flows: PardonCollection["flows"] = {};
-  const scripts: PardonCollection["scripts"] = {
-    resolutions: {},
-    identities: {},
+  const source: PardonCollectionSource = {
+    collections,
+    filesystem,
+  };
+
+  const collection: PardonCollection = {
+    configurations: {},
+    endpoints: {},
+    data: {},
+    mixins: {},
+    assets: {},
+    flows: {},
+    scripts: {
+      resolutions: {},
+      identities: {},
+    },
+    errors: [],
   };
 
   for (const asset of Object.values(
@@ -212,195 +230,31 @@ export function buildCollection(
     const { type, name, id } = asset[0];
     const sources = asset.map(({ source }) => source);
 
-    assets[id] = {
+    collection.assets[id] = {
       type,
       sources,
       name,
     };
 
-    function resolveExport(
-      path: string,
-      configuration: Configuration<"source">,
-    ) {
-      if (configuration?.export) {
-        const sourcepath = resolve(
-          dirname(path),
-          relative(configuration.path, configuration.export),
-        );
-        const resolution = (scripts.resolutions[`pardon:${id}`] ??= []);
-        const identity = `pardon:${id}?${resolution.length}`;
-        if (sourcepath in files) {
-          if ((scripts.identities[sourcepath] ??= identity) !== identity) {
-            throw new PardonError(
-              `cannot reidentify ${sourcepath} from ${scripts.identities[sourcepath]} to ${identity}`,
-            );
-          }
-
-          resolution.push({ path: sourcepath, content: files[sourcepath] });
-          return true;
-        }
-      }
-    }
-
     switch (type) {
-      case "config": {
-        configurations[id] = collections.reduce(
-          (mergedConfiguration, { files, root }) => {
-            const { content, path } =
-              files[`${id}/service.yaml`] ?? files[`${id}/config.yaml`] ?? {};
-
-            const configuration = path
-              ? loadConfig({ content, name, path }, errors)
-              : undefined;
-
-            const configurations = [mergedConfiguration, configuration].filter(
-              Boolean,
-            );
-
-            if (configurations.length === 0) return null!;
-
-            const merged = mergeConfigurations({
-              name,
-              configurations,
-            });
-
-            if (
-              !resolveExport(path ?? resolve(root, merged.name), merged) &&
-              configuration?.export
-            ) {
-              console.warn(
-                `export: could not resolve direct reference to ${configuration.export} from ${path}`,
-              );
-            }
-
-            return merged;
-          },
-          null! as Configuration,
-        );
-
+      case "config":
+        addConfiguration({ collection, source, id });
         break;
-      }
-      case "endpoint": {
-        const {
-          service,
-          configuration: { export: _, ...serviceConfiguration },
-        } = endpointServiceConfiguration(id, configurations);
-
-        endpoints[id] = sources.reduce<LayeredEndpoint>(
-          (endpoint, { content, path }) => {
-            const { steps, configuration } = parseAsset(
-              path,
-              () => HTTPS.parse(content) as HttpsTemplateScheme<"source">,
-              errors,
-              () => ({
-                configuration: {} as any,
-                mode: "mix" as const,
-                steps: [],
-              }),
-            );
-
-            endpoint.configuration = mergeConfigurations({
-              name: name.replace(/[.]https$/, ""),
-              configurations: [endpoint.configuration, configuration].filter(
-                Boolean,
-              ),
-            });
-
-            if (
-              !resolveExport(path, endpoint.configuration) &&
-              configuration?.export
-            ) {
-              console.warn(
-                `export: could not resolve direct reference to ${configuration.export} from ${path}`,
-              );
-            }
-
-            endpoint.layers.push({ path, steps });
-
-            return endpoint;
-          },
-          {
-            service,
-            action: id.split("/").slice(-1)[0],
-            configuration: serviceConfiguration,
-            layers: [],
-          } as LayeredEndpoint,
-        );
+      case "endpoint":
+        addEndpoint({ collection, source, id });
         break;
-      }
-      case "data": {
-        data[id] = sources.reduce(
-          (data, { content, path }) => {
-            return {
-              values: parseAsset(
-                path,
-                () =>
-                  mergeData(
-                    data.values,
-                    path.endsWith(".json")
-                      ? JSON.parse(content)
-                      : YAML.parse(content),
-                  ),
-                errors,
-                () => data.values,
-              ),
-            };
-          },
-          { values: {} },
-        );
+      case "data":
+        addData({ collection, id });
         break;
-      }
-      case "mixin": {
-        const [, mode] = /[.](mix|mux)[.]https$/.exec(name)!;
-
-        mixins[id] = sources.reduce<LayeredMixin>(
-          (mixin, { content, path }) => {
-            const { steps, configuration } = parseAsset(
-              path,
-              () => HTTPS.parse(content, mode as "mix" | "mux"),
-              errors,
-              () => ({
-                configuration: {} as any,
-                mode: mode as "mix" | "mux",
-                steps: [],
-              }),
-            ) as HttpsSchemeType<"mix" | "mix", Configuration>;
-
-            mixin.configuration = mergeConfigurations({
-              name,
-              configurations: [mixin.configuration, configuration].filter(
-                Boolean,
-              ),
-            });
-
-            mixin.layers.push({ path, steps, mode: mode as "mix" | "mux" });
-
-            return mixin;
-          },
-          { configuration: undefined!, layers: [], mode } as LayeredMixin,
-        );
+      case "mixin":
+        addMixin({ collection, id });
         break;
-      }
       case "script":
-        if (sources.some(({ path }) => scripts.identities[path])) {
-          if (!sources.every(({ path }) => scripts.identities[path])) {
-            console.warn(`inconsistent usage of script ${id}`);
-          }
-          break;
-        }
-
-        for (const { path, content } of sources) {
-          const resolution = (scripts.resolutions[id] ??= []);
-          scripts.identities[path] = `${id}?${resolution.length}`;
-          resolution.push({ path, content });
-        }
+        addScript({ collection, id });
         break;
-      case "flow": {
-        const { content, path } = sources.slice(-1)[0];
-        const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
-        flows[id] = compileHttpsFlow(scheme, { path, name: id });
+      case "flow":
+        addFlow({ collection, id });
         break;
-      }
       case "unknown":
         console.warn(`unknown asset: ${id}`);
         break;
@@ -409,25 +263,58 @@ export function buildCollection(
     }
   }
 
-  mergeDefaults(endpoints, data);
+  addServiceDefaults({ collection, source });
+  mergeDefaultValues(collection);
 
-  return {
-    assets,
-    errors,
-
-    endpoints,
-    configurations,
-    data,
-    mixins,
-    flows,
-    scripts,
-  };
+  return collection;
 }
 
-function mergeDefaults(
-  endpoints: Record<string, LayeredEndpoint>,
-  data: Record<string, CollectionData>,
-) {
+function addServiceDefaults({
+  collection,
+  source,
+}: {
+  collection: PardonCollection;
+  source: PardonCollectionSource;
+}) {
+  const { endpoints, configurations, assets } = collection;
+  const defaultsAssetSources: Record<string, AssetSource> = {};
+  const defaultsRoot = "//fallback/defaults";
+
+  source.collections.push({
+    root: defaultsRoot,
+    files: defaultsAssetSources,
+  });
+
+  for (const [id, { name }] of Object.entries(configurations)) {
+    if (/[/]service[.]yaml$/.test(name)) {
+      if (!endpoints[[id, "default"].join("/")]) {
+        const defaultsId = [id, "default"].join("/");
+        const defaultsName = `${defaultsId}.https`;
+        const defaultsPath = `${defaultsRoot}/${defaultsName}`;
+        const defaultsContent = `>>>\nANY //`;
+        defaultsAssetSources[defaultsId] = {
+          path: defaultsName,
+          content: defaultsContent,
+        };
+        source.filesystem[defaultsPath] = defaultsContent;
+        assets[defaultsId] = {
+          name: defaultsName,
+          sources: [
+            {
+              path: defaultsPath,
+              content: defaultsContent,
+            },
+          ],
+          type: "endpoint",
+        };
+
+        addEndpoint({ collection, source, id: defaultsId });
+      }
+    }
+  }
+}
+
+function mergeDefaultValues({ endpoints, data }: PardonCollection) {
   for (const [key, endpoint] of Object.entries(endpoints)) {
     const { defaults } = key
       .split("/")
@@ -499,6 +386,33 @@ function mergeData<A, B>(
   return combiner.mix(a, b) as A & B;
 }
 
+function resolveExport(
+  id: string,
+  scripts: PardonCollection["scripts"],
+  filesystem: Record<string, string>,
+  path: string,
+  configuration: Configuration<"source">,
+) {
+  if (configuration?.export) {
+    const sourcepath = resolve(
+      dirname(path),
+      relative(configuration.path, configuration.export),
+    );
+    const resolution = (scripts.resolutions[`pardon:${id}`] ??= []);
+    const identity = `pardon:${id}?${resolution.length}`;
+    if (sourcepath in filesystem) {
+      if ((scripts.identities[sourcepath] ??= identity) !== identity) {
+        throw new PardonError(
+          `cannot reidentify ${sourcepath} from ${scripts.identities[sourcepath]} to ${identity}`,
+        );
+      }
+
+      resolution.push({ path: sourcepath, content: filesystem[sourcepath] });
+      return true;
+    }
+  }
+}
+
 function endpointServiceConfiguration(
   endpoint: string,
   configurations: Record<string, Configuration>,
@@ -529,6 +443,218 @@ function endpointServiceConfiguration(
       mixing: false,
     }),
   };
+}
+
+function addConfiguration({
+  collection: { configurations, assets, scripts, errors },
+  source: { collections, filesystem },
+  id,
+}: {
+  collection: PardonCollection;
+  source: PardonCollectionSource;
+  id: string;
+}) {
+  const { name } = assets[id];
+
+  configurations[id] = collections.reduce(
+    (mergedConfiguration, { files, root }) => {
+      const { content, path } =
+        files[`${id}/service.yaml`] ?? files[`${id}/config.yaml`] ?? {};
+
+      const configuration = path
+        ? loadConfig({ content, name, path }, errors)
+        : undefined;
+
+      const configurations = [mergedConfiguration, configuration].filter(
+        Boolean,
+      );
+
+      if (configurations.length === 0) return null!;
+
+      const merged = mergeConfigurations({
+        name,
+        configurations,
+      });
+
+      if (
+        !resolveExport(
+          id,
+          scripts,
+          filesystem,
+          path ?? resolve(root, merged.name),
+          merged,
+        ) &&
+        configuration?.export
+      ) {
+        console.warn(
+          `export: could not resolve direct reference to ${configuration.export} from ${path}`,
+        );
+      }
+
+      return merged;
+    },
+    null! as Configuration,
+  );
+}
+
+function addEndpoint({
+  collection: { configurations, assets, scripts, endpoints, errors },
+  source: { filesystem },
+  id,
+}: {
+  collection: PardonCollection;
+  source: PardonCollectionSource;
+  id: string;
+}) {
+  const { name, sources } = assets[id];
+
+  const {
+    service,
+    configuration: { export: _, ...serviceConfiguration },
+  } = endpointServiceConfiguration(id, configurations);
+
+  endpoints[id] = sources.reduce<LayeredEndpoint>(
+    (endpoint, { content, path }) => {
+      const { steps, configuration } = parseAsset(
+        path,
+        () => HTTPS.parse(content) as HttpsTemplateScheme<"source">,
+        errors,
+        () => ({
+          configuration: {} as any,
+          mode: "mix" as const,
+          steps: [],
+        }),
+      );
+
+      endpoint.configuration = mergeConfigurations({
+        name: name.replace(/[.]https$/, ""),
+        configurations: [endpoint.configuration, configuration].filter(Boolean),
+      });
+
+      if (
+        !resolveExport(id, scripts, filesystem, path, endpoint.configuration) &&
+        configuration?.export
+      ) {
+        console.warn(
+          `export: could not resolve direct reference to ${configuration.export} from ${path}`,
+        );
+      }
+
+      endpoint.layers.push({ path, steps });
+
+      return endpoint;
+    },
+    {
+      service,
+      action: id.split("/").slice(-1)[0],
+      configuration: serviceConfiguration,
+      layers: [],
+    } as LayeredEndpoint,
+  );
+}
+
+function addData({
+  collection: { assets, data, errors },
+  id,
+}: {
+  collection: PardonCollection;
+  id: string;
+}) {
+  const { sources } = assets[id];
+
+  data[id] = sources.reduce(
+    (data, { content, path }) => {
+      return {
+        values: parseAsset(
+          path,
+          () =>
+            mergeData(
+              data.values,
+              path.endsWith(".json")
+                ? JSON.parse(content)
+                : YAML.parse(content),
+            ),
+          errors,
+          () => data.values,
+        ),
+      };
+    },
+    { values: {} },
+  );
+}
+
+function addMixin({
+  collection: { assets, mixins, errors },
+  id,
+}: {
+  collection: PardonCollection;
+  id: string;
+}) {
+  const { name, sources } = assets[id];
+
+  const [, mode] = /[.](mix|mux)[.]https$/.exec(name)!;
+
+  mixins[id] = sources.reduce<LayeredMixin>(
+    (mixin, { content, path }) => {
+      const { steps, configuration } = parseAsset(
+        path,
+        () => HTTPS.parse(content, mode as "mix" | "mux"),
+        errors,
+        () => ({
+          configuration: {} as any,
+          mode: mode as "mix" | "mux",
+          steps: [],
+        }),
+      ) as HttpsSchemeType<"mix" | "mix", Configuration>;
+
+      mixin.configuration = mergeConfigurations({
+        name,
+        configurations: [mixin.configuration, configuration].filter(Boolean),
+      });
+
+      mixin.layers.push({ path, steps, mode: mode as "mix" | "mux" });
+
+      return mixin;
+    },
+    { configuration: undefined!, layers: [], mode } as LayeredMixin,
+  );
+}
+
+function addScript({
+  collection: { assets, scripts },
+  id,
+}: {
+  collection: PardonCollection;
+  id: string;
+}) {
+  const { sources } = assets[id];
+
+  if (sources.some(({ path }) => scripts.identities[path])) {
+    if (!sources.every(({ path }) => scripts.identities[path])) {
+      console.warn(`inconsistent usage of script ${id}`);
+    }
+    return;
+  }
+
+  for (const { path, content } of sources) {
+    const resolution = (scripts.resolutions[id] ??= []);
+    scripts.identities[path] = `${id}?${resolution.length}`;
+    resolution.push({ path, content });
+  }
+}
+
+function addFlow({
+  collection: { assets, flows },
+  id,
+}: {
+  collection: PardonCollection;
+  id: string;
+}) {
+  const { sources } = assets[id];
+
+  const { content, path } = sources.slice(-1)[0];
+  const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
+  flows[id] = compileHttpsFlow(scheme, { path, name: id });
 }
 
 function loadConfig(
@@ -575,15 +701,7 @@ export function mergeConfigurations({
     .reduce<
       Pick<
         Configuration & EndpointConfiguration,
-        | "config"
-        | "defaults"
-        | "import"
-        | "export"
-        | "mixin"
-        | "type"
-        | "encoding"
-        | "search"
-        | "flow"
+        "config" | "defaults" | "import" | "export" | "mixin" | "type" | "flow"
       >
     >(
       (
@@ -595,8 +713,6 @@ export function mergeConfigurations({
           export: exports,
           mixin,
           type,
-          search,
-          encoding,
           flow,
           //...other
         },
@@ -606,8 +722,6 @@ export function mergeConfigurations({
         defaults: mixing
           ? mergeData(defaults ?? {}, merged.defaults)
           : mergeData(merged.defaults, defaults ?? {}),
-        encoding: encoding ?? merged.encoding,
-        search: search ?? merged.search,
         import: Object.assign(
           {},
           merged.import!,

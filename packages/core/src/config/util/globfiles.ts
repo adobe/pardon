@@ -14,7 +14,7 @@ import { resolve, sep } from "node:path";
 import { GlobOptionsWithFileTypesFalse, glob } from "glob";
 import { readFile } from "node:fs/promises";
 
-export async function globfiles<T = string>(
+export async function globfiles<T>(
   cwd: string,
   pattern: string | string[],
   mapper: (content: string, path: string, name: string) => T = (content) =>

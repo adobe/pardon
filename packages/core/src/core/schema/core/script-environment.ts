@@ -242,11 +242,17 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 
   redact<T>({
     value,
+    context: { mode },
     patterns,
   }: {
     value: T;
+    context: SchemaRenderContext;
     patterns: Pattern[] | null;
   }): string | T | undefined {
+    if (mode === "preview") {
+      return value;
+    }
+
     return this.redactor?.(value, patterns) ?? value;
   }
 

@@ -180,6 +180,7 @@ ${YAML.stringify({
       console.info(
         HTTP.stringify({
           ...rendered,
+          ...{ meta: undefined },
           ...(!options.values && { values: undefined }),
         }),
       );

@@ -199,7 +199,7 @@ function defineObject<M extends Record<string, unknown>>(
               "render",
               fieldContext(context, scoped, key) as SchemaRenderContext,
             );
-            void inflated;
+
             return fieldValue;
           },
           filter(_key, mapped) {

@@ -10,8 +10,6 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { TbChevronRight } from "solid-icons/tb";
-
 import {
   ComponentProps,
   For,
@@ -31,14 +29,13 @@ import CollectionItemIcon from "./CollectionItemIcon.tsx";
 import { KV } from "pardon/formats";
 
 export function CollectionTreeView(
-  allProps: VoidProps<{
+  props: VoidProps<{
     expanded: Set<string>;
     active: Set<string>;
     item: CollectionTreeItem;
     selection: string;
     selected: (key: string) => boolean;
     current: (key: string) => boolean;
-    filter: string;
     filters: Filters;
     depth?: number;
     onClick: (item: CollectionTreeItem, event: MouseEvent) => void;
@@ -49,29 +46,18 @@ export function CollectionTreeView(
       "onClick" | "onDblClick"
     >,
 ) {
-  const [props, restprops] = splitProps(allProps, [
+  const [, restprops] = splitProps(props, [
     "expanded",
     "active",
     "selected",
     "current",
     "selection",
     "item",
-    "filter",
     "filters",
     "depth",
     "onClick",
     "onDblClick",
   ]);
-
-  function filterByText(item: CollectionTreeItem, filter: string) {
-    // todo: compute this once this
-    return new RegExp(
-      filter
-        .split("")
-        .map((s) => s.replace(/[[\](){}.^$&?\\*+]/g, (match) => `\\${match}`))
-        .join(".*?"),
-    ).test(item.type + ":" + item.key);
-  }
 
   function forced(item: CollectionTreeItem) {
     return (
@@ -113,8 +99,7 @@ export function CollectionTreeView(
         return (
           forced(item) ||
           propped().find(({ key }) => key == item.key) ||
-          (filterByText(item, props.filter) &&
-            filterByType(item.type, props.filters)) ||
+          filterByType(item.type, props.filters) ||
           (item.type === "folder" && item?.items?.some(unfiltered))
         );
       }
@@ -177,7 +162,7 @@ export function CollectionTreeView(
                 props.onDblClick?.(props.item, event);
               }}
               class={twMerge(
-                "top-0 flex place-items-center text-nowrap rounded-sm border-0 bg-inherit p-0 px-1.5 active:dark:!bg-stone-600 active:dark:text-white",
+                "top-0 flex place-items-center text-nowrap rounded-sm border-0 bg-inherit p-0 px-1.5 font-black active:dark:!bg-stone-600 active:dark:text-white",
                 restprops.class,
               )}
               classList={{
@@ -203,7 +188,7 @@ export function CollectionTreeView(
             <button
               {...restprops}
               class={twMerge(
-                "z-auto flex place-items-center text-nowrap border-0 bg-inherit p-0 px-1 active:dark:!bg-stone-600",
+                "z-auto flex place-items-center text-nowrap border-0 bg-inherit p-0 px-1 font-black active:dark:!bg-stone-600",
                 restprops.class,
               )}
               onClick={(event) =>
@@ -218,22 +203,10 @@ export function CollectionTreeView(
                 "!bg-gray-200 dark:!bg-neutral-800": isSelected(),
               }}
             >
-              <CollectionItemIcon
-                item={props.item}
-                class="borders-solid pr-1 text-xl"
-              />
-              <span>{props.item.name}</span>
-              <Show when={props.item.type === "folder"}>
-                <span class="relative aspect-square w-4">
-                  <TbChevronRight
-                    class="absolute rotate-0 transition-transform"
-                    classList={{
-                      "rotate-90": expanded(),
-                      "rotate-45": !expanded() && Boolean(propped()?.length),
-                    }}
-                  />
-                </span>
+              <Show when={expanded()} fallback={<IconTablerFolder />}>
+                <IconTablerFolderOpen />
               </Show>
+              <span class="pl-1">{props.item.name}</span>
             </button>
           </Show>
         </Match>
@@ -249,7 +222,6 @@ export function CollectionTreeView(
               <CollectionTreeView
                 item={item}
                 depth={(props.depth ?? 0) + 1}
-                filter={props.filter}
                 filters={props.filters}
                 onClick={props.onClick}
                 onDblClick={props.onDblClick}

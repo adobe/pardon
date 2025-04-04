@@ -15,32 +15,33 @@ import {
   Schema,
   SchemaMergingContext,
   SchemaRenderContext,
-  Schematic,
   SchematicOps,
   Template,
 } from "../../core/types.js";
 import {
   defineSchema,
-  defineSchematic,
   executeOp,
   exposeSchematic,
+  isSchematic,
   merge,
 } from "../../core/schema-ops.js";
+import { templateSchematic } from "../../template.js";
 
-export type EncodingType<T, S> = {
-  as: T extends string ? "string" : Exclude<string, "string">;
-  decode(context: SchemaMergingContext<T>): S | undefined;
-  encode(output: S | undefined, context: SchemaRenderContext): T | undefined;
+export type EncodingType<Outer, Inner> = {
+  as: Outer extends string ? "string" : Exclude<string, "string">;
+  decode(context: SchemaMergingContext<Outer>): Template<Inner> | undefined;
+  encode(
+    value: Inner | undefined,
+    context: SchemaRenderContext,
+  ): Outer | undefined;
 };
 
 function decode<T, S>(
   context: SchemaMergingContext<T>,
   encoding: EncodingType<T, S>,
 ): SchemaMergingContext<S> | undefined {
-  if (typeof context.template === "function") {
-    const ops = exposeSchematic<EncodingSchematicOps<T, S>>(
-      context.template as Schematic<T>,
-    );
+  if (isSchematic(context.template)) {
+    const ops = exposeSchematic<EncodingSchematicOps<T, S>>(context.template);
 
     if (!ops.encoding) {
       throw diagnostic(
@@ -68,18 +69,25 @@ export type EncodingSchematicOps<T, S> = SchematicOps<T> & {
 export function encodingTemplate<T, S>(
   encoding: EncodingType<T, S>,
   template?: Template<S>,
-): Schematic<T> {
-  return defineSchematic<EncodingSchematicOps<T, S>>({
-    expand(context) {
-      return encodingSchema(encoding, context.expand(template));
+  source?: NoInfer<S>,
+): Template<T> {
+  return templateSchematic(
+    (context) => {
+      let inner: Schema<S> | undefined = context.expand(template);
+      if (source !== undefined) {
+        inner = merge(inner, { ...context, template: source });
+      }
+      return (inner && encodingSchema(encoding, inner))!;
     },
-    encoding() {
-      return encoding;
+    {
+      encoding() {
+        return encoding;
+      },
+      template() {
+        return template;
+      },
     },
-    template() {
-      return template;
-    },
-  });
+  );
 }
 
 export function encodingSchema<T, S>(
@@ -94,7 +102,8 @@ export function encodingSchema<T, S>(
 
         return result && encodingSchema(encoding, result);
       } catch (error) {
-        throw diagnostic(context, error);
+        diagnostic(context, error);
+        return undefined;
       }
     },
 

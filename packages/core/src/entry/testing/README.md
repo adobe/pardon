@@ -120,7 +120,3 @@ Because of this, the environment object accessible within the unit itself will
 be effectively cleared to be at most a copy of the input. But any assignments to
 the environment are available to the callers (or more specifically, the
 awaiters, of the result.)
-
-Units are most useful for turning non-idempotent actions into idempotent
-resources. For example: account creation that can be shared across many tests
-that need an account.

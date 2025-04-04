@@ -98,6 +98,12 @@ export class ConfigSpace {
         return { patterns, related: [] };
       }
 
+      if (
+        !patterns.every((pattern) => arePatternsCompatible(pattern, template))
+      ) {
+        return;
+      }
+
       return { patterns: [template, ...patterns], related: [] };
     }
 

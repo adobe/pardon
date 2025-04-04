@@ -580,14 +580,14 @@ GET https://example.com/ping?hello=world&hello=earth
 ```
 notice that only the last one is produced.
   </ExerciseItem>
-    <ExerciseItem label="search: multi"
+    <ExerciseItem label="[searchParams]: multi"
       prompt="allow multiple query params for the same">
-  Update the endpoint with `search: multi` to enable 
+  Update the request with `[searchParams]: multi` to enable 
   multiple query param handling.
-```http title="example/ping.https" ins=/search: multi/ copy=collection
-search: multi
+```http title="example/ping.https" ins="[search]: multi" copy=collection
 >>>
 GET https://example.com/ping
+[searchParams]: multi
 ```
 
 Try this again
@@ -596,14 +596,14 @@ GET https://example.com/ping?hello=world&hello=earth
 ```
 and now both parameters are produced.
   </ExerciseItem>
-  <ExerciseItem label="search: multi - merging"
+  <ExerciseItem label="[searchParams]: multi - merging"
       prompt="include parameters in the tempalte">
 
 Include one or more query params in the base template
 ```http title="example/ping.https" ins=/[?].*/ copy=collection
-search: multi
 >>>
 GET https://example.com/ping?hello=world
+[searchParams]: multi
 ```
 
 And try this again
@@ -619,7 +619,7 @@ GET https://example.com/ping?hello=venus&hello=earth
 Or you can use a template and see how that merges
 (it merges with the first one).
 ```http title="example/ping.https" ins=/[?].*/ copy=collection
-search: multi
+[searchParams]: multi
 >>>
 GET https://example.com/ping?hello={{?greeting}}
 ```

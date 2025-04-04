@@ -41,6 +41,7 @@ export type SchemaMergingContext<T> = SchemaContextBase & {
   evaluationScope: EvaluationScope;
   environment: SchemaScriptEnvironment;
   template?: Template<T>;
+  meta?: Record<string, string>;
   expand<T>(template?: Template<T>): Schema<T>;
 };
 

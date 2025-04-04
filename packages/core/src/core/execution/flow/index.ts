@@ -18,7 +18,6 @@ import {
   currentFlowContext,
   FlowResult,
   runFlow,
-  IdempotentFlowSource,
   FlowFunction,
   FlowParams,
 } from "./flow-core.js";
@@ -36,7 +35,6 @@ export type {
   FlowResult,
   FlowFunction,
   FlowParams,
-  IdempotentFlowSource,
 };
 
 export async function flow(
@@ -55,6 +53,7 @@ export async function executeFlowInContext(
   context: FlowContext,
 ) {
   const flow = context.runtime.collection.flows[name];
+
   if (!flow) {
     throw new PardonError(`no flow named ${name}`);
   }

@@ -154,7 +154,7 @@ export default function PardonPlaygroundResponseView(
               }}
             >
               <button
-                onclick={reset}
+                onClick={reset}
                 class="-m-1 rounded-md border-none bg-transparent p-1 leading-none transition-transform rotate-0 hover:bg-emerald-100 hover:-rotate-12 dark:hover:bg-lime-900"
               >
                 <TbArrowBarDown size={iconSize} />
@@ -162,7 +162,7 @@ export default function PardonPlaygroundResponseView(
               <Show when={secretsEnabled}>
                 <button
                   class="-m-1 rounded-md border-none bg-transparent p-1 leading-none hover:bg-emerald-100 dark:hover:bg-lime-900"
-                  onmousedown={() =>
+                  onMouseDown={() =>
                     secretsEnabled &&
                     setSecrets((value) => {
                       return !value;

@@ -4,7 +4,12 @@ import corvu from "@corvu/tailwind";
 export default {
   darkMode: "media",
   content: ["./src/**/*.{html,jsx,tsx,pcss}"],
-  plugins: [corvu],
+  plugins: [
+    corvu,
+    ({ addVariant }) => {
+      addVariant("light", "@media (prefers-color-scheme: light)");
+    },
+  ],
   theme: {
     fontFamily: {
       mono: ["Source Code Pro", "Consolas", "monospace"],
@@ -23,6 +28,9 @@ export default {
     extend: {
       borderWidth: {
         1: "1px",
+      },
+      boxShadow: {
+        drop: "0 8px 6px -8px",
       },
       colors: {
         corvu: {

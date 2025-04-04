@@ -36,7 +36,11 @@ import { httpOps, valueOps } from "pardon/database";
 import { traced } from "pardon/features/trace";
 import undici from "pardon/features/undici";
 import remember, { PardonHttpExecutionContext } from "pardon/features/remember";
-import { cleanObject, HttpsRequestStep, RequestJSON } from "pardon/formats";
+import {
+  cleanObject,
+  HttpsRequestStep,
+  HttpsResponseStep,
+} from "pardon/formats";
 import {
   CompiledHttpsSequence,
   failfast,
@@ -46,13 +50,17 @@ import {
 const [cwd] = argv.slice(2);
 
 const tracingHooks = {
-  onRenderStart({ context: { trace, awaited, ask }, endpoint }) {
-    const payload = {
+  onRenderStart({
+    context: { trace, awaited, ask },
+    endpoint: {
+      configuration: { name: endpoint },
+    },
+  }) {
+    const payload: TracingHookPayloads["onRenderStart"] = {
       trace,
       context: { ask, endpoint },
       awaited: {
         requests: awaited.requests.map(({ context: { trace } }) => trace),
-        results: awaited.results.map(({ context: { trace } }) => trace),
       },
     };
 
@@ -65,7 +73,7 @@ const tracingHooks = {
     context: { trace, awaited, timestamps, durations },
     outbound: { request, redacted },
   }) {
-    const payload = {
+    const payload: TracingHookPayloads["onRenderComplete"] = {
       trace,
       context: { timestamps, durations },
       awaited: {
@@ -87,24 +95,19 @@ const tracingHooks = {
       trace: payload as Optional<typeof payload, "secure">,
     };
   },
-  onSend({ context: { trace, timestamps, durations } }) {
-    const payload = {
-      trace,
-      context: { timestamps, durations },
-      timestamps,
-      durations,
-    };
-
+  onSend({ context: { trace } }) {
     return {
       id: "trace:sent" as const,
-      trace: payload,
+      trace: {
+        trace,
+      } satisfies TracingHookPayloads["onSend"],
     };
   },
   onResult({
     context: { awaited, trace, timestamps, durations },
-    inbound: { response, redacted, values, secrets, outcome },
+    inbound: { response, redacted, values, flow, secrets, outcome },
   }) {
-    const payload = {
+    const payload: TracingHookPayloads["onResult"] = {
       trace,
       context: { timestamps, durations },
       awaited: {
@@ -115,6 +118,7 @@ const tracingHooks = {
         response: HTTP.responseObject.json(redacted),
         outcome,
         values,
+        flow,
       },
       secure: {
         inbound: {
@@ -129,10 +133,15 @@ const tracingHooks = {
       trace: payload as Optional<typeof payload, "secure">,
     };
   },
-  onError(error, stage, trace) {
+  onError({ error, trace }) {
+    console.log("onError", error.stack);
     return {
       id: "trace:error" as const,
-      trace: { trace, stage, error: String(error) },
+      trace: {
+        trace,
+        step: error.step,
+        error: String(error?.formatted ?? error),
+      } satisfies TracingHookPayloads["onError"],
     };
   },
 } as const satisfies Parameters<typeof traced>[0];
@@ -144,7 +153,7 @@ async function initializePardonAndLoadSamples(
     undici,
     failfast,
     traced(
-      mapObject(tracingHooks, (fn) => (...args) => {
+      mapObject(tracingHooks, (fn) => (...args: any) => {
         disconnected(() => {
           parentPort!.postMessage(ship((fn as any)(...args)));
         });
@@ -200,7 +209,7 @@ parentPort.on("message", async ({ id, action, args }) => {
     parentPort.postMessage({
       id,
       status: "rejected",
-      reason: String(error?.message ?? error),
+      reason: String(error?.formatted ?? error),
     });
   }
 });
@@ -211,28 +220,12 @@ function handling<Action extends keyof typeof handlers>(
   return (async (...args: Parameters<(typeof handlers)[Action]>) => {
     try {
       return await (handlers[action] as any)(...args);
-    } catch (error) {
-      console.warn(`error:${action}: ${error}`);
-
-      const stack = [];
-
-      let theerror = error as any;
-      while (theerror?.cause) {
-        if ("stack" in theerror) {
-          stack.push(
-            "--- in ---",
-            ...String(theerror.stack).split("\n").slice(0, 1),
-          );
-        }
-        theerror = theerror.cause;
-      }
-
-      const rejection = Promise.reject(
-        String((error as Error)?.stack ?? error) +
-          (stack.length ? `\n${stack.join("\n")}` : ""),
-      );
-
-      rejection.catch(() => {});
+    } catch (exception) {
+      const rejection = Promise.resolve({
+        exception: String(
+          exception?.formatted ?? exception?.stack ?? exception,
+        ),
+      });
 
       return rejection;
     }
@@ -269,40 +262,29 @@ function makeSelector({ endpoint, service, ...options }: PardonWorkerOptions): {
   };
 }
 
-function executeToRender(
+function executeInit(
   http: string,
   input: Record<string, unknown>,
   workerOptions: PardonWorkerOptions,
 ) {
   const { options, select } = makeSelector(workerOptions);
 
-  return pardon(input, {
-    options: { ...options, parsecurl: true },
-    select,
-  })`${http.trim() || [input.method ?? "GET", "//"].join(" ").trim()}`.render();
+  try {
+    return pardon(input, {
+      options: { ...options, parsecurl: true },
+      select,
+    })`${http.trim() || [input.method ?? "GET", "//"].join(" ").trim()}`.init();
+  } catch (error) {
+    throw error.message; //{ step: "sync", info: { input, options }, error };
+  }
 }
-
-type PardonExecutionRender = {
-  context: {
-    trace: number;
-    ask: string;
-    durations: PardonHttpExecutionContext["durations"];
-  };
-  outbound: {
-    request: RequestJSON;
-  };
-  secure: {
-    outbound: {
-      request: RequestJSON;
-    };
-  };
-};
 
 const ongoing: Record<
   string,
   {
-    execution: ReturnType<typeof executeToRender>;
-    render: PardonExecutionRender;
+    execution: ReturnType<typeof executeInit>;
+    context: Awaited<ReturnType<typeof executeInit>["context"]>;
+    render?: PardonExecutionRender;
   }
 > = {};
 
@@ -340,11 +322,21 @@ const handlers = {
                 searchParams: String(interaction.request.searchParams),
                 headers: [...interaction.request.headers],
               },
+            } as Omit<HttpsRequestStep, "request"> & {
+              request: Omit<
+                HttpsRequestStep["request"],
+                "searchParams" | "headers"
+              > & {
+                searchParams: string;
+                headers: [string, string][];
+              };
             };
           } else {
             return {
               ...interaction,
               headers: [...interaction.headers],
+            } as Omit<HttpsResponseStep, "headers"> & {
+              headers: [string, string][];
             };
           }
         }),
@@ -381,17 +373,8 @@ const handlers = {
   async resolvePath(path: string) {
     return new URL(path, `file://${cwd}/`).href;
   },
-  async preview(
-    http: string,
-    input: Record<string, unknown>,
-    workerOptions: PardonWorkerOptions,
-  ) {
-    const { options, select } = makeSelector(workerOptions);
-
-    const preview = pardon(input, {
-      options: { ...options, parsecurl: true },
-      select,
-    })`${http.trim() || [input.method ?? "GET", "//"].join(" ").trim()}`.preview();
+  async preview(handle: string) {
+    const { execution } = ongoing[handle];
 
     const {
       endpoint: {
@@ -399,9 +382,9 @@ const handlers = {
         action,
         service,
       },
-    } = await preview.match;
+    } = await execution.match;
 
-    const { redacted, reduced } = await preview;
+    const { redacted, reduced } = await execution.preview;
 
     return {
       service,
@@ -413,26 +396,38 @@ const handlers = {
       yaml: YAML.stringify(cleanObject(configuration))?.trim(),
     };
   },
-  async render(
+
+  async context(
     http: string,
     values: Record<string, unknown>,
     options?: PardonWorkerOptions,
   ) {
-    const execution = executeToRender(http, values, options);
+    const execution = executeInit(http, values, options);
     execution.catch(() => {});
 
+    const context = (await execution.context) as PardonHttpExecutionContext;
+
     const handle = randomUUID() as string;
+
+    ongoing[handle] = { context, execution };
+
+    return { handle, context };
+  },
+  async render(handle: string) {
+    const { execution } = ongoing[handle];
+
     const { request, redacted, reduced } = await execution.outbound;
 
     const { trace, ask, durations } =
       (await execution.context) as PardonHttpExecutionContext;
 
-    const render: PardonExecutionRender = {
+    const render: PardonExecutionRender & { http: string } = {
       context: {
         trace,
         ask,
         durations,
       },
+      http: HTTP.stringify({ ...redacted, values: reduced }),
       outbound: {
         request: HTTP.requestObject.json({ ...redacted, values: reduced }),
       },
@@ -443,9 +438,9 @@ const handlers = {
       },
     };
 
-    ongoing[handle] = { render, execution };
+    ongoing[handle].render = render;
 
-    return { handle, ...render };
+    return { handle, render };
   },
   async dispose(handle: string) {
     delete ongoing[handle];
@@ -470,7 +465,7 @@ const handlers = {
       },
     };
 
-    return {
+    const result = {
       context: { ask, trace, durations },
       endpoint,
       outcome: inbound.outcome,
@@ -484,8 +479,11 @@ const handlers = {
         response: HTTP.responseObject.json(inbound.redacted),
         values: inbound.values,
       },
-      secure: secure as typeof secure | undefined,
+      secure,
     };
+
+    return result as Omit<typeof result, "secure"> &
+      Partial<Pick<typeof result, "secure">>;
   },
   async archetype(httpsMaybe: string) {
     try {

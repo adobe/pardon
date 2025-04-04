@@ -45,7 +45,7 @@ function requestObjectStringify({
   ...request
 }: Partial<RequestObject>) {
   const { origin, pathname, searchParams } = intoURL(request);
-  return `${KV.stringify(values ?? {}, "\n", 2, "\n\n")}${origin?.trim() ? (request.method ?? "GET") : ""} ${origin ?? ""}${pathname ?? ""}${
+  return `${KV.stringify(values ?? {}, "\n", 2, "\n")}${origin?.trim() ? (request.method ?? "GET") : ""} ${origin ?? ""}${pathname ?? ""}${
     searchParams ?? ""
   }${[...Object.entries(request.meta ?? {})]
     .map(([k, v]) => `\n[${k}]: ${v}`)
@@ -158,11 +158,11 @@ function parseResponseObject(response: string): ResponseObject {
   scanComments(lines, { andBlankLines: true });
   const [, status, statusText] = /\s*(\d+)(?:\s*(.*))?$/.exec(lines.shift()!)!;
 
-  const { headers } = scanHeaders(lines);
+  const { headers, meta } = scanHeaders(lines);
 
   const body = scanBody(lines);
 
-  return { status, statusText, headers: new Headers(headers), body };
+  return { status, statusText, headers: new Headers(headers), meta, body };
 }
 
 function scanHeaders(lines: string[]) {

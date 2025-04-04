@@ -19,19 +19,26 @@ import {
   ts,
   IndentationText,
   SyntaxKind,
+  Diagnostic,
+  DiagnosticMessageChain,
 } from "ts-morph";
 import { PardonError } from "../error.js";
 import { JSON } from "../json.js";
+import { disarm } from "../../util/promise.js";
 
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
+
+// disable assertions in typescript.
+(ts as any).Debug.setAssertionLevel(1);
 
 const expressionProject = new Project({
   compilerOptions: {
     allowJs: true,
     noCheck: true,
-    strict: false,
+    strict: true,
     target: ScriptTarget.ES2022,
     module: ModuleKind.ES2022,
+    noEmitOnError: true,
   },
   useInMemoryFileSystem: true,
   manipulationSettings: {
@@ -41,19 +48,41 @@ const expressionProject = new Project({
   },
 });
 
+export function getMessage(
+  error: Diagnostic<ts.Diagnostic> | DiagnosticMessageChain,
+) {
+  if (error.getMessageText) {
+    const message = error.getMessageText();
+    if (typeof message === "string") {
+      return message;
+    }
+    return getMessage(message);
+  }
+
+  return "unknown error: " + error;
+}
+
 export function applyTsMorph(
   expression: string,
   transform: TsMorphTransform = (control) => control.visitChildren(),
 ): string {
   const exprSourceFile = expressionProject.createSourceFile(
-    `__expr__.ts`,
+    `/__expr__.ts`,
     `export default ${expression}`,
-    { overwrite: true },
+    { overwrite: true, scriptKind: ts.ScriptKind.TS },
   );
+
+  const errors = exprSourceFile
+    .getPreEmitDiagnostics()
+    .filter((diag) => diag.getCategory() === ts.DiagnosticCategory.Error);
+
+  if (errors.length > 0) {
+    throw new PardonError(getMessage(errors[0]));
+  }
 
   exprSourceFile
     .getExportAssignment((assignment) => !assignment.isExportEquals())!
-    .getExpression()!
+    .getExpression()
     .transform(transform);
 
   const result = expressionProject.emitToMemory({
@@ -175,8 +204,20 @@ export async function evaluation(
     ...bound.map(([k]) => k),
     `return (async () => (${compiled}))()`,
   );
+
+  bound.map(([, v]) => disarm(v as Promise<unknown>));
+
   try {
-    const args = await Promise.all(bound.map(([, v]) => v));
+    const args = await Promise.all(
+      bound.map(([k, v]) =>
+        disarm(
+          Promise.resolve(v).catch((ex) => {
+            throw new PardonError(`evaluating ${k}`, ex);
+          }),
+        ),
+      ),
+    );
+
     const result = await fn(...args);
 
     return result;

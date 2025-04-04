@@ -22,7 +22,7 @@ export default {
   plugins: [
     tailwind3d({ legacy: true }),
     ({ addVariant }) => {
-      addVariant("light", '[data-theme="light"] &');
+      addVariant("light", "@media (prefers-color-scheme: light)");
     },
   ],
 };

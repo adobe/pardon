@@ -10,7 +10,11 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { PardonFetchExecution } from "../pardon/pardon.js";
-import { PardonExecution, pardonExecution } from "./pardon-execution.js";
+import {
+  PardonExecution,
+  pardonExecution,
+  PardonExecutionError,
+} from "./pardon-execution.js";
 
 type ExtendedExecution<ContextExtension, Execution> =
   Execution extends PardonExecution<
@@ -108,16 +112,7 @@ type ExtendedExecutionHooks<
           result: Result;
         }): void | Promise<void>;
 
-        onerror?(
-          ...args: Parameters<Execution["executor"]["onerror"]> &
-            [
-              unknown,
-              unknown,
-              {
-                context?: ContextExtension;
-              },
-            ]
-        ): void;
+        error?(error: PardonExecutionError, info: any): void;
       }
     : never;
 
@@ -169,10 +164,9 @@ export function hookExecution<
       await hooks.result?.({ ...info, result });
       return result;
     },
-    onerror(error, stage, context) {
-      hooks.onerror?.(error, stage, context);
-
-      return executor.onerror(error, stage, context);
+    error(error, info) {
+      hooks.error?.(error, info);
+      executor.error(error, info);
     },
   } satisfies ExtendedExecution<
     ContextExtension,

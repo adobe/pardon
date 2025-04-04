@@ -10,23 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { IconProps } from "solid-icons";
-import { Match, splitProps, Switch } from "solid-js";
+import { ComponentProps, Match, splitProps, Switch } from "solid-js";
 import { manifest } from "../../signals/pardon-config.ts";
 import { CollectionTreeItem } from "./collection-tree-types.ts";
-import {
-  TbAB,
-  TbDatabase,
-  TbFolder,
-  TbMist,
-  TbPolygon,
-  TbSettings,
-} from "solid-icons/tb";
 import HttpMethodIcon from "../HttpMethodIcon.tsx";
 import { twMerge } from "tailwind-merge";
 
 export default function CollectionItemIcon(
-  props: IconProps & { item: CollectionTreeItem },
+  props: ComponentProps<"svg"> & { item: CollectionTreeItem },
 ) {
   const [, iconProps] = splitProps(props, ["item"]);
   const { endpoints } = manifest() || {};
@@ -36,21 +27,21 @@ export default function CollectionItemIcon(
   ]?.["method"];
 
   return (
-    <Switch fallback={<TbFolder {...iconProps} />}>
+    <Switch fallback={<IconTablerFolder {...iconProps} />}>
       <Match when={props.item.type === "config"}>
-        <TbSettings {...iconProps} />
+        <IconTablerSettings {...iconProps} />
       </Match>
       <Match when={props.item.type === "data"}>
-        <TbDatabase {...iconProps} />
+        <IconTablerDatabase {...iconProps} />
       </Match>
       <Match when={props.item.type === "flow"}>
-        <TbAB
+        <IconTablerAB
           {...iconProps}
           class={twMerge(iconProps.class, "text-purple-500")}
         />
       </Match>
       <Match when={props.item.type === "mixin"}>
-        <TbPolygon {...iconProps} />
+        <IconTablerPolygon {...iconProps} />
       </Match>
       <Match when={props.item.type === "endpoint"}>
         <HttpMethodIcon
@@ -59,7 +50,7 @@ export default function CollectionItemIcon(
         />
       </Match>
       <Match when={props.item.type === "script"}>
-        <TbMist {...iconProps} />
+        <IconTablerMist {...iconProps} />
       </Match>
     </Switch>
   );

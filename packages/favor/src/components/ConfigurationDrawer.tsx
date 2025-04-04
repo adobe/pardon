@@ -13,16 +13,14 @@ governing permissions and limitations under the License.
 import Drawer from "corvu/drawer";
 import { ComponentProps, ParentProps, splitProps } from "solid-js";
 
-import { executionResource } from "../signals/pardon-execution.ts";
+import { executionMemo } from "../signals/pardon-execution-signal.ts";
 import { InfoDrawer } from "./InfoDrawer.tsx";
 
 export function ConfigurationDrawer(
   props: ParentProps<{
-    preview: ReturnType<
-      ReturnType<typeof executionResource>["preview"]
-    > extends PromiseSettledResult<infer T>
-      ? T
-      : never;
+    preview: PromiseSettledResult<
+      Awaited<ReturnType<ReturnType<typeof executionMemo>>["preview"]>
+    >;
   }> &
     ComponentProps<"button">,
 ) {
@@ -37,7 +35,9 @@ export function ConfigurationDrawer(
             Configuration
           </Drawer.Label>
           <Drawer.Description class="flex-1 overflow-auto">
-            <pre>{props.preview.yaml}</pre>
+            <pre class="pr-10">
+              {props.preview.status === "fulfilled" && props.preview.value.yaml}
+            </pre>
           </Drawer.Description>
         </>
       }

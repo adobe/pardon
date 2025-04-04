@@ -91,15 +91,16 @@ function tokenize(data: string) {
 
 // simple token should allow somewhat complex values like e.g., email addresses and paths without quotes
 const simpleToken = /^[a-z0-9~!@#$%^&|*_./:=?+-]+$/i;
-const simpleKey = /^[a-z0-9$@_.-]*$/i;
+const simpleKey = /^[a-z0-9$@_.+-]*$/i;
 
 const unparsed = Symbol("unparsed");
 const upto = Symbol("upto");
 const eoi = Symbol("end-of-input");
 
-export type ParseMode = "object" | "stream";
+export type ParseMode = "object" | "stream" | "value";
 
 export const KV: {
+  parse(data: string, mode: "value"): unknown;
   parse(data: string, mode: "object"): Record<string, unknown>;
   parse(
     data: string,
@@ -133,6 +134,10 @@ export const KV: {
       [upto]?: number;
     } = {};
 
+    if (parseMode === "value") {
+      data = "value=" + data;
+    }
+
     const tokens = tokenize(data ?? "");
     const stack: { (token: string): void; [eoi]?(): void | boolean }[] = [];
     let parsed = 0;
@@ -151,8 +156,6 @@ export const KV: {
           );
         case isValidNumberToken(token):
           return createNumber(token);
-        case /^[+-]/.test(token):
-          throw new Error("invalid numeric: " + token);
         default:
           if (token === "null") {
             return null;
@@ -309,6 +312,10 @@ export const KV: {
     }
 
     if (parseMode && !data.trim()) {
+      if (parseMode === "value") {
+        return null;
+      }
+
       return {};
     }
 
@@ -367,7 +374,7 @@ export const KV: {
     }
 
     if (stack.length !== 1 || stack[0] !== key) {
-      if (parseMode !== "stream") {
+      if (parseMode !== "stream" && parseMode !== "value") {
         throw new Error("failed to parse entire text as kv format");
       }
 
@@ -375,6 +382,10 @@ export const KV: {
         result[unparsed] = tokens.slice(parsed).join("");
         return;
       }
+    }
+
+    if (parseMode === "value") {
+      return result.value;
     }
 
     return result;
@@ -397,9 +408,30 @@ export const KV: {
 
   stringifyKey,
   stringifyValue,
-  tokenize(data) {
+  tokenize(data: string) {
     const tokens = tokenize(data)
       .filter((_, i) => i & 1)
+      .reduce<string[]>((tokens, token) => {
+        switch (true) {
+          case /^\s*$/.test(token):
+          case token === ",":
+          case token === "[":
+          case token === "]":
+          case token === "{":
+          case token === "}":
+            tokens.push(token);
+            break;
+          case inValue(tokens) &&
+            ![":", "="].includes(tokens[tokens.length - 2]):
+            tokens[tokens.length - 2] += token;
+            break;
+          default:
+            tokens.push(token);
+            break;
+        }
+
+        return tokens;
+      }, [])
       .map<{ token: string; key?: string; value?: unknown; span?: number }>(
         (token) => {
           switch (token) {
@@ -409,16 +441,15 @@ export const KV: {
             case "}":
             case ",":
             case "=":
-              return { token };
             case ":":
-              return { token: "=" };
+              return { token };
           }
 
           if (!token.trim()) {
             return { token };
           }
 
-          return { token, value: KV.parse(token) };
+          return { token, value: KV.parse(token, "value") };
         },
       );
 
@@ -431,9 +462,9 @@ export const KV: {
     filteredIndexed.forEach(({ token }, idx) => {
       switch (token) {
         case "=":
+        case ":":
           stack.unshift({ type: "=", at: filteredIndexed[idx - 1].oi });
           break;
-        case ":":
         case ",":
           break;
         case "[":
@@ -458,12 +489,14 @@ export const KV: {
             stack.shift();
             if (top.type === "=") {
               tokens[top.at].key = String(tokens[top.at].value);
-              tokens[top.at].value = KV.parse(
-                tokens
-                  .slice(top.at + 2, filteredIndexed[idx].oi + 1)
-                  .map(({ token }) => token)
-                  .join(""),
-              );
+
+              const value = tokens
+                .slice(top.at + 2, filteredIndexed[idx].oi + 1)
+                .map(({ token }) => token)
+                .join("");
+
+              tokens[top.at].value = KV.parse(value, "value");
+
               break;
             } else {
               if (token === "]" || token === "}") {

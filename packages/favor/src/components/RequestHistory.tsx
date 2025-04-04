@@ -10,146 +10,28 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import {
-  createMemo,
-  createSignal,
-  For,
-  JSX,
-  createContext,
-  Show,
-  Accessor,
-  on,
-} from "solid-js";
-import { TbTrash } from "solid-icons/tb";
-import { executionResource } from "../signals/pardon-execution.ts";
+import { createMemo, For, createContext, Show } from "solid-js";
 import { RequestSummaryTree } from "./RequestSummaryTree.tsx";
-import { InfoDrawer } from "./InfoDrawer.tsx";
-import KeyValueCopier from "./KeyValueCopier.tsx";
 import {
-  activeTrace,
   clearAllTraces,
   clearTrace,
+  relatedTraces,
   requestHistory,
   Trace,
-  traceCurrentRequest,
   traces,
 } from "./request-history.ts";
-import { HTTP } from "pardon/formats";
-import CodeMirror from "./codemirror/CodeMirror.tsx";
 
 export const RequestSummaryInfo = createContext<{
   outbound(trace: Trace): void;
   inbound(trace: Trace): void;
 }>();
 
-export function RequestSummaryInfoDrawerWrapper(props: {
-  children: JSX.Element;
-  faded?: boolean;
-}): JSX.Element {
-  const [displayedHttp, setDisplayedHttp] = createSignal<string>();
-
-  const [displayedValues, setDisplayedValues] =
-    createSignal<Record<string, unknown>>();
-
-  return (
-    <InfoDrawer
-      class="bg-lime-200 dark:bg-lime-800"
-      content={
-        <div class="flex max-h-[calc(100dvh-50px)] min-w-full flex-1 flex-col">
-          <CodeMirror
-            readonly
-            data-corvu-no-drag
-            value={displayedHttp()}
-            nowrap
-            class="mr-8 max-h-96 max-w-full select-auto overflow-auto bg-lime-400 dark:bg-lime-900"
-            text="12px"
-          />
-          <div class="mt-2 flex w-full flex-1 overflow-hidden">
-            <KeyValueCopier data={displayedValues() ?? {}} />
-          </div>
-        </div>
-      }
-    >
-      {(drawerProps) => {
-        return (
-          <RequestSummaryInfo.Provider
-            value={{
-              inbound(trace) {
-                setDisplayedHttp(
-                  HTTP.responseObject.stringify(
-                    HTTP.responseObject.fromJSON(
-                      trace.result?.inbound.response,
-                    ),
-                  ),
-                );
-                setDisplayedValues(trace.result?.inbound.values);
-                drawerProps.setOpen(true);
-              },
-              outbound(trace) {
-                setDisplayedHttp(
-                  HTTP.stringify({
-                    ...HTTP.requestObject.fromJSON(
-                      trace.render?.outbound.request,
-                    ),
-                    values: {},
-                  }),
-                );
-                setDisplayedValues({
-                  ...trace.render?.outbound.request.values,
-                  origin: undefined,
-                  method: undefined,
-                  pathname: undefined,
-                });
-                drawerProps.setOpen(true);
-              },
-            }}
-          >
-            <div
-              class="flex flex-1 flex-col overflow-auto"
-              classList={{
-                "fade-to-clear": props.faded,
-              }}
-            >
-              <ul class="flex flex-initial flex-col text-nowrap px-0 py-2 text-xs">
-                {props.children}
-              </ul>
-            </div>
-          </RequestSummaryInfo.Provider>
-        );
-      }}
-    </InfoDrawer>
-  );
-}
-
-export function startTracingRequestHistory(
-  render: Accessor<
-    ReturnType<ReturnType<typeof executionResource>["outbound"]>
-  >,
-) {
-  const currentRequest = createMemo(
-    on(render, (render) => {
-      if (render?.status !== "fulfilled") {
-        return;
-      }
-
-      const request = render?.value;
-      if (
-        request.type !== "history" &&
-        typeof request?.context.trace !== "undefined"
-      ) {
-        return request;
-      }
-    }),
-  );
-
-  traceCurrentRequest(currentRequest);
-}
-
 export default function RequestHistory(props: {
-  onRestore: (history: ExecutionHistory) => void;
-  isCurrent(trace: number): boolean;
+  onRestore(history: ExecutionHistory): void;
+  currentTrace: number;
 }) {
-  const tree = requestHistory(activeTrace);
+  const tree = requestHistory();
+  const related = relatedTraces(createMemo(() => props.currentTrace));
 
   const expandedSet = new Set<string>();
 
@@ -162,28 +44,29 @@ export default function RequestHistory(props: {
   const historyLength = createMemo(() => tree().length);
 
   return (
-    <div class="flex size-full flex-col bg-slate-200 dark:bg-slate-800">
-      <RequestSummaryInfoDrawerWrapper faded>
-        <For each={tree().slice(0, cutoff)}>
-          {({ trace, deps }) => (
-            <RequestSummaryTree
-              traces={traces()}
-              isCurrent={props.isCurrent}
-              trace={trace}
-              deps={deps}
-              onRestore={props.onRestore}
-              expandedSet={expandedSet}
-              clearTrace={clearTrace}
-            />
-          )}
-        </For>
-        <Show when={historyLength() > cutoff}>
-          <span class="flex-1 place-self-start px-2 font-mono">
-            . . . and {historyLength() - cutoff} more request
-            {historyLength() - cutoff > 1 ? "s" : ""} hidden . . .
-          </span>
-        </Show>
-      </RequestSummaryInfoDrawerWrapper>
+    <div class="flex size-full flex-col bg-zinc-100 dark:bg-slate-800">
+      <div class="fade-to-clear flex flex-1 flex-col overflow-auto [--clear-start-opacity:0]">
+        <ul class="flex flex-initial flex-col text-nowrap px-0 py-2 text-xs">
+          <For each={tree().slice(0, cutoff)}>
+            {(trace) => (
+              <RequestSummaryTree
+                traces={traces()}
+                related={related()}
+                trace={trace}
+                onRestore={props.onRestore}
+                expandedSet={expandedSet}
+                clearTrace={clearTrace}
+              />
+            )}
+          </For>
+          <Show when={historyLength() > cutoff}>
+            <li class="pl-5 font-mono">
+              . . . and {historyLength() - cutoff} more request
+              {historyLength() - cutoff > 1 ? "s" : ""} hidden . . .
+            </li>
+          </Show>
+        </ul>
+      </div>
       <div
         class="pointer-events-none absolute inset-x-0 bottom-1 flex place-content-center opacity-100 transition-opacity duration-700"
         classList={{
@@ -198,7 +81,7 @@ export default function RequestHistory(props: {
           onClick={() => clearAllTraces()}
           disabled={unsentTrace()}
         >
-          <TbTrash />
+          <IconTablerTrash />
         </button>
       </div>
     </div>

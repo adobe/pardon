@@ -18,21 +18,30 @@ export type SimpleRequestInit = Omit<RequestInit, "body"> & {
   encoding?: EncodingTypes;
 };
 
+export type RequestMeta = Record<string, string> & {
+  resolve?: string;
+  body?: EncodingTypes;
+};
+
+export type ResponseMeta = Record<string, string> & {
+  body?: EncodingTypes;
+};
+
 export type FetchObject = {
   method?: string;
   origin?: string;
   pathname?: string;
   searchParams?: URLSearchParams;
   headers: Headers;
-  meta?: Record<string, string>;
+  meta?: RequestMeta;
   body?: string;
-  encoding?: EncodingTypes;
 };
 
 export type ResponseObject = {
   status: number | string;
   statusText?: string;
   headers: Headers;
+  meta?: ResponseMeta;
   body?: string;
 };
 
@@ -56,11 +65,10 @@ export function intoFetchParams({
   searchParams,
   headers,
   body,
-  encoding,
 }: Partial<FetchObject>): [URL, SimpleRequestInit] {
   return [
     fetchObjectURL({ origin, pathname, searchParams }),
-    { method, headers, body, encoding, meta },
+    { method, headers, body, meta },
   ];
 }
 
@@ -79,7 +87,6 @@ export function fetchIntoObject(
     searchParams,
     headers: new Headers(headers),
     body,
-    encoding: init?.encoding,
   };
 }
 

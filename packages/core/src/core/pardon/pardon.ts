@@ -54,6 +54,7 @@ import { JSON } from "../json.js";
 import { PardonRuntime } from "./types.js";
 import { valueId } from "../../util/value-id.js";
 import { PardonCompiler } from "../../runtime/compiler.js";
+import { cleanObject } from "../../util/clean-object.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
@@ -163,6 +164,7 @@ export const PardonFetchExecution = pardonExecution({
       method = (values.method as string) ?? "GET",
       headers = [],
       body = undefined,
+      meta,
     } = init ?? {};
 
     return {
@@ -183,17 +185,18 @@ export const PardonFetchExecution = pardonExecution({
           headers: new Headers(headers),
           body,
           values,
+          meta,
         }),
       ...otherContextData,
     };
   },
   async match({ context: { url, init, ...context } }) {
-    const fetchObject = fetchIntoObject(url, init);
+    const request = fetchIntoObject(url, init);
 
     if (typeof context.values?.method === "string") {
-      fetchObject.method ??= context.values?.method;
+      request.method ??= context.values?.method;
 
-      if (context.values?.method !== fetchObject.method) {
+      if (context.values?.method !== request.method) {
         throw new Error(
           "specified values method does not match reqeust method",
         );
@@ -203,8 +206,8 @@ export const PardonFetchExecution = pardonExecution({
     // pathname undefined in some places is allowed (matches any template),
     // but we want to ensure it's set when matching requests.
     // but allow undefined origin and pathname for undefined URLs matched/rendered only by values.
-    if (fetchObject.origin) {
-      fetchObject.pathname ||= "/";
+    if (request.origin) {
+      request.pathname ||= "/";
     }
 
     if (context.options?.unmatched) {
@@ -223,15 +226,12 @@ export const PardonFetchExecution = pardonExecution({
         },
       };
 
-      const encoding = endpoint.configuration.encoding ?? fetchObject.encoding;
-      const archetype = httpsRequestSchema(encoding, {
-        search: { multivalue: endpoint.configuration.search === "multi" },
-      });
+      const archetype = httpsRequestSchema();
 
       const muxed = mergeSchema(
         { mode: "mux", phase: "build" },
         archetype,
-        fetchObject,
+        request,
         createEndpointEnvironment({
           compiler,
           endpoint,
@@ -252,7 +252,7 @@ export const PardonFetchExecution = pardonExecution({
       };
     }
 
-    const matches = matchRequest(fetchObject, context);
+    const matches = matchRequest(request, context);
 
     if (matches.length === 1) {
       const [result] = matches;
@@ -283,8 +283,8 @@ export const PardonFetchExecution = pardonExecution({
       .filter(Boolean) as PardonExecutionMatch[];
 
     return (
-      context.select?.(goodMatches, { context, fetchObject }) ??
-      selectOne(goodMatches, { context, fetchObject })
+      context.select?.(goodMatches, { context, fetchObject: request }) ??
+      selectOne(goodMatches, { context, fetchObject: request })
     );
   },
   async preview({
@@ -330,13 +330,15 @@ export const PardonFetchExecution = pardonExecution({
     return {
       request: {
         ...rendered.output,
-        values: getContextualValues(redacted.context, {
+        meta: cleanObject({ ...rendered.output.meta, body: undefined }),
+        values: getContextualValues(rendered.context, {
           secrets: true,
         }),
       },
       redacted: {
         ...redacted.output,
-        values: getContextualValues(rendered.context),
+        meta: cleanObject({ ...redacted.output.meta, body: undefined }),
+        values: getContextualValues(redacted.context),
       },
       reduced,
       evaluationScope: rendered.context.evaluationScope,
@@ -416,7 +418,9 @@ export const PardonFetchExecution = pardonExecution({
     };
   },
   async fetch({ context: { timestamps }, outbound: { request, redacted } }) {
-    timestamps.request = Date.now();
+    if (timestamps) {
+      timestamps.request = Date.now();
+    }
 
     const [url, init] = intoFetchParams(request);
 
@@ -437,15 +441,19 @@ export const PardonFetchExecution = pardonExecution({
   async process({ context, outbound, inbound, match }) {
     const { compiler } = context.app();
     const { layers, endpoint } = match;
+
     const now = Date.now();
+
     const encoding =
-      guessContentType(inbound.headers, inbound.body ?? "") ?? "raw";
+      inbound.meta?.body ??
+      guessContentType(inbound.body ?? "", inbound.headers) ??
+      "raw";
 
     let matchedSchema: Schema<ResponseObject> | undefined;
     let matchedOutcome: string | undefined;
 
     let matcher = new ProgressiveMatch({
-      schema: httpsResponseSchema(encoding),
+      schema: httpsResponseSchema(),
       match: true,
       object: {
         ...inbound,
@@ -456,13 +464,14 @@ export const PardonFetchExecution = pardonExecution({
 
     for (const { steps, configuration } of layers) {
       for (const responseTemplate of steps) {
-        const { status, headers, body, outcome } =
+        const { status, headers, body, outcome, meta } =
           responseTemplate as HttpsResponseStep;
 
         const result = matcher.extend(
           {
             status,
             headers,
+            meta,
             ...(body && { body }),
           },
           { mode: configuration.mode, environment: new ScriptEnvironment() },
@@ -480,13 +489,13 @@ export const PardonFetchExecution = pardonExecution({
       }
     }
 
-    const responseSchema = httpsResponseSchema(encoding);
+    const responseSchema = httpsResponseSchema();
 
     // no response templates, we just try to match the basic response
     // so we can maybe reformat the json.
     if (!matchedSchema) {
       const merged = mergeSchema(
-        { mode: "match", phase: "build" },
+        { mode: "match", phase: "build", body: encoding },
         responseSchema,
         inbound,
         new ScriptEnvironment(),
@@ -545,34 +554,12 @@ export const PardonFetchExecution = pardonExecution({
         secrets: uncensored.values,
         redacted: redacted.output,
         values: redacted.values,
+        flow: redacted.evaluationScope.resolvedValues({ flow: true }),
       },
     };
   },
-  onerror(error, stage, { match }) {
-    if (match) {
-      return new PardonError(
-        `${match.endpoint.configuration.path} (${stage}): ${why(error)}`,
-      );
-    }
-  },
+  error() {},
 });
-
-function why(error: unknown) {
-  const reasons: string[] = [];
-
-  while (error?.["cause"] !== undefined) {
-    reasons.unshift(String(error?.["message"] ?? error));
-    error = error["cause"];
-  }
-
-  if (reasons.length) {
-    reasons.unshift(String(error?.["message"] ?? error));
-
-    return reasons.join("\n - ");
-  }
-
-  return error?.["message"] ?? error;
-}
 
 function cleanRequestValues(request: Record<string, unknown>) {
   return definedObject({

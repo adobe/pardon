@@ -19,11 +19,17 @@ import {
   EncodingType,
 } from "../schema/definition/encodings/encoding.js";
 import { textTemplate } from "../schema/definition/encodings/text-encoding.js";
-import { urlEncodedFormTemplate } from "../schema/definition/encodings/url-encoded.js";
+import {
+  formEncodingType,
+  parseForm,
+} from "../schema/definition/encodings/url-encoded.js";
 import { createNumber } from "../schema/definition/scalar.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { redact } from "../schema/definition/structures/redact.js";
-import { referenceTemplate } from "../schema/definition/structures/reference.js";
+import {
+  ReferenceSchematic,
+  referenceTemplate,
+} from "../schema/definition/structures/reference.js";
 import {
   muxTemplate,
   tuple,
@@ -31,15 +37,20 @@ import {
   makeKeyed,
   mixTemplate,
   matchTemplate,
+  mvKeyedTuples,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
-const encodings = {
+export const encodings = {
   $json(value: unknown | Template<unknown>) {
     return jsonEncoding(value);
   },
-  $form(value: string | Record<string, string> | [string, string][]) {
-    return urlEncodedFormTemplate(value);
+  $form(value?: string | Record<string, string> | [string, string][]) {
+    return encodingTemplate(
+      formEncodingType,
+      mvKeyedTuples,
+      parseForm(value),
+    ) as Template<string>;
   },
   $base64(value: string | Template<string>) {
     return base64Encoding(value);
@@ -50,7 +61,15 @@ const encodings = {
   $raw(value: string) {
     return textTemplate(datums.antipattern<string>(value));
   },
-} satisfies Record<string, (...args: any) => Schematic<string>>;
+  $template(value: string) {
+    const template = evalBodyTemplate(value);
+    if (typeof template === "function") {
+      return template as Schematic<string>;
+    }
+
+    return jsonEncoding(template);
+  },
+} satisfies Record<string, (...args: any) => Template<string>>;
 
 type InternalEncodingTypes = keyof typeof encodings;
 export type EncodingTypes = InternalEncodingTypes extends `$${infer Pretty}`
@@ -64,6 +83,7 @@ export const bodyGlobals: Record<string, any> = {
   true: true,
   null: null,
   ...encodings,
+  $: $ref,
   $bigint: <T>(x: Template<T>) => referenceTemplate<bigint>({}).$of(x).$bigint,
   $nullable: <T>(x: Template<T>) => referenceTemplate({}).$of(x).$nullable,
   $string: <T>(x: Template<T>) => referenceTemplate<string>({}).$of(x).$string,
@@ -91,13 +111,25 @@ export function getContentEncoding(encoding: InternalEncodingTypes) {
   return encodings[encoding]!;
 }
 
-export function jsonEncoding(template?: Template<unknown>): Schematic<string> {
+export function jsonEncoding(template?: Template<unknown>): Template<string> {
   return encodingTemplate(jsonEncodingType, template);
+}
+
+function $ref(
+  template: TemplateStringsArray,
+  ...args: never[]
+): ReferenceSchematic<unknown>;
+function $ref(template: string): ReferenceSchematic<unknown>;
+function $ref(ref: TemplateStringsArray | string) {
+  if (typeof ref !== "string") {
+    ref = String.raw(ref);
+  }
+  return referenceTemplate({ ref });
 }
 
 export const jsonEncodingType: EncodingType<string, unknown> = {
   as: "string",
-  decode({ mode, template }) {
+  decode({ template, mode }) {
     if ((template ?? "") == "") {
       return undefined;
     }
@@ -106,7 +138,7 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
       throw new Error("json cannot parse non-string");
     }
 
-    if (mode === "match") {
+    try {
       return JSON.parse(template, (_, value, { source }) => {
         if (typeof value === "number") {
           return createNumber(source, value);
@@ -114,9 +146,14 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
 
         return value;
       });
+    } catch (error) {
+      if (mode !== "match") {
+        // fallback to script evaluation (in non-match contexts)
+        // if body doesn't parse
+        void error;
+        return evalBodyTemplate(template);
+      }
     }
-
-    return evalBodyTemplate(template);
   },
   encode(output, context) {
     if (output === undefined) {

@@ -536,7 +536,7 @@ Promise.all = (
       }
     }
 
-    return await all.call(Promise, promises);
+    return all.call(Promise, promises);
   }
 )(Promise.all);
 
@@ -557,7 +557,7 @@ Promise.allSettled = (
       }
     }
 
-    return await allSettled.call(Promise, promises);
+    return allSettled.call(Promise, promises);
   }
 )(Promise.allSettled);
 

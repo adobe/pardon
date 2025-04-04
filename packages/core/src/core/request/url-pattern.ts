@@ -67,6 +67,10 @@ export function intoURL(url: string | URL | URLTemplate): URL {
     return `${origin ?? ""}${pathname ?? ""}${searchParams ?? ""}${hash ?? ""}`;
   }
 
+  function protocol(origin?: string) {
+    return (/^([a-z][a-z0-9+.-]*:)/i.exec(origin ?? "") ?? [undefined, ""])[1];
+  }
+
   // TODO: read and write values.
   const prototype = {
     get hash() {
@@ -121,14 +125,22 @@ export function intoURL(url: string | URL | URLTemplate): URL {
     },
 
     get port() {
-      return "";
+      let [, port = ""] = /:(\d+)$/.exec(origin ?? "") ?? [];
+
+      switch (protocol(origin)) {
+        case "http:":
+          if (port == "80") port = "";
+          break;
+        case "https:":
+          if (port == "443") port = "";
+          break;
+      }
+
+      return port;
     },
 
     get protocol() {
-      return (/^([a-z][a-z0-9+.-]*:)/i.exec(origin ?? "") ?? [
-        undefined,
-        "",
-      ])[1];
+      return protocol(origin);
     },
   } satisfies URL;
 

@@ -10,10 +10,18 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-export type SampleTreeItem = {
+import { CollectionItemInfo } from "./Services.tsx";
+
+export type Filters = {
+  endpoint?: boolean;
+  other?: boolean;
+  flow?: boolean;
+};
+
+export type CollectionTreeItem = {
   name: string;
   key: string;
-  type: "template" | "folder" | "log";
-  info?: { name: string; path: string; content: string };
-  items?: SampleTreeItem[];
+  type: "endpoint" | "script" | "mixin" | "data" | "config" | "folder" | "flow";
+  info?: CollectionItemInfo;
+  items?: CollectionTreeItem[];
 };

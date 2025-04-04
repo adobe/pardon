@@ -16,25 +16,29 @@ import {
 import { disconnected, tracking } from "../core/tracking.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
 import { withoutEvaluationScope } from "../core/schema/core/context-util.js";
+import { PardonExecutionError } from "../core/execution/pardon-execution.js";
+import { LayeredEndpoint } from "../config/collection-types.js";
 
 let notifier:
   | {
-      onRenderStart(traced: TracedRequest): void;
-      onRenderComplete(
-        rendered: TracedRequest & {
-          outbound: Omit<ProcessedHookInput["outbound"], "evaluationScope">;
-        },
-      ): void;
-      onSend(
-        rendered: TracedRequest & {
-          outbound: Omit<ProcessedHookInput["outbound"], "evaluationScope">;
-        },
-      ): void;
+      onRenderStart(traced: TracedRenderStart): void;
+      onRenderComplete(rendered: TracedRenderComplete): void;
+      onSend(rendered: TracedRenderComplete): void;
       onResult(traced: TracedResult): void;
-      onError(error: unknown, stage: string, trace: number): void;
+      onError(traced: TracedError): void;
     }
   | undefined
   | null = undefined;
+
+export type TracedRenderStart = TracedRequest<{
+  ask?: string;
+}> & { endpoint: LayeredEndpoint };
+
+export type TracedRenderComplete = TracedRequest<{
+  awaited: { requests: TracedRequest[]; results: TracedResult[] };
+}> & {
+  outbound: Omit<ProcessedHookInput["outbound"], "evaluationScope">;
+};
 
 export type PardonTraceExtension<Ext = unknown> = {
   awaited: {
@@ -76,6 +80,11 @@ export type TracedResult<Ext = unknown> = ReturnType<typeof traceResult> & {
   context: Ext;
 };
 
+export type TracedError = {
+  trace: number;
+  error: PardonExecutionError;
+};
+
 const { awaited: awaitedResults, track: trackResult } =
   tracking<TracedResult>();
 const { awaited: awaitedRequests, track: trackRequest } =
@@ -103,17 +112,27 @@ export default function trace<Execution extends typeof PardonFetchExecution>(
   execution: Execution,
 ) {
   return hookExecution<PardonTraceExtension>(execution, {
+    async init(init, next) {
+      const context = await next(init);
+      const trace = nextTraceId++;
+
+      Object.assign(context, {
+        trace,
+      } satisfies Pick<PardonTraceExtension, "trace">);
+
+      return context as typeof context & PardonTraceExtension;
+    },
     match(info, next) {
       return disconnected(() => next(info));
     },
     async render(info, next) {
-      const trace = nextTraceId++;
       Object.assign(info.context, {
-        trace,
-        awaited: { requests: awaitedRequests(), results: awaitedResults() },
-      } satisfies PardonTraceExtension);
+        awaited: { requests: awaitedRequests() },
+      } satisfies {
+        awaited: Pick<PardonTraceExtension["awaited"], "requests">;
+      });
 
-      const traced = traceRequest({ ...info });
+      const traced = traceRequest(info);
 
       await disconnected(() => notifier?.onRenderStart(traced));
       trackRequest(traced);
@@ -140,10 +159,15 @@ export default function trace<Execution extends typeof PardonFetchExecution>(
       trackResult(traced);
       notifier?.onResult(traced);
     },
-    onerror(error, stage, info) {
-      const trace = info.context?.trace;
+    error(error, info) {
+      const trace = info?.context?.trace;
+
       if (trace) {
-        notifier?.onError(error, stage, trace);
+        //        console.warn(`trace: error: ${error.step}`, error.stack);
+        notifier?.onError?.({
+          trace,
+          error,
+        });
       }
     },
   });

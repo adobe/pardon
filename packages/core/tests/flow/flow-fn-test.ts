@@ -15,11 +15,7 @@ import { after, describe, it } from "node:test";
 import setup from "../app-tests.js";
 import assert from "node:assert";
 import { initTrackingEnvironment } from "../../src/runtime/environment.js";
-import {
-  makeFlowIdempotent,
-  runFlow,
-  makeFlow,
-} from "../../src/core/execution/flow/flow-core.js";
+import { runFlow, makeFlow } from "../../src/core/execution/flow/flow-core.js";
 
 describe("flow-fn-tests", async () => {
   after(await setup());
@@ -33,13 +29,6 @@ describe("flow-fn-tests", async () => {
       return { arg: arg.toUpperCase() };
     });
 
-    const idempotentFlow = makeFlowIdempotent(
-      makeFlow(async ({ arg }) => {
-        log.push("id-flow-executed");
-        return { arg: arg.toUpperCase() };
-      }),
-    );
-
     environment.arg = "hello";
     assert.deepStrictEqual((await runFlow(flow)).result, {
       arg: "HELLO",
@@ -50,20 +39,6 @@ describe("flow-fn-tests", async () => {
     await assert.rejects(() => runFlow(flow), {
       message: "required param arg undefined",
     });
-    assert.deepStrictEqual(log.splice(0, log.length), []);
-
-    environment.arg = "hello";
-    assert.deepStrictEqual((await runFlow(idempotentFlow)).result, {
-      arg: "HELLO",
-    });
-    assert.deepStrictEqual(log.splice(0, log.length), ["id-flow-executed"]);
-
-    assert.deepStrictEqual(
-      (await runFlow(idempotentFlow, { arg: "hello" })).result,
-      {
-        arg: "HELLO",
-      },
-    );
     assert.deepStrictEqual(log.splice(0, log.length), []);
   });
 });

@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { PardonError } from "../../core/error.js";
 import { JSON } from "../../core/json.js";
-import { shared } from "../../core/tracking.js";
+import { disconnected, shared } from "../../core/tracking.js";
 import { PardonDatabase, Datetime, cachedOps } from "../sqlite.js";
 
 export type CacheEntity = {
@@ -28,7 +28,8 @@ export type CacheEntry<T> = {
   nocache?: boolean;
 };
 
-const inflightCache: Record<string, Promise<unknown>> = {};
+const inflightCache: Record<string, Promise<CacheEntry<unknown>> | undefined> =
+  {};
 
 export const initDb = cachedOps(initDb_);
 
@@ -98,9 +99,6 @@ function initDb_({ sqlite }: PardonDatabase) {
 }
 
 export function cacheOps(db?: PardonDatabase) {
-  const memoryCache: Record<string, { value: unknown; expires_at: number }> =
-    {};
-
   const { updateCache, readCache, cleanExpiredCache, cleanCache } = db
     ? initDb(db)
     : {
@@ -119,7 +117,7 @@ export function cacheOps(db?: PardonDatabase) {
   async function insertCache<T>(
     key: string,
     loader: () => Promise<CacheEntry<T>>,
-  ): Promise<T> {
+  ): Promise<CacheEntry<T>> {
     let { value, expires_in, expires_at, nocache } = (await loader()) ?? {};
 
     if (value === undefined) {
@@ -130,41 +128,53 @@ export function cacheOps(db?: PardonDatabase) {
       ? Date.now() + expires_in
       : Number.MAX_SAFE_INTEGER;
 
-    memoryCache[key] = {
+    const entry = {
+      key,
       value,
-      expires_at: Number(expires_at),
+      expires_at,
     };
 
     if (!nocache) {
       updateCache?.({
-        key,
+        ...entry,
         value: JSON.stringify(value),
         expires_at: new Date(expires_at).toISOString(),
       });
     }
 
-    return value;
+    return entry;
   }
 
   async function cached<T>(
     key: string,
     loader: () => Promise<CacheEntry<T>>,
   ): Promise<T> {
-    const memcached = memoryCache[key];
     const now = Date.now();
-
-    if (memcached) {
-      if ((memcached?.expires_at ?? 0) > now) {
-        return memcached.value as T;
-      }
-
-      delete memcached[key];
-    }
 
     const inflight = inflightCache[key];
 
     if (inflight) {
-      return inflight as Promise<T>;
+      try {
+        const entry = await disconnected(async () => {
+          const entry = await inflight.catch(() => ({
+            value: undefined,
+            expires_at: Number.MIN_SAFE_INTEGER,
+          }));
+
+          if (!entry.expires_at || entry.expires_at > now) {
+            return entry;
+          }
+        });
+
+        if (entry) {
+          await inflight;
+          return entry.value as T;
+        }
+      } catch (error) {
+        delete inflightCache[key];
+        // continue
+        void error;
+      }
     }
 
     const entry = readCache?.(key) as string | undefined;
@@ -177,8 +187,10 @@ export function cacheOps(db?: PardonDatabase) {
       insertCache(key, loader),
     ));
 
-    result.catch(() => {}).finally(() => delete inflightCache[key]);
+    result.catch(() => {
+      delete inflightCache[key];
+    });
 
-    return result;
+    return (await result).value;
   }
 }

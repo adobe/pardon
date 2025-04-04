@@ -25,7 +25,7 @@ import CodeMirror, { type CodeMirrorProps } from "./codemirror/CodeMirror.tsx";
 
 type Values = Record<string, unknown>;
 
-export default function DataInput(
+export default function PardonInput(
   props: CodeMirrorProps & {
     value?: string;
     defaultValue?: string;
@@ -52,7 +52,7 @@ export default function DataInput(
   const [values, setValues] = createSignal(props.data.values());
 
   const formatted = createMemo(() =>
-    `${KV.stringify(values() ?? {}, "\n", 2, "\n\n")}${doc() ?? ""}`.trim(),
+    `${KV.stringify(values() ?? {}, "\n", 2, "\n")}${doc() ?? ""}`.trim(),
   );
 
   const [text, setText] = createSignal(props.value ?? formatted());
@@ -72,7 +72,12 @@ export default function DataInput(
     props.setTextRef?.(setText);
   });
 
-  function updateData(data: { values: Record<string, unknown>; doc: string }) {
+  function updateData({
+    ...data
+  }: {
+    values: Record<string, unknown>;
+    doc: string;
+  }) {
     return batch(() => {
       if (
         data.doc?.trim() !== doc()?.trim() ||
@@ -88,31 +93,17 @@ export default function DataInput(
 
   createEffect(
     on(
-      props.data.values,
-      (values) => {
+      createMemo(() => ({
+        values: { ...props.data.values() },
+        doc: props.data.doc(),
+      })),
+      ({ values, doc }) => {
         try {
-          if (updateData({ values, doc: doc() })) {
+          if (updateData({ values, doc })) {
             setText(formatted());
           }
         } catch (error) {
           console.warn("error updating values", error);
-          // ignore
-        }
-      },
-      { defer: true },
-    ),
-  );
-
-  createEffect(
-    on(
-      props.data.doc,
-      (doc) => {
-        try {
-          if (updateData({ values: values(), doc })) {
-            setText(formatted());
-          }
-        } catch (error) {
-          console.warn("error updating doc", error);
           // ignore
         }
       },

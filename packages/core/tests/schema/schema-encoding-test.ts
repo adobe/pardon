@@ -18,7 +18,6 @@ import {
 } from "../../src/core/schema/core/context.js";
 import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
 import { base64Encoding } from "../../src/core/schema/definition/encodings/base64-encoding.js";
-import { urlEncodedFormTemplate } from "../../src/core/schema/definition/encodings/url-encoded.js";
 import { deepStrictMatchEqual } from "../asserts.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
@@ -26,6 +25,7 @@ import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
 import { mixing } from "../../src/core/schema/core/contexts.js";
 import { JSON } from "../../src/core/json.js";
+import { encodings } from "../../src/core/request/body-template.js";
 
 describe("schema json tests", () => {
   it("should parse and render json", async () => {
@@ -67,7 +67,7 @@ describe("schema json tests", () => {
   });
 
   it("should parse and match a form", async () => {
-    const singleValueFormEncoding = mixing(urlEncodedFormTemplate({}, false));
+    const singleValueFormEncoding = mixing(encodings.$form({}));
 
     const s = merge(
       singleValueFormEncoding,
@@ -105,7 +105,7 @@ describe("schema json tests", () => {
   });
 
   it("should support multivalue forms", async () => {
-    const u = mixing(urlEncodedFormTemplate([]));
+    const u = mixing(encodings.$form());
 
     const m = mergeSchema(
       { mode: "mux", phase: "build" },
@@ -130,7 +130,7 @@ describe("schema json tests", () => {
   });
 
   it("should support missing bodies", async () => {
-    const u = mixing(urlEncodedFormTemplate());
+    const u = mixing(encodings.$form());
     const s = mergeSchema(
       { mode: "mix", phase: "build" },
       u,
@@ -145,20 +145,21 @@ describe("schema json tests", () => {
     assert.match(result!, /b=1[&]b=2[&]b=3/);
   });
 
-  it("should support multivalue handling", async () => {
+  it("should support multivalue handling 2", async () => {
     const s = mergeSchema(
       { mode: "mix", phase: "build" },
-      mixing(urlEncodedFormTemplate()),
-      "a={{x}}",
+      mixing(encodings.$form()),
+      "a={{x}}&a={{?y}}&a={{?z}}",
       new ScriptEnvironment(),
     )!.schema!;
 
     const ctx = matchContext(s, "a=hello&a=world");
     const merged = merge(s, ctx);
     assert.equal(ctx.evaluationScope.lookup("x")?.value, "hello");
+    assert.equal(ctx.evaluationScope.lookup("y")?.value, "world");
 
     const result = await executeOp(merged!, "render", renderCtx(merged!));
-    assert.match(result!, /a=hello[&]a=world/);
+    assert.match(result!, /^a=hello[&]a=world$/);
   });
 
   const builtins = {

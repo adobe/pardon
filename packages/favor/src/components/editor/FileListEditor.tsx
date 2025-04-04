@@ -23,7 +23,6 @@ import {
   splitProps,
 } from "solid-js";
 import CodeMirror from "../codemirror/CodeMirror.tsx";
-import { TbFile } from "solid-icons/tb";
 import { twMerge } from "tailwind-merge";
 
 type FileEditorAsset = {
@@ -36,10 +35,10 @@ type FileEditorAsset = {
 export default function FileListEditor(
   props: {
     assets: FileEditorAsset[];
-    onSave?: (info: {
+    onSave?: (info: { path: string; content: string }) => {
       path: string;
       content: string;
-    }) => undefined | boolean | void;
+    } | void;
   } & Omit<ComponentProps<"div">, "children">,
 ) {
   const [index, setIndex] = createSignal(0);
@@ -47,6 +46,8 @@ export default function FileListEditor(
   const [, divProps] = splitProps(props, ["assets"]);
 
   const file = createMemo(() => props.assets[index()]);
+
+  const content = createMemo((content?: string) => file()?.content ?? content);
 
   return (
     <div
@@ -63,7 +64,7 @@ export default function FileListEditor(
       />
       <FileEditor
         exists={file()?.exists}
-        content={file()?.content}
+        content={content()}
         path={file()?.path}
         onSave={props.onSave}
       />
@@ -76,10 +77,10 @@ export function FileEditor(props: {
   content: string;
   exists: boolean;
   reveal?: boolean;
-  onSave?: (info: {
+  onSave?: (info: { path: string; content: string }) => {
     path: string;
     content: string;
-  }) => boolean | undefined | void;
+  } | void;
 }) {
   const [saving, setSaving] = createSignal(false);
   const [content, setContent] = createSignal(props.content);
@@ -100,23 +101,26 @@ export function FileEditor(props: {
         onValueChange={setContent}
         tabbing
         nowrap
-        class="grow overflow-auto rounded-md border-2 border-gray-300 bg-amber-200 dark:border-gray-800 dark:bg-amber-800"
+        class="grow overflow-auto rounded-md border-2 border-gray-300 bg-amber-200 dark:border-gray-800 dark:bg-neutral-700"
       />
       <div class="flex flex-row gap-2">
         <button
           class="flex-1 bg-amber-400 py-0.5 disabled:text-opacity-50 dark:bg-amber-700"
           onClick={() => {
-            const reload = (props.onSave ?? (() => true))({
+            const toSave = (props.onSave ?? ((arg) => arg))({
               path: props.path,
               content: content(),
             });
-            setSaving(true);
 
-            window.pardon
-              .saveFile(props.path, content(), reload || false)
-              .finally(() => {
-                setSaving(false);
-              });
+            if (toSave) {
+              setSaving(true);
+
+              window.pardon
+                .saveFile(toSave.path, toSave.content, true)
+                .finally(() => {
+                  setSaving(false);
+                });
+            }
           }}
           disabled={saving()}
         >
@@ -136,7 +140,7 @@ export function RevealFileButton(props: { path: string; exists: boolean }) {
         window.pardon.shellShowFile(props.path);
       }}
     >
-      <TbFile />
+      <IconTablerFile />
     </button>
   );
 }
@@ -155,7 +159,7 @@ export function FileEditorSelector(props: {
       <RevealFileButton exists={file()?.exists} path={file().path} />
       <Show
         when={props.assets?.length > 1}
-        fallback={<>{props.assets[0].name}</>}
+        fallback={<>{props.assets[0]?.name}</>}
       >
         <select
           class="w-0 flex-1 rounded-md"

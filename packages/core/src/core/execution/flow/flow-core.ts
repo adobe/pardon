@@ -15,8 +15,6 @@ import {
   flowFunctionSignature,
 } from "./flow-params.js";
 import { FlowContext } from "./data/flow-context.js";
-import { valueId } from "../../../util/value-id.js";
-import { shared } from "../../tracking.js";
 import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
 import { CompiledHttpsSequence } from "./https-flow-types.js";
 
@@ -58,12 +56,7 @@ export type FlowResult = {
 export type Flow = {
   action(params: FlowParams): Promise<FlowResult>;
   signature: FlowParamsDict;
-  source?: FlowFunction | IdempotentFlowSource | CompiledHttpsSequence;
-};
-
-export type IdempotentFlowSource = {
-  idempotent: true;
-  flow: Flow;
+  source?: FlowFunction | CompiledHttpsSequence;
 };
 
 const syncFlowContextStack: FlowContext[] = [];
@@ -112,21 +105,5 @@ export function makeFlow(fn: FlowFunction): Flow {
       }
     },
     source: fn,
-  };
-}
-
-export function makeFlowIdempotent(flow: Flow): Flow {
-  const cache: Record<string, Promise<FlowResult>> = {};
-
-  return {
-    action: async ({ argument, context }) =>
-      (cache[valueId(argument)] ??= shared(() =>
-        flow.action({
-          argument,
-          context: context.overrideEnvironment({}),
-        }),
-      )),
-    signature: flow.signature,
-    source: { idempotent: true, flow },
   };
 }

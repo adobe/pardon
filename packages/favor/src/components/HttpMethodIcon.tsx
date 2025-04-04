@@ -10,79 +10,68 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { IconProps } from "solid-icons";
-import {
-  TbFile,
-  TbHttpDelete,
-  TbHttpGet,
-  TbHttpHead,
-  TbHttpPatch,
-  TbHttpPost,
-  TbHttpPut,
-  TbSend,
-} from "solid-icons/tb";
-import { Match, splitProps, Switch, VoidProps } from "solid-js";
+import { ComponentProps, Match, splitProps, Switch, VoidProps } from "solid-js";
 import { twMerge } from "tailwind-merge";
 
 export default function HttpMethodIcon(
   props: VoidProps<{ method: "GET" | "POST" | "DELETE" | (string & {}) }> &
-    IconProps,
+    ComponentProps<"svg">,
 ) {
   const [ourProps, iconProps] = splitProps(props, ["method"]);
   const iconClass = (colors) =>
     twMerge(
-      "absolute top-[-190%] h-[18px] scale-[1.2]",
+      "scale-[1.3] translate-y-[-1.5px] overflow-clip w-5 h-4 pr-1",
       colors,
       iconProps.class,
     );
   return (
-    <span class="relative inline-flex min-h-1 min-w-6">
+    <span class="w-5">
       <Switch
         fallback={
-          <TbSend
+          <IconTablerSend
             {...iconProps}
             class={iconClass("scale-[0.7] text-lime-700 dark:text-lime-500")}
           />
         }
       >
         <Match when={ourProps.method === "GET"}>
-          <TbHttpGet
+          <IconTablerHttpGet
             {...iconProps}
             class={iconClass("text-lime-700 dark:text-lime-500")}
           />
         </Match>
         <Match when={ourProps.method === "POST"}>
-          <TbHttpPost
+          <IconTablerHttpPost
             {...iconProps}
             class={iconClass("text-yellow-600 dark:text-yellow-500")}
           />
         </Match>
         <Match when={ourProps.method === "PUT"}>
-          <TbHttpPut
+          <IconTablerHttpPut
             {...iconProps}
             class={iconClass("text-yellow-600 dark:text-yellow-700")}
           />
         </Match>
         <Match when={ourProps.method === "HEAD"}>
-          <TbHttpHead
+          <IconTablerHttpHead
             {...iconProps}
             class={iconClass("text-lime-600 dark:text-lime-400")}
           />
         </Match>
         <Match when={ourProps.method === "DELETE"}>
-          <TbHttpDelete
+          <IconTablerHttpDelete
             {...iconProps}
             class={iconClass("text-rose-700 dark:text-[#ff77e9]")}
           />
         </Match>
         <Match when={ourProps.method === "PATCH"}>
-          <TbHttpPatch
+          <IconTablerHttpPatch
             {...iconProps}
             class={iconClass("text-amber-600 dark:text-orange-700")}
           />
         </Match>
         <Match when={ourProps.method === "FILE"}>
-          <TbFile {...iconProps} class={iconClass("")} />
+          <IconTablerFile {...iconProps} class={iconClass("")} />
         </Match>
       </Switch>
     </span>

@@ -68,29 +68,7 @@ export type PardonExecutor<Init, Context, Match, Outbound, Inbound, Result> = {
     inbound: Inbound;
   }): Promise<Result>;
 
-  onerror(
-    error: any,
-    stage: keyof PardonExecutor<
-      Init,
-      Context,
-      Match,
-      Outbound,
-      Inbound,
-      Result
-    >,
-    info: Partial<
-      Parameters<
-        PardonExecutor<
-          Init,
-          Context,
-          Match,
-          Outbound,
-          Inbound,
-          Result
-        >["process"]
-      >[0]
-    >,
-  ): unknown;
+  error(error: PardonExecutionError, info: any): unknown;
 };
 
 export interface PardonContinuations<
@@ -173,18 +151,16 @@ export function pardonExecution<
     Result
   >;
 
-  function executeStep<
-    Step extends Exclude<keyof Executor, "onerror" | "init">,
-  >(
+  function executeStep<Step extends Exclude<keyof Executor, "error" | "init">>(
     step: Step,
     info: Parameters<Executor[Step]>[0],
   ): ReturnType<Executor[Step]> {
     const result = executor[step](info as any);
 
     return result.catch((error) => {
-      const chained = executor.onerror(error, step, info) ?? error;
-
-      throw chained;
+      const pee = new PardonExecutionError({ cause: error, step, info });
+      executor.error(pee, info);
+      throw pee;
     }) as ReturnType<Executor[Step]>;
   }
 
@@ -198,20 +174,18 @@ export function pardonExecution<
     let processing: Continuations["result"];
 
     function mixin<X extends Promise<unknown>, Y>(
-      object: X,
+      promise: X,
       descriptors: Y,
     ): X & Y {
-      return disarm(
-        Object.defineProperties(
-          object,
-          mapObject(
-            Object.getOwnPropertyDescriptors(descriptors),
-            (descriptor) => ({
-              ...descriptor,
-              enumerable: false,
-              configurable: false,
-            }),
-          ),
+      return Object.defineProperties(
+        disarm(promise),
+        mapObject(
+          Object.getOwnPropertyDescriptors(descriptors),
+          (descriptor) => ({
+            ...descriptor,
+            enumerable: false,
+            configurable: false,
+          }),
         ),
       ) as X & Y;
     }
@@ -405,4 +379,47 @@ export function pardonExecution<
       return start(init).result;
     },
   };
+}
+
+type ErrorSteps = Exclude<
+  keyof PardonExecution<any, any, any, any, any, any>,
+  "init" | "error" | "executor"
+>;
+
+export class PardonExecutionError extends Error {
+  step: ErrorSteps;
+
+  constructor({
+    cause,
+    step,
+    info,
+  }: {
+    cause?: any;
+    step: ErrorSteps;
+    info?: any;
+  }) {
+    super(
+      info?.match?.endpoint?.configuration?.path
+        ? `${info?.match?.endpoint?.configuration?.path} (${step})`
+        : `failed at (${step})`,
+      { cause },
+    );
+
+    this.step = step;
+  }
+
+  get formatted() {
+    let error = this as any;
+
+    const reasons: string[] = [];
+
+    while (error?.["cause"] !== undefined) {
+      error = error["cause"];
+      reasons.unshift(String(error?.["message"] ?? error));
+    }
+
+    reasons.unshift(String(this?.["message"] ?? this));
+
+    return reasons.join("\n -- ");
+  }
 }

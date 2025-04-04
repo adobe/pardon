@@ -22,9 +22,7 @@ import { search, searchKeymap } from "@codemirror/search";
 import {
   createEffect,
   splitProps,
-  Show,
   type ComponentProps,
-  type JSX,
   createMemo,
   Accessor,
 } from "solid-js";
@@ -46,9 +44,9 @@ export type CodeMirrorProps = CreateCodeMirrorProps & {
     createExtension: CreateExtensionFn;
     editorView: Accessor<EditorView>;
   }) => void;
-  icon?: JSX.Element;
   text?: string;
   nowrap?: boolean;
+  disabled?: boolean;
 } & ComponentProps<"div">;
 
 const EnterNewlines = keymap.of([
@@ -89,7 +87,7 @@ export default function CodeMirror(props: CodeMirrorProps) {
   const [codemirrorProps, , restprops] = splitProps(
     props,
     ["value", "onModelViewUpdate", "onTransactionDispatched", "onValueChange"],
-    ["editorViewRef", "setup", "readonly", "icon"],
+    ["editorViewRef", "setup", "readonly", "children", "disabled"],
   );
 
   const { editorView, ref, createExtension } =
@@ -130,6 +128,14 @@ export default function CodeMirror(props: CodeMirrorProps) {
     }),
   );
 
+  createExtension(() =>
+    EditorView.theme({
+      "": {
+        opacity: props.disabled ? "0.65 !important" : "1",
+      },
+    }),
+  );
+
   createEditorControlledValue(
     createMemo(() => {
       if (props.readwrite || props.readonly) {
@@ -140,7 +146,7 @@ export default function CodeMirror(props: CodeMirrorProps) {
   );
 
   createExtension(() =>
-    props.readonly ? EditorState.readOnly.of(true) : undefined,
+    EditorState.readOnly.of(props.readonly || props.disabled),
   );
 
   createEffect(() => {
@@ -155,7 +161,7 @@ export default function CodeMirror(props: CodeMirrorProps) {
       {...restprops}
       class={twMerge("overflow-hidden [&_.cm-editor]:size-full", props.class)}
     >
-      <Show when={props.icon}>{props.icon!}</Show>
+      {props.children}
     </div>
   );
 }

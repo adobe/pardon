@@ -13,9 +13,15 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js"
+    "jsxImportSource": "solid-js",
+    "types": ["unplugin-icons/types/solid"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "electron/**/*.d.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "electron/**/*.d.ts",
+    "auto-imports.d.ts"
+  ],
   "exclude": ["**/*.js", "**/*.cjs"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

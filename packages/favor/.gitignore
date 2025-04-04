@@ -1,3 +1,4 @@
 node_modules
 out/
 .vite/
+auto-imports.d.ts

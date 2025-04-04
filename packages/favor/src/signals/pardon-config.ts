@@ -87,20 +87,29 @@ class FileManifest {
     });
 
     this.assets = mapObject(app.assets, (value) => ({
-      sources: this.croots.map((root) => {
-        const firstRoot = this.croots.find((root) =>
-          value.sources[0].path.startsWith(root),
-        );
-        const extension = value.sources[0].path.slice(firstRoot.length);
-        const source = value.sources.find(({ path }) => path.startsWith(root));
-        if (source) {
-          return { ...source, exists: true };
-        }
+      sources: this.croots
+        .map((root) => {
+          const firstRoot = this.croots.find((root) =>
+            value.sources[0].path.startsWith(root),
+          );
 
-        const path = root + extension;
+          if (!firstRoot) {
+            return null;
+          }
 
-        return { path, content: "", exists: false };
-      }),
+          const extension = value.sources[0].path.slice(firstRoot.length);
+          const source = value.sources.find(({ path }) =>
+            path.startsWith(root),
+          );
+          if (source) {
+            return { ...source, exists: true };
+          }
+
+          const path = root + extension;
+
+          return { path, content: "", exists: false };
+        })
+        .filter(Boolean),
     }));
   }
 

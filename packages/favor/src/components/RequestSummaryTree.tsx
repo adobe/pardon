@@ -12,163 +12,92 @@ governing permissions and limitations under the License.
 
 import {
   ComponentProps,
-  createEffect,
   createMemo,
-  createSignal,
-  For,
-  on,
   Show,
   splitProps,
-  useContext,
   JSX,
+  Switch,
+  Match,
 } from "solid-js";
-import {
-  TbChartArrows,
-  TbChevronRight,
-  TbCopy,
-  TbPencil,
-  TbTrash,
-} from "solid-icons/tb";
 import { twMerge } from "tailwind-merge";
-import Toggle from "./Toggle.tsx";
 import HttpMethodIcon from "./HttpMethodIcon.tsx";
 import LoadingSplash from "./LoadingSplash.tsx";
-import { Trace } from "./request-history.ts";
+import { RelatedTraces, Trace } from "./request-history.ts";
 import { displayHttp } from "./display-util.ts";
-import { RequestSummaryInfo } from "./RequestHistory.tsx";
 import { HTTP } from "pardon/formats";
 import { recv } from "pardon/utils";
+import KeyValueCopier from "./KeyValueCopier.tsx";
 
-export type HistoryTree = { trace: number; deps: HistoryTree[] };
+export type HistoryTree = {
+  trace: number;
+  auto?: boolean;
+  deps: HistoryTree[];
+};
 
 export function RequestSummaryTree(props: {
   traces: Record<number, Trace>;
   trace: number;
-  isCurrent: (trace: number) => boolean;
-  deps: HistoryTree[];
-  onRestore: (history: ExecutionHistory) => void;
   path?: number[];
   expandedSet: Set<string>;
-  clearTrace?: (trace: number) => void;
+  related: RelatedTraces;
+  onRestore(history: ExecutionHistory): void;
+  clearTrace?(trace: number): void;
 }) {
-  const path = createMemo(() => [...(props.path ?? []), props.trace]);
+  const trace = createMemo(() => recv(props.traces[props.trace]));
+  const relation = createMemo(() =>
+    props.related.current === props.trace
+      ? "current"
+      : props.related.direct.includes(props.trace)
+        ? "direct"
+        : props.related.indirect.includes(props.trace)
+          ? "indirect"
+          : undefined,
+  );
+
   return (
     <RequestSummaryNode
       {...props}
-      path={path()}
-      trace={recv(props.traces[props.trace])}
-      current={props.isCurrent(props.trace)}
-      exapandable={props.deps.length > 0}
+      trace={trace()}
+      relation={relation()}
+      auto={!props.traces[props.trace]?.tlr}
     >
-      <For each={props.deps}>
-        {({ trace, deps }) => (
-          <RequestSummaryTree
-            traces={props.traces}
-            trace={trace}
-            isCurrent={props.isCurrent}
-            deps={deps}
-            path={path()}
-            expandedSet={props.expandedSet}
-            onRestore={props.onRestore}
-            clearTrace={props.clearTrace}
-          />
-        )}
-      </For>
+      <KeyValueCopier
+        values={trace().result?.inbound?.flow}
+        readonly
+        class="pl-4"
+      />
     </RequestSummaryNode>
   );
 }
 
 export function RequestSummaryNode(props: {
   trace: Trace;
-  current?: boolean;
+  relation?: "current" | "direct" | "indirect";
+  auto?: boolean;
+  children?: JSX.Element;
+  note?: JSX.Element;
   onRestore(history: ExecutionHistory): void;
   clearTrace?(trace: number): void;
-  path: number[];
-  expandedSet: Set<string>;
-  children?: JSX.Element;
-  fallback?: JSX.Element;
-  exapandable?: boolean;
-  note?: JSX.Element;
 }) {
-  const depth = createMemo(() => props.path?.length ?? 0);
-  const pathkey = createMemo(() => props.path.join(":"));
-  const [expanded, setExpanded] = createSignal(
-    props.expandedSet.has(pathkey()),
-  );
-
-  createEffect(
-    on(
-      expanded,
-      (exp) => {
-        if (exp) props.expandedSet.add(pathkey());
-        else props.expandedSet.delete(pathkey());
-      },
-      { defer: true },
-    ),
-  );
-
   return (
     <li
       class="flex flex-1 flex-col"
       classList={{
-        "opacity-75": depth() == 0 && !props.trace?.tlr,
+        "opacity-75": !props.trace?.tlr && !props.relation,
+        "opacity-85": props.relation && props.relation !== "current",
       }}
     >
-      <Show
-        when={props.exapandable}
-        fallback={
-          <>
-            <span
-              class="flex flex-1 flex-row pl-1"
-              classList={{
-                "pl-4": depth() > 0,
-              }}
-            >
-              <RequestSummary
-                trace={props.trace}
-                onRestore={props.onRestore}
-                clearTrace={props.clearTrace}
-                note={props.note}
-                current={props.current}
-              />
-            </span>
-            {props.fallback ? <ul class="pl-3">{props.fallback}</ul> : <></>}
-          </>
-        }
-      >
-        <div class="flex flex-row">
-          <Toggle
-            class="w-4 bg-transparent p-0 active:!bg-transparent"
-            value={expanded()}
-            onChange={setExpanded}
-          >
-            {(props) => (
-              <TbChevronRight
-                class="relative inline rotate-0 transition-transform duration-200"
-                classList={{
-                  "rotate-90": props.value,
-                }}
-              />
-            )}
-          </Toggle>
-          <RequestSummary
-            trace={props.trace}
-            onRestore={props.onRestore}
-            clearTrace={props.clearTrace}
-            note={props.note}
-            current={props.current}
-          />
-        </div>
-
-        <Show
-          when={expanded()}
-          fallback={
-            props.fallback ? <ul class="pl-3">{props.fallback}</ul> : <></>
-          }
-        >
-          {props.children ? <ul class="pl-3">{props.children}</ul> : undefined}
-        </Show>
-      </Show>
+      <div class="flex w-full flex-1 flex-col pl-1">
+        <RequestSummary
+          trace={props.trace}
+          onRestore={props.onRestore}
+          clearTrace={props.clearTrace}
+          auto={props.auto}
+          note={props.note}
+          relation={props.relation}
+        />
+        {props.children}
+      </div>
     </li>
   );
 }
@@ -176,10 +105,11 @@ export function RequestSummaryNode(props: {
 export function RequestSummary(
   props: {
     trace: Trace;
-    onRestore?(history: ExecutionHistory): void;
+    auto?: boolean;
+    onRestore(history: ExecutionHistory): void;
     clearTrace?(trace: number): void;
     note?: JSX.Element;
-    current?: boolean;
+    relation?: "current" | "direct" | "indirect";
   } & ComponentProps<"span">,
 ) {
   const [, spanProps] = splitProps(props, [
@@ -187,38 +117,23 @@ export function RequestSummary(
     "onRestore",
     "clearTrace",
     "note",
-    "current",
+    "relation",
   ]);
   const request = createMemo(() =>
-    displayHttp(props.trace.render?.outbound?.request),
+    displayHttp(props.trace?.render?.outbound?.request),
   );
   const response = createMemo(() => props.trace?.result?.inbound.response);
-  const summaryInfo = useContext(RequestSummaryInfo);
 
   return (
     <div class="relative flex flex-1 flex-row gap-1 px-1 py-0.5 [&:hover>.faded]:opacity-75">
       <button
-        class="rounded-sm p-0.5 text-xs"
-        onClick={() => {
-          summaryInfo?.outbound(props.trace);
-        }}
-      >
-        <TbChartArrows class="pointer-events-none relative" />
-      </button>
-      <button
-        class="rounded-sm p-0.5 text-xs"
-        disabled={!props.trace?.result}
-        onClick={() => {
-          summaryInfo?.inbound(props.trace);
-        }}
-      >
-        <TbChartArrows class="pointer-events-none rotate-90" />
-      </button>
-      <button
-        class="flex w-0 flex-1 overflow-hidden rounded-none p-0 text-left align-middle active:!bg-slate-300 dark:active:!bg-slate-600"
+        class="relative left-0 flex w-0 flex-1 overflow-hidden rounded-none p-0 pl-0 text-left align-middle transition-all duration-200 active:!bg-slate-300 dark:hover:!bg-slate-600/50 dark:active:!bg-slate-600"
         classList={{
-          "bg-transparent": !props.current,
-          "bg-gray-400 bg-opacity-25": props.current,
+          "bg-transparent": !props.relation,
+          "bg-gray-500 bg-opacity-40": props.relation === "current",
+          "bg-gray-500 bg-opacity-30 !left-2": props.relation === "direct",
+          "bg-gray-500 bg-opacity-15 !left-4": props.relation === "indirect",
+          "opacity-75": props.auto && !props.relation,
         }}
         onClick={() => {
           const {
@@ -229,6 +144,7 @@ export function RequestSummary(
               start: {
                 context: { ask },
               },
+              error,
             },
             onRestore,
           } = props;
@@ -240,37 +156,38 @@ export function RequestSummary(
             },
             outbound,
             inbound: result?.inbound,
+            error,
           });
         }}
       >
         <span
           {...spanProps}
           class={twMerge(
-            "inline-flex min-w-6 flex-initial font-mono",
+            "inline-flex w-7 flex-initial font-mono",
             spanProps.class,
           )}
         >
-          <Show
-            when={props.trace?.result}
+          <Switch
             fallback={
-              <Show
-                when={props.trace?.sent}
-                fallback={
-                  <>
-                    <TbPencil class="inline-block flex-1 text-center" />
-                  </>
-                }
-              >
-                <LoadingSplash />
-              </Show>
+              <>
+                <IconTablerPencil class="inline-block flex-1 text-center" />
+              </>
             }
           >
-            {String(response()?.status)}
-          </Show>
+            <Match when={props.trace?.result}>
+              {String(response()?.status ?? "") || <IconTablerX />}
+            </Match>
+            <Match when={props.trace?.error}>
+              <IconTablerX class="m-auto" />
+            </Match>
+            <Match when={props.trace?.sent}>
+              <LoadingSplash />
+            </Match>
+          </Switch>
         </span>
         <HttpMethodIcon
           method={request()?.method}
-          class="flex-initial translate-y-[7px] scale-[1.1] pr-0.5 text-2xl"
+          class="relative top-[0.1rem]"
         />
         <code class="flex-1 overflow-hidden overflow-ellipsis">
           {request()?.url}
@@ -299,7 +216,7 @@ ${HTTP.responseObject.stringify(HTTP.responseObject.fromJSON(inbound.response))}
             );
           }}
         >
-          <TbCopy />
+          <IconTablerCopy />
         </button>
         <Show when={props.clearTrace}>
           <button
@@ -309,7 +226,7 @@ ${HTTP.responseObject.stringify(HTTP.responseObject.fromJSON(inbound.response))}
               props.clearTrace?.(props.trace.trace);
             }}
           >
-            <TbTrash />
+            <IconTablerTrash />
           </button>
         </Show>
       </div>
