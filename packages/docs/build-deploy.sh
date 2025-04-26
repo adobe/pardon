@@ -5,7 +5,7 @@ set -e
 source .env || true
 npm run build
 
-ORIGIN="$( git remote get-url origin )"
+ORIGIN="$( git remote get-url adobe )"
 
 (
   cd dist/
