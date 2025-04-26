@@ -586,7 +586,7 @@ function linewrappedStringify(v: unknown, jindent?: number) {
       stack: any[];
       output: (() => string)[];
     }>(
-      (acc, token) => {
+      (acc, token, i, tokens) => {
         switch (true) {
           case token === "[":
           case token === "{":
@@ -639,7 +639,7 @@ function linewrappedStringify(v: unknown, jindent?: number) {
             break;
           default:
             {
-              const next = dequoteJson(token);
+              const next = dequoteJson(token, inValue(tokens, i));
               acc.output.push(() => {
                 return next;
               });
@@ -681,7 +681,7 @@ function nextNonBlankToken(tokens: string[], i: number) {
   return null;
 }
 
-function dequoteJson(text: string) {
+function dequoteJson(text: string, inValue: boolean) {
   if (typeof text !== "string") {
     return text;
   }
@@ -696,7 +696,7 @@ function dequoteJson(text: string) {
 
     const token = tokens[i + 1];
     if (token.startsWith('"')) {
-      output.push(dequoteText(token));
+      output.push(dequoteText(token, inValue));
     } else {
       output.push(token);
     }
@@ -705,7 +705,7 @@ function dequoteJson(text: string) {
   return output.join("");
 }
 
-function dequoteText(token: string) {
+function dequoteText(token: string, inValue: boolean) {
   const text = JSON.parse(token);
   switch (true) {
     case text === "null":
@@ -713,7 +713,7 @@ function dequoteText(token: string) {
     case text === "true":
     case text === "":
       return token;
-    case simpleToken.test(text):
+    case (inValue ? simpleToken : simpleKey).test(text):
       return text;
     default:
       return token;
