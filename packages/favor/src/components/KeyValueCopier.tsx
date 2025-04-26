@@ -443,6 +443,8 @@ function KeyValueCopierNode(props: {
             {(node) =>
               Array.isArray(node) ? (
                 <KeyValueCopierNode tokens={node} />
+              ) : ["}", "]"].includes(node.token) ? (
+                node.token
               ) : (
                 <span
                   class="copyable-value hover:cursor-crosshair hover:text-green-500"
@@ -460,37 +462,28 @@ function KeyValueCopierNode(props: {
     );
   }
 
-  const copyable = KV.isSimpleKey(key.key);
-
   return (
-    <span
-      classList={{
-        "variable [&>.key:hover+.value]:text-orange-300 [&>.key:hover]:cursor-pointer [&>.key:hover]:text-orange-300":
-          copyable,
-      }}
-    >
+    <span class="variable [&>.key:hover+.value]:text-orange-300 [&>.key:hover]:cursor-pointer [&>.key:hover]:text-orange-300">
       <span
         class="key"
-        {...(copyable && {
-          role: "button",
-          draggable: "true",
-          "data-corvu-no-drag": true,
-          onDragStart: (event) => {
-            event.dataTransfer.setData(
-              "text/value",
-              KV.stringify({ [key.key]: key.value }),
-            );
+        role="button"
+        draggable="true"
+        data-corvu-no-drag
+        onDragStart={(event) => {
+          event.dataTransfer.setData(
+            "text/value",
+            KV.stringify({ [key.key]: key.value }),
+          );
 
-            if (props.id) {
-              event.dataTransfer.setData("text/kv-id", props.id);
-            }
-          },
-          onClick: () => {
-            window.navigator.clipboard.writeText(
-              KV.stringify({ [key.key]: key.value }),
-            );
-          },
-        })}
+          if (props.id) {
+            event.dataTransfer.setData("text/kv-id", props.id);
+          }
+        }}
+        onClick={() => {
+          window.navigator.clipboard.writeText(
+            KV.stringify({ [key.key]: key.value }),
+          );
+        }}
       >
         {key.token}
       </span>
@@ -499,12 +492,11 @@ function KeyValueCopierNode(props: {
           {(node) =>
             Array.isArray(node) ? (
               <KeyValueCopierNode tokens={node} />
+            ) : node.token === "=" ? (
+              <>{node.token}</>
             ) : (
               <span
-                classList={{
-                  "copyable-value hover:text-green-500 cursor-crosshair":
-                    node.token !== "=",
-                }}
+                class="copyable-value cursor-crosshair hover:text-green-500"
                 role="button"
                 onClick={() => {
                   window.navigator.clipboard.writeText(node.value);
