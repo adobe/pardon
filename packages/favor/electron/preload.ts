@@ -61,6 +61,15 @@ const pardonWorkerApi: PardonWorkerHandlers = {
   async flow(name, input) {
     return invokePardonWorker("flow", name, input);
   },
+  async debug() {
+    console.info(
+      `
+---
+open chrome://inspect and connect back
+---`.trim(),
+    );
+    return invokePardonWorker("debug");
+  },
 };
 
 let updateManifestCb: (

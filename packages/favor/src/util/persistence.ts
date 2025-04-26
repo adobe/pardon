@@ -18,37 +18,9 @@ export const persistJson: Pick<
   "serialize" | "deserialize"
 > = {
   serialize(data) {
-    return JSON.stringify(data, (_key, value) => {
-      if (value instanceof BigInt || typeof value === "bigint") {
-        return JSON.rawJSON(String(value));
-      }
-
-      if (value instanceof Number) {
-        return JSON.rawJSON(value["source"]);
-      }
-
-      return value;
-    });
+    return JSON.stringify(data);
   },
   deserialize(data) {
-    return JSON.parse(data, (_key, value, { source }) => {
-      if (typeof value === "number") {
-        const numeric = Object.assign(new Number(value), {
-          source,
-          toString() {
-            // IDK why we need this, somehow the fact this is a Number is getting
-            // lost somewhere, but this toString lets us use it.
-            return source;
-          },
-          toJSON() {
-            return JSON.rawJSON(source);
-          },
-        });
-
-        return numeric;
-      }
-
-      return value;
-    });
+    return JSON.parse(data);
   },
 };

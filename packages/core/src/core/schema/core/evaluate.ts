@@ -53,11 +53,10 @@ function doRenderExpression(
     context,
     source,
     hint,
-    evaluation: async () =>
+    evaluation: () =>
       evaluation(expression!, {
-        async binding(unbound) {
-          return evaluateIdentifierWithExpression(context, unbound);
-        },
+        binding: (unbound) =>
+          evaluateIdentifierWithExpression(context, unbound),
         transform: dotAwaitTransform,
       }),
   });
@@ -132,6 +131,16 @@ export function resolveIdentifier(context: SchemaContext, identifier: string) {
   const resolution = scope.resolve(context, identifier);
 
   if (isLookupValue(resolution)) {
+    const declaration = scope.lookupDeclaration(identifier);
+
+    if (
+      declaration &&
+      resolution.context.evaluationScope !==
+        declaration?.context.evaluationScope
+    ) {
+      return;
+    }
+
     return resolution.value;
   }
 }

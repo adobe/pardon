@@ -40,7 +40,6 @@ export type PardonExecutor<Init, Context, Match, Outbound, Inbound, Result> = {
    * This also contains the values which are inferred via the config block.
    */
   match(info: { context: Context }): Promise<Match>;
-
   /**
    * A preview render that doesn't evaluate any scripts.
    */
@@ -155,9 +154,7 @@ export function pardonExecution<
     step: Step,
     info: Parameters<Executor[Step]>[0],
   ): ReturnType<Executor[Step]> {
-    const result = executor[step](info as any);
-
-    return result.catch((error) => {
+    return executor[step](info as any).catch((error) => {
       const pee = new PardonExecutionError({ cause: error, step, info });
       executor.error(pee, info);
       throw pee;

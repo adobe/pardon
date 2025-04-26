@@ -81,7 +81,7 @@ export class ProgressiveMatch<T extends RequestObject | ResponseObject>
         options.environment,
       );
 
-    if (matching && !matching.context.environment.exhausted()) {
+    if (matching?.schema && !matching.context.environment.exhausted()) {
       return {
         matching,
         progress: new ProgressiveMatch<T>({

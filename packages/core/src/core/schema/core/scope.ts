@@ -12,6 +12,7 @@ governing permissions and limitations under the License.
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
 import { PardonError } from "../../error.js";
+import { shared } from "../../tracking.js";
 import {
   isFlowExport,
   isNoExport,
@@ -123,8 +124,8 @@ export class Scope implements EvaluationScope, ScopeData {
   exportableValues(options: ResolvedValueOptions): Record<string, unknown> {
     const localValues = mapObject(this.values, {
       values: ({ value }) => value,
-      select: ({ expression }, key) =>
-        shouldExport(options, expression) && !this.importedValues.has(key),
+      select: ({ declaration }, key) =>
+        shouldExport(options, declaration) && !this.importedValues.has(key),
     });
 
     const exportValues = this.exportValues(options);
@@ -204,7 +205,7 @@ export class Scope implements EvaluationScope, ScopeData {
           });
 
       if (this.values[name]) {
-        this.values[name].expression = declared;
+        this.values[name].declaration = declared;
       }
 
       return;
@@ -316,7 +317,7 @@ export class Scope implements EvaluationScope, ScopeData {
       name,
       path,
       context,
-      expression: this.declarations[identifier],
+      declaration: this.declarations[identifier],
       ...(DEBUG ? { stack: new Error("defined:here") } : {}),
     };
 
@@ -325,8 +326,19 @@ export class Scope implements EvaluationScope, ScopeData {
 
   lookup(
     identifier: string,
-  ): ValueDeclaration | ExpressionDeclaration | undefined {
-    return findValue(identifier, this) ?? this.lookupDeclaration(identifier);
+  ): ValueDefinition | ExpressionDeclaration | undefined {
+    const value = findValue(identifier, this);
+    const declaration = this.lookupDeclaration(identifier);
+    if (value) {
+      if (
+        !declaration ||
+        value.context.evaluationScope === declaration?.context.evaluationScope
+      ) {
+        return value;
+      }
+    }
+
+    return declaration;
   }
 
   lookupDeclaration(identifier: string): ExpressionDeclaration | undefined {
@@ -368,11 +380,14 @@ export class Scope implements EvaluationScope, ScopeData {
   ) {
     type RenderingChainError = (Error | { message: string; cause?: Error }) & {
       loc: string;
+      data?: any;
     };
     const location = loc(context);
     const evaluating = `${location}: evaluating ${name}`;
     const chainError: RenderingChainError = DEBUG
-      ? Object.assign(new Error(evaluating), { loc: location })
+      ? Object.assign(new Error(evaluating), {
+          loc: location,
+        })
       : {
           message: evaluating,
           loc: location,
@@ -383,8 +398,10 @@ export class Scope implements EvaluationScope, ScopeData {
     const evaluation =
       name === ""
         ? action()
-        : ((this.evaluations[identifier.name] ??= disarm(
-            this._doEvaluate(context, name, action),
+        : ((this.evaluations[identifier.name] ??= this._doEvaluate(
+            context,
+            name,
+            action,
           )) as Promise<T>);
 
     return evaluation.catch((chain) => {
@@ -393,6 +410,7 @@ export class Scope implements EvaluationScope, ScopeData {
       }
 
       chainError.cause = chain;
+
       throw chainError;
     });
   }
@@ -427,19 +445,9 @@ export class Scope implements EvaluationScope, ScopeData {
   ): Promise<T> | Exclude<T, undefined> {
     const key = [...context.keys, ...keys].join(".");
 
-    return (this.cache[key] ??= (() => {
-      try {
-        const result = action();
-
-        if (result == null) {
-          return Promise.resolve(result);
-        }
-
-        return result;
-      } catch (error) {
-        return disarm(Promise.reject(error));
-      }
-    })()) as Promise<T>;
+    return (this.cache[key] ??= disarm(
+      shared(async () => action()),
+    )) as Promise<T>;
   }
 
   evaluating(name: string) {
@@ -507,7 +515,7 @@ function findDefinition(identifier: string, inScope: EvaluationScope) {
   return firstRenderedDeclaration ?? firstExpressionDeclaration;
 }
 
-function findValue(name: string, inScope: Scope) {
+function findValue(name: string, inScope: Scope): ValueDeclaration | undefined {
   for (const scope of scopeChain(inScope)) {
     if (name in scope.values) {
       return scope.values[name];

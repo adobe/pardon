@@ -151,7 +151,9 @@ export default function createCompiler({
   async function importModule(specifier: string, parentSpecifier: string) {
     const resolved = resolvePardonRelativeImport(specifier, parentSpecifier);
 
-    return await shared(() => import(/* @vite-ignore */ resolved));
+    const module = await shared(() => import(/* @vite-ignore */ resolved));
+
+    return module;
   }
 
   function resolvePardonExport(spec: string, context: Module.LoadHookContext) {

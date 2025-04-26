@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { JSON } from "../json.js";
+import { createNumber, JSON } from "../json.js";
 import { Schematic, Template } from "../schema/core/types.js";
 import { datums } from "../schema/definition/datum.js";
 import { base64Encoding } from "../schema/definition/encodings/base64-encoding.js";
@@ -23,7 +23,6 @@ import {
   formEncodingType,
   parseForm,
 } from "../schema/definition/encodings/url-encoded.js";
-import { createNumber } from "../schema/definition/scalar.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { redact } from "../schema/definition/structures/redact.js";
 import {
@@ -139,13 +138,7 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
     }
 
     try {
-      return JSON.parse(template, (_, value, { source }) => {
-        if (typeof value === "number") {
-          return createNumber(source, value);
-        }
-
-        return value;
-      });
+      return JSON.parse(template);
     } catch (error) {
       if (mode !== "match") {
         // fallback to script evaluation (in non-match contexts)

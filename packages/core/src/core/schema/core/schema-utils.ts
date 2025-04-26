@@ -109,13 +109,13 @@ export function unredactedScalarValues(
         {
           value,
           context: { evaluationScopePath: scopes },
-          expression,
+          declaration,
         },
       ]) => {
         return (
           isScalar(value) &&
-          !isNoExport(expression) &&
-          !isSecret(expression) && {
+          !isNoExport(declaration) &&
+          !isSecret(declaration) && {
             scope: scopes.map((part) => `:${part}`).join(""),
             name,
             value,

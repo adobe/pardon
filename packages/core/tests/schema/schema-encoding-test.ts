@@ -38,7 +38,7 @@ describe("schema json tests", () => {
 
     const result = await executeOp(s, "render", renderCtx(s));
     assert.equal(typeof result, "string");
-    const parsed = JSON.parse(result!);
+    const parsed = JSON.rfc8259.parse(result!);
     assert.deepEqual(parsed, {
       a: 10,
       b: 20,

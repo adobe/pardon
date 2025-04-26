@@ -22,6 +22,7 @@ import {
   filterTestPlanning,
   loadTests,
   PardonTestConfiguration,
+  setupRunnerHooks,
   writeResultSummary,
 } from "../runner.js";
 import { extractKVs } from "../../../util/kv-options.js";
@@ -190,6 +191,8 @@ or select a subset of them with selective glob pattern(s).
   if (concurrency != undefined) {
     configuration.concurrency = parseInt(concurrency);
   }
+
+  setupRunnerHooks();
 
   const testResults = await executeWithFastFail(() =>
     executeSelectedTests(configuration, testplan, report, ff),

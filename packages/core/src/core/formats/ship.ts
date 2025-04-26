@@ -11,21 +11,21 @@ governing permissions and limitations under the License.
 */
 
 import { mapObject } from "../../util/mapping.js";
-import { JSON } from "../json.js";
+import { createBigInt, createNumber } from "../json.js";
 
 export function ship<T>(value: T): T {
   switch (true) {
     case typeof value === "function":
       return undefined!;
-    case !value || typeof value !== "object":
+    case !value || typeof value !== "object": {
       return value;
+    }
     case Array.isArray(value):
       return value.map(ship) as T;
     case value instanceof Number:
     case value instanceof BigInt: {
       return {
         $$$type: value instanceof Number ? "number" : "bigint",
-        value: value.valueOf(),
         source: value["source"],
       } as T;
     }
@@ -41,29 +41,10 @@ export function recv<T>(value: T): T {
     case Array.isArray(value):
       return value.map(recv) as T;
     case value?.["$$$type"] === "number": {
-      const source = value["source"] as string;
-      return Object.assign(new Number(value["value"]), {
-        source,
-        toString() {
-          return source;
-        },
-        toJSON() {
-          return JSON.rawJSON(source);
-        },
-      }) as T;
+      return createNumber(value["source"] as string) as T;
     }
     case value?.["$$$type"] === "bigint": {
-      const source = value["source"] as string;
-
-      return Object.assign(Object(BigInt(value["value"])), {
-        source,
-        toString() {
-          return source;
-        },
-        toJSON() {
-          return JSON.rawJSON(source);
-        },
-      }) as T;
+      return createBigInt(value["source"] as string) as T;
     }
     default:
       return mapObject(value as any, recv) as T;

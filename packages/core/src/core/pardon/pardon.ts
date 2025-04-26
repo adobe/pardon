@@ -78,6 +78,7 @@ export type PardonExecutionInit = {
   options?: PardonOptions;
   values: Record<string, unknown>;
   runtime?: Record<string, unknown>;
+  configuration?: EndpointConfiguration;
   select?: PardonSelectOne;
   app(): PardonAppContext;
 };
@@ -190,13 +191,43 @@ export const PardonFetchExecution = pardonExecution({
       ...otherContextData,
     };
   },
-  async match({ context: { url, init, ...context } }) {
+  async match({ context: { url, init, configuration, ...context } }) {
+    if (configuration) {
+      const request = fetchIntoObject(url, init);
+      const { values } = context;
+      const { compiler } = context.app();
+      const endpoint: LayeredEndpoint = {
+        action: "flow",
+        layers: [],
+        service: "flow",
+        configuration,
+      };
+      const { schema, context: mergeContext } = mergeSchema(
+        { mode: "mux", phase: "build" },
+        httpsRequestSchema(),
+        request,
+        createEndpointEnvironment({
+          compiler,
+          endpoint,
+          values,
+        }),
+      );
+
+      return {
+        endpoint,
+        values,
+        schema: schema!,
+        layers: [],
+        context: mergeContext,
+      };
+    }
+
     const request = fetchIntoObject(url, init);
 
     if (typeof context.values?.method === "string") {
-      request.method ??= context.values?.method;
+      request.method ??= context.values.method;
 
-      if (context.values?.method !== request.method) {
+      if (context.values.method !== request.method) {
         throw new Error(
           "specified values method does not match reqeust method",
         );
@@ -489,11 +520,11 @@ export const PardonFetchExecution = pardonExecution({
       }
     }
 
-    const responseSchema = httpsResponseSchema();
-
     // no response templates, we just try to match the basic response
     // so we can maybe reformat the json.
     if (!matchedSchema) {
+      const responseSchema = httpsResponseSchema();
+
       const merged = mergeSchema(
         { mode: "match", phase: "build", body: encoding },
         responseSchema,
@@ -501,9 +532,7 @@ export const PardonFetchExecution = pardonExecution({
         new ScriptEnvironment(),
       );
 
-      if (merged.schema) {
-        matchedSchema = merged.schema;
-      }
+      matchedSchema = merged.schema ?? responseSchema;
     }
 
     context.timestamps.response = now;
@@ -512,7 +541,7 @@ export const PardonFetchExecution = pardonExecution({
     const [uncensored, redacted] = await Promise.all(
       [{ secrets: true }, { secrets: false }].map(async ({ secrets }) => {
         const { output, context } = await postrenderSchema(
-          matchedSchema ?? responseSchema,
+          matchedSchema,
           createEndpointEnvironment({
             endpoint: {
               // we probably don't want to have the config/defaults applied for response

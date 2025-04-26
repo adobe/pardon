@@ -58,6 +58,7 @@ import {
   HttpsSequenceInteraction,
   SequenceStepReport,
 } from "./https-flow-types.js";
+import { dirname } from "node:path";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -87,9 +88,8 @@ function createHttpsFlow(sequence: CompiledHttpsSequence): Flow {
       rested: "",
       required: false,
     },
-    async action({ argument, context }) {
-      return await executeHttpsSequence(sequence, context, argument);
-    },
+    action: ({ argument, context }) =>
+      executeHttpsSequence(sequence, context, argument),
     source: sequence,
   };
 }
@@ -159,7 +159,7 @@ export async function executeHttpsSequence(
   const sequenceEnvironment = createSequenceEnvironment({
     flowScheme: sequence.scheme,
     compiler,
-    flowPath: sequence.path,
+    flowPath: `pardon:${sequence.name}`,
     values: definedValues,
   });
 
@@ -193,7 +193,7 @@ export async function executeHttpsSequence(
 
         return {
           result,
-          context: sequenceResult.overrideEnvironment(
+          context: sequenceResult.mergeEnvironment(
             mapObject(
               { ...sequenceResult.environment },
               {
@@ -221,7 +221,7 @@ export async function executeHttpsSequence(
     }
   };
 
-  return await sequenceRun();
+  return sequenceRun();
 }
 
 const flowScriptTransform: (freeVariables: Set<string>) => TsMorphTransform =
@@ -301,12 +301,13 @@ async function executeHttpsFlowSequence(
 
     const {
       outcome,
-      values: { send, recv },
+      values: { send, recv, flow },
       context: stepResultContext,
     } = await executeHttpsSequenceStep({
       sequenceInteraction: next,
       sequenceScheme: sequence.scheme,
       sequencePath: sequence.path,
+      sequenceName: sequence.name,
       values: flowValues,
       context: flowContext,
     });
@@ -318,6 +319,7 @@ async function executeHttpsFlowSequence(
       ...resultValues,
       ...send,
       ...recv,
+      ...flow,
     };
 
     // if the outcome is named in the flow, loop, else exit
@@ -343,17 +345,20 @@ async function executeHttpsFlowSequence(
     }
   }
 
-  const result = {
-    ...resultValues,
-    ...(Boolean(flowValues.outcome) && {
-      outcome: flowValues.outcome,
-    }),
-    ...(sequence.configuration.provides &&
-      injectValuesDict(
-        contextAsFlowParams(sequence.configuration.provides),
-        flowValues,
-      )),
-  };
+  const result = sequence.configuration.provides
+    ? {
+        ...injectValuesDict(
+          contextAsFlowParams(sequence.configuration.provides),
+          resultValues,
+        ),
+        ...(flowValues?.outcome
+          ? { outcome: flowValues.outcome as string }
+          : null),
+      }
+    : {
+        ...flowValues,
+        ...resultValues,
+      };
 
   return { result, context: flowContext };
 }
@@ -539,14 +544,16 @@ function removeHttpValues(values?: Record<string, unknown>) {
 
 async function executeHttpsSequenceStep({
   sequenceInteraction: interaction,
-  sequenceScheme: sequenceScheme,
-  sequencePath: sequenceFile,
+  sequenceScheme,
+  sequencePath,
+  sequenceName,
   values,
   context: flowContext,
 }: {
   sequenceInteraction: HttpsSequenceInteraction & { type: "exchange" };
   sequenceScheme: HttpsFlowScheme;
   sequencePath: string;
+  sequenceName: string;
   values: Record<string, any>;
   context: FlowContext;
 }): Promise<SequenceStepReport> {
@@ -567,11 +574,22 @@ async function executeHttpsSequenceStep({
   let requestValues = { ...executionValues };
 
   if (requestTemplate.request.pathname || requestTemplate.request.origin) {
-    const prerender = await pardon({
-      ...requestTemplate.values,
-      ...executionValues,
-      endpoint: "default/default",
-    })`${HTTP.stringify(requestTemplate.request)}`.render();
+    const prerender = await pardon(
+      {
+        ...requestTemplate.values,
+        ...executionValues,
+        endpoint: sequenceName,
+      },
+      {
+        configuration: {
+          path: dirname(sequenceName),
+          import: sequenceScheme.configuration.import,
+          defaults: sequenceScheme.configuration.defaults,
+          name: sequenceName,
+          config: [{}],
+        },
+      },
+    )`${HTTP.stringify(requestTemplate.request)}`.render();
     requestHttp = HTTP.stringify({ ...prerender.request, values: undefined });
     requestValues = values;
   }
@@ -610,7 +628,7 @@ ${HTTP.responseObject.stringify(inbound.redacted)}`);
           { compiler },
           {
             sequenceScheme,
-            sequenceFile,
+            sequenceFile: sequencePath,
             values: executionValues,
           },
           responseTemplates,
@@ -668,8 +686,9 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
     values: {
       send: removeHttpValues(outbound.request.values),
       recv: inbound.values,
+      flow: flowResponseValues,
     },
-    context: flowContext.mergeEnvironment({ ...flowResponseValues }),
+    context: flowContext.mergeEnvironment(flowResponseValues),
   };
 }
 

@@ -11,8 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { mapObject } from "../../../util/mapping.js";
-import { JSON } from "../../json.js";
-import { DEBUG } from "../core/debugging.js";
+import { createBigInt, createNumber } from "../../json.js";
 import { isPatternSimple, patternize } from "../core/pattern.js";
 import { SchemaMergingContext } from "../core/types.js";
 
@@ -49,32 +48,28 @@ export function convertScalar(
           : typeof value === "boolean" || typeof value === "string"
             ? value
             : Boolean(value);
+    case "string":
+      return String(value);
     case "number":
       if (value && value instanceof Number) {
         return value;
       }
 
-      if (value && value instanceof BigInt) {
-        return createNumber(value["source"]);
-      }
-
-      if (typeof value === "string" && !isValidNumberToken(value)) {
+      if (value instanceof BigInt) {
+        value = String(value?.["source"] ?? value);
+      } else if (typeof value === "string" && !isValidNumberToken(value)) {
         return value;
       }
 
       return unboxed ? Number(value) : createNumber(String(value));
-    case "string":
-      return String(value);
     case "bigint":
-      if (value instanceof Number || value instanceof BigInt) {
-        return createBigInt(value["source"]);
-      }
-
       if (value instanceof BigInt) {
         return value;
       }
 
-      if (typeof value === "string" && !isValidNumberToken(value)) {
+      if (value instanceof Number) {
+        value = String(value["source"] ?? value);
+      } else if (typeof value === "string" && !isValidBigInt(value)) {
         return value;
       }
 
@@ -134,57 +129,11 @@ export function isValidNumberToken(n: string) {
   return numberRegex.test(n);
 }
 
-export function createNumber(source: string, value?: number) {
-  const numberObject = Object.assign(new Number(value ?? source), { source });
+// 0, 100, 1.1e+10, 1.1e-10
+const bigIntRegex = /^[+-]?(?:0|[1-9][0-9]*)?$/;
 
-  if (DEBUG) {
-    const created = new Error("created-at");
-
-    Object.defineProperty(numberObject, "created", {
-      value: created,
-    });
-
-    value ??= Number(source);
-
-    Object.defineProperty(numberObject, "valueOf", {
-      value() {
-        return value;
-      },
-    });
-    Object.defineProperty(numberObject, Symbol.toPrimitive, {
-      value() {
-        return value;
-      },
-    });
-  }
-
-  Object.defineProperty(numberObject, "toString", {
-    value() {
-      return String(source);
-    },
-  });
-
-  Object.defineProperty(numberObject, "toJSON", {
-    value() {
-      return JSON.rawJSON(source);
-    },
-  });
-
-  return numberObject;
-}
-
-export function createBigInt(source: string, value?: bigint) {
-  const bigintObject = Object.assign(Object(BigInt(value ?? source)), {
-    source,
-  });
-
-  Object.defineProperty(bigintObject, "toJSON", {
-    value() {
-      return JSON.rawJSON(source);
-    },
-  });
-
-  return bigintObject;
+export function isValidBigInt(n: string) {
+  return bigIntRegex.test(n);
 }
 
 export function scalarFuzzyTypeOf<T>(

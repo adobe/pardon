@@ -286,7 +286,7 @@ export type Identifier = {
   path: string[];
 };
 
-export type ScopeValueReference = {
+export type ValueDeclaration = {
   identifier: string;
   name: string;
   path: Identifier["path"];
@@ -294,13 +294,11 @@ export type ScopeValueReference = {
   value?: unknown;
 };
 
-export type ValueDeclaration = ScopeValueReference;
-
-export type ValueDefinition = ScopeValueReference & {
-  expression?: ExpressionDeclaration;
+export type ValueDefinition = ValueDeclaration & {
+  declaration?: ExpressionDeclaration;
 };
 
-export type ExpressionDeclaration = ScopeValueReference & {
+export type ExpressionDeclaration = ValueDeclaration & {
   expression: string | null;
   hint: string | null;
   source: string | null;

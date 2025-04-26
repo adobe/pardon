@@ -37,6 +37,8 @@ import describeCases, {
   CaseHelpers,
 } from "../../core/testcases/index.js";
 import { applySmokeConfig, type SmokeConfig } from "./smoke-config.js";
+import { registerFlowHook } from "../../core/execution/flow/index.js";
+import { disarm } from "../../util/promise.js";
 
 export type TestSetup = {
   test: () => Promise<void>;
@@ -51,11 +53,15 @@ export type TestPlanning = {
 };
 
 const inflight = new AsyncLocalStorage<{
+  testcase: string;
   scheduled: Promise<unknown>[];
   awaited: ReturnType<typeof tracking>;
 }>();
 
-void schedulePending; // TODO: hook up to data
+export function setupRunnerHooks() {
+  registerFlowHook(schedulePending);
+}
+
 function schedulePending<T>(promise: Promise<T>): Promise<T> {
   const store = inflight.getStore();
 
@@ -67,9 +73,7 @@ function schedulePending<T>(promise: Promise<T>): Promise<T> {
 
   scheduled.push(promise);
 
-  return promise.finally(() => {
-    awaited.track(promise);
-  });
+  return disarm(promise.finally(() => awaited.track(promise)));
 }
 
 export async function writeResultSummary(
@@ -156,14 +160,21 @@ export async function executeSelectedTests(
 
               return { testcase, errors, environment };
             } finally {
-              await writeTestExecutionResult(
-                report,
-                testcase,
-                errors,
-                init,
-                env!,
-                [],
-              );
+              try {
+                await writeTestExecutionResult(
+                  report,
+                  testcase,
+                  errors,
+                  init,
+                  env!,
+                  [],
+                );
+              } catch (error) {
+                console.error(
+                  `${testcase}: failed to write execution report`,
+                  error,
+                );
+              }
             }
           }),
         ),
@@ -179,7 +190,7 @@ type RequestTraceInfo = { operation: TracedResult; deps: number[] };
 export async function writeTestExecutionResult(
   report: string,
   testcase: string,
-  errors: unknown[],
+  errors: any[],
   init: Record<string, unknown>,
   env: Record<string, unknown>,
   units: SequenceReport[],
@@ -187,13 +198,13 @@ export async function writeTestExecutionResult(
   const { graph: requestGraph, list: requests } = graph();
   const testReportDir = join(report, testcase);
 
-  console.info(`
-${errors.length ? "FAIL" : "PASS"}: ${testcase}${errors.map((error) => `\n  - ERROR: ${error}`).join("")}
-  - ${requests.length === 0 ? "" : `from: ${requests.map(fmtTraceId).reverse().join(", ")} `}see ${testReportDir}`);
-
   await mkdir(testReportDir, {
     recursive: true,
   });
+
+  console.info(`
+${errors.length ? "FAIL" : "PASS"}: ${testcase}${errors.map((error) => `\n  - ERROR: ${error?.formatted ?? error?.message ?? error}`).join("")}
+  - ${requests.length === 0 ? "" : `from: ${requests.map(fmtTraceId).reverse().join(", ")} `}see ${testReportDir}`);
 
   const logFilePromise = writeReportFile(
     testcase,
@@ -357,7 +368,7 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
 
   console.info("starting test -- " + testcase);
 
-  return await inflight.run({ scheduled, awaited }, async () => {
+  return await inflight.run({ testcase, scheduled, awaited }, async () => {
     try {
       await Promise.resolve(shared(fn));
     } catch (error) {

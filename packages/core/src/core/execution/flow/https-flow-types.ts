@@ -43,6 +43,7 @@ export type SequenceStepReport = {
   values: {
     send: Record<string, unknown>;
     recv: Record<string, unknown>;
+    flow: Record<string, unknown>;
   };
   context: FlowContext;
 };

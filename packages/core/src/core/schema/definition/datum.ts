@@ -427,9 +427,8 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 
       return defineScalar<T>(mergedSelf);
     },
-    async render(context) {
-      const result = (await renderScalar(context, self)) as T | Promise<T>;
-      return result;
+    render(context) {
+      return renderScalar(context, self);
     },
     resolve(context) {
       return resolveScalar(context, self, false);

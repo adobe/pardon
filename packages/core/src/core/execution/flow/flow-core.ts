@@ -71,7 +71,7 @@ export async function currentFlowContext(context?: FlowContext) {
 
 export async function runFlow(
   flow: Flow,
-  input: Record<string, unknown> = {},
+  input: Record<string, unknown>,
   context?: FlowContext,
 ) {
   context = await currentFlowContext(context);

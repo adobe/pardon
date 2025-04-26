@@ -12,7 +12,6 @@ governing permissions and limitations under the License.
 
 import { JSON } from "../json.js";
 import {
-  createNumber,
   isScalar,
   isValidNumberToken,
   scalarTypeOf,
@@ -145,6 +144,7 @@ export const KV: {
     function decode(token: string) {
       switch (true) {
         case /^".*"$/.test(token):
+        case isValidNumberToken(token):
           return JSON.parse(token);
         case /^'.*'$/.test(token):
           return JSON.parse(
@@ -154,8 +154,6 @@ export const KV: {
           return JSON.parse(
             `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
           );
-        case isValidNumberToken(token):
-          return createNumber(token);
         default:
           if (token === "null") {
             return null;

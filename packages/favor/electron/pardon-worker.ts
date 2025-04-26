@@ -27,7 +27,6 @@ import {
   HTTP,
   HTTPS,
   PardonOptions,
-  disconnected,
   executeFlowInContext,
   pardon,
 } from "pardon";
@@ -154,9 +153,7 @@ async function initializePardonAndLoadSamples(
     failfast,
     traced(
       mapObject(tracingHooks, (fn) => (...args: any) => {
-        disconnected(() => {
-          parentPort!.postMessage(ship((fn as any)(...args)));
-        });
+        parentPort!.postMessage(ship((fn as any)(...args)));
       }) as typeof tracingHooks,
       Date.now(), // should make trace ids unique per run?
     ),
@@ -455,6 +452,8 @@ const handlers = {
 
     const { endpoint, outbound, inbound } = await execution.result;
 
+    console.log(inbound);
+
     const secure = {
       outbound: {
         request: HTTP.requestObject.json(outbound.request),
@@ -554,6 +553,15 @@ const handlers = {
     return {
       ...(await executeFlowInContext(name, input, context)).context.environment,
     };
+  },
+  async debug() {
+    const { default: inspector } = await import("node:inspector");
+
+    inspector.open();
+    inspector.waitForDebugger();
+
+    // eslint-disable-next-line no-debugger
+    debugger;
   },
 };
 

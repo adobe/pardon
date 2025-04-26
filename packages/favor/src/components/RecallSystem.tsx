@@ -10,7 +10,6 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import Resizable from "corvu/resizable";
 import ValuesInput from "./ValuesInput.tsx";
 import { createResource, createSignal, For, Show, Suspense } from "solid-js";
 import { HTTP, JSON, KV, ResponseJSON } from "pardon/formats";
@@ -63,133 +62,130 @@ export default function RecallSystem(props: {
       ); // TODO: pagination
     },
   );
-  return (
-    <Resizable>
-      <Resizable.Panel class="flex flex-1 flex-col gap-1 p-1">
-        <ValuesInput
-          class="min-h-8 flex-initial rounded-md bg-purple-200 dark:bg-black"
-          value={prompt()}
-          onValueChange={setPrompt}
-          config={{ ...recallArgConfig, strict: true }}
-          onDataChange={({ values, positionals, options }) => {
-            setValues(values);
-            setArgs(positionals);
-            setOptions(options);
-          }}
-          onDragOver={(event) => {
-            if (event.dataTransfer.types.includes("text/value")) {
-              event.preventDefault();
-            }
-          }}
-          onDrop={(event) => {
-            const value = event.dataTransfer.getData("text/value");
-            if (value) {
-              const dropped = mapObject(KV.parse(value, "object"), {
-                filter: (_, v) =>
-                  ["string", "number", "boolean"].includes(typeof v),
-              });
 
-              if (dropped.endpoint && !values().method) {
-                delete dropped.method;
+  return (
+    <div class="flex w-0 flex-1 flex-col bg-zinc-100 p-1 dark:bg-slate-800">
+      <ValuesInput
+        class="min-h-8 flex-initial rounded-md bg-purple-200 dark:bg-black"
+        value={prompt()}
+        onValueChange={setPrompt}
+        config={{ ...recallArgConfig, strict: true }}
+        onDataChange={({ values, positionals, options }) => {
+          setValues(values);
+          setArgs(positionals);
+          setOptions(options);
+        }}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("text/value")) {
+            event.preventDefault();
+          }
+        }}
+        onDrop={(event) => {
+          const value = event.dataTransfer.getData("text/value");
+          if (value) {
+            const dropped = mapObject(KV.parse(value, "object"), {
+              filter: (_, v) =>
+                ["string", "number", "boolean"].includes(typeof v),
+            });
+
+            if (dropped.endpoint && !values().method) {
+              delete dropped.method;
+            }
+
+            setPrompt(() => {
+              return [
+                ...Object.entries({ ...values(), ...dropped }).map(
+                  ([k, v]) => `${qt(k)}=${qt(String(v))}`,
+                ),
+                options().limit !== undefined &&
+                  `--limit=${qt(options().limit as string)}`,
+              ]
+                .filter(Boolean)
+                .join(" ");
+            });
+          }
+        }}
+      ></ValuesInput>
+      <Suspense fallback={<LoadingSplash />}>
+        <div class="fade-to-clear flex flex-col overflow-auto text-nowrap text-xs [--clear-start-opacity:0]">
+          <For each={memory()}>
+            {({ http, req, res, ask, values, inbound, created_at }) => {
+              const request = HTTP.parse(req);
+
+              const sortedValues = Object.entries(values).sort(numericKeySort);
+
+              const trace = -http;
+              const durations = {};
+              const timestamps = {};
+              let response: ResponseJSON;
+              try {
+                response = HTTP.responseObject.json(
+                  HTTP.responseObject.parse(res),
+                );
+              } catch (error) {
+                console.warn("unparsable response", res, error);
               }
 
-              setPrompt(() => {
-                return [
-                  ...Object.entries({ ...values(), ...dropped }).map(
-                    ([k, v]) => `${qt(k)}=${qt(String(v))}`,
-                  ),
-                  options().limit !== undefined &&
-                    `--limit=${qt(options().limit as string)}`,
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-              });
-            }
-          }}
-        ></ValuesInput>
-        <Suspense fallback={<LoadingSplash />}>
-          <div class="flex-1 overflow-y-scroll text-nowrap text-xs">
-            <For each={memory()}>
-              {({ http, req, res, ask, values, inbound, created_at }) => {
-                const request = HTTP.parse(req);
-
-                const sortedValues =
-                  Object.entries(values).sort(numericKeySort);
-
-                const trace = -http;
-                const durations = {};
-                const timestamps = {};
-                let response: ResponseJSON;
-                try {
-                  response = HTTP.responseObject.json(
-                    HTTP.responseObject.parse(res),
-                  );
-                } catch (error) {
-                  console.warn("unparsable response", res, error);
-                }
-
-                return (
-                  <>
-                    <RequestSummaryNode
-                      relation={props.isCurrent(trace) ? "current" : undefined}
-                      trace={{
+              return (
+                <>
+                  <RequestSummaryNode
+                    relation={props.isCurrent(trace) ? "current" : undefined}
+                    trace={{
+                      trace,
+                      tlr: true,
+                      start: {
                         trace,
-                        tlr: true,
-                        start: {
-                          trace,
-                          context: {
-                            ask,
-                            endpoint: "::recalled",
-                          },
-                          awaited: { requests: [] },
+                        context: {
+                          ask,
+                          endpoint: "::recalled",
                         },
-                        render: {
-                          trace,
-                          context: { durations, timestamps },
-                          awaited: { requests: [], results: [] },
-                          outbound: {
-                            request: HTTP.requestObject.json(request),
-                          },
+                        awaited: { requests: [] },
+                      },
+                      render: {
+                        trace,
+                        context: { durations, timestamps },
+                        awaited: { requests: [], results: [] },
+                        outbound: {
+                          request: HTTP.requestObject.json(request),
                         },
-                        result: {
-                          trace,
-                          context: { timestamps, durations },
-                          awaited: { requests: [], results: [] },
-                          inbound: {
-                            response,
-                            values: inbound,
-                            outcome: undefined,
-                            flow: {},
-                          },
+                      },
+                      result: {
+                        trace,
+                        context: { timestamps, durations },
+                        awaited: { requests: [], results: [] },
+                        inbound: {
+                          response,
+                          values: inbound,
+                          outcome: undefined,
+                          flow: {},
                         },
-                      }}
-                      onRestore={props.onRestore}
-                      note={
-                        <span class="font-mono">
-                          {formatTimestamp(created_at)}
-                        </span>
-                      }
-                    >
-                      <div class="pl-3">
-                        <KeyValueCopier
-                          readonly
-                          initialData={sortedValues
-                            .slice(0, 3)
-                            .flatMap(([, keyvalue]) =>
-                              Object.entries(keyvalue),
-                            )}
-                        />
-                        <Show when={sortedValues.length > 3}>...</Show>
-                      </div>
-                    </RequestSummaryNode>
-                  </>
-                );
-              }}
-            </For>
-          </div>
-        </Suspense>
-      </Resizable.Panel>
-    </Resizable>
+                      },
+                    }}
+                    onRestore={props.onRestore}
+                    note={
+                      <span class="font-mono">
+                        {formatTimestamp(created_at)}
+                      </span>
+                    }
+                  >
+                    <div class="pl-3">
+                      <KeyValueCopier
+                        readonly
+                        noIcon
+                        initialData={sortedValues
+                          .slice(0, 3)
+                          .flatMap(([, keyvalue]) => Object.entries(keyvalue))}
+                      />
+                      <Show when={sortedValues.length > 3}>...</Show>
+                    </div>
+                  </RequestSummaryNode>
+                </>
+              );
+            }}
+          </For>
+        </div>
+      </Suspense>
+    </div>
   );
 }
 

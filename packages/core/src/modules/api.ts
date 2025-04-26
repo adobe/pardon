@@ -44,6 +44,7 @@ export { PardonError } from "../core/error.js";
 
 import { readFile } from "node:fs/promises";
 import { homely } from "../util/resolvehome.js";
+import JSON from "core-js-pure/actual/json";
 
 export const FILE = {
   text,

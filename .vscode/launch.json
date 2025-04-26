@@ -5,6 +5,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "address": "127.0.0.1",
+      "localRoot": "${workspaceFolder}",
+      "name": "Attach to Remote",
+      "port": 9229,
+      "remoteRoot": "Absolute path to the remote directory containing the program",
+      "request": "attach",
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node"
+    },
+    {
       "name": "pardon",
       "type": "node",
       "request": "launch",
@@ -15,7 +25,7 @@
         "--stack-trace-limit=100",
         "src/entry/main/cli/index.ts",
         "test.http",
-        "--http"
+        "--values"
       ],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",

@@ -10,6 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { disarm } from "../../../util/promise.js";
 import { PardonError } from "../../error.js";
 import { FlowName } from "../../formats/https-fmt.js";
 import type { FlowContext } from "./data/flow-context.js";
@@ -37,17 +38,31 @@ export type {
   FlowParams,
 };
 
-export async function flow(
+let flowHook: <T>(p: Promise<T>) => Promise<T> = (p) => p;
+
+export function registerFlowHook(hook: typeof flowHook) {
+  flowHook = hook;
+}
+
+export function flow(
   name: FlowName,
-  input: Record<string, unknown>,
+  input?: Record<string, unknown>,
+  context?: FlowContext,
+) {
+  return disarm(flowHook(__flow(name, input, context)));
+}
+
+async function __flow(
+  name: FlowName,
+  input?: Record<string, unknown>,
   context?: FlowContext,
 ) {
   context ??= await currentFlowContext(context);
-  const { result } = await executeFlowInContext(name, input, context);
+  const { result } = await executeFlowInContext(name, input ?? {}, context);
   return result;
 }
 
-export async function executeFlowInContext(
+export function executeFlowInContext(
   name: FlowName,
   input: Record<string, unknown>,
   context: FlowContext,
@@ -58,5 +73,5 @@ export async function executeFlowInContext(
     throw new PardonError(`no flow named ${name}`);
   }
 
-  return await runFlow(flow, input, context);
+  return runFlow(flow, input, context);
 }

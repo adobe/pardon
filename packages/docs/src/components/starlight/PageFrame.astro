@@ -11,10 +11,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import Default from "@astrojs/starlight/components/PageFrame.astro";
-import { type Props } from "@astrojs/starlight/props";
 import { ProductsView } from "@components";
 
-const { server } = Astro.props.entry.data;
+const { server } = Astro.locals.starlightRoute.entry.data;
 ---
 
 <>

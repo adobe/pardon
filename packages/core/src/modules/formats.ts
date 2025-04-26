@@ -47,4 +47,4 @@ export {
   type SmokeConfig,
 } from "../entry/testing/smoke-config.js";
 
-export { JSON } from "../core/json.js";
+export { JSON, createBigInt, createNumber } from "../core/json.js";

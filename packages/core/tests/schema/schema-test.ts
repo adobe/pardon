@@ -20,9 +20,9 @@ import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-en
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { Schema } from "../../src/core/schema/core/types.js";
 import { KV } from "../../src/core/formats/kv-fmt.js";
-import { JSON } from "../../src/core/json.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 import { mixing } from "../../src/core/schema/core/contexts.js";
+import { JSON } from "../../src/core/json.js";
 
 async function compose(
   testname: string,
@@ -80,14 +80,8 @@ async function compose(
 
   if (last.trim()) {
     assert.deepStrictEqual(
-      JSON.parse(
-        unboxObject(output),
-        (_key, value, { source }) => source ?? value,
-      ),
-      JSON.parse(
-        unboxObject(last),
-        (_key, value, { source }) => source ?? value,
-      ),
+      JSON.rfc8259.parse(output),
+      JSON.rfc8259.parse(last),
     );
   }
 

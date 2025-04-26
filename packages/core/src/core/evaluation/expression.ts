@@ -24,7 +24,6 @@ import {
 } from "ts-morph";
 import { PardonError } from "../error.js";
 import { JSON } from "../json.js";
-import { disarm } from "../../util/promise.js";
 
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 
@@ -205,16 +204,12 @@ export async function evaluation(
     `return (async () => (${compiled}))()`,
   );
 
-  bound.map(([, v]) => disarm(v as Promise<unknown>));
-
   try {
     const args = await Promise.all(
       bound.map(([k, v]) =>
-        disarm(
-          Promise.resolve(v).catch((ex) => {
-            throw new PardonError(`evaluating ${k}`, ex);
-          }),
-        ),
+        Promise.resolve(v).catch((ex) => {
+          throw new PardonError(`evaluating ${k}`, ex);
+        }),
       ),
     );
 

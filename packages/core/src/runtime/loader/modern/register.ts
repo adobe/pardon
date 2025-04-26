@@ -26,7 +26,7 @@ export async function registerPardonLoader(
 
   if (!Module.register) {
     throw new Error(
-      `the node runtime is missing "node:module".register, please the legacy-rpc-loader instead`,
+      `the node runtime is missing "node:module".register, please use the legacy-rpc-loader instead`,
     );
   }
 

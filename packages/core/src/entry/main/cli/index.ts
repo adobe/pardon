@@ -205,9 +205,13 @@ ${YAML.stringify({
     const result = options.secrets ? response : redacted;
 
     if (options.values) {
-      console.info(
-        `${KV.stringify(kv, "\n", 2, "\n")}${HTTP.responseObject.stringify(result)}`,
-      );
+      if (options.json) {
+        console.info(JSON.stringify(kv, null, 2));
+      } else {
+        console.info(
+          `${KV.stringify(kv, "\n", 2, "\n")}${HTTP.responseObject.stringify(result)}`,
+        );
+      }
     } else if (options.include) {
       console.info(HTTP.responseObject.stringify(result));
     } else {

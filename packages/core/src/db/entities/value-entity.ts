@@ -134,6 +134,7 @@ WHERE "http" = :http
       case "raw":
       case "string":
         return value;
+      case "bigint":
       case "number":
       case "boolean":
       case "object":
