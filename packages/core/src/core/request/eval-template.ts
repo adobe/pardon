@@ -21,18 +21,21 @@ export function evalTemplate(
   schemaSource: string,
   globals: Record<string, unknown>,
 ): Template<unknown> {
-  return syncEvaluation(`${schemaSource}`, {
-    binding(name) {
-      if (name in globals) {
-        return globals[name];
-      }
+  return syncEvaluation(
+    `${schemaSource}`,
+    {
+      binding(name) {
+        if (name in globals) {
+          return globals[name];
+        }
 
-      if (!name.startsWith("$")) {
-        return referenceTemplate({ ref: name });
-      }
+        if (!name.startsWith("$")) {
+          return referenceTemplate({ ref: name });
+        }
 
-      return undefined;
+        return undefined;
+      },
     },
-    transform: jsonSchemaTransform,
-  }) as Template<string>;
+    jsonSchemaTransform,
+  ) as Template<string>;
 }

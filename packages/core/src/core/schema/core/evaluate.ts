@@ -54,11 +54,14 @@ function doRenderExpression(
     source,
     hint,
     evaluation: () =>
-      evaluation(expression!, {
-        binding: (unbound) =>
-          evaluateIdentifierWithExpression(context, unbound),
-        transform: dotAwaitTransform,
-      }),
+      evaluation(
+        expression!,
+        {
+          binding: (unbound) =>
+            evaluateIdentifierWithExpression(context, unbound),
+        },
+        dotAwaitTransform,
+      ),
   });
 }
 

@@ -21,6 +21,7 @@ import {
   SyntaxKind,
   Diagnostic,
   DiagnosticMessageChain,
+  Node,
 } from "ts-morph";
 import { PardonError } from "../error.js";
 import { JSON } from "../json.js";
@@ -63,7 +64,7 @@ export function getMessage(
 
 export function applyTsMorph(
   expression: string,
-  transform: TsMorphTransform = (control) => control.visitChildren(),
+  ...transforms: (TsMorphTransform | null | undefined)[]
 ): string {
   const exprSourceFile = expressionProject.createSourceFile(
     `/__expr__.ts`,
@@ -79,10 +80,15 @@ export function applyTsMorph(
     throw new PardonError(getMessage(errors[0]));
   }
 
-  exprSourceFile
+  const sourceExpression = exprSourceFile
     .getExportAssignment((assignment) => !assignment.isExportEquals())!
-    .getExpression()
-    .transform(transform);
+    .getExpression();
+
+  transforms
+    .filter(Boolean)
+    .reduce<
+      Node<ts.Node>
+    >((expression, transform) => expression.transform(transform), sourceExpression);
 
   const result = expressionProject.emitToMemory({
     targetSourceFile: exprSourceFile,
@@ -155,14 +161,13 @@ export function syncEvaluation(
   {
     binding,
     options,
-    transform,
   }: {
     binding?: (identifier: string) => unknown;
     options?: acorn.Options;
-    transform?: TsMorphTransform;
   },
+  ...transforms: TsMorphTransform[]
 ): unknown {
-  expression = applyTsMorph(expression, transform);
+  expression = applyTsMorph(expression, ...transforms);
 
   const bound = [...unbound(`(${expression})`, options)].map(
     (name) => [name, binding?.(name)] as const,
@@ -185,14 +190,13 @@ export async function evaluation(
   {
     binding,
     options,
-    transform,
   }: {
     binding?: (identifier: string) => unknown | Promise<unknown>;
     options?: acorn.Options;
-    transform?: TsMorphTransform;
   },
+  ...transforms: TsMorphTransform[]
 ): Promise<unknown> {
-  const compiled = applyTsMorph(expression, transform);
+  const compiled = applyTsMorph(expression, ...transforms);
 
   const unboundIdentifiers = unbound(`(${compiled})`, options);
   const bound = [...unboundIdentifiers].map(

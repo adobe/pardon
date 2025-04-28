@@ -281,16 +281,19 @@ async function executeHttpsFlowSequence(
       const precomplied = applyTsMorph(script);
       const freeVariables = unbound(precomplied);
 
-      await evaluation(script, {
-        binding(key) {
-          if (key === "environment") {
-            return scriptValues;
-          }
+      await evaluation(
+        script,
+        {
+          binding(key) {
+            if (key === "environment") {
+              return scriptValues;
+            }
 
-          return resultValues[key];
+            return resultValues[key];
+          },
         },
-        transform: flowScriptTransform(freeVariables),
-      });
+        flowScriptTransform(freeVariables),
+      );
 
       flowValues = { ...flowValues, ...scriptValues };
       resultValues = { ...resultValues, ...scriptValues };
