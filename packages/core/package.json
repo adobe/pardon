@@ -114,7 +114,7 @@
     "split": "^1.0.1",
     "ts-morph": "^25.0.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
+    "typescript": "^5.7.3",
     "undici": "^7.8.0",
     "whatwg-mimetype": "^4.0.0",
     "yaml": "^2.3.2"
