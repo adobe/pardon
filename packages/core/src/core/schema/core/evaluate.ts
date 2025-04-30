@@ -11,7 +11,6 @@ governing permissions and limitations under the License.
 */
 import { evaluation, dotAwaitTransform } from "../../evaluation/expression.js";
 import { JSON } from "../../json.js";
-import { rescope } from "./context-util.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";
 import {
@@ -69,7 +68,9 @@ function synthesizeExpressionDeclaration(
   context: SchemaRenderContext,
   identifier: string,
   expression?: string,
-): Omit<ExpressionDeclaration, "name" | "path"> {
+): Omit<ExpressionDeclaration, "name" | "path"> & {
+  context: SchemaRenderContext;
+} {
   const { evaluationScope: scope } = context;
 
   const lookup = scope.lookup(identifier);
@@ -78,7 +79,7 @@ function synthesizeExpressionDeclaration(
     return {
       ...lookup,
       expression: expression ?? lookup.expression,
-    };
+    } as typeof lookup & { context: SchemaRenderContext };
   }
 
   return {
@@ -94,21 +95,18 @@ function synthesizeExpressionDeclaration(
 }
 
 function renderIdentifierInExpression(
-  context: SchemaRenderContext,
+  renderContext: SchemaRenderContext,
   name: string,
-  expression?: string,
+  renderExpression?: string,
 ) {
-  const decl = synthesizeExpressionDeclaration(context, name, expression);
-  const { evaluationScope: scope } = decl.context;
-  const rescoped = rescope({ ...context, keys: decl.context.keys }, scope);
+  const { context, expression, source, hint, rendered } =
+    synthesizeExpressionDeclaration(renderContext, name, renderExpression);
 
-  return scope.rendering(rescoped, name, async () => {
+  return context.evaluationScope.rendering(context, name, async () => {
     const identifier = parseScopedIdentifier(name);
 
-    if (decl.expression) {
-      const { expression, source, hint } = decl;
-
-      return doRenderExpression(rescoped, {
+    if (expression) {
+      return doRenderExpression(context, {
         identifier,
         expression,
         source,
@@ -116,14 +114,14 @@ function renderIdentifierInExpression(
       });
     }
 
-    const ambientResult = await decl?.rendered?.(rescoped);
+    const ambientResult = await rendered?.(context);
 
     if (ambientResult !== undefined) {
       return ambientResult;
     }
 
-    return rescoped.environment.evaluate({
-      context: rescoped,
+    return context.environment.evaluate({
+      context: context,
       identifier,
     });
   });

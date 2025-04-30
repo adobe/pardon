@@ -133,7 +133,6 @@ const tracingHooks = {
     };
   },
   onError({ error, trace }) {
-    console.log("onError", error.stack);
     return {
       id: "trace:error" as const,
       trace: {
@@ -451,8 +450,6 @@ const handlers = {
     } = ongoing[handle];
 
     const { endpoint, outbound, inbound } = await execution.result;
-
-    console.log(inbound);
 
     const secure = {
       outbound: {

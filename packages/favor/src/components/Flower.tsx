@@ -105,7 +105,6 @@ export default function Flower(props: {
         }}
         actions={{
           play: () => {
-            console.log("running flow: ", props.flow, props.input);
             setFlowPromise(
               (async () => {
                 const result = await window.pardon.flow(

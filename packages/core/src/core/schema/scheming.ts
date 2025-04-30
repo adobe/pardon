@@ -20,7 +20,12 @@ import { ScopedOptions, defineScoped } from "./definition/scoped.js";
 import { mapObject } from "../../util/mapping.js";
 import { PardonError } from "../error.js";
 import { loc } from "./core/context-util.js";
-import { defineSchematic, merge } from "./core/schema-ops.js";
+import {
+  defineSchematic,
+  exposeSchematic,
+  isSchematic,
+  merge,
+} from "./core/schema-ops.js";
 import {
   Schema,
   SchemaMergingContext,
@@ -40,6 +45,32 @@ function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
         return context.expand(template);
       },
     });
+}
+
+export function blend<T>(
+  blending: Template<any> | undefined,
+  wrapper: (template?: Template<any>) => Template<T>,
+): Template<T> {
+  if (!isSchematic(blending) || !exposeSchematic(blending).blend) {
+    return wrapper(blending);
+  }
+
+  return defineSchematic<SchematicOps<any>>({
+    blend(context, next) {
+      return blending().blend!(context, (context) => {
+        return next({
+          ...context,
+          template: wrapper(context.template),
+        });
+      });
+    },
+    expand(context) {
+      return blending().expand({
+        ...context,
+        template: wrapper(context.template),
+      });
+    },
+  });
 }
 
 export function muxTemplate(template: Template<unknown>) {

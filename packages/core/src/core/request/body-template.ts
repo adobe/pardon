@@ -11,10 +11,12 @@ governing permissions and limitations under the License.
 */
 
 import { createNumber, JSON } from "../json.js";
+import { exposeSchematic, isSchematic } from "../schema/core/schema-ops.js";
 import { Schematic, Template } from "../schema/core/types.js";
 import { datums } from "../schema/definition/datum.js";
 import { base64Encoding } from "../schema/definition/encodings/base64-encoding.js";
 import {
+  EncodingSchematicOps,
   encodingTemplate,
   EncodingType,
 } from "../schema/definition/encodings/encoding.js";
@@ -37,36 +39,46 @@ import {
   mixTemplate,
   matchTemplate,
   mvKeyedTuples,
+  blend,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
 export const encodings = {
   $json(value: unknown | Template<unknown>) {
-    return jsonEncoding(value);
+    return blend(value, jsonEncoding);
   },
   $form(value?: string | Record<string, string> | [string, string][]) {
-    return encodingTemplate(
-      formEncodingType,
-      mvKeyedTuples,
-      parseForm(value),
+    return blend(value, (value) =>
+      encodingTemplate(formEncodingType, mvKeyedTuples, parseForm(value)),
     ) as Template<string>;
   },
   $base64(value: string | Template<string>) {
-    return base64Encoding(value);
+    return blend(value, base64Encoding);
   },
   $text(value: string) {
-    return textTemplate(value);
+    return blend(value, textTemplate);
   },
   $raw(value: string) {
-    return textTemplate(datums.antipattern<string>(value));
+    return blend(value, (value) =>
+      textTemplate(datums.antipattern<string>(value)),
+    );
   },
   $template(value: string) {
-    const template = evalBodyTemplate(value);
-    if (typeof template === "function") {
-      return template as Schematic<string>;
-    }
+    const template = evalBodyTemplate(value) as Template<string>;
 
-    return jsonEncoding(template);
+    return blend(template, (template) => {
+      if (isSchematic<string>(template)) {
+        if (
+          exposeSchematic<EncodingSchematicOps<string, unknown>>(
+            template,
+          )?.encoding?.().as === "string"
+        ) {
+          return template as Schematic<string>;
+        }
+      }
+
+      return jsonEncoding(template);
+    });
   },
 } satisfies Record<string, (...args: any) => Template<string>>;
 
@@ -114,18 +126,6 @@ export function jsonEncoding(template?: Template<unknown>): Template<string> {
   return encodingTemplate(jsonEncodingType, template);
 }
 
-function $ref(
-  template: TemplateStringsArray,
-  ...args: never[]
-): ReferenceSchematic<unknown>;
-function $ref(template: string): ReferenceSchematic<unknown>;
-function $ref(ref: TemplateStringsArray | string) {
-  if (typeof ref !== "string") {
-    ref = String.raw(ref);
-  }
-  return referenceTemplate({ ref });
-}
-
 export const jsonEncodingType: EncodingType<string, unknown> = {
   as: "string",
   decode({ template, mode }) {
@@ -140,12 +140,13 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
     try {
       return JSON.parse(template);
     } catch (error) {
-      if (mode !== "match") {
-        // fallback to script evaluation (in non-match contexts)
-        // if body doesn't parse
-        void error;
-        return evalBodyTemplate(template);
+      if (mode === "match") {
+        throw error;
       }
+
+      // fallback to script evaluation (in non-match contexts)
+      // if body doesn't parse
+      return evalBodyTemplate(template);
     }
   },
   encode(output, context) {
@@ -160,3 +161,14 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
     return JSON.stringify(output, null, 0);
   },
 };
+function $ref(
+  template: TemplateStringsArray,
+  ...args: never[]
+): ReferenceSchematic<unknown>;
+function $ref(template: string): ReferenceSchematic<unknown>;
+function $ref(ref: TemplateStringsArray | string) {
+  if (typeof ref !== "string") {
+    ref = String.raw(ref);
+  }
+  return referenceTemplate({ ref });
+}
