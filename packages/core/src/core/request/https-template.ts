@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import MIME from "whatwg-mimetype";
 import {
   referenceTemplate,
-  ReferenceTemplateOps,
+  ReferenceSchematicOps,
 } from "../schema/definition/structures/reference.js";
 import { FetchObject, ResponseObject } from "./fetch-pattern.js";
 import { queryEncodingType } from "../schema/definition/encodings/url-encoded.js";
@@ -176,7 +176,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
         if (
           schema &&
           isSchematic(templateEncoded) &&
-          exposeSchematic<ReferenceTemplateOps<unknown>>(templateEncoded)
+          exposeSchematic<ReferenceSchematicOps<unknown>>(templateEncoded)
             .reference
         ) {
           throw new Error("cannot merge body reference template encodings");

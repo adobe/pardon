@@ -34,6 +34,7 @@ import {
   Template,
 } from "./core/types.js";
 import { muxing } from "./core/contexts.js";
+import { ReferenceSchematicOps } from "./definition/structures/reference.js";
 
 function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
   return (template: Template<T>) =>
@@ -47,11 +48,18 @@ function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
     });
 }
 
-export function blend<T>(
+export function blendEncoding<T>(
   blending: Template<any> | undefined,
   wrapper: (template?: Template<any>) => Template<T>,
 ): Template<T> {
-  if (!isSchematic(blending) || !exposeSchematic(blending).blend) {
+  if (!isSchematic(blending)) {
+    return wrapper(blending);
+  }
+
+  // don't blend with references or the
+  // reference captures the wrong encoding layer.
+  const schematic = exposeSchematic<ReferenceSchematicOps<any>>(blending);
+  if (schematic.reference || !schematic.blend) {
     return wrapper(blending);
   }
 

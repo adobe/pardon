@@ -39,34 +39,34 @@ import {
   mixTemplate,
   matchTemplate,
   mvKeyedTuples,
-  blend,
+  blendEncoding,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
 export const encodings = {
   $json(value: unknown | Template<unknown>) {
-    return blend(value, jsonEncoding);
+    return blendEncoding(value, jsonEncoding);
   },
   $form(value?: string | Record<string, string> | [string, string][]) {
-    return blend(value, (value) =>
+    return blendEncoding(value, (value) =>
       encodingTemplate(formEncodingType, mvKeyedTuples, parseForm(value)),
     ) as Template<string>;
   },
   $base64(value: string | Template<string>) {
-    return blend(value, base64Encoding);
+    return blendEncoding(value, base64Encoding);
   },
   $text(value: string) {
-    return blend(value, textTemplate);
+    return blendEncoding(value, textTemplate);
   },
   $raw(value: string) {
-    return blend(value, (value) =>
+    return blendEncoding(value, (value) =>
       textTemplate(datums.antipattern<string>(value)),
     );
   },
   $template(value: string) {
     const template = evalBodyTemplate(value) as Template<string>;
 
-    return blend(template, (template) => {
+    return blendEncoding(template, (template) => {
       if (isSchematic<string>(template)) {
         if (
           exposeSchematic<EncodingSchematicOps<string, unknown>>(

@@ -51,7 +51,7 @@ type ReferenceSchema<T> = {
   anull?: true;
 };
 
-export type ReferenceTemplateOps<T> = SchematicOps<T> & {
+export type ReferenceSchematicOps<T> = SchematicOps<T> & {
   reference(): ReferenceTemplate<T>;
 };
 
@@ -87,14 +87,14 @@ export function isReferenceSchematic<T>(
 ): s is ReferenceSchematic<T> {
   return (
     isSchematic<T>(s) &&
-    Boolean(exposeSchematic<ReferenceTemplateOps<T>>(s).reference)
+    Boolean(exposeSchematic<ReferenceSchematicOps<T>>(s).reference)
   );
 }
 
 export function referenceTemplate<T = unknown>(
   reference: ReferenceTemplate<T>,
 ): ReferenceSchematic<T> {
-  const referenceSchematic = defineSchematic<ReferenceTemplateOps<T>>({
+  const referenceSchematic = defineSchematic<ReferenceSchematicOps<T>>({
     expand(context) {
       return defineReference({
         refs: new Set([reference.ref].filter(Boolean)),
@@ -254,7 +254,7 @@ function extractReference<T>({
   template,
 }: SchemaMergingContext<T>): ReferenceTemplate<T> | undefined {
   if (isSchematic(template)) {
-    const ops = exposeSchematic<ReferenceTemplateOps<T>>(template);
+    const ops = exposeSchematic<ReferenceSchematicOps<T>>(template);
 
     if (ops.reference) {
       return ops.reference();
