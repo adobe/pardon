@@ -95,8 +95,6 @@
     "@types/split": "^1.0.5",
     "@types/whatwg-mimetype": "^3.0.2",
     "@typescript-eslint/eslint-plugin": "^8.0.1",
-    "acorn": "^8.10.0",
-    "acorn-walk": "^8.3.2",
     "core-js-pure": "^3.38.1",
     "eslint": "^9.14.0",
     "eslint-config-prettier": "^10.0.1",

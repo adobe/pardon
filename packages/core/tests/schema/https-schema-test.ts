@@ -499,56 +499,93 @@ describe("https-schema-tests", () => {
   //   - $x = ... -> bind $x to the structure :: $x.of(...)
   //   - $x! -> mark $x required for match :: $x.required
   //   - void $x -> mark $x optional for match :: $x.optional
-  //   - $x?.$y -> mark $y optional for match :: $x.$y.optional
 
   const transforms = (testname: string) => ({
     from: (source: string) => ({
       to: (expected: string) => {
+        let expectedUnbound: Set<string>;
+
         it(testname, () => {
-          const transformed = applyTsMorph(source.trim(), jsonSchemaTransform);
-          assert.equal(transformed, expected.trim());
+          const { morphed, unbound } = applyTsMorph(
+            source.trim(),
+            jsonSchemaTransform,
+          );
+
+          assert.equal(morphed, expected.trim());
+          if (expectedUnbound) {
+            assert.deepEqual(expectedUnbound, unbound);
+          }
         });
+
+        return {
+          unbound(...symbols: string[]) {
+            expectedUnbound = new Set(symbols);
+          },
+        };
       },
     }),
   });
 
-  transforms("parens-to-expressions").from("(a)").to(`
+  transforms("parens-to-expressions")
+    .from("(a)")
+    .to(
+      `
       "{{ = $$expr(\\"a\\") }}"
-  `);
+  `,
+    )
+    .unbound();
+
+  transforms("optional-chain").from("a?.b").to(`a?.b`).unbound("a");
 
   transforms("parens-as-assignments")
     .from("b = ('hello')")
-    .to(`b.$of("{{ = $$expr(\\"'hello'\\") }}")`);
+    .to(`b.$of("{{ = $$expr(\\"'hello'\\") }}")`)
+    .unbound("b");
 
   transforms("parens-with-noexport-modifier")
     .from("b = ('hello') as internal")
-    .to(`b.$noexport.$of("{{ = $$expr(\\"('hello')\\") }}")`);
+    .to(`b.$noexport.$of("{{ = $$expr(\\"('hello')\\") }}")`)
+    .unbound("b");
 
   transforms("no-parens") //
     .from("b = 'hello'")
-    .to(`b.$of('hello')`);
+    .to(`b.$of('hello')`)
+    .unbound("b");
 
   transforms("no-parens-with-modifier")
     .from("b = 'hello' as secret")
-    .to(`b.$redacted.$of('hello')`);
+    .to(`b.$redacted.$of('hello')`)
+    .unbound("b");
 
   transforms("parens-with-redact-modifier")
     .from("b.$redact = ('hello')")
-    .to(`b.$redact.$of("{{ = $$expr(\\"'hello'\\") }}")`);
+    .to(`b.$redact.$of("{{ = $$expr(\\"'hello'\\") }}")`)
+    .unbound("b");
 
-  transforms("plus-as-mux").from("+['hello']").to(`$mux(['hello'])`);
-  transforms("minus-as-mix").from("-{ d: 'world' }").to(`$mix({ d: 'world' })`);
+  transforms("plus-as-mux")
+    .from("+['hello']")
+    .to(`$mux(['hello'])`)
+    .unbound("$mux");
+
+  transforms("minus-as-mix")
+    .from("-{ d: 'world' }")
+    .to(`$mix({ d: 'world' })`)
+    .unbound("$mix");
 
   // todo: create a template that can merge two templates,
   // maybe
   //        and("{{ a }}", "{{ b = c }}")
   transforms("reference-reference")
     .from("a = b = (c)")
-    .to(`a.$of(b.$of("{{ = $$expr(\\"c\\") }}"))`);
+    .to(`a.$of(b.$of("{{ = $$expr(\\"c\\") }}"))`)
+    .unbound("a", "b");
 
-  transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`);
+  transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`).unbound();
 
-  transforms("regexp-binding").from("a = /abc/").to(`"{{ a % /abc/ }}"`);
+  transforms("regexp-binding")
+    .from("a = /abc/")
+    .to(`"{{ a % /abc/ }}"`)
+    .unbound();
 
   transforms("regexp-binding-and-value")
     .from("a = (x) % /abc/")
@@ -560,32 +597,41 @@ describe("https-schema-tests", () => {
 
   transforms("kv-expression")
     .from(`[key, undefined] * [ [headers.$key, headers.$value] ]`)
-    .to("$keyed([key, undefined], [[headers.$key, headers.$value]])");
+    .to("$keyed([key, undefined], [[headers.$key, headers.$value]])")
+    .unbound("$keyed", "key", "undefined", "headers");
 
   transforms("multi-kv-expression")
     .from(`{ id: key } ** { id: map.$key, value: map.$value }`)
-    .to("$keyed$mv({ id: key }, { id: map.$key, value: map.$value })");
+    .to("$keyed$mv({ id: key }, { id: map.$key, value: map.$value })")
+    .unbound("$keyed$mv", "key", "map");
 
   transforms("array-with-value")
     .from(`{ x: [a.$value] }`)
-    .to(`{ x: [a.$value] }`);
+    .to(`{ x: [a.$value] }`)
+    .unbound("a");
 
-  transforms("kv-with-computed-properties").from(
-    `
+  transforms("kv-with-computed-properties")
+    .from(
+      `
 { id: key } * [{
   id: map.$key,
   a: "{{map.value}}",
   a1: ( value + 1 )
 }]`,
-  ).to(`
+    )
+    .to(
+      `
 $keyed({ id: key }, [{
         id: map.$key,
         a: "{{map.value}}",
         a1: "{{ = $$expr(\\"value + 1\\") }}"
     }])
-`);
+`,
+    )
+    .unbound("$keyed", "key", "map");
 
   transforms("function-calls")
     .from("form({ x: a = 10 })")
-    .to('$form({ x: a.$of($$number("10")) })');
+    .to('$form({ x: a.$of($$number("10")) })')
+    .unbound("$form", "a", "$$number");
 });

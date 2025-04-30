@@ -9,8 +9,6 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import * as acorn from "acorn";
-import * as walker from "acorn-walk";
 import {
   type TransformTraversalControl,
   Project,
@@ -39,6 +37,7 @@ const expressionProject = new Project({
     target: ScriptTarget.ES2022,
     module: ModuleKind.ES2022,
     noEmitOnError: true,
+    lib: ["lib.es2022.d.ts"],
   },
   useInMemoryFileSystem: true,
   manipulationSettings: {
@@ -65,10 +64,10 @@ export function getMessage(
 export function applyTsMorph(
   expression: string,
   ...transforms: (TsMorphTransform | null | undefined)[]
-): string {
+): { morphed: string; unbound: Set<string> } {
   const exprSourceFile = expressionProject.createSourceFile(
     `/__expr__.ts`,
-    `export default ${expression}`,
+    `export default (${expression})`,
     { overwrite: true, scriptKind: ts.ScriptKind.TS },
   );
 
@@ -82,6 +81,7 @@ export function applyTsMorph(
 
   const sourceExpression = exprSourceFile
     .getExportAssignment((assignment) => !assignment.isExportEquals())!
+    .getExpressionIfKindOrThrow(ts.SyntaxKind.ParenthesizedExpression)
     .getExpression();
 
   transforms
@@ -96,43 +96,39 @@ export function applyTsMorph(
 
   const compiledExpr = result
     .getFiles()[0]
-    .text.replace(/^export default /, "")
-    .replace(/;\s+$/m, "");
+    .text.replace(/^export default [(]/, "")
+    .replace(/[)];\s+$/m, "");
 
-  //   this would also actually leave more state around from
-  //   the expression evaluation than not doing it (blocking further evaluations)
-  // exprSourceFile.forget();
+  exprSourceFile.replaceWithText(compiledExpr);
 
-  //   this would actually leave more state around from
-  //   the expression evaluation than not doing it (blocking further evaluations)
-  // exprSourceFile.deleteImmediatelySync();
+  const unbound = new Set<string>();
 
-  return compiledExpr;
-}
+  for (const ident of exprSourceFile.getDescendantsOfKind(
+    SyntaxKind.Identifier,
+  )) {
+    // skip accessed properties (a.b and a?.b)
+    if (
+      ident
+        .getParentIfKind(ts.SyntaxKind.PropertyAccessExpression)
+        ?.getNameNode() === ident
+    ) {
+      continue;
+    }
 
-export function unbound(
-  expression: string,
-  options: acorn.Options = { ecmaVersion: 2022 },
-) {
-  const unbound: string[] = [];
+    // skip label "identifiers", x: ...
+    if (
+      ident.getParentIfKind(ts.SyntaxKind.LabeledStatement)?.getLabel() ===
+      ident
+    ) {
+      continue;
+    }
 
-  try {
-    walker.simple(
-      acorn.parse(expression, { ...options, allowAwaitOutsideFunction: true }),
-      {
-        Expression(node) {
-          if (node.type == "Identifier") {
-            unbound.push(node["name"]);
-          }
-        },
-      },
-    );
-  } catch (ex) {
-    console.error(`error parsing: ${expression} for unbound values`);
-    throw ex;
+    if (!ident.getDefinitionNodes()?.length) {
+      unbound.add(ident.getText());
+    }
   }
 
-  return new Set(unbound);
+  return { morphed: compiledExpr, unbound };
 }
 
 // helper for recompiling x.await to (await x).
@@ -160,27 +156,23 @@ export function syncEvaluation(
   expression: string,
   {
     binding,
-    options,
   }: {
     binding?: (identifier: string) => unknown;
-    options?: acorn.Options;
   },
   ...transforms: TsMorphTransform[]
 ): unknown {
-  expression = applyTsMorph(expression, ...transforms);
+  const { morphed, unbound } = applyTsMorph(expression, ...transforms);
 
-  const bound = [...unbound(`(${expression})`, options)].map(
-    (name) => [name, binding?.(name)] as const,
-  );
+  const bound = [...unbound].map((name) => [name, binding?.(name)] as const);
 
-  const fn = new Function(...bound.map(([k]) => k), `return (${expression})`);
+  const fn = new Function(...bound.map(([k]) => k), `return (${morphed})`);
 
   const args = bound.map(([, v]) => v);
 
   try {
     return fn(...args);
   } catch (error) {
-    console.warn(`error evaluating script: ${expression}`, error);
+    console.warn(`error evaluating script: ${expression} as ${morphed}`, error);
     throw error;
   }
 }
@@ -189,23 +181,18 @@ export async function evaluation(
   expression: string,
   {
     binding,
-    options,
   }: {
     binding?: (identifier: string) => unknown | Promise<unknown>;
-    options?: acorn.Options;
   },
   ...transforms: TsMorphTransform[]
 ): Promise<unknown> {
-  const compiled = applyTsMorph(expression, ...transforms);
+  const { morphed, unbound } = applyTsMorph(expression, ...transforms);
 
-  const unboundIdentifiers = unbound(`(${compiled})`, options);
-  const bound = [...unboundIdentifiers].map(
-    (name) => [name, binding?.(name)] as const,
-  );
+  const bound = [...unbound].map((name) => [name, binding?.(name)] as const);
 
   const fn = new Function(
     ...bound.map(([k]) => k),
-    `return (async () => (${compiled}))()`,
+    `return (async () => (${morphed}))()`,
   );
 
   try {
@@ -221,7 +208,10 @@ export async function evaluation(
 
     return result;
   } catch (error) {
-    console.warn(`error evaluating expression: ${compiled}`, error);
+    console.warn(
+      `error evaluating expression: ${expression} as ${morphed}`,
+      error,
+    );
     throw error;
   }
 }

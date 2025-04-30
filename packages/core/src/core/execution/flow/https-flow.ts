@@ -48,7 +48,6 @@ import {
   applyTsMorph,
   evaluation,
   TsMorphTransform,
-  unbound,
 } from "../../evaluation/expression.js";
 import { SyntaxKind, ts } from "ts-morph";
 import {
@@ -278,8 +277,8 @@ async function executeHttpsFlowSequence(
 
       const script = `(() => { ${next.script.script} ;;; })()`;
 
-      const precomplied = applyTsMorph(script);
-      const freeVariables = unbound(precomplied);
+      const { morphed, unbound } = applyTsMorph(script);
+      void morphed;
 
       await evaluation(
         script,
@@ -292,7 +291,7 @@ async function executeHttpsFlowSequence(
             return resultValues[key];
           },
         },
-        flowScriptTransform(freeVariables),
+        flowScriptTransform(unbound),
       );
 
       flowValues = { ...flowValues, ...scriptValues };
