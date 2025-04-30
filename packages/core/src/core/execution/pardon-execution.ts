@@ -155,9 +155,9 @@ export function pardonExecution<
     info: Parameters<Executor[Step]>[0],
   ): ReturnType<Executor[Step]> {
     return executor[step](info as any).catch((error) => {
-      const pee = new PardonExecutionError({ cause: error, step, info });
-      executor.error(pee, info);
-      throw pee;
+      const ee = new PardonExecutionError({ cause: error, step, info });
+      executor.error(ee, info);
+      throw ee;
     }) as ReturnType<Executor[Step]>;
   }
 

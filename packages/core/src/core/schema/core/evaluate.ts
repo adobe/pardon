@@ -99,10 +99,10 @@ function renderIdentifierInExpression(
   expression?: string,
 ) {
   const decl = synthesizeExpressionDeclaration(context, name, expression);
-  const { evaluationScope: scope } = context;
-  const rescoped = rescope(context, decl.context.evaluationScope);
+  const { evaluationScope: scope } = decl.context;
+  const rescoped = rescope({ ...context, keys: decl.context.keys }, scope);
 
-  return scope.rendering(context, name, async () => {
+  return scope.rendering(rescoped, name, async () => {
     const identifier = parseScopedIdentifier(name);
 
     if (decl.expression) {
@@ -122,8 +122,8 @@ function renderIdentifierInExpression(
       return ambientResult;
     }
 
-    return context.environment.evaluate({
-      context,
+    return rescoped.environment.evaluate({
+      context: rescoped,
       identifier,
     });
   });
