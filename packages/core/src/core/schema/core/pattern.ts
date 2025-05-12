@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { arrayIntoObject } from "../../../util/mapping.js";
 import { re } from "../../../util/re.js";
-import { JSON } from "../../json.js";
+import { JSON } from "../../raw-json.js";
 
 export type Pattern = PatternLiteral | PatternRegex;
 

@@ -10,9 +10,24 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import * as CoreJSON from "core-js-pure/actual/json";
+import * as CoreJSON from "core-js-pure/actual/json/index.js";
 
-const { rawJSON } = CoreJSON.default;
+type CoreJSONModule = Omit<typeof global.JSON, "parse"> & {
+  rawJSON(_: string): RawJSON;
+  isRawJSON(obj: any): obj is RawJSON;
+  parse(
+    value: string,
+    receiver?: (
+      key: string,
+      value: any,
+      context: { source: string },
+    ) => unknown,
+  ): any;
+};
+
+export type RawJSON = { rawJSON: string };
+
+const { rawJSON, isRawJSON } = CoreJSON.default as CoreJSONModule;
 
 export function createNumber(source: string, value?: number) {
   const numberObject = Object.assign(new Number(value ?? source), { source });
@@ -34,25 +49,15 @@ export function createNumber(source: string, value?: number) {
   return numberObject;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
-export function createBigInt(source: string, value?: bigint): BigInt {
-  value ??= BigInt(source);
-
-  const bigintObject = Object.assign(Object(BigInt(value ?? source)), {
-    source,
-  });
-
-  Object.defineProperty(bigintObject, "toJSON", {
-    value() {
-      return rawJSON(source);
-    },
-  });
-
-  return bigintObject;
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace JSON {
+  export type RawJSON = { rawJSON: string };
 }
 
 export const JSON: typeof global.JSON &
-  Pick<typeof CoreJSON.default, "rawJSON"> & { rfc8259: typeof global.JSON } = {
+  Pick<typeof CoreJSON.default, "rawJSON" | "isRawJSON"> & {
+    rfc8259: typeof global.JSON;
+  } = {
   rfc8259: globalThis.JSON,
   parse(text, reviver) {
     return CoreJSON.default.parse(text, (key, value, { source }) => {
@@ -88,11 +93,16 @@ export const JSON: typeof global.JSON &
           data = data.toJSON();
         }
 
+        if (typeof data === "bigint") {
+          return JSON.rawJSON(String(data));
+        }
+
         return data;
       },
       space,
     );
   },
   rawJSON,
+  isRawJSON,
   [Symbol.toStringTag]: CoreJSON.default[Symbol.toStringTag],
 };

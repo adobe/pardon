@@ -14,17 +14,10 @@ export function isNumberObject(n: any) {
   return n && typeof n === "object" && n instanceof Number;
 }
 
-export function isBigIntObject(n: any) {
-  return n && typeof n === "object" && n instanceof BigInt;
-}
-
 export function isBoxedPrimitive(n: any) {
   return (
     n &&
     typeof n === "object" &&
-    (n instanceof Number ||
-      n instanceof BigInt ||
-      n instanceof Boolean ||
-      n instanceof String)
+    (n instanceof Number || n instanceof Boolean || n instanceof String)
   );
 }

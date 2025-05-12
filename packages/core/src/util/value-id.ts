@@ -10,8 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { isNumberObject, isBigIntObject } from "node:util/types";
-import { JSON } from "../core/json.js";
+import { isNumberObject } from "node:util/types";
+import { JSON } from "../core/raw-json.js";
 
 export function valueId(value: unknown): string {
   switch (typeof value) {
@@ -36,8 +36,8 @@ export function valueId(value: unknown): string {
         return value.map(valueId).join(",");
       }
 
-      if (isNumberObject(value) || isBigIntObject(value)) {
-        return valueId(value["source"] ?? (value.valueOf() as number | bigint));
+      if (isNumberObject(value)) {
+        return valueId(value["source"] ?? (value.valueOf() as number));
       }
 
       return `{${Object.entries(value)

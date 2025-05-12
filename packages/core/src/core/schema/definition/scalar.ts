@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { mapObject } from "../../../util/mapping.js";
-import { createBigInt, createNumber } from "../../json.js";
+import { createNumber } from "../../raw-json.js";
 import { isPatternSimple, patternize } from "../core/pattern.js";
 import { SchemaMergingContext } from "../core/types.js";
 
@@ -22,9 +22,7 @@ export type Scalar =
   | bigint
   | null
   // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
-  | Number
-  // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
-  | BigInt;
+  | Number;
 
 export type ScalarType = "string" | "number" | "boolean" | "bigint" | "null";
 
@@ -55,15 +53,15 @@ export function convertScalar(
         return value;
       }
 
-      if (value instanceof BigInt) {
-        value = String(value?.["source"] ?? value);
+      if (typeof value === "bigint") {
+        value = String(value);
       } else if (typeof value === "string" && !isValidNumberToken(value)) {
         return value;
       }
 
       return unboxed ? Number(value) : createNumber(String(value));
     case "bigint":
-      if (value instanceof BigInt) {
+      if (typeof value === "bigint") {
         return value;
       }
 
@@ -73,11 +71,7 @@ export function convertScalar(
         return value;
       }
 
-      return value !== undefined
-        ? unboxed
-          ? BigInt(String(value))
-          : createBigInt(String(value))
-        : undefined;
+      return value !== undefined ? BigInt(String(value)) : undefined;
     default:
       return value;
   }
@@ -99,7 +93,7 @@ export function isScalar(value: unknown): value is Scalar {
         return true;
       }
 
-      if (value instanceof BigInt) {
+      if (typeof value === "bigint") {
         return true;
       }
 
@@ -117,7 +111,7 @@ export function scalarTypeOf(value?: unknown): ScalarType | undefined {
         ? "null"
         : value instanceof Number
           ? "number"
-          : value instanceof BigInt
+          : typeof value === "bigint"
             ? "bigint"
             : (typeof value as ScalarType);
 }
@@ -152,7 +146,7 @@ export function scalarFuzzyTypeOf<T>(
 }
 
 export function unboxValue<T>(value: T): T {
-  if (value instanceof Number || value instanceof BigInt) {
+  if (value instanceof Number) {
     return value?.valueOf ? (value.valueOf() as T) : value;
   }
   return value;

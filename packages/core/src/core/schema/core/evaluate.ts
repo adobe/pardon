@@ -9,8 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { mapObjectAsync } from "../../../util/mapping.js";
 import { evaluation, dotAwaitTransform } from "../../evaluation/expression.js";
-import { JSON } from "../../json.js";
+import { JSON } from "../../raw-json.js";
+import { loc } from "./context-util.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";
 import {
@@ -18,6 +20,7 @@ import {
   SchemaContext,
   SchemaRenderContext,
   Identifier,
+  AggregateDeclaration,
 } from "./types.js";
 
 export function evaluateIdentifierWithExpression(
@@ -65,21 +68,23 @@ function doRenderExpression(
 }
 
 function synthesizeExpressionDeclaration(
-  context: SchemaRenderContext,
+  context: SchemaRenderContext | null,
   identifier: string,
   expression?: string,
-): Omit<ExpressionDeclaration, "name" | "path"> & {
-  context: SchemaRenderContext;
+): Omit<ExpressionDeclaration, "name" | "path" | "context"> & {
+  context: SchemaRenderContext | null;
 } {
-  const { evaluationScope: scope } = context;
+  if (context) {
+    const { evaluationScope: scope } = context;
 
-  const lookup = scope.lookup(identifier);
+    const lookup = scope.lookup(identifier);
 
-  if (isLookupExpr(lookup)) {
-    return {
-      ...lookup,
-      expression: expression ?? lookup.expression,
-    } as typeof lookup & { context: SchemaRenderContext };
+    if (isLookupExpr(lookup)) {
+      return {
+        ...lookup,
+        expression: expression ?? lookup.expression,
+      } as typeof lookup & { context: SchemaRenderContext };
+    }
   }
 
   return {
@@ -94,13 +99,22 @@ function synthesizeExpressionDeclaration(
   };
 }
 
-function renderIdentifierInExpression(
+async function renderIdentifierInExpression(
   renderContext: SchemaRenderContext,
   name: string,
   renderExpression?: string,
 ) {
-  const { context, expression, source, hint, rendered } =
+  const { context, expression, source, hint, rendered, aggregates } =
     synthesizeExpressionDeclaration(renderContext, name, renderExpression);
+
+  if (!context) {
+    if (aggregates) {
+      return evaluateAggregates(aggregates);
+    }
+    throw new Error(
+      `${renderContext ? loc(renderContext) : "unknown"} expected context rendering ${name}`,
+    );
+  }
 
   return context.evaluationScope.rendering(context, name, async () => {
     const identifier = parseScopedIdentifier(name);
@@ -120,11 +134,108 @@ function renderIdentifierInExpression(
       return ambientResult;
     }
 
-    return context.environment.evaluate({
+    const result = await context.environment.evaluate({
       context: context,
       identifier,
     });
+
+    if (result === undefined && aggregates) {
+      return evaluateAggregates(aggregates);
+    }
+
+    return result;
   });
+}
+
+async function evaluateAggregates(
+  aggregates: Record<string, AggregateDeclaration>,
+) {
+  const elements = Object.entries(aggregates).filter(
+    ([, { type }]) => type === "element",
+  );
+
+  if (elements.length) {
+    if (aggregates?.["@value"]?.type === "element") {
+      const item = aggregates["@value"];
+      const result: Promise<unknown>[] = [];
+      for (let i = 0; item.specializations?.[i]; i++) {
+        const { context, expression, name, aggregates } =
+          item.specializations[i];
+        result.push(
+          aggregates
+            ? evaluateAggregates(aggregates)
+            : renderIdentifierInExpression(
+                context as SchemaRenderContext,
+                name,
+                expression ?? undefined,
+              ),
+        );
+      }
+      return Promise.all(result);
+    }
+
+    const result: Record<string, Promise<unknown>>[] = [];
+    elements.map(([key, item]) => {
+      for (let i = 0; item.specializations?.[i]; i++) {
+        const { context, expression, name, aggregates } =
+          item.specializations[i];
+
+        (result[i] ??= {})[key] = aggregates
+          ? evaluateAggregates(aggregates)
+          : renderIdentifierInExpression(
+              context as SchemaRenderContext,
+              name,
+              expression ?? undefined,
+            );
+      }
+    });
+
+    return Promise.all(result.map(async (item) => await mapObjectAsync(item)));
+  }
+
+  const fields = Object.entries(aggregates).filter(
+    ([, { type }]) => type === "field",
+  );
+
+  if (fields) {
+    if (aggregates["@value"]?.type === "field") {
+      const item = aggregates["@value"];
+
+      const mapped = await mapObjectAsync(
+        item.specializations ?? {},
+        ({ context, expression, name, aggregates }) => {
+          return aggregates
+            ? evaluateAggregates(aggregates)
+            : renderIdentifierInExpression(
+                context as SchemaRenderContext,
+                name,
+                expression ?? undefined,
+              );
+        },
+      );
+
+      return mapped;
+    }
+
+    const result: Record<string, Record<string, Promise<unknown>>> = {};
+
+    for (const [key, value] of fields) {
+      for (const [
+        field,
+        { context, name, expression, aggregates },
+      ] of Object.entries(value.specializations ?? {})) {
+        (result[field] ??= {})[key] = aggregates
+          ? evaluateAggregates(aggregates)
+          : renderIdentifierInExpression(
+              context as SchemaRenderContext,
+              name,
+              expression ?? undefined,
+            );
+      }
+    }
+
+    return mapObjectAsync(result, (value) => mapObjectAsync(value));
+  }
 }
 
 export function resolveIdentifier(context: SchemaContext, identifier: string) {

@@ -36,6 +36,7 @@ import {
   fieldScopeContext,
   keyContext,
 } from "../core/context-util.js";
+import { DEBUG } from "../core/debugging.js";
 
 type ObjectSchematicInfo<M extends Record<string, unknown>> = {
   object?: { [K in keyof M]: Template<M[K]> };
@@ -279,11 +280,7 @@ function objectTemplate<M extends Record<string, unknown>>(
         },
       );
 
-      if (!rep) {
-        throw diagnostic(context, "failed to expand object template");
-      }
-
-      return defineObject(rep) as Schema<M>;
+      return rep && (defineObject(rep) as Schema<M>);
     },
   });
 }
@@ -312,6 +309,14 @@ function inflatedObject<M extends Record<string, unknown>>(
   ]);
 
   const result = {} as { [K in keyof M]: Schema<M[K]> };
+
+  if (DEBUG) {
+    Object.defineProperty(result, Symbol.for("created-at"), {
+      enumerable: false,
+      configurable: false,
+      value: new Error("created-at"),
+    });
+  }
 
   if (!isMergingContext(context)) {
     for (const key of keys) {

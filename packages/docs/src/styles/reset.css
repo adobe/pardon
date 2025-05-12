@@ -60,6 +60,3 @@ governing permissions and limitations under the License.
   --tw-backdrop-sepia:;
   --tw-backdrop-drop-shadow:;
 }
-
-@tailwind components;
-@tailwind utilities;

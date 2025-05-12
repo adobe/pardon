@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { mapObject } from "../../util/mapping.js";
-import { createBigInt, createNumber } from "../json.js";
+import { createNumber } from "../raw-json.js";
 
 export function ship<T>(value: T): T {
   switch (true) {
@@ -22,10 +22,14 @@ export function ship<T>(value: T): T {
     }
     case Array.isArray(value):
       return value.map(ship) as T;
-    case value instanceof Number:
-    case value instanceof BigInt: {
+    case typeof value === "bigint":
       return {
-        $$$type: value instanceof Number ? "number" : "bigint",
+        $$$type: "bigint",
+        source: String(value),
+      } as T;
+    case value instanceof Number: {
+      return {
+        $$$type: "number",
         source: value["source"],
       } as T;
     }
@@ -44,7 +48,7 @@ export function recv<T>(value: T): T {
       return createNumber(value["source"] as string) as T;
     }
     case value?.["$$$type"] === "bigint": {
-      return createBigInt(value["source"] as string) as T;
+      return BigInt(value["source"] as string) as T;
     }
     default:
       return mapObject(value as any, recv) as T;

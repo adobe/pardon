@@ -23,7 +23,7 @@ import { intoFetchParams } from "../modules/formats.js";
 import {
   ResponseObject,
   SimpleRequestInit,
-} from "../core/request/fetch-pattern.js";
+} from "../core/request/fetch-object.js";
 
 export default function undici(
   execution: typeof PardonFetchExecution,

@@ -1,0 +1,7 @@
+>>>
+GET https://todo.example.com/ping
+
+<<<
+200
+
+{{pong}}

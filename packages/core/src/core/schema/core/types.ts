@@ -42,7 +42,7 @@ export type SchemaMergingContext<T> = SchemaContextBase & {
   environment: SchemaScriptEnvironment;
   template?: Template<T>;
   meta?: Record<string, string>;
-  expand<T>(template?: Template<T>): Schema<T>;
+  expand<T>(template?: Template<T>): Schema<T> | undefined;
 };
 
 /** Given a type T, produce a type where T or any recursive field of T is alternated with T | Schematic\<T> */
@@ -70,7 +70,7 @@ export type Template<R> =
  *   - representing variants of structures and relationships not directly implied by a data template.
  */
 export type SchematicOps<T> = {
-  expand(context: SchemaMergingContext<T>): Schema<T>;
+  expand(context: SchemaMergingContext<T>): Schema<T> | undefined;
   blend?(
     context: SchemaMergingContext<T>,
     next: (context: SchemaMergingContext<T>) => Schema<T> | undefined,
@@ -194,7 +194,7 @@ export type EvaluationScope = {
   ): Promise<T> | Exclude<T, undefined>;
 
   rendering<T>(
-    context: SchemaRenderContext,
+    context: Pick<SchemaRenderContext, "evaluationScope">,
     name: string,
     action: () => Promise<T>,
   ): Promise<T>;
@@ -305,4 +305,11 @@ export type ExpressionDeclaration = ValueDeclaration & {
   context: SchemaContext<unknown>;
   resolved?(context: SchemaContext<unknown>): unknown;
   rendered?(context: SchemaRenderContext): Promise<unknown>;
+  aggregates?: Record<string, AggregateDeclaration>;
+};
+
+export type AggregateDeclaration = {
+  type: "element" | "field";
+  archetype?: ExpressionDeclaration;
+  specializations?: Record<string, ExpressionDeclaration>;
 };

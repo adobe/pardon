@@ -10,12 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-const tailwindcss = require("tailwindcss");
-const nesting = require("tailwindcss/nesting");
-const autoprefixer = require("autoprefixer");
+@reference "../styles/global.css";
 
-const config = {
-  plugins: [nesting(), tailwindcss(), autoprefixer()],
-};
-
-module.exports = config;
+.inline-icon {
+  @apply relative top-1 inline-block text-lg;
+}

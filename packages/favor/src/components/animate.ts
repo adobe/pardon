@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { Accessor, createEffect, JSX, on } from "solid-js";
-import "./animations.pcss";
+import "./animations.css";
 
 export function animation(
   el: HTMLElement,

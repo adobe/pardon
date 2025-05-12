@@ -31,7 +31,7 @@ import { mapObject } from "../../../util/mapping.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
 import { executeFlowInContext } from "../../../core/execution/flow/index.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
-import { JSON } from "../../../core/json.js";
+import { JSON } from "../../../core/raw-json.js";
 
 main()
   .then((code) => process.exit(code))
@@ -116,9 +116,11 @@ usage
       flowContext,
     );
     if (options.json) {
-      console.info(JSON.stringify(resultContext.environment, null, 2));
+      console.info(
+        KV.stringify(resultContext.environment, { indent: 2, mode: "json" }),
+      );
     } else {
-      console.info(KV.stringify(resultContext.environment, "\n", 2));
+      console.info(KV.stringify(resultContext.environment, { indent: 2 }));
     }
     return;
   }
@@ -166,7 +168,7 @@ ${YAML.stringify({
       console.info(JSON.stringify(exceptBody(rendered.values ?? {}), null, 2));
     } else if (options.curl) {
       if (options.values) {
-        const values = KV.stringify(rendered.values, "\n", 2)
+        const values = KV.stringify(rendered.values, { indent: 2 })
           .split("\n")
           .map((line) => `# ${line}\n`)
           .join("");
@@ -175,7 +177,7 @@ ${YAML.stringify({
         console.info(CURL.stringify(rendered, options));
       }
     } else if (options.values && !options.http) {
-      console.info(KV.stringify(rendered.values, "\n", 2));
+      console.info(KV.stringify(rendered.values, { indent: 2 }));
     } else {
       console.info(
         HTTP.stringify({
@@ -188,7 +190,9 @@ ${YAML.stringify({
 
     if (options.timing) {
       const context = await rendering.context;
-      console.warn("-- timing\n" + KV.stringify(context.durations, "\n", 2));
+      console.warn(
+        "-- timing\n" + KV.stringify(context.durations, { indent: 2 }),
+      );
     }
   } else {
     const {
@@ -197,7 +201,7 @@ ${YAML.stringify({
 
     const kv = options.secrets ? secrets : values;
     if (options.json) {
-      console.info(JSON.stringify(exceptBody(kv), null, 2));
+      console.info(KV.stringify(exceptBody(kv), { indent: 2, mode: "json" }));
 
       return 0;
     }
@@ -209,7 +213,7 @@ ${YAML.stringify({
         console.info(JSON.stringify(kv, null, 2));
       } else {
         console.info(
-          `${KV.stringify(kv, "\n", 2, "\n")}${HTTP.responseObject.stringify(result)}`,
+          `${KV.stringify(kv, { indent: 2, trailer: "\n" })}${HTTP.responseObject.stringify(result)}`,
         );
       }
     } else if (options.include) {
@@ -220,7 +224,7 @@ ${YAML.stringify({
 
     if (options.timing) {
       const context = await rendering.context;
-      console.warn("-- timing\n" + KV.stringify(context.durations, "\n", 2));
+      console.warn("-- timing\n" + KV.stringify(context.durations));
     }
   }
 

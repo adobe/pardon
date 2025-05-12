@@ -302,7 +302,7 @@ function writeReportFile(
     join(testReportDir, `requests.log`),
     [
       `# ${errors.length ? "FAIL" : "PASS"} - ${testcase}`,
-      KV.stringify(init, "\n", 2, ""),
+      KV.stringify(init, { indent: 2 }),
       `---`,
       ...errors.flatMap((error) =>
         [...String((error as any)?.stack ?? error).split("\n"), ""]
@@ -312,7 +312,7 @@ function writeReportFile(
       sequences.length && `>>>>>`,
       ...sequences.flatMap(({ type, name, values, result, error, steps }) => [
         `>>> ${name}.${type}`,
-        `${KV.stringify(cleanObject(values), "\n", 2)}`,
+        `${KV.stringify(cleanObject(values), { indent: 2 })}`,
         ``,
         `${steps.map((step) => `# ${formatTracedStep(step)}`).join("\n")}`,
         `${
@@ -325,7 +325,7 @@ function writeReportFile(
         }`,
       ]),
       sequences.length && "<<<<<",
-      KV.stringify(resultEnv(env, init) ?? {}, "\n", 2),
+      KV.stringify(resultEnv(env, init) ?? {}, { indent: 2 }),
     ]
       .filter((line) => line != null && (line as unknown as number) !== 0)
       .join("\n"),
@@ -355,7 +355,7 @@ function resultKV(
 ) {
   const output = resultEnv(result, init) ?? {};
 
-  const text = KV.stringify(output, "\n", 2).split("\n").join("\n  ");
+  const text = KV.stringify(output, { indent: 2 }).split("\n").join("\n  ");
 
   if (!text.trim()) return "";
   return `  ${text}`;

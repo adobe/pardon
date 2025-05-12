@@ -19,26 +19,25 @@ governing permissions and limitations under the License.
 }
 
 starlight-tabs {
-  @apply rounded-md light:shadow-lg;
+  @apply rounded-md shadow-lg dark:shadow-none;
 
   & > [role="tabpanel"] {
-    @apply !mt-0 bg-stone-100 p-3 dark:border-0 dark:bg-stone-800 dark:text-stone-200;
+    @apply mt-0! bg-stone-100 p-3 dark:border-0 dark:bg-stone-800 dark:text-stone-200;
 
     @apply leading-5;
     @apply rounded-b-lg dark:shadow-[inset_0_0_5px_0] dark:shadow-stone-600;
   }
   & > .tablist-wrapper {
-    @apply !my-0 !border-none pb-0;
+    @apply my-0! border-none! pb-0;
   }
   & > .tablist-wrapper > ul {
-    @apply !my-0 gap-0 !border-none;
+    @apply my-0! gap-0 !border-none;
   }
   & > .tablist-wrapper > ul > * {
-    @apply !my-0 !flex-auto;
+    @apply my-0! !flex-auto;
 
     &:first-child > * {
       @apply rounded-ss-md;
-      @apply light:!shadow-none;
     }
     &:last-child > * {
       @apply rounded-se-md;
@@ -50,10 +49,10 @@ starlight-tabs {
       @apply !border-none;
 
       &:not([aria-selected="true"]) {
-        @apply place-content-center whitespace-nowrap bg-stone-200 dark:bg-stone-800 dark:!text-stone-300;
+        @apply place-content-center bg-stone-200 whitespace-nowrap dark:bg-stone-800 dark:!text-stone-300;
       }
       &[aria-selected="true"] {
-        @apply border-b-0 bg-stone-300 !font-normal dark:bg-stone-600;
+        @apply border-b-0 bg-stone-300 font-normal! dark:bg-stone-600;
       }
     }
   }

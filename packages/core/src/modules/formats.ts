@@ -9,6 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+
 export {
   HTTPS,
   type HttpsScheme,
@@ -16,19 +17,29 @@ export {
   type HttpsResponseStep,
 } from "../core/formats/https-fmt.js";
 
+import { guessContentType } from "../core/formats/https-fmt.js";
+
+const guessContentType_ = guessContentType as (
+  body: string,
+  headers?: Headers,
+) => string | undefined;
+
+export { guessContentType_ as guessContentType };
+
 export {
   fetchIntoObject,
   intoFetchParams,
   intoResponseObject,
   type ResponseObject,
   type FetchObject,
-} from "../core/request/fetch-pattern.js";
+} from "../core/request/fetch-object.js";
 
 export {
   HTTP,
   type RequestObject,
   type RequestJSON,
   type ResponseJSON,
+  type HttpFormatOptions,
 } from "../core/formats/http-fmt.js";
 
 export { CURL } from "../core/formats/curl-fmt.js";
@@ -36,8 +47,8 @@ export { KV } from "../core/formats/kv-fmt.js";
 export { valueId } from "../util/value-id.js";
 export { cleanObject } from "../util/clean-object.js";
 
-export { intoSearchParams } from "../core/request/search-pattern.js";
-export { intoURL } from "../core/request/url-pattern.js";
+export { intoSearchParams } from "../core/request/search-object.js";
+export { intoURL } from "../core/request/url-object.js";
 
 export { extractKVs, intoArgs } from "../util/kv-options.js";
 
@@ -47,4 +58,4 @@ export {
   type SmokeConfig,
 } from "../entry/testing/smoke-config.js";
 
-export { JSON, createBigInt, createNumber } from "../core/json.js";
+export { JSON, createNumber } from "../core/raw-json.js";

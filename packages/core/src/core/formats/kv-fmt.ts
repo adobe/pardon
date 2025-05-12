@@ -10,12 +10,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { JSON } from "../json.js";
-import {
-  isScalar,
-  isValidNumberToken,
-  scalarTypeOf,
-} from "../schema/definition/scalar.js";
+import { mapObject } from "../../util/mapping.js";
+import { JSON } from "../raw-json.js";
+import { isValidNumberToken } from "../schema/definition/scalar.js";
 
 /**
 KV format is key=value where value can be in lenient JSON
@@ -98,6 +95,15 @@ const eoi = Symbol("end-of-input");
 
 export type ParseMode = "object" | "stream" | "value";
 
+export type KeyValueStringifyOptions = {
+  indent?: number;
+  mode?: "kv" | "json";
+  limit?: number;
+  trailer?: string;
+  split?: boolean;
+  value?: boolean;
+};
+
 export const KV: {
   parse(data: string, mode: "value"): unknown;
   parse(data: string, mode: "object"): Record<string, unknown>;
@@ -110,14 +116,8 @@ export const KV: {
     [upto]?: number;
   };
   parse(data: string): unknown;
-  stringify(
-    data: unknown,
-    join?: string,
-    indent?: number,
-    trailer?: string,
-  ): string;
+  stringify(data: unknown, options?: KeyValueStringifyOptions): string;
   stringifyKey(key: string): string;
-  stringifyValue(v: unknown, limit: number, indent?: number): string;
   isSimpleKey(key: string): boolean;
   tokenize(
     data: string,
@@ -283,7 +283,10 @@ export const KV: {
       },
     );
 
-    if (!parseMode && nextNonBlankToken(tokens, 1) !== "=") {
+    if (
+      (!parseMode && nextNonBlankToken(tokens, 1) !== "=") ||
+      (parseMode === "stream" && data.trim().startsWith("{"))
+    ) {
       let result: unknown = undefined;
       stack.push(
         value((value: unknown) => {
@@ -292,6 +295,16 @@ export const KV: {
       );
 
       for (let i = 0; i < tokens.length - 1; i += 2) {
+        if (
+          parseMode === "stream" &&
+          result &&
+          typeof result === "object" &&
+          stack.length === 0
+        ) {
+          result[unparsed] = tokens.slice(i).join("");
+          return result;
+        }
+
         if (tokens[i] !== "") {
           throw new Error(`unexpected ${tokens[i]} in k=v format`);
         }
@@ -317,9 +330,11 @@ export const KV: {
       return {};
     }
 
+    let i = 0;
+
     stack.push(key);
 
-    for (let i = 0; i < tokens.length; i += 2) {
+    for (; i < tokens.length; i += 2) {
       if (tokens[i] !== "") {
         if (parseMode === "stream") {
           if (stack.length !== 1 || !stack.pop()![eoi]?.()) {
@@ -361,7 +376,7 @@ export const KV: {
         if (
           stack.length === 1 &&
           stack[0] === key &&
-          nextNonBlankToken(tokens, i + 1) !== "="
+          !/^=$/.test(nextNonBlankToken(tokens, i + 1)!)
         ) {
           result[unparsed] = tokens.slice(i).join("");
           return result;
@@ -389,23 +404,35 @@ export const KV: {
     return result;
   },
 
-  stringify(
-    values: unknown,
-    join: string = " ",
-    indent?: number,
-    trailer?: string,
-  ) {
-    const text = stringify_(values, join, indent);
+  stringify(values: unknown, options?: KeyValueStringifyOptions) {
+    const text = wrappedStringify(
+      values,
+      options?.mode === "json"
+        ? options.indent
+          ? JSONEncoding
+          : JSONEncodingCompact
+        : options?.indent
+          ? KeyValueEncoding
+          : KeyValueEncodingCompact,
+      {
+        indent: options?.indent ?? 0,
+        limit: options?.limit ?? 0,
+      },
+      {
+        split: options?.split ?? false,
+        unwrap: !options?.value && options?.mode !== "json",
+      },
+    );
 
     if (text.length) {
-      return `${text}${trailer ?? ""}`;
+      return `${text}${options?.trailer ?? ""}`;
     }
 
     return "";
   },
 
   stringifyKey,
-  stringifyValue,
+
   tokenize(data: string) {
     const tokens = tokenize(data)
       .filter((_, i) => i & 1)
@@ -524,131 +551,406 @@ export const KV: {
   upto,
 };
 
-function kvTypeof(value: unknown) {
-  return isScalar(value) ? scalarTypeOf(value) : typeof value;
+type Preformatted =
+  | string
+  | string[]
+  | { [_: string]: Preformatted }
+  | undefined;
+
+function isJsonUnit(
+  v: unknown,
+  // eslint-disable-next-line @typescript-eslint/no-wrapper-object-types
+): v is null | number | bigint | Number | string {
+  return (
+    v === null ||
+    typeof v !== "object" ||
+    v instanceof Number ||
+    typeof (v as any)?.toJSON === "function"
+  );
 }
 
-function stringify_(values: unknown, join: string = " ", indent?: number) {
-  if (values === "") {
-    return '""';
+type KeyValueEncodingRules = {
+  key(key: string): string;
+  value(value: unknown): string;
+  objects: {
+    wrapped: { entrysep: string };
+    inline: {
+      start: string;
+      end: string;
+      entrysep: string;
+    };
+    empty: string;
+    fieldsep: string;
+  };
+  arrays: {
+    inline: { start: string; end: string };
+    itemsep: string;
+    empty: string;
+  };
+};
+
+function toRawJson(value: any): JSON.RawJSON {
+  if (typeof value?.toJSON === "function") {
+    value = value.toJSON();
   }
 
-  return values && kvTypeof(values) === "object" && !Array.isArray(values)
-    ? Object.entries(values)
-        .filter(([, v]) => v !== undefined && typeof v !== "function")
-        .map(([k, v]) => {
-          return `${stringifyKey(k)}=${stringifyValue(v, indent)}`;
-        })
-        .join(join || " ")
-    : stringifyValue(values, indent);
+  if (typeof value === "bigint") {
+    return JSON.rawJSON(String(value));
+  }
+
+  return JSON.isRawJSON(value) ? value : JSON.rawJSON(JSON.stringify(value));
 }
 
-function stringifyValue(v: unknown, jindent?: number) {
-  if (
-    typeof v !== "string" ||
-    !v ||
-    ["null", "true", "false", ""].includes(v) ||
-    !simpleToken.test(v)
+const KeyValueEncoding: KeyValueEncodingRules = {
+  key: stringifyKey,
+  value: (value) =>
+    dequoteJson(
+      JSON.stringify(value, (_, value) => toRawJson(value)),
+      true,
+    ),
+  arrays: {
+    inline: { start: "[ ", end: " ]" },
+    itemsep: " ",
+    empty: "[]",
+  },
+  objects: {
+    inline: {
+      start: "{ ",
+      end: " }",
+      entrysep: ", ",
+    },
+    wrapped: {
+      entrysep: "",
+    },
+    fieldsep: "=",
+    empty: "{}",
+  },
+};
+
+const KeyValueEncodingCompact: KeyValueEncodingRules = {
+  key: stringifyKey,
+  value: (value) =>
+    dequoteJson(
+      JSON.stringify(value, (_, value) => toRawJson(value)),
+      true,
+    ),
+  arrays: {
+    inline: { start: "[", end: "]" },
+    itemsep: ",",
+    empty: "[]",
+  },
+  objects: {
+    inline: {
+      start: "{",
+      end: "}",
+      entrysep: " ",
+    },
+    wrapped: {
+      entrysep: "",
+    },
+    fieldsep: "=",
+    empty: "{}",
+  },
+};
+
+const JSONEncoding: KeyValueEncodingRules = {
+  key: JSON.stringify,
+  value: (value) => toRawJson(value).rawJSON,
+  arrays: {
+    inline: { start: "[ ", end: " ]" },
+    itemsep: ", ",
+    empty: "[]",
+  },
+  objects: {
+    inline: {
+      start: "{ ",
+      end: " }",
+      entrysep: ", ",
+    },
+    wrapped: {
+      entrysep: ",",
+    },
+    fieldsep: ": ",
+    empty: "{}",
+  },
+};
+
+const JSONEncodingCompact: KeyValueEncodingRules = {
+  key: JSON.stringify,
+  value: (value) => toRawJson(value).rawJSON,
+  arrays: {
+    inline: { start: "[", end: "]" },
+    itemsep: ",",
+    empty: "[]",
+  },
+  objects: {
+    inline: {
+      start: "{",
+      end: "}",
+      entrysep: ",",
+    },
+    wrapped: {
+      entrysep: ",",
+    },
+    fieldsep: ":",
+    empty: "{}",
+  },
+};
+
+function wrappedStringify(
+  v: unknown,
+  encoding: KeyValueEncodingRules,
+  options: {
+    indent?: number;
+    limit?: number;
+  },
+  toplevel?: { split?: boolean; unwrap: boolean },
+) {
+  const { indent = 0, limit = 0 } = options ?? {};
+
+  return doFormat(preformat(v), { nobreak: toplevel?.unwrap }, toplevel).text;
+
+  function needsWrap(
+    value: Preformatted,
+    dent: number,
+    toplevel?: { split?: boolean; unwrap?: boolean },
   ) {
-    return linewrappedStringify(v, jindent);
+    const length = inlineLength(value, dent, toplevel);
+    return length > limit;
   }
 
-  return v;
-}
-
-function linewrappedStringify(v: unknown, jindent?: number) {
-  const text = JSON.stringify(v, (_key, value) => {
-    if (typeof value === "bigint") {
-      return JSON.rawJSON(String(value));
-    }
-
-    if (value instanceof BigInt || value instanceof Number) {
-      return JSON.rawJSON(value["source"]);
-    }
-
-    return value;
-  });
-
-  const tokens = tokenize(text);
-
-  function dent(indent: number) {
-    return typeof jindent === "number"
-      ? `\n${" ".repeat(jindent * indent)}`
-      : "";
-  }
-
-  const space = jindent ? " " : "";
-
-  return tokens
-    .reduce<{
-      stack: any[];
-      output: (() => string)[];
-    }>(
-      (acc, token, i, tokens) => {
-        switch (true) {
-          case token === "[":
-          case token === "{":
-            {
-              const container = {
-                type: token,
-                split: false,
-                indent: acc.stack.length,
-              };
-              acc.stack[0].split = true;
-              acc.stack.unshift(container);
-              acc.output.push(
-                () =>
-                  token +
-                  (container.split
-                    ? dent(container.indent)
-                    : token === "{"
-                      ? space
-                      : ""),
-              );
-            }
-            break;
-          case token === "]":
-          case token === "}":
-            {
-              const container = acc.stack.shift();
-              acc.output.push(() =>
-                container.split
-                  ? `${dent(container.indent - 1)}${token}`
-                  : `${token === "}" ? space : ""}${token}`,
-              );
-            }
-            break;
-          case token === ":":
-            acc.output.push(() => "=");
-            break;
-          case token === ",":
-            {
-              const container = acc.stack[0];
-              acc.output.push(
-                () =>
-                  token +
-                  (container.split
-                    ? `${dent(container.indent)}`
-                    : jindent
-                      ? " "
-                      : ""),
-              );
-            }
-            break;
-          default:
-            {
-              const next = dequoteJson(token, inValue(tokens, i));
-              acc.output.push(() => {
-                return next;
-              });
-            }
-            break;
+  function inlineLength(
+    value: Preformatted,
+    dent: number,
+    toplevel?: { split?: boolean; unwrap?: boolean },
+  ): number {
+    switch (true) {
+      case typeof value === "string":
+        return dent + value.length;
+      case Array.isArray(value): {
+        dent += encoding.arrays.inline.start.length; // "[ "
+        for (const item of value) {
+          dent = inlineLength(item, dent) + encoding.arrays.itemsep.length; // "{item}, "
+          if (dent > limit) {
+            return dent;
+          }
         }
-        return acc;
-      },
-      { stack: [{ indent: 0, split: false }], output: [] },
-    )
-    .output.reduce((text, fn) => text + fn(), "");
+
+        dent += encoding.arrays.inline.end.length; // " ]"
+        return dent;
+      }
+      default: {
+        dent += toplevel?.unwrap ? 0 : encoding.objects.inline.start.length; // "{ "
+        for (const [key, field] of Object.entries(
+          value as Record<string, Preformatted>,
+        )) {
+          if (typeof field === "string") {
+            dent +=
+              key.length +
+              encoding.objects.fieldsep.length +
+              field.length +
+              encoding.objects.inline.entrysep.length; // `"key": {value},`
+          } else {
+            dent += key.length + encoding.objects.fieldsep.length; // `"key": `
+            dent = inlineLength(field, dent); // {value}
+            dent += encoding.objects.inline.entrysep.length; // `, `
+          }
+
+          if (dent > limit) {
+            return dent;
+          }
+        }
+
+        dent += toplevel?.unwrap ? 0 : encoding.objects.inline.end.length; // " }"
+        return dent;
+      }
+    }
+  }
+
+  function preformat(value: unknown) {
+    switch (true) {
+      case typeof value !== "object" || isJsonUnit(value):
+        return encoding.value(value);
+      case Array.isArray(value):
+        if (value.length === 0) {
+          return encoding.arrays.empty;
+        }
+        return value.map(preformat);
+      default:
+        if (!toplevel?.unwrap && Object.keys(value).length === 0) {
+          return encoding.objects.empty;
+        }
+
+        return mapObject(value as Record<string, unknown>, {
+          values(value) {
+            return preformat(value);
+          },
+          keys(key) {
+            return encoding.key(key);
+          },
+        });
+    }
+  }
+
+  function doFormat(
+    value: Preformatted,
+    {
+      dent: dent = 0,
+      depth = 0,
+      nobreak,
+    }: {
+      dent?: number;
+      depth?: number;
+      nobreak?: boolean;
+    },
+    toplevel?: { split?: boolean; unwrap?: boolean },
+  ): { text: string; dent: number } {
+    switch (true) {
+      case typeof value === "string": {
+        return { text: value, dent: dent + value.length };
+      }
+      case Array.isArray(value): {
+        if (
+          indent &&
+          (limit == 0
+            ? value.some((item) => !isJsonUnit(item))
+            : needsWrap(value, dent, toplevel))
+        ) {
+          dent = depth + indent;
+
+          let separator = "";
+          let nextseparator = "";
+
+          const text = value
+            .map((item, index, list) => {
+              separator = nextseparator;
+
+              if (
+                needsWrap(
+                  item,
+                  dent +
+                    separator.length +
+                    (index < list.length - 1 ? separator.trimEnd().length : 0),
+                  toplevel,
+                )
+              ) {
+                const { text, dent: next } = doFormat(item, {
+                  dent: depth + indent,
+                  depth: depth + indent,
+                });
+
+                dent = next;
+
+                if (text.includes("\n")) {
+                  // line wrap after split {...} objects
+                  dent = Infinity;
+                }
+
+                if (index === 0) {
+                  nextseparator = encoding.arrays.itemsep;
+                  return text;
+                }
+
+                nextseparator = encoding.arrays.itemsep;
+                return `${separator.trimEnd()}\n${" ".repeat(depth + indent)}${text}`;
+              }
+
+              const { text, dent: next } = doFormat(item, {
+                dent: dent + separator.length,
+                depth: depth + indent,
+              });
+
+              nextseparator = encoding.arrays.itemsep;
+
+              if (next > limit) {
+                dent = depth + indent;
+                return `${separator.trimEnd()}\n${" ".repeat(depth + indent)}${text}`;
+              } else if (next <= limit) {
+                dent = next;
+                return `${separator}${text}`;
+              }
+
+              dent = depth + indent + text.length;
+
+              return `${separator.trimEnd()}\n${" ".repeat(depth + indent)}${text}`;
+            })
+            .join("");
+
+          return {
+            text: `[\n${" ".repeat(depth + indent)}${text}\n${" ".repeat(depth)}]`,
+            dent: depth + 1,
+          };
+        }
+
+        dent += encoding.arrays.inline.start.length;
+        const text = value
+          .map((item, index, list) => {
+            const { text, dent: next } = doFormat(item, {
+              dent:
+                dent +
+                (index < list.length - 1 ? encoding.arrays.itemsep.length : 0),
+              depth: depth + indent,
+            });
+
+            dent = next;
+            return text;
+          })
+          .join(encoding.arrays.itemsep);
+
+        return {
+          text:
+            encoding.arrays.inline.start + text + encoding.arrays.inline.end,
+          dent: dent + encoding.arrays.inline.end.length,
+        };
+      }
+      default: {
+        const objectindent = toplevel?.unwrap ? 0 : indent;
+
+        if (indent && (toplevel?.split || needsWrap(value, dent, toplevel))) {
+          dent = depth;
+
+          const text = Object.entries(value as Record<string, Preformatted>)
+            .map(([key, value], index) => {
+              const { text, dent: next } = doFormat(value, {
+                dent: depth + key.length + objectindent,
+                depth: depth + objectindent,
+              });
+              dent = next;
+              return `${index === 0 && nobreak ? "" : `\n${" ".repeat(depth + objectindent)}`}${key}${encoding.objects.fieldsep}${text}`;
+            }, [])
+            .join(encoding.objects.wrapped.entrysep);
+
+          return {
+            text: toplevel?.unwrap ? text : `{${text}\n${" ".repeat(depth)}}`,
+            dent: toplevel?.unwrap ? 0 : depth + 1,
+          };
+        }
+
+        const text = Object.entries(value as Record<string, Preformatted>)
+          .map(([key, value]) => {
+            const { text, dent: next } = doFormat(value, {
+              dent: dent + key.length + encoding.objects.fieldsep.length,
+              depth: toplevel?.unwrap ? depth : depth + objectindent,
+            });
+            dent = next;
+            return `${key}${encoding.objects.fieldsep}${text}`;
+          }, [])
+          .join(encoding.objects.inline.entrysep);
+        return {
+          text: toplevel?.unwrap
+            ? text
+            : encoding.objects.inline.start +
+              text +
+              encoding.objects.inline.end,
+          dent: toplevel?.unwrap
+            ? dent
+            : dent +
+              encoding.objects.inline.start.length +
+              encoding.objects.inline.end.length,
+        };
+      }
+    }
+  }
 }
 
 function inValue(tokens: string[], i = tokens.length) {
@@ -680,6 +982,10 @@ function nextNonBlankToken(tokens: string[], i: number) {
 }
 
 function dequoteJson(text: string, inValue: boolean) {
+  if (text === "") {
+    return '""';
+  }
+
   if (typeof text !== "string") {
     return text;
   }

@@ -27,6 +27,9 @@
         "test.http",
         "--http"
       ],
+      "env": {
+        "NODE_ENV": "development"
+      },
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
       // Files to exclude from debugger (e.g. call stack)

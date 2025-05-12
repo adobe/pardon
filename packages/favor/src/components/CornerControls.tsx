@@ -103,6 +103,7 @@ export default function CornerControls<Actions extends string>(
             icon
           ) : (
             <button
+              title={action}
               {...ourProps.buttonProps}
               class="bg-inherit p-0"
               onClick={ourProps.actions?.[action]}

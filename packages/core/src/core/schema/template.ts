@@ -58,7 +58,7 @@ export function templateSchematic<
 
 export function expandInContext<T>(
   context: SchemaMergingContext<T>,
-): Schema<T> {
+): Schema<T> | undefined {
   let { mode, template } = context;
 
   if (isScalar(template)) {
@@ -107,9 +107,10 @@ export function expandInContext<T>(
 export function expandTemplate<T>(
   template: Template<T> | undefined,
   context: SchemaMergingContext<T>,
-): Schema<T> {
+): Schema<T> | undefined {
   if (isSchematic(template)) {
     const schema = template().expand(context);
+
     if (isSchematic(schema)) {
       const templateKeys = Object.keys(template()).join("/");
       const schemaKeys = Object.keys(template()).join("/");

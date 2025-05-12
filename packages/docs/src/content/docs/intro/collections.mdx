@@ -41,7 +41,7 @@ import {
   serviceAndPingAndProductsWithConfigurableAuth,
 } from '@pardon/products-collections';
 
-import '@components/inline-icon.pcss';
+import '@components/inline-icon.css';
 
 This tutorial builds on the concepts explained in Pardon Templates,
 
@@ -272,7 +272,7 @@ env=prod type=pencils
     even attempts to evaluate.
 
     First, please delete the entire input. We don't need it!
-    <div class="[&_code]:!min-h-5 [&_.copy]:!hidden no-copy">
+    <div class="[&_code]:min-h-5! [&_.copy]:hidden! no-copy">
 ```http del=/POST.*/
 POST https://example.com/products
 ```

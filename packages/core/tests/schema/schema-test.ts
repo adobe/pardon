@@ -22,18 +22,24 @@ import { Schema } from "../../src/core/schema/core/types.js";
 import { KV } from "../../src/core/formats/kv-fmt.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 import { mixing } from "../../src/core/schema/core/contexts.js";
-import { JSON } from "../../src/core/json.js";
 
 async function compose(
   testname: string,
   template: TemplateStringsArray,
   ...substitutons: any[]
 ) {
-  const formatted = String.raw(template, substitutons);
+  const formatted = String.raw({ raw: template }, substitutons);
 
   const templates = formatted.split("\n---\n");
 
-  const { [KV.unparsed]: first, ...input } = KV.parse(templates[0], "stream");
+  const {
+    [KV.unparsed]: first,
+    [KV.eoi]: eoi,
+    [KV.upto]: upto,
+    ...input
+  } = templates[0].trim().startsWith("{")
+    ? { [KV.unparsed]: templates[0] }
+    : KV.parse(templates[0], "stream");
   templates[0] = first ?? "";
 
   let expected: any;
@@ -42,6 +48,8 @@ async function compose(
 
   if (lastTemplate.startsWith("*")) {
     last = lastTemplate.slice(1);
+  } else if (lastTemplate.trim().startsWith("{")) {
+    last = lastTemplate;
   } else {
     ({ [KV.unparsed]: last = "", ...expected } = KV.parse(
       lastTemplate,
@@ -65,7 +73,7 @@ async function compose(
       }
       throw merge.error || merge.context.diagnostics?.[0] || merge;
     },
-    mixing(jsonEncoding(undefined)),
+    mixing(jsonEncoding(undefined))!,
   );
 
   const {
@@ -79,10 +87,7 @@ async function compose(
   const resultValues = scope.resolvedValues();
 
   if (last.trim()) {
-    assert.deepStrictEqual(
-      JSON.rfc8259.parse(output),
-      JSON.rfc8259.parse(last),
-    );
+    assert.deepStrictEqual(KV.parse(output, "value"), KV.parse(last, "value"));
   }
 
   if (expected) {
@@ -332,7 +337,7 @@ intent("json-data-in-out")`
 a=20
 b=10
 c=10
-{ "enc": "{\"a\":20,\"b\":10}", "c": 10, "a": 20 }
+{ "enc": "{\\"a\\":20,\\"b\\":10}", "c": 10, "a": 20 }
 `();
 
 intent("json-object-order")`
@@ -340,7 +345,7 @@ intent("json-object-order")`
 ---
 { x: json({ a: 1, b: 2 }), y: json({ a: 1, b: 2 }) }
 ---
-{ "x": "{\"a\":1,\"b\":2}", "y": "{\"b\":2,\"a\":1}" }
+{ "x": '{"a":1,"b":2}', "y": '{"b":2,"a":1}' }
 `();
 
 intent("export-ascope-array-value")`
@@ -817,5 +822,156 @@ intent("bigint")`
 *
 {
   "a": 18051727547282341502540305388584042500
+}
+`();
+
+intent("tpl-quoted-value")`
+a-b=a-b-c
+{
+  a: $\`a-b\`
+}
+---
+*
+{
+  "a": "a-b-c"
+}
+`();
+
+intent("tpl-structured-value")`
+items=[
+  { a-b = 10 },
+  { a-b = 20 }
+]
+{
+  a: --[
+    $\`items.a-b\`
+  ]
+}
+---
+*
+{
+  "a": [ 10, 20 ]
+}
+`();
+
+intent("tpl-expression-value")`
+a-b=c
+{
+  a: ($\`a-b\`)
+}
+---
+*
+{
+  "a": "c"
+}
+`();
+
+intent("aggregate-value-elements")`
+{
+  items: [items.$value]
+}
+---
+{
+  items: ["a", "b", "c"],
+  z: items
+}
+---
+{
+  items: ["a","b","c"],
+  z: ["a", "b", "c"]
+}
+`();
+
+intent("aggregate-complex-elements")`
+{
+  items: [[items.x, items.y]]
+}
+---
+{
+  items: [["a","A"], ["b","B"], ["c","C"]],
+  z: items
+}
+---
+{
+  items: [["a","A"], ["b","B"], ["c","C"]],
+  z: [{ x: "a", y: "A" }, {x: "b", y: "B"}, {x: "c", y: "C"}]
+}
+`();
+
+intent("aggregate-value-fields")`
+{
+  items: { key } * [{ key, value: items.$value }]
+}
+---
+{
+  items: [{ key: "a", value: "A"}, { key: "b", value: "B" }, {key: "c", value: "C" }],
+  z: items
+}
+---
+{
+  items: [{ key: "a", value: "A"}, { key: "b", value: "B" }, {key: "c", value: "C" }],
+  z: { a: "A", b: "B", c: "C" }
+}
+`();
+
+intent("aggregate-complex-fields")`
+{
+  items: { key } * [{ key, value: items.field }]
+}
+---
+{
+  items: [{ key: "a", value: "A"}, { key: "b", value: "B" }, {key: "c", value: "C" }],
+  z: items
+}
+---
+{
+  items: [{ key: "a", value: "A"}, { key: "b", value: "B" }, {key: "c", value: "C" }],
+  z: { a: { field: "A" }, b: { field: "B" }, c: { field: "C" } }
+}
+`();
+
+intent("aggregate-array-of-map")`
+{
+  items: { key } * [{ key, value: [items.each.$value], which: (each.join("")) }]
+}
+---
+{
+  items: [{ key: "a", value: ++["A"]}, { key: "b", value: ["B","C"] }, {key: "c", value: ["D","E","F"] }],
+  z: items
+}
+---
+{
+  items: [{
+    key: "a", value: ["A"],
+    which: "A"
+  }, {
+    key: "b",
+    value: ["B","C"],
+    which: "BC",
+  }, {
+    key: "c",
+    value: ["D","E","F"],
+    which: "DEF"
+  }],
+  z: {
+    a: { each: ["A"] },
+    b: { each: ["B","C"] },
+    c: { each: ["D","E","F"] } }
+}
+`();
+
+intent("render-sum")`
+{
+  items: [items.$value]
+}
+---
+{
+  items: [1,2,3,4,5],
+  total: (items.reduce((a, b) => a + b, 0))
+}
+---
+{
+  items: [1,2,3,4,5],
+  total: 15
 }
 `();

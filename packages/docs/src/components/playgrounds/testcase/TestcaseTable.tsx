@@ -1,7 +1,7 @@
 import { For, Show, createMemo } from "solid-js";
 import { KV } from "pardon/playground";
 
-import "./testcase-table.pcss";
+import "./testcase-table.css";
 import { color } from "@components/playgrounds/testcase/lcg.ts";
 
 export function TestcaseTable(props: {
@@ -23,12 +23,12 @@ export function TestcaseTable(props: {
           "opacity-50": Boolean(props.error),
         }}
       >
-        <div class="absolute right-0 top-0 flex aspect-square min-h-fit min-w-fit place-items-center rounded-bl-md border-0 border-b border-l border-solid border-gray-500 bg-stone-300 p-1 opacity-75 dark:bg-lime-800">
+        <div class="absolute top-0 right-0 flex aspect-square min-h-fit min-w-fit place-items-center rounded-bl-md border-0 border-b border-l border-solid border-gray-500 bg-stone-300 p-1 opacity-75 dark:bg-lime-800">
           {props.rows.length}
         </div>
         <div class="grow overflow-y-scroll pr-4">
           <table
-            class="testcase-table mb-2 mt-3"
+            class="testcase-table mt-3 mb-2"
             classList={{ error: Boolean(props.error) }}
           >
             <thead>

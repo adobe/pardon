@@ -24,7 +24,7 @@ export { hookExecution } from "../core/execution/execution-hook.js";
 export {
   intoFetchParams,
   intoResponseObject,
-} from "../core/request/fetch-pattern.js";
+} from "../core/request/fetch-object.js";
 export { getContextualValues } from "../core/schema/core/context.js";
 
 export {

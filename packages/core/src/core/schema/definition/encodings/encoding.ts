@@ -74,7 +74,7 @@ export function encodingTemplate<T, S>(
   return templateSchematic(
     (context) => {
       let inner: Schema<S> | undefined = context.expand(template);
-      if (source !== undefined) {
+      if (inner && source !== undefined) {
         inner = merge(inner, { ...context, template: source });
       }
       return (inner && encodingSchema(encoding, inner))!;

@@ -1,0 +1,6 @@
+config:
+  origin:
+    env:
+      prod: https://todo.example.com
+      stage: https://todo-stage.example.com
+      local: http://localhost:{{port=3000}}

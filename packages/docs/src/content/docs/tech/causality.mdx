@@ -14,7 +14,7 @@ description: A "blockedchain", of sorts?
 prev: false
 ---
 
-import "@components/inline-icon.pcss";
+import "@components/inline-icon.css";
 import { SolidIcon } from "@components";
 
 Node's async_hooks API has been "experimental" since it was introducted 
@@ -22,7 +22,7 @@ in Node 8:
 
 <div class="p-2 border-2 border-solid dark:border-neutral-600 border-neutral-300 rounded-sm">
 {/* directly adapted from https://nodejs.org/docs/latest/api/async_hooks.html (v22.3.0) */}
-<div class="bg-orange-600 dark:bg-orange-700 rounded-sm px-3 py-2 text-white [&_code]:!bg-transparent [&_.href]:underline">
+<div class="bg-orange-600 dark:bg-orange-700 rounded-sm px-3 py-2 text-white [&_code]:bg-transparent! [&_.href]:underline">
 <span class='href'>Stability: 1</span> - Experimental. Please migrate away from this API, if you can.
 We do not recommend using the <span class='href'><code>createHook</code></span>, <span class='href'><code>AsyncHook</code></span>, and
 <span class='href'><code>executionAsyncResource</code></span> APIs as they have usability issues, safety risks,

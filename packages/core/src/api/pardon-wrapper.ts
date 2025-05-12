@@ -16,8 +16,8 @@ import {
   PardonExecutionInit,
 } from "../core/pardon/pardon.js";
 import { PardonRuntime } from "../core/pardon/types.js";
-import type { SimpleRequestInit } from "../core/request/fetch-pattern.js";
-import { intoURL } from "../core/request/url-pattern.js";
+import type { SimpleRequestInit } from "../core/request/fetch-object.js";
+import { intoURL } from "../core/request/url-object.js";
 import { pardonRuntime } from "../runtime/runtime-deferred.js";
 
 export type PardonOptions = {

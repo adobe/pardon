@@ -10,8 +10,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  Configuration,
-  ResourceProcessingPhase,
+  type Configuration,
+  type EncodingTypes,
+  type ResourceProcessingPhase,
 } from "../../config/collection-types.js";
 import { PardonError } from "../error.js";
 import {
@@ -19,11 +20,14 @@ import {
   type FetchObject,
   type ResponseObject,
   type SimpleRequestInit,
-} from "../request/fetch-pattern.js";
+} from "../request/fetch-object.js";
 import { parseVariable } from "../schema/core/pattern.js";
 import YAML from "yaml";
 import { KV } from "./kv-fmt.js";
-import { JSON } from "../json.js";
+import { JSON } from "../raw-json.js";
+
+import MIME from "whatwg-mimetype";
+import { createHeaders } from "../request/header-object.js";
 
 export type HttpsResponseStep = {
   type: "response";
@@ -306,7 +310,7 @@ function scanResponse(lines: string[], first: string): HttpsResponseStep {
       ? Number(status)
       : status.replace(/[x?*]+/gi, (xs) => `{{${xs.replace(/./g, "?")}}}`),
     statusText,
-    headers: new Headers(headers),
+    headers: createHeaders(headers),
     body: schemaSource,
     outcome,
     source: [
@@ -381,5 +385,45 @@ function scanComments(lines: string[], { allowBlank = false } = {}) {
     (/^#/.test(lines[0]) || (allowBlank && !lines[0].trim()))
   ) {
     lines.shift();
+  }
+}
+
+function isJson(body: string) {
+  try {
+    JSON.parse(body);
+    return true;
+  } catch (ignore) {
+    void ignore;
+    return false;
+  }
+}
+
+export function guessContentType(
+  body: string,
+  headers?: Headers,
+): EncodingTypes | undefined {
+  if (!headers) {
+    if (isJson(body)) {
+      return "json";
+    }
+
+    return "raw";
+  }
+
+  const contentType = MIME.parse(headers.get("Content-Type")!);
+
+  switch (contentType?.essence) {
+    case "application/json":
+      return isJson(body) ? "json" : "raw";
+    case "application/x-www-form-urlencoded":
+      return "form";
+    case "text/plain":
+      return "text";
+    default:
+      if (contentType?.essence.endsWith("+json")) {
+        return isJson(body) ? "json" : "raw";
+      }
+
+      return "raw";
   }
 }

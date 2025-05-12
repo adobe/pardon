@@ -37,6 +37,7 @@ import { executionMemo } from "../signals/pardon-execution-signal.ts";
 
 import {
   CURL,
+  guessContentType,
   HTTP,
   HTTPS,
   HttpsRequestStep,
@@ -80,7 +81,7 @@ export default function Main(
   );
 
   const [executionView, setExecutionView] = makePersisted(
-    createSignal<"preview" | "outbound" | "inbound" | "values">("preview"),
+    createSignal<"preview" | "outbound" | "inbound">("preview"),
     { name: "execution-view" },
   );
   const [redacted, setRedacted] = createSignal(true);
@@ -113,6 +114,8 @@ export default function Main(
       http: untrack(http),
       values: { ...values() },
     });
+
+  const [isPardonInputValid, setPardonInputValid] = createSignal(true);
 
   createEffect(
     on(
@@ -201,14 +204,32 @@ export default function Main(
   }
 
   function restoreFromHttp(content: string, values?: Record<string, unknown>) {
-    const parsed = HTTP.parse(content);
+    const parsed = HTTP.parse(content, { acceptcurl: true });
     if (!parsed.origin && !parsed.values.endpoint) {
       return false;
     }
-    const reformatted = HTTP.stringify({
-      ...parsed,
-      values: { ...parsed.values, ...values },
-    });
+
+    if (guessContentType(parsed.body, parsed.headers) ?? "json" === "json") {
+      try {
+        parsed.body = KV.stringify(JSON.parse(parsed.body), {
+          mode: "json",
+          limit: 80,
+          indent: 2,
+          split: true,
+        });
+      } catch (ex) {
+        void ex;
+      }
+    }
+
+    const reformatted = HTTP.stringify(
+      {
+        ...parsed,
+        values: { ...parsed.values, ...values },
+      },
+      { indent: 4, limit: 80 },
+    );
+
     setHttpInput(reformatted);
     return true;
   }
@@ -230,17 +251,15 @@ export default function Main(
 
   const [contextResource] = createResource(
     currentExecution,
-    async ({ context }) => {
-      return await settle(context);
-    },
+    async ({ context }) => await settle(context),
   );
 
   const [previewResource, resetPreviewResource] = createResource(
     currentExecution,
-    async ({ preview }) => {
-      return await settle(preview);
-    },
+    async ({ preview }) => await settle(preview),
   );
+
+  const [displayValues, setDisplayValues] = createSignal(false);
 
   createEffect(
     on(history, (history) => {
@@ -315,58 +334,91 @@ export default function Main(
     setHistory(history);
   }
 
-  const requestContent = createMemo<string>((previous) => {
+  const latestRequest = createMemo<
+    Partial<
+      PardonExecutionRender & {
+        http: string;
+        error: any;
+      }
+    >
+  >((previous) => {
     if (requestResource.state !== "ready") {
-      return previous ?? "loading";
+      return previous;
     }
+
+    if (previewResource.latest.status === "rejected") {
+      return previous;
+    }
+
+    const { error: previousError, ...previousRequest } = previous ?? {};
 
     const request = requestResource();
-    if (request.status === "rejected") {
-      switch (true) {
-        case previewResource.state === "ready" &&
-          previewResource.latest?.status === "fulfilled":
-          return `
-Error rendering
----
-${previewResource.latest.value.http}
----
-${request.reason}`;
-        default:
-          return `Error rendering
----
-${request.reason}          
-`;
-      }
+
+    if (request.status !== "fulfilled") {
+      const error = request.reason;
+      return { error, ...previousRequest };
     }
 
-    const requestObject = HTTP.requestObject.fromJSON(
-      redacted()
-        ? request.value.outbound.request
-        : (
-            request.value.secure ??
-            secureData()[request.value.context.trace] ??
-            request.value
-          ).outbound.request,
+    return request.value;
+  });
+
+  function executionClipboardContent() {
+    switch (executionView()) {
+      case "inbound":
+        return "";
+    }
+
+    if (previewResource.loading) {
+      return "";
+    }
+
+    const preview = previewResource();
+    if (preview.status === "rejected") {
+      return "";
+    }
+
+    const previewOutbound = HTTP.requestObject.json(
+      HTTP.parse(preview.value.http),
     );
 
-    if (curl()) {
-      return CURL.stringify(requestObject, {
-        include: includeHeaders(),
-      });
+    const { outbound, error } =
+      executionView() === "outbound"
+        ? latestRequest()
+        : { outbound: { request: previewOutbound } };
+
+    if (error || !outbound) {
+      return;
     }
 
-    return HTTP.stringify(requestObject);
-  });
+    const displayedValues = displayValues()
+      ? KV.stringify(outbound.values, { indent: 2, trailer: "\n\n" })
+      : "";
+
+    const requestJson = outbound?.request;
+
+    const requestObject = HTTP.requestObject.fromJSON(requestJson);
+
+    if (curl()) {
+      return (
+        displayedValues +
+        CURL.stringify(requestObject, {
+          include: includeHeaders(),
+        })
+      );
+    }
+
+    return displayedValues + HTTP.stringify(requestObject);
+  }
 
   const responseInbound = createMemo(() => {
     const historical = history();
 
-    if (!historical?.inbound && responseResource.state !== "ready") {
-      return { error: "loading" };
-    }
-
     if (historical) {
       return historical;
+    }
+
+    if (responseResource.state !== "ready") {
+      return { error: "loading" };
     }
 
     const response = responseResource();
@@ -386,28 +438,41 @@ ${request.reason}
     return typeof x?.error !== "undefined";
   }
 
-  const responseContent = createMemo<string>(() => {
+  const currentResponse = createMemo<{
+    http?: string;
+    values?: Record<string, unknown>;
+    error?: any;
+  }>(() => {
     const currentInbound = responseInbound();
+
     if (isErrorResponse(currentInbound)) {
-      return currentInbound.error;
+      return { error: currentInbound.error };
     }
 
-    const displayedResponse = (
-      redacted()
-        ? currentInbound
-        : (secureData()[currentInbound.context.trace] ?? currentInbound)
-    )?.inbound?.response;
+    const { inbound } = redacted()
+      ? currentInbound
+      : ((secureData()[currentInbound.context.trace] ??
+          currentInbound) as typeof currentInbound);
 
-    if (!displayedResponse) {
-      return "no response";
+    const { response, values } = inbound;
+
+    if (!response) {
+      return { error: "no response" };
     }
 
-    const responseObject = HTTP.responseObject.fromJSON(displayedResponse);
+    const responseObject = HTTP.responseObject.fromJSON(response);
 
-    return HTTP.responseObject.stringify({
+    const http = HTTP.responseObject.stringify({
       ...responseObject,
       ...(includeHeaders() ? {} : { headers: new Headers() }),
     });
+
+    return { http, values };
+  });
+
+  const responseContent = createMemo(() => {
+    const { http, error } = currentResponse();
+    return error ?? http;
   });
 
   let httpInputEditorView: EditorView;
@@ -415,13 +480,17 @@ ${request.reason}
 
   const asset = createMemo(() => collectionItem()?.id);
   const selection = createMemo(() => collectionItem()?.key);
-  const current = createMemo(() => {
+  const currentEndpoint = createMemo(() => {
     const resolved = previewResource.latest;
     if (resolved?.status === "fulfilled") {
       return `endpoint:${resolved.value.endpoint}`;
     }
+
     const key = collectionItem()?.key;
-    if (key?.startsWith("endpoint:")) return key;
+
+    if (key?.startsWith("endpoint:")) {
+      return key;
+    }
   });
 
   const scratchValuesContext = makeKeyValueCopierContext({
@@ -452,6 +521,7 @@ ${request.reason}
 
   const active = createMemo(() => {
     const result = previewResource.latest;
+
     if (result?.status == "fulfilled") {
       return new Set(
         ([result.value.configuration.mixin].flat(1) || []).map(
@@ -497,6 +567,7 @@ ${request.reason}
   const requestDisabled = createMemo<boolean>((previous) => {
     switch (currentExecution().progress) {
       case "preview":
+        return requestResource.latest?.status === "rejected";
       case "pending":
       case "complete":
       case "failed":
@@ -514,8 +585,22 @@ ${request.reason}
       return true;
     }
 
+    if (!isPardonInputValid()) {
+      return true;
+    }
+
     switch (currentExecution()?.progress) {
       case "preview":
+        if (previewResource.latest?.status === "rejected") {
+          return true;
+        }
+        if (
+          requestResource.state === "ready" &&
+          requestResource.latest?.status === "rejected"
+        ) {
+          return true;
+        }
+        return false;
       case "pending":
         if (previewResource.loading) {
           return wasDisabled;
@@ -544,7 +629,7 @@ ${request.reason}
   return (
     <Resizable orientation="vertical">
       <Resizable.Panel
-        class="flex size-full min-h-0 flex-1 flex-col"
+        class="flex size-full min-h-0 flex-1 flex-col [&:has(.reload-request:hover)_.reload-request-target]:blur-[2px]"
         initialSize={0.7}
       >
         <Resizable orientation="horizontal">
@@ -557,7 +642,7 @@ ${request.reason}
                 flow: false,
               }}
               expanded={new Set()}
-              endpoint={current()}
+              endpoint={currentEndpoint()}
               active={active()}
               onClick={(key, info, event) => {
                 const { type, archetype: preview } = info ?? {};
@@ -598,7 +683,7 @@ ${request.reason}
                   <Resizable.Panel
                     minSize={0.1}
                     initialSize={0.6}
-                    class="flex flex-grow-0 flex-col"
+                    class="reload-request-target flex flex-grow-0 flex-col transition-[filter] duration-100"
                   >
                     <PardonInput
                       class="w-0 min-w-full flex-1 overflow-auto bg-yellow-100 dark:bg-stone-700 [&_.cm-line]:pr-8"
@@ -617,6 +702,7 @@ ${request.reason}
                           values,
                         });
                       }}
+                      onDataValidChange={setPardonInputValid}
                       oncapture:paste={(event) => {
                         const text = event.clipboardData.getData("text/plain");
 
@@ -697,7 +783,7 @@ ${request.reason}
                             noIcon
                             dedup
                           />
-                          <div class="absolute left-0 top-10 grid translate-x-[-85%] place-content-center align-middle">
+                          <div class="absolute top-10 left-0 grid translate-x-[-85%] place-content-center align-middle">
                             <button
                               class="relative z-10 p-2.5"
                               onclick={() => {
@@ -741,7 +827,7 @@ ${request.reason}
                                 setHistory();
                               }}
                             >
-                              <IconTablerArrowLeft class="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xl" />
+                              <IconTablerArrowLeft class="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 text-xl" />
                               <IconTablerPencil class="text-xl" />
                             </button>
                           </div>
@@ -755,14 +841,19 @@ ${request.reason}
                         actions={{
                           copy: () => {
                             navigator.clipboard.writeText(
-                              `${KV.stringify({ ...currentExecutionSource().values }, "\n", 2, "\n")}${http()}`,
+                              `${KV.stringify({ ...currentExecutionSource().values }, { indent: 2, trailer: "\n" })}${http()}`,
                             );
+                          },
+                          format: () => {
+                            const { http, values } = currentExecutionSource();
+                            restoreFromHttp(http, values);
                           },
                         }}
                         icons={{
                           info: (
                             <ConfigurationDrawer
                               class="!text-md flex bg-inherit p-0"
+                              title="configuration"
                               preview={createMemo(() => {
                                 return previewResource?.state === "ready"
                                   ? previewResource()
@@ -773,6 +864,7 @@ ${request.reason}
                             </ConfigurationDrawer>
                           ),
                           copy: <IconTablerCopy />,
+                          format: <IconTablerBraces />,
                         }}
                       />
                     </PardonInput>
@@ -792,7 +884,6 @@ ${request.reason}
                             preview: <IconTablerTemplate />,
                             outbound: <IconTablerUpload />,
                             inbound: <IconTablerDownload />,
-                            values: <IconTablerReceipt />,
                           }}
                           disabled={{
                             preview: Boolean(history()),
@@ -803,13 +894,10 @@ ${request.reason}
                                   responseResource().status === "rejected" &&
                                   requestResource.state === "ready" &&
                                   requestResource().status === "rejected")),
-                            values:
+                            outbound:
                               !history() &&
-                              (responseResource.state !== "ready" ||
-                                responseResource().status !== "fulfilled"),
-                          }}
-                          controlProps={{
-                            values: scratchDropTarget,
+                              previewResource.state === "ready" &&
+                              previewResource().status === "rejected",
                           }}
                           defaulting={createMemo(() => {
                             switch (currentExecution()?.progress) {
@@ -818,7 +906,6 @@ ${request.reason}
                                 return ["outbound", "preview"] as const;
                               case "complete":
                                 return [
-                                  "values",
                                   "inbound",
                                   "outbound",
                                   "preview",
@@ -851,42 +938,72 @@ ${request.reason}
                               }),
                             );
 
-                            const currentPreview = createMemo(
+                            const currentPreview = createMemo<
+                              | Partial<{
+                                  preview?: Awaited<
+                                    ReturnType<typeof window.pardon.preview>
+                                  >;
+                                  error?: any;
+                                }>
+                              | undefined
+                            >((previous) => {
+                              if (previewResource.loading) {
+                                if (
+                                  previewResource.state === "refreshing" ||
+                                  previewResource.state === "pending"
+                                ) {
+                                  return previous ?? {};
+                                }
+
+                                return {};
+                              }
+
+                              const preview = previewResource();
+
+                              if (preview.status === "fulfilled") {
+                                return { preview: preview.value };
+                              }
+
+                              return { error: preview.reason };
+                            });
+
+                            const previewContent = createMemo(
                               (previousRequest: string) => {
-                                if (previewResource.state !== "ready") {
-                                  if (
-                                    previewResource.state === "refreshing" ||
-                                    previewResource.state === "pending"
-                                  ) {
-                                    return previousRequest ?? "";
+                                const { preview, error } = currentPreview();
+
+                                if (error) {
+                                  if (error === "history") {
+                                    return requestContent();
                                   }
 
+                                  try {
+                                    const { action, step, stack } =
+                                      JSON.parse(error);
+                                    if (step === "sync") {
+                                      return previousRequest ?? "";
+                                    }
+                                    return `${action}@${step}\n${stack}`;
+                                  } catch (oops) {
+                                    void oops;
+                                    return String(error);
+                                  }
+                                }
+
+                                if (!preview) {
                                   return "";
                                 }
 
-                                const previewResult = previewResource();
-                                if (previewResult.status === "fulfilled") {
-                                  return previewResult.value.http;
-                                }
-
-                                if (!previewResult.reason) {
-                                  return "";
-                                } else if (previewResult.reason === "history") {
-                                  return currentRequest();
-                                }
-
-                                try {
-                                  const { action, step, stack } = JSON.parse(
-                                    previewResult.reason,
+                                if (curl()) {
+                                  return CURL.stringify(
+                                    HTTP.requestObject.fromJSON(
+                                      HTTP.requestObject.json(
+                                        HTTP.parse(preview.http),
+                                      ),
+                                    ),
+                                    { include: includeHeaders() },
                                   );
-                                  if (step === "sync") {
-                                    return previousRequest ?? "";
-                                  }
-                                  return `${action}@${step}\n${stack}`;
-                                } catch (oops) {
-                                  void oops;
-                                  return String(previewResult.reason);
                                 }
+                                return preview.http;
                               },
                             );
 
@@ -959,29 +1076,29 @@ ${request.reason}
                               },
                             );
 
-                            const latestRequest = createMemo(() => {
-                              if (requestResource.state !== "ready") {
-                                return;
-                              }
-
-                              const request = requestResource();
-
-                              if (request.status !== "fulfilled") {
-                                const error = request.reason;
-                                return { error } as PardonExecutionRender;
-                              }
-
-                              return request.value;
-                            });
-
-                            const currentRequestMemo = createMemo<{
+                            const currentRequest = createMemo<{
                               request?: string;
-                              error?: string;
+                              values?: Record<string, unknown>;
+                              error?: any;
                             }>((previous = {}) => {
-                              const { outbound, context, error } =
-                                history() ?? latestRequest() ?? {};
+                              if (history()?.outbound) {
+                                const { request, values } = history().outbound!;
 
-                              if (error && !outbound) {
+                                return {
+                                  request: HTTP.stringify(
+                                    HTTP.requestObject.fromJSON({
+                                      ...request,
+                                    }),
+                                    { limit: 100 },
+                                  ),
+                                  values,
+                                };
+                              }
+
+                              const { outbound, context, error } =
+                                latestRequest() ?? {};
+
+                              if (error) {
                                 return { error };
                               }
 
@@ -990,38 +1107,44 @@ ${request.reason}
                                   requestResource.state === "refreshing" ||
                                   requestResource.state === "pending"
                                 ) {
-                                  return { request: previous.request };
+                                  return {
+                                    request: previous.request,
+                                    values: {},
+                                  };
                                 }
 
                                 return { request: "" };
                               }
 
-                              const requestObject = HTTP.requestObject.fromJSON(
-                                {
-                                  ...(redacted()
+                              const { values: _, ...requestObject } =
+                                HTTP.requestObject.fromJSON(
+                                  (redacted()
                                     ? outbound
                                     : (secureData()[context.trace]?.outbound ??
                                       outbound)
-                                  )?.request,
-                                  values: {},
-                                },
-                              );
+                                  )?.request ?? {},
+                                );
 
                               if (curl()) {
                                 return {
                                   request: CURL.stringify(requestObject, {
                                     include: includeHeaders(),
                                   }),
+                                  values: outbound.values,
                                 };
                               }
 
                               return {
-                                request: HTTP.stringify(requestObject),
+                                request: HTTP.stringify(requestObject, {
+                                  limit: 80,
+                                  indent: 2,
+                                }),
+                                values: outbound.values,
                               };
                             });
 
-                            const currentRequest = createMemo(() => {
-                              const { request, error } = currentRequestMemo();
+                            const requestContent = createMemo(() => {
+                              const { request, error } = currentRequest();
                               return error ?? request;
                             });
 
@@ -1029,7 +1152,7 @@ ${request.reason}
                               if (
                                 !history() &&
                                 currentExecution().progress === "errored" &&
-                                ["inbound", "values"].includes(view())
+                                ["inbound"].includes(view())
                               ) {
                                 if (
                                   requestResource.state === "ready" &&
@@ -1043,21 +1166,37 @@ ${request.reason}
                             return (
                               <>
                                 <div class="flex w-full min-w-0 flex-initial flex-row gap-1 p-2 pr-8">
-                                  <MultiView.Controls class="aspect-square flex-initial p-1 text-xl [&.multiview-selected]:bg-lime-400 [&.multiview-selected]:dark:bg-cyan-500" />
+                                  <MultiView.Controls class="aspect-square flex-initial p-1 text-2xl [&.multiview-selected]:bg-lime-400 [&.multiview-selected]:dark:bg-cyan-500" />
                                   <button
-                                    class="w-0 flex-1 border-1 border-gray-300 bg-gray-400 bg-transparent px-2 py-0 text-start light:text-neutral-700 dark:text-neutral-200 disabled:dark:text-neutral-400"
+                                    class="absolute right-2 bottom-2 z-10 rounded-md border-2 border-orange-500/75 bg-neutral-400/20 p-4 text-xl opacity-50 transition-opacity duration-300 hover:opacity-100"
+                                    role="checkbox"
+                                    onclick={() =>
+                                      setDisplayValues((shown) => !shown)
+                                    }
+                                    classList={{
+                                      "dark:!bg-teal-600 !bg-teal-400 dark:!border-orange-700 !border-orange-500 !shadow-none":
+                                        displayValues(),
+                                    }}
+                                    {...scratchDropTarget}
+                                  >
+                                    <IconTablerReceipt />
+                                  </button>
+                                  <div></div>
+                                  <button
+                                    class="w-0 flex-1 border-1 border-gray-300 bg-transparent px-2 py-0 text-start text-neutral-700 dark:text-neutral-200 disabled:dark:text-neutral-400"
                                     disabled={newRequestDisabled()}
                                     classList={{
-                                      "light:bg-orange-300 dark:bg-yellow-900":
-                                        ["POST", "PUT", "DELETE"].includes(
-                                          requestInfo()?.method,
-                                        ),
-                                      "light:bg-green-300 dark:bg-green-900": [
+                                      "bg-orange-300 dark:bg-yellow-900": [
+                                        "POST",
+                                        "PUT",
+                                        "DELETE",
+                                      ].includes(requestInfo()?.method),
+                                      "g-green-300 dark:bg-green-900": [
                                         "GET",
                                         "HEAD",
                                         "OPTIONS",
                                       ].includes(requestInfo().method),
-                                      "light:bg-red-300 dark:bg-fuchsia-900": [
+                                      "bg-red-300 dark:bg-fuchsia-900": [
                                         "DELETE",
                                       ].includes(requestInfo()?.method),
                                     }}
@@ -1077,7 +1216,7 @@ ${request.reason}
                                     <div class="flex flex-row place-content-start gap-2 font-mono">
                                       <span>{requestInfo()?.method}</span>
                                       <span class="my-1 w-[1px] bg-current"></span>
-                                      <span class="overflow-hidden overflow-ellipsis whitespace-nowrap">
+                                      <span class="overflow-scroll whitespace-nowrap">
                                         {requestInfo()?.url}
                                       </span>
                                       <Show
@@ -1087,7 +1226,7 @@ ${request.reason}
                                             "fulfilled"
                                         }
                                       >
-                                        <span class="flex-1 text-end light:text-black dark:text-white">
+                                        <span class="flex-1 text-end text-black dark:text-white">
                                           {responseResource.state === "ready" &&
                                           responseResource.latest?.status ===
                                             "fulfilled"
@@ -1114,8 +1253,7 @@ ${request.reason}
                                           const { http, values } =
                                             displayedExecutionSource();
 
-                                          setHttp(http);
-                                          setValues({ ...values });
+                                          restoreFromHttp(http, values);
                                           setHistory();
                                         });
                                       } else {
@@ -1127,8 +1265,8 @@ ${request.reason}
                                     <Show
                                       when={!history()}
                                       fallback={
-                                        <div class="relative">
-                                          <IconTablerReload class="absolute left-0 top-0 -translate-x-1/4 -translate-y-1/4 text-xl" />
+                                        <div class="reload-request relative">
+                                          <IconTablerReload class="absolute top-0 left-0 -translate-x-1/4 -translate-y-1/4 text-xl" />
                                           <IconTablerPencil class="relative translate-x-1/4 translate-y-1/4 text-xl" />
                                         </div>
                                       }
@@ -1140,7 +1278,7 @@ ${request.reason}
                                             currentExecution()?.progress ===
                                             "rendering",
                                         ]}
-                                        class="smoothed-backdrop !bg-opacity-50"
+                                        class="smoothed-backdrop"
                                       >
                                         <IconTablerReload />
                                       </span>
@@ -1148,45 +1286,126 @@ ${request.reason}
                                   </button>
                                 </div>
                                 <Switch>
-                                  <Match when={view() == "preview"}>
-                                    <CodeMirror
-                                      readonly
-                                      nowrap
-                                      value={currentPreview()}
-                                      class="flex-1 [--clear-start-opacity:0] [&_.cm-content]:pr-6"
-                                    />
-                                  </Match>
-                                  <Match when={view() == "outbound"}>
-                                    <CodeMirror
-                                      readonly
-                                      nowrap
-                                      value={currentRequest()}
-                                      disabled={requestDisabled()}
-                                      class="flex-1[&_.cm-content]:pr-6"
-                                    />
-                                  </Match>
-                                  <Match when={view() == "inbound"}>
-                                    <CodeMirror
-                                      value={responseContent()}
-                                      readonly
-                                      nowrap
-                                      class="flex-1 [&_.cm-content]:pr-6"
-                                    />
-                                  </Match>
-                                  <Match when={view() == "values"}>
-                                    <KeyValueCopier
-                                      class="p-1"
-                                      readonly
-                                      values={
-                                        history()
-                                          ? history().inbound?.values
-                                          : responseResource.latest?.status ===
-                                              "fulfilled"
-                                            ? responseResource.latest.value
-                                                .inbound.values
-                                            : {}
+                                  <Match when={view() === "preview"}>
+                                    <Show
+                                      fallback={
+                                        <CodeMirror
+                                          readonly
+                                          nowrap
+                                          value={previewContent()}
+                                          class="flex-1 [--clear-start-opacity:0] [&_.cm-content]:pr-6"
+                                        />
                                       }
-                                    />
+                                      when={
+                                        displayValues() &&
+                                        Object.keys(
+                                          currentPreview()?.preview?.values ??
+                                            {},
+                                        ).length
+                                      }
+                                    >
+                                      <Resizable orientation="horizontal">
+                                        <Resizable.Panel>
+                                          <CodeMirror
+                                            readonly
+                                            nowrap
+                                            value={previewContent()}
+                                            class="size-full flex-1 [--clear-start-opacity:0] [&_.cm-content]:pr-6"
+                                          />
+                                        </Resizable.Panel>
+                                        <Resizable.Handle />
+                                        <Resizable.Panel>
+                                          <KeyValueCopier
+                                            class="fade-to-clear size-full bg-neutral-500/40 px-1.5 py-1 pb-3"
+                                            readonly
+                                            values={
+                                              currentPreview()?.preview
+                                                ?.values ?? {}
+                                            }
+                                          />
+                                        </Resizable.Panel>
+                                      </Resizable>
+                                    </Show>
+                                  </Match>
+                                  <Match when={view() === "outbound"}>
+                                    <Show
+                                      fallback={
+                                        <CodeMirror
+                                          readonly
+                                          nowrap
+                                          value={requestContent()}
+                                          disabled={requestDisabled()}
+                                          class="flex-1[&_.cm-content]:pr-6"
+                                        />
+                                      }
+                                      when={
+                                        displayValues() &&
+                                        Object.keys(
+                                          currentRequest().values ?? {},
+                                        ).length
+                                      }
+                                    >
+                                      <Resizable orientation="horizontal">
+                                        <Resizable.Panel>
+                                          <CodeMirror
+                                            readonly
+                                            nowrap
+                                            value={requestContent()}
+                                            disabled={requestDisabled()}
+                                            class="flex-1[&_.cm-content]:pr-6 size-full"
+                                          />
+                                        </Resizable.Panel>
+                                        <Resizable.Handle />
+                                        <Resizable.Panel>
+                                          <KeyValueCopier
+                                            class="fade-to-clear size-full bg-neutral-500/40 px-1.5 py-1 pb-3"
+                                            readonly
+                                            values={
+                                              currentRequest().values ?? {}
+                                            }
+                                          />
+                                        </Resizable.Panel>
+                                      </Resizable>
+                                    </Show>
+                                  </Match>
+                                  <Match when={view() === "inbound"}>
+                                    <Show
+                                      fallback={
+                                        <CodeMirror
+                                          value={responseContent()}
+                                          readonly
+                                          nowrap
+                                          class="flex-1 [&_.cm-content]:pr-6"
+                                        />
+                                      }
+                                      when={
+                                        displayValues() &&
+                                        Object.keys(
+                                          currentResponse().values ?? {},
+                                        ).length
+                                      }
+                                    >
+                                      <Resizable orientation="horizontal">
+                                        <Resizable.Panel>
+                                          <CodeMirror
+                                            value={responseContent()}
+                                            readonly
+                                            nowrap
+                                            class="size-full flex-1 [&_.cm-content]:pr-6"
+                                          />
+                                        </Resizable.Panel>
+                                        <Resizable.Handle />
+                                        <Resizable.Panel>
+                                          <KeyValueCopier
+                                            class="fade-to-clear size-full bg-neutral-500/40 px-1.5 py-1 pb-3"
+                                            readonly
+                                            values={
+                                              currentResponse().values ?? {}
+                                            }
+                                          />
+                                        </Resizable.Panel>
+                                      </Resizable>
+                                    </Show>
                                   </Match>
                                 </Switch>
                               </>
@@ -1200,7 +1419,9 @@ ${request.reason}
                           actions={{
                             redacted: () => setRedacted((value) => !value),
                             copy() {
-                              navigator.clipboard.writeText(requestContent());
+                              navigator.clipboard.writeText(
+                                executionClipboardContent(),
+                              );
                             },
                             curl: () => setCurl((value) => !value),
                             include: () => setIncludeHeaders((value) => !value),
@@ -1229,7 +1450,13 @@ ${request.reason}
                           disabled={{
                             redacted: relock(),
                             copy:
-                              requestResource.latest?.status !== "fulfilled",
+                              executionView() === "preview"
+                                ? previewResource.loading ||
+                                  previewResource().status !== "fulfilled"
+                                : executionView() === "outbound"
+                                  ? requestResource.latest?.status !==
+                                    "fulfilled"
+                                  : true,
                           }}
                         />
                       </div>

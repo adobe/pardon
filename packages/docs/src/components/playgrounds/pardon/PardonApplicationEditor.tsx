@@ -70,7 +70,7 @@ export default function PardonApplicationEditor(
             <TbCode color="gray" size={iconSize} />
           </div>
         }
-        class="max-h-56 min-h-24 overflow-auto rounded-sm bg-white shadow dark:bg-neutral-800"
+        class="max-h-56 min-h-24 overflow-auto rounded-sm bg-yellow-100 shadow dark:bg-neutral-800"
         readwrite
         value={document()}
         onValueChange={updateConfig}

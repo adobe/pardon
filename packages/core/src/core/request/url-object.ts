@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { depatternize, patternize } from "../schema/core/pattern.js";
 import { mapObject } from "../../util/mapping.js";
-import { intoSearchParams } from "./search-pattern.js";
+import { intoSearchParams } from "./search-object.js";
 
 type URLTemplate = {
   origin?: string;

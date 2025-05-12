@@ -56,3 +56,8 @@ export function isMelding({ hint }: Hinting = {}) {
 export function isFlowExport({ hint }: Hinting = {}) {
   return hint?.includes("+");
 }
+
+// skips exporting entirely
+export function isHidden({ hint }: Hinting = {}) {
+  return hint?.includes("-");
+}

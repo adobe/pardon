@@ -38,7 +38,7 @@ export function intoSearchParams(
             .map((kv) =>
               kv
                 .filter((kv) => kv != null)
-                .map(encode)
+                .map(encodeSearchComponent)
                 .join("="),
             )
             .join("&")}`
@@ -123,7 +123,7 @@ export function intoSearchParams(
   return urlSearchParams;
 }
 
-function encode(s: string) {
+export function encodeSearchComponent(s: string) {
   const pattern = patternize(s);
 
   return depatternize(

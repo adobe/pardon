@@ -13,11 +13,12 @@ governing permissions and limitations under the License.
 import { resolve } from "node:path";
 
 import { defineConfig } from "astro/config";
-import tailwind from "@astrojs/tailwind";
 import starlight from "@astrojs/starlight";
 import solid from "@astrojs/solid-js";
 import { pluginFrames } from "astro-expressive-code";
 import { copypastePlugin } from "./src/code/copypaste-plugin";
+
+import tailwindcss from "@tailwindcss/vite";
 
 // https://astro.build/config
 export default defineConfig({
@@ -27,7 +28,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Pardon",
-      customCss: ["./src/layouts/tailwind.pcss", "./src/layouts/tweaks.pcss"],
+      customCss: ["./src/styles/global.css"],
       sidebar: [
         {
           label: "Welcome",
@@ -113,19 +114,21 @@ export default defineConfig({
       },
     }),
     solid(),
-    tailwind({ applyBaseStyles: false }),
   ],
   vite: {
     build: {
       target: "esnext",
     },
+
     define: {
       process: { env: {}, versions: process.versions, version: "v1.0.0" },
       "globalThis.fetch": true, // skips import of node-fetch which breaks build
     },
+
     optimizeDeps: {
       exclude: ["util", "node:util"],
     },
+
     /*
      * All this is as-needed stubbing out node:deps to allow parts
      * of pardon to run in-browser.
@@ -161,6 +164,8 @@ export default defineConfig({
         replacement: resolve(replacement),
       })),
     },
+
+    plugins: [tailwindcss()],
   },
   experimental: {
     clientPrerender: true,

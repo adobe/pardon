@@ -14,7 +14,7 @@ import {
   HttpsResponseStep,
   HttpsFlowConfig,
 } from "../../formats/https-fmt.js";
-import { ResponseObject } from "../../request/fetch-pattern.js";
+import { ResponseObject } from "../../request/fetch-object.js";
 import { pardon } from "../../../api/pardon-wrapper.js";
 import {
   mergeSchema,
@@ -29,7 +29,7 @@ import { stubSchema } from "../../schema/definition/structures/stub.js";
 import { HTTP } from "../../formats/http-fmt.js";
 import { TracedResult } from "../../../features/trace.js";
 import { EvaluationScope } from "../../schema/core/types.js";
-import { JSON } from "../../json.js";
+import { JSON } from "../../raw-json.js";
 import { withoutEvaluationScope } from "../../schema/core/context-util.js";
 import {
   contextAsFlowParams,
@@ -223,8 +223,11 @@ export async function executeHttpsSequence(
   return sequenceRun();
 }
 
-const flowScriptTransform: (freeVariables: Set<string>) => TsMorphTransform =
-  (freeVariables) =>
+const flowScriptTransform: (unbound: {
+  symbols: Set<string>;
+  literals: Set<string>; // TODO
+}) => TsMorphTransform =
+  (unbound) =>
   ({ factory, visitChildren }) => {
     const node = visitChildren();
 
@@ -233,7 +236,7 @@ const flowScriptTransform: (freeVariables: Set<string>) => TsMorphTransform =
       node.operatorToken.kind === SyntaxKind.EqualsToken
     ) {
       const lhs = node.left;
-      if (ts.isIdentifier(lhs) && freeVariables.has(lhs.text)) {
+      if (ts.isIdentifier(lhs) && unbound.symbols.has(lhs.text)) {
         return factory.createBinaryExpression(
           factory.createPropertyAccessExpression(
             factory.createIdentifier("environment"),
@@ -599,7 +602,7 @@ async function executeHttpsSequenceStep({
   flowContext.checkAborted();
 
   console.log(`>>>
-${KV.stringify(requestValues, "\n", 2, "\n")}${requestHttp}`);
+${KV.stringify(requestValues, { indent: 2, limit: 0, trailer: "\n" })}${requestHttp}`);
 
   const execution = pardon(requestValues)`${requestHttp}`.render();
 

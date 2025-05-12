@@ -59,7 +59,7 @@ export default function PardonPlayground(
           data-pardon-playground
           ref={(element) => {
             (element as any).pardonPlayground = {
-              update(value: string) {
+              update(value: string, mode?: string) {
                 const view = inputEditorView()!;
 
                 const doc = view.state.doc.toString();
@@ -81,9 +81,7 @@ export default function PardonPlayground(
                 const result =
                   KV.stringify(
                     { ...kv, ...values },
-                    "\n",
-                    2,
-                    updatedHttp?.trim() ? "\n" : "",
+                    { indent: 2, trailer: updatedHttp ? "\n" : "" },
                   ) + (updatedHttp?.trim() ?? "");
 
                 view.dispatch([
@@ -116,7 +114,7 @@ export default function PardonPlayground(
                 </Show>
               </div>
             }
-            class="rounded-md bg-white p-2 shadow dark:bg-gray-700"
+            class="rounded-md bg-yellow-100 p-2 shadow dark:bg-gray-700"
             value={untrack(input)}
             editorViewRef={setInputEditorView}
             onValueChange={setInput}

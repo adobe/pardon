@@ -11,13 +11,14 @@ governing permissions and limitations under the License.
 */
 
 import { extractKVs, intoArgs } from "../../util/kv-options.js";
-import { FetchObject, RequestMeta } from "../request/fetch-pattern.js";
+import { FetchObject, RequestMeta } from "../request/fetch-object.js";
 import { parseArgs } from "node:util";
-import { intoSearchParams } from "../request/search-pattern.js";
+import { intoSearchParams } from "../request/search-object.js";
 import { arrayIntoObject } from "../../util/mapping.js";
-import { intoURL } from "../request/url-pattern.js";
+import { intoURL } from "../request/url-object.js";
 import { RequestObject } from "./http-fmt.js";
 import { PardonError } from "../error.js";
+import { createHeaders } from "../request/header-object.js";
 
 export const CURL = {
   parse,
@@ -150,7 +151,7 @@ function parse(command: string): {
 
   const { origin, pathname, searchParams } = intoURL(url);
 
-  const headers = new Headers(
+  const headers = createHeaders(
     opts.header?.map((header) => {
       const [, name, value] = /^([^:]*?):(.*)$/.exec(header) || [];
       return [name.trim(), value.trim()] as [string, string];

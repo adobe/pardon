@@ -130,9 +130,9 @@ export function RequestSummary(
         class="relative left-0 flex w-0 flex-1 overflow-hidden rounded-none p-0 pl-0 text-left align-middle transition-all duration-200 active:!bg-slate-300 dark:hover:!bg-slate-600/50 dark:active:!bg-slate-600"
         classList={{
           "bg-transparent": !props.relation,
-          "bg-gray-500 bg-opacity-40": props.relation === "current",
-          "bg-gray-500 bg-opacity-30 !left-2": props.relation === "direct",
-          "bg-gray-500 bg-opacity-15 !left-4": props.relation === "indirect",
+          "bg-gray-500/40": props.relation === "current",
+          "bg-gray-500/30 !left-2": props.relation === "direct",
+          "bg-gray-500/15 !left-4": props.relation === "indirect",
           "opacity-75": props.auto && !props.relation,
         }}
         onClick={() => {

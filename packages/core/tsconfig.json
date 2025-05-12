@@ -8,5 +8,6 @@
     "strictFunctionTypes": true,
     "sourceMap": true
   },
-  "exclude": ["./dist/**/*"]
+  "exclude": ["./dist/**/*"],
+  "include": ["types/*.d.ts", "types/core-js-pure-actual-json-types.d.ts"]
 }

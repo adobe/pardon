@@ -9,12 +9,11 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import MIME from "whatwg-mimetype";
 import {
   referenceTemplate,
   ReferenceSchematicOps,
 } from "../schema/definition/structures/reference.js";
-import { FetchObject, ResponseObject } from "./fetch-pattern.js";
+import { FetchObject, ResponseObject } from "./fetch-object.js";
 import { queryEncodingType } from "../schema/definition/encodings/url-encoded.js";
 import { headersTemplate } from "../schema/definition/encodings/headers-encoding.js";
 import { datums } from "../schema/definition/datum.js";
@@ -37,49 +36,10 @@ import {
   merge,
 } from "../schema/core/schema-ops.js";
 import { encodings, EncodingTypes } from "./body-template.js";
-import { JSON } from "../json.js";
+import { JSON } from "../raw-json.js";
 import { mixing } from "../schema/core/contexts.js";
 import { encodingTemplate } from "../schema/definition/encodings/encoding.js";
-
-function isJson(body: string) {
-  try {
-    JSON.parse(body);
-    return true;
-  } catch (ignore) {
-    void ignore;
-    return false;
-  }
-}
-
-export function guessContentType(
-  body: string,
-  headers?: Headers,
-): EncodingTypes | undefined {
-  if (!headers) {
-    if (isJson(body)) {
-      return "json";
-    }
-
-    return "raw";
-  }
-
-  const contentType = MIME.parse(headers.get("Content-Type")!);
-
-  switch (contentType?.essence) {
-    case "application/json":
-      return isJson(body) ? "json" : "raw";
-    case "application/x-www-form-urlencoded":
-      return "form";
-    case "text/plain":
-      return "text";
-    default:
-      if (contentType?.essence.endsWith("+json")) {
-        return isJson(body) ? "json" : "raw";
-      }
-
-      return "raw";
-  }
-}
+import { guessContentType } from "../formats/https-fmt.js";
 
 export type HttpsRequestObject = FetchObject & {
   computations?: Record<string, unknown>;
@@ -187,7 +147,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
           template: templateEncoded,
         });
         if (merged) {
-          return merged && bodySchema(merged);
+          return bodySchema(merged);
         }
       } catch (error) {
         void error;
@@ -259,7 +219,7 @@ const pathnameTemplate = (base: string) =>
     },
   });
 
-export function httpsRequestSchema() {
+export function httpsRequestSchema(): Schema<HttpsRequestObject> {
   return mixing<HttpsRequestObject>({
     method: "{{method = 'GET'}}",
     origin: originTemplate("{{?:origin}}"),
@@ -270,7 +230,7 @@ export function httpsRequestSchema() {
     headers: headersTemplate(),
     body: bodyReference(bodyTemplate()),
     computations: hiddenTemplate<Record<string, unknown>>(),
-  });
+  })!;
 }
 
 export function httpsResponseSchema(): Schema<ResponseObject> {
@@ -285,5 +245,5 @@ export function httpsResponseSchema(): Schema<ResponseObject> {
     }),
     headers: headersTemplate(),
     body: bodyReference(bodyTemplate()),
-  });
+  })!;
 }

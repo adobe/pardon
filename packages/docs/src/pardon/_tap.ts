@@ -10,26 +10,12 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-.testcase-table {
-  @apply w-full;
-  @apply border-spacing-0;
-  @apply border-0 border-x-2 border-solid border-gray-400 dark:border-gray-500;
-  @apply min-h-fit bg-transparent;
-
-  &.error {
-    @apply opacity-50;
-  }
-
-  tbody {
-  }
-
-  th {
-    @apply text-left;
-    @apply odd:bg-stone-100 even:bg-stone-200 dark:odd:bg-stone-800 dark:even:bg-stone-700;
-  }
-
-  th,
-  td {
-    @apply px-5 py-0;
-  }
+export function tap(imports: Record<string, string>) {
+  return Object.entries(imports).reduce(
+    (tapped, [k, v]) =>
+      Object.assign(tapped, {
+        [k.replace(/^[.][/][^/]*[/]/, "")]: v,
+      }),
+    {},
+  );
 }

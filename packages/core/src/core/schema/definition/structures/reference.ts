@@ -20,7 +20,6 @@ import {
   merge,
   maybeResolve,
 } from "../../core/schema-ops.js";
-import { isMergingContext } from "../../core/schema.js";
 import { parseScopedIdentifier } from "../../core/scope.js";
 import {
   Schema,
@@ -41,7 +40,12 @@ import {
   ScalarType,
 } from "../scalar.js";
 import { datumTemplate } from "../datum.js";
-import { diagnostic, rescope } from "../../core/context-util.js";
+import {
+  diagnostic,
+  isAbstractContext,
+  rescope,
+} from "../../core/context-util.js";
+import { isMergingContext } from "../../core/schema.js";
 
 type ReferenceSchema<T> = {
   refs: Set<string>;
@@ -96,7 +100,7 @@ export function referenceTemplate<T = unknown>(
 ): ReferenceSchematic<T> {
   const referenceSchematic = defineSchematic<ReferenceSchematicOps<T>>({
     expand(context) {
-      return defineReference({
+      const schema = defineReference({
         refs: new Set([reference.ref].filter(Boolean)),
         hint: reference.hint ?? "",
         schema:
@@ -106,6 +110,16 @@ export function referenceTemplate<T = unknown>(
         encoding: reference.encoding,
         anull: reference.anull,
       });
+
+      const value = reference.ref
+        ? context.evaluationScope.resolve(context, reference.ref)
+        : undefined;
+
+      if (value?.value !== undefined) {
+        return merge(schema, { ...context, template: value.value as T });
+      }
+
+      return schema;
     },
     blend(context, next) {
       let { template } = reference;
@@ -121,7 +135,12 @@ export function referenceTemplate<T = unknown>(
         hint.add("@");
       }
 
-      const schema = next({ ...context, template });
+      let schema = next({ ...context, template });
+      if (schema && context.template !== undefined) {
+        if (!isSchematic(context.template)) {
+          schema = merge(schema, context);
+        }
+      }
 
       if (template !== undefined && !schema) {
         return;
@@ -294,7 +313,7 @@ export function defineReference<T = unknown>(
         }
 
         if (merged) {
-          tryResolve(merged, context);
+          tryResolve(context, merged);
         }
 
         if (ref) {
@@ -313,12 +332,10 @@ export function defineReference<T = unknown>(
         });
       }
 
-      if (schema) {
-        tryResolve(schema, context);
-      }
-
-      if (context.template === undefined) {
-        return defineReference(referenceSchema);
+      if (context.mode === "match") {
+        if (context.template !== undefined) {
+          // commitResolution({ resolved: context.template as T }, context);
+        }
       }
 
       if (encoding && !isSchematic(context.template)) {
@@ -332,10 +349,10 @@ export function defineReference<T = unknown>(
         }
       }
 
-      let mergeSchema = schema;
+      let nextSchema = schema;
 
       if (encoding) {
-        mergeSchema = merge(schema ?? stubSchema(), {
+        nextSchema = merge(schema ?? stubSchema(), {
           ...context,
           template: datumTemplate(
             context.mode === "match"
@@ -347,21 +364,36 @@ export function defineReference<T = unknown>(
           ) as Schematic<T>,
         });
 
-        if (!mergeSchema) {
+        if (!nextSchema) {
           return;
         }
       }
 
-      const merged = merge(mergeSchema ?? stubSchema(), context);
-      if (!merged) {
-        return undefined;
+      const resolved = isAbstractContext(context)
+        ? undefined
+        : resolveReference(context, nextSchema);
+
+      nextSchema = merge(nextSchema ?? stubSchema(), {
+        ...context,
+        template: resolved ?? context.template,
+      });
+
+      if (
+        nextSchema &&
+        resolved !== undefined &&
+        context.template !== undefined
+      ) {
+        nextSchema = merge(nextSchema, context);
       }
 
-      if (merged) {
-        tryResolve(merged, context);
+      if (nextSchema) {
+        tryResolve(context, nextSchema);
       }
 
-      return defineReference({ ...referenceSchema, schema: merged });
+      return (
+        nextSchema &&
+        defineReference({ ...referenceSchema, schema: nextSchema })
+      );
     },
     async render(context) {
       if (schema) {
@@ -381,7 +413,7 @@ export function defineReference<T = unknown>(
             : undefined
         ) as T | undefined;
 
-        defineReferenceValue(context, value);
+        defineRenderedReferenceValue(context, value);
 
         return convertScalar(value, encoding, { anull }) as T;
       }
@@ -389,13 +421,11 @@ export function defineReference<T = unknown>(
       return anull ? (null as T) : undefined!;
     },
     scope(context) {
-      const { evaluationScope: scope } = context;
-
       for (const ref of refs) {
         declareRef(context, { ref, hint });
 
-        if (!isMergingContext(context)) {
-          scope.resolve(context, ref);
+        if (!isMergingContext(context) && isAbstractContext(context)) {
+          context.evaluationScope.resolve(context, ref);
         }
       }
 
@@ -421,7 +451,7 @@ export function defineReference<T = unknown>(
       hint: hint || null,
       source: null,
       resolved(context) {
-        return resolveReference(rescope(context, scope));
+        return resolveReference(rescope(context, scope) as SchemaContext<T>);
       },
       async rendered(context) {
         return await renderReference(schema, rescope(context, scope));
@@ -429,72 +459,74 @@ export function defineReference<T = unknown>(
     });
   }
 
-  function tryResolve<T>(schema: Schema<T>, context: SchemaContext<T>) {
-    const resolved = schema && maybeResolve(schema, context);
+  function tryResolve(context: SchemaContext<T>, schema: Schema<T>) {
+    const resolution = maybeResolveRef(context, schema);
 
-    if (resolved !== undefined) {
-      for (const ref of refs) {
-        context.evaluationScope.define(context, ref, resolved);
-      }
+    if (resolution?.resolved !== undefined) {
+      commitResolution(resolution, context);
 
-      return resolved;
+      return resolution.resolved;
     }
   }
 
-  function resolveReference(context: SchemaContext<unknown>) {
-    const resolved = schema && tryResolve(schema, context);
+  function commitResolution(
+    resolution: { ref?: string; resolved?: T },
+    context: SchemaContext<T>,
+  ) {
+    for (const ref of refs) {
+      if (ref !== resolution.ref) {
+        context.evaluationScope.define(context, ref, resolution.resolved);
+      }
+    }
+
+    return resolution.resolved;
+  }
+
+  function maybeResolveRef(
+    context: SchemaContext<T>,
+    schema?: Schema<T>,
+  ):
+    | {
+        ref?: string;
+        resolved: T;
+      }
+    | undefined {
+    const resolved = schema && maybeResolve(schema, context);
+
     if (resolved !== undefined) {
-      return resolved;
+      return { resolved };
     }
 
     for (const ref of refs) {
-      const value = context.evaluationScope.resolve(context, ref);
+      const resolved = context.evaluationScope.resolve(context, ref);
 
-      if (value !== undefined) {
-        for (const other of refs) {
-          if (other !== ref) {
-            context.evaluationScope.define(context, other, value);
-          }
-        }
-
-        return value.value as T;
+      if (resolved?.value !== undefined) {
+        return { ref, resolved: resolved.value as T };
       }
     }
+  }
+
+  function resolveReference(context: SchemaContext<T>, withSchema?: Schema<T>) {
+    const resolution = maybeResolveRef(context, withSchema ?? schema);
+
+    return resolution && commitResolution(resolution, context);
   }
 
   async function renderReference(
     schema: Schema<T> | undefined,
     context: SchemaRenderContext,
   ) {
-    for (const ref of refs) {
-      const value = context.evaluationScope.resolve(context, ref);
+    let result: T | string | undefined;
 
-      if (value !== undefined) {
-        for (const other of refs) {
-          if (other !== ref) {
-            context.evaluationScope.define(context, other, value);
-          }
-        }
-
-        return value.value as T;
-      }
+    if (schema) {
+      result = await executeOp(schema, "render", context);
     }
 
-    const result = schema && (await executeOp(schema, "render", context));
-
-    if (
-      typeof result == "string" &&
-      context.mode === "preview" &&
-      /^{{\s*=\s*[$][$]expr[(]"/.test(result)
-    ) {
-      const [, expr] =
-        /^{{\s*=\s*[$][$]expr[(]"(.*)"[)]\s*}}$/.exec(result) ?? [];
-      if (expr) {
-        return `{{ ${referenceSchema.hint ?? ""}${[...refs][0]} = ${expr} }}`;
-      }
+    if (result === undefined) {
+      result = resolveReference(context, schema);
     }
 
-    const defined = defineReferenceValue(context, result);
+    const defined = defineRenderedReferenceValue(context, result as T);
 
     if (
       isSecret(referenceSchema) &&
@@ -508,7 +540,10 @@ export function defineReference<T = unknown>(
     return defined;
   }
 
-  function defineReferenceValue(context: SchemaContext<T>, result?: T) {
+  function defineRenderedReferenceValue(
+    context: SchemaRenderContext,
+    result?: T,
+  ) {
     if (result === undefined) {
       return;
     }

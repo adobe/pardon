@@ -29,7 +29,7 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
     centered && "flexy-code-grid-centered place-content-center",
     right && "place-content-end",
     column && "flex-col",
-    initial && "[&>div]:!flex-initial",
+    initial && "[&>div]:flex-initial!",
     class_,
   ]
     .filter(Boolean)
@@ -39,6 +39,8 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
 </div>
 
 <style is:global>
+  @reference "../styles/global.css";
+
   .flexy-code-grid {
     @apply flex flex-1 gap-2;
     & > * {
@@ -51,24 +53,24 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
       @apply shrink-0 grow-0 place-self-center;
     }
     .code {
-      @apply !px-1;
+      @apply px-1!;
     }
     .copy {
-      @apply !hidden;
+      @apply hidden!;
     }
     figure {
-      @apply !flex !min-h-full;
+      @apply flex! min-h-full!;
     }
     pre {
-      @apply !grow;
+      @apply grow!;
     }
   }
   .flexy-code-grid-centered {
     .ec-line {
-      @apply !max-w-fit;
+      @apply max-w-fit!;
     }
     code {
-      @apply !grid grow !place-content-center !py-2;
+      @apply grid! grow place-content-center! py-2!;
     }
   }
 </style>

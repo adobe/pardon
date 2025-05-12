@@ -16,13 +16,21 @@ import {
   ResponseObject,
   SimpleRequestInit,
   intoFetchParams,
-} from "../request/fetch-pattern.js";
-import { intoURL, parseURL } from "../request/url-pattern.js";
+} from "../request/fetch-object.js";
+import { intoURL, parseURL } from "../request/url-object.js";
 import { CURL } from "./curl-fmt.js";
-import { KV } from "./kv-fmt.js";
+import { type KeyValueStringifyOptions, KV } from "./kv-fmt.js";
+import { encodeSearchComponent } from "../request/search-object.js";
+import { createHeaders } from "../request/header-object.js";
 
 export type RequestObject = FetchObject & {
   values?: Record<string, unknown>;
+};
+
+export type HttpFormatOptions = {
+  limit?: number;
+  indent?: number;
+  kv?: KeyValueStringifyOptions;
 };
 
 export const HTTP = {
@@ -40,16 +48,70 @@ export const HTTP = {
   },
 };
 
-function requestObjectStringify({
-  values,
-  ...request
-}: Partial<RequestObject>) {
+function formatUrl(
+  base: string,
+  pathname: string,
+  searchParams: URLSearchParams,
+  options?: HttpFormatOptions,
+) {
+  const limit = options?.limit ?? Infinity;
+  let url = base;
+  let offset = url.length;
+
+  const dent = `${" ".repeat(options?.indent ?? 2)}`;
+
+  for (const part of pathname?.split("/").slice(1) || []) {
+    if (offset + 1 + part.length > limit) {
+      offset = dent.length;
+      url += `\n${dent}`;
+    }
+    url += `/${part}`;
+    offset += 1 + part.length;
+  }
+
+  if (!searchParams.size) {
+    return url;
+  }
+
+  if (offset + String(searchParams).length <= limit) {
+    return url + searchParams;
+  }
+
+  let index = 0;
+  for (const [key, value] of searchParams.entries()) {
+    url += `\n${dent}${index++ == 0 ? "?" : "&"}${encodeSearchComponent(key)}=${encodeSearchComponent(value)}`;
+  }
+
+  return url;
+}
+
+function requestObjectStringify(
+  { values, ...request }: Partial<RequestObject>,
+  options?: HttpFormatOptions,
+) {
   const { origin, pathname, searchParams } = intoURL(request);
-  return `${KV.stringify(values ?? {}, "\n", 2, "\n")}${origin?.trim() ? (request.method ?? "GET") : ""} ${origin ?? ""}${pathname ?? ""}${
-    searchParams ?? ""
-  }${[...Object.entries(request.meta ?? {})]
+  const formattedValues = KV.stringify(
+    values ?? {},
+    options?.kv ?? {
+      indent: 2,
+      limit: options?.limit ?? 80,
+      split: true,
+      trailer: "\n",
+    },
+  );
+  const formattedBase = `${origin?.trim() ? `${request.method ?? "GET"} ` : ""}${origin ?? ""}`;
+  const formattedUrl = formatUrl(
+    formattedBase,
+    pathname,
+    searchParams,
+    options,
+  );
+
+  return `${formattedValues}${formattedUrl}${[
+    ...Object.entries(request.meta ?? {}),
+  ]
     .map(([k, v]) => `\n[${k}]: ${v}`)
-    .join("")}${[...new Headers(request.headers)]
+    .join("")}${[...(createHeaders(request.headers) ?? [])]
     .map(([k, v]) => `\n${k}: ${v}`)
     .join("")}${request.body ? `\n\n${request.body}` : ""}`.trim();
 }
@@ -86,7 +148,7 @@ function fromResponseObjectJson(
   return {
     status: response.status,
     statusText: response.statusText,
-    headers: new Headers(response.headers),
+    headers: createHeaders(response.headers),
     body: response.body,
   };
 }
@@ -106,7 +168,7 @@ function parse(
 
     return {
       ...parseURL(url),
-      headers: new Headers(headers),
+      headers: createHeaders(headers),
       ...init,
       values,
     };
@@ -146,14 +208,14 @@ function parse(
     ...parseURL(url),
     method,
     meta,
-    headers: new Headers(headers),
+    headers: createHeaders(headers),
     ...(body && { body }),
     values,
   };
 }
 
 function parseResponseObject(response: string): ResponseObject {
-  const lines = response.split("\n");
+  const lines = (response ?? "").split("\n");
 
   scanComments(lines, { andBlankLines: true });
   const [, status, statusText] = /\s*(\d+)(?:\s*(.*))?$/.exec(lines.shift()!)!;
@@ -162,7 +224,7 @@ function parseResponseObject(response: string): ResponseObject {
 
   const body = scanBody(lines);
 
-  return { status, statusText, headers: new Headers(headers), meta, body };
+  return { status, statusText, headers: createHeaders(headers), meta, body };
 }
 
 function scanHeaders(lines: string[]) {
@@ -229,7 +291,7 @@ function fromRequestObjectJson(
     pathname,
     searchParams,
     meta: request.meta,
-    headers: new Headers(request.headers),
+    headers: createHeaders(request.headers),
     body: request.body,
     values: request.values,
   };

@@ -492,7 +492,8 @@ function defineArraySchematic<T>(
         base(context),
         schematic(context),
       );
-      return defineArray(array!);
+
+      return array && defineArray(array);
     },
   });
 }
@@ -593,11 +594,11 @@ export const arrays = {
 
 export function expandArray<T>(
   context: SchemaMergingContext<T[]>,
-): Schema<T | T[]> {
+): Schema<T | T[]> | undefined {
   const { mode, template } = context;
 
   if (!Array.isArray(template)) {
-    throw diagnostic(context, "count not expand non-array");
+    throw diagnostic(context, "unexpected array value");
   }
 
   if (mode === "mix") {

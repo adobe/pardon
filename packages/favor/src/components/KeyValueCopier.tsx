@@ -241,7 +241,7 @@ export function KeyValueCopierWidget(
     <div
       {...divProps}
       class={twMerge(
-        "relative flex flex-1 flex-col overflow-hidden [&:has(.copyable-object>.key:hover,.copyable-value:hover,.variable>.key:hover)>.copy-icon]:opacity-50",
+        "relative flex flex-col [line-height:1.4] [&:has(.copyable-object>.key:hover,.copyable-value:hover,.variable>.key:hover)>.copy-icon]:opacity-50",
         props.class,
       )}
       classList={props.classList}
@@ -258,10 +258,15 @@ export function KeyValueCopierWidget(
       <div class="flex flex-1 flex-col overflow-auto whitespace-pre">
         <For each={data()}>
           {([key, value, id]) => (
-            <div class="whitespace-pre font-mono" onClick={() => {}}>
+            <div class="font-mono whitespace-pre" onClick={() => {}}>
               <KeyValueCopierNode
                 id={id + "/" + source}
-                tokens={KV.tokenize(KV.stringify({ [key]: value }, "\n", 2))}
+                tokens={KV.tokenize(
+                  KV.stringify(
+                    { [key]: value },
+                    { indent: 2, trailer: "", limit: 50 },
+                  ).trim(),
+                )}
               />
             </div>
           )}
@@ -314,6 +319,7 @@ export function KeyValueCopierWidget(
                   if (event.key !== "Enter") {
                     return;
                   }
+
                   try {
                     flushEditor();
                     event.preventDefault();
@@ -369,7 +375,7 @@ export function KeyValueCopierWidget(
           }}
         >
           <button
-            class="flex-0 pointer-events-auto p-1 transition-colors duration-300 hover:bg-fuchsia-300 dark:hover:bg-pink-500 [&.drop]:!bg-fuchsia-300 [&.drop]:dark:!bg-pink-500"
+            class="pointer-events-auto flex-0 p-1 transition-colors duration-300 hover:bg-fuchsia-300 dark:hover:bg-pink-500 [&.drop]:!bg-fuchsia-300 [&.drop]:dark:!bg-pink-500"
             classList={{
               "!pointer-events-none": data().length == 0,
             }}
@@ -400,10 +406,10 @@ export function KeyValueCopierWidget(
         </div>
       </Show>
       <Show when={!props.noIcon}>
-        <span class="copy-icon absolute right-1 top-[50%] flex translate-y-[-50%] rounded-lg border-1 p-1 text-xl opacity-0 transition-opacity duration-150 dark:bg-neutral-600">
+        <span class="copy-icon absolute top-[50%] right-1 flex translate-y-[-50%] rounded-lg border-1 p-1 text-xl opacity-0 transition-opacity duration-150 dark:bg-neutral-600">
           <IconTablerCopy />
         </span>
-        <span class="value-icon absolute right-1 top-[50%] flex translate-y-[-50%] rounded-lg border-1 p-1 text-xl opacity-0 transition-opacity duration-150 dark:bg-neutral-600">
+        <span class="value-icon absolute top-[50%] right-1 flex translate-y-[-50%] rounded-lg border-1 p-1 text-xl opacity-0 transition-opacity duration-150 dark:bg-neutral-600">
           <IconTablerPlus />
         </span>
       </Show>
@@ -429,7 +435,7 @@ function KeyValueCopierNode(props: {
 
   if (key.token === "[" || key.token === "{") {
     return (
-      <span class="copyable-object [&>.key:hover+.value]:text-green-500 [&>.key:hover]:cursor-crosshair [&>.key:hover]:text-green-500">
+      <span class="copyable-object [&>.key:hover]:cursor-crosshair [&>.key:hover]:text-green-500 [&>.key:hover+.value]:text-green-500">
         <span
           class="key"
           onClick={() => {
@@ -463,7 +469,7 @@ function KeyValueCopierNode(props: {
   }
 
   return (
-    <span class="variable [&>.key:hover+.value]:text-orange-300 [&>.key:hover]:cursor-pointer [&>.key:hover]:text-orange-300">
+    <span class="variable [&>.key:hover]:cursor-pointer [&>.key:hover]:text-orange-300 [&>.key:hover+.value]:text-orange-300">
       <span
         class="key"
         role="button"

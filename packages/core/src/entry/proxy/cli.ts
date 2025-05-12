@@ -17,6 +17,7 @@ import { HTTP } from "../../core/formats/http-fmt.js";
 import HttpProxy from "http-proxy";
 import { IncomingMessage, createServer } from "node:http";
 import { gunzipSync } from "node:zlib";
+import { createFromHttpHeaders } from "../../core/request/header-object.js";
 
 const { createProxyServer } = HttpProxy;
 
@@ -113,22 +114,14 @@ ${HTTP.stringify({
   origin: url.origin,
   pathname: url.pathname,
   searchParams: url.searchParams,
-  headers: new Headers(
-    Object.entries(req.headers).flatMap(([key, values]) =>
-      [values ?? []].flat(1).map((value) => [key, value] as [string, string]),
-    ),
-  ),
+  headers: createFromHttpHeaders(req.headers),
   body: Buffer.concat(requestBody).toString("utf-8"),
 })}
 <<<
 ${HTTP.responseObject.stringify({
   status: res.statusCode!,
   statusText: res.statusMessage,
-  headers: new Headers(
-    Object.entries(res.headers).flatMap(([key, values]) =>
-      [values ?? []].flat(1).map((value) => [key, value] as [string, string]),
-    ),
-  ),
+  headers: createFromHttpHeaders(res.headers),
   body: decodeBody(Buffer.concat(responseBody), res),
 })}`.trim() + "\n",
         );

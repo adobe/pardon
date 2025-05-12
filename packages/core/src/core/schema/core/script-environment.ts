@@ -114,7 +114,8 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.resolvedDefaults = resolvedDefaults;
 
     this.evaluator = (identifier, context) =>
-      resolveAccess(evaluate?.(identifier.root, context), identifier, context);
+      evaluate?.(identifier.root, context);
+
     this.redactor = redact;
     this.expression = express;
     this.options = options;
@@ -284,12 +285,22 @@ export function resolveAccess(
       if (!index) {
         return undefined;
       } else if (index.key === undefined) {
-        index.struts.push({
-          loc: loc(context),
-          root: identifier.root,
-          path: identifier.path.slice(0, idx),
-          name: identifier.path[idx],
-        });
+        if (
+          !index.struts.some(({ root, path, name }) => {
+            return (
+              root === identifier.root &&
+              name === identifier.path[idx] &&
+              path.join(".") === identifier.path.slice(0, idx).join(".")
+            );
+          })
+        ) {
+          index.struts.push({
+            loc: loc(context) + identifier.name,
+            root: identifier.root,
+            path: identifier.path.slice(0, idx),
+            name: identifier.path[idx],
+          });
+        }
       } else {
         value = value?.[String(index.key)];
       }
@@ -316,7 +327,7 @@ function resolvedScalars(context: SchemaMergingContext<unknown>) {
         case "bigint":
           return String(value);
       }
-      if (value instanceof Number || value instanceof BigInt) {
+      if (value instanceof Number) {
         return value["source"];
       }
     },

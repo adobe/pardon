@@ -94,7 +94,6 @@ export default function PardonPlaygroundRenderView(
 
   const output = createMemo(() => {
     if (pardon()?.error) {
-      debugger;
       return String(pardon()?.error);
     }
 
@@ -114,7 +113,7 @@ export default function PardonPlaygroundRenderView(
         >
           <Show when={props.onRequest}>
             <button
-              class="-m-1 rounded-md border-none bg-transparent p-1 leading-none transition-transform hover:bg-yellow-200 hover:rotate-12 dark:hover:bg-fuchsia-900"
+              class="-m-1 rounded-md border-none bg-transparent p-1 leading-none transition-transform hover:rotate-12 hover:bg-yellow-200 dark:hover:bg-fuchsia-900"
               onClick={() => {
                 props.onRequest?.();
               }}
@@ -155,7 +154,7 @@ export default function PardonPlaygroundRenderView(
       value={output()}
       readonly={true}
       class={
-        "rounded-md bg-yellow-100 p-2 shadow outline-gray-500 dark:bg-fuchsia-950"
+        "rounded-md bg-neutral-200 p-2 shadow outline-gray-500 dark:bg-fuchsia-950"
       }
       classList={{
         [props.class ?? ""]: true,

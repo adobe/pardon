@@ -10,15 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-function tap(imports: Record<string, string>) {
-  return Object.entries(imports).reduce(
-    (tapped, [k, v]) =>
-      Object.assign(tapped, {
-        [k.replace(/^[.][/][^/]*/, "")]: v,
-      }),
-    {},
-  );
-}
+import { tap } from "./_tap.ts";
 
 const baseLayers = tap(
   import.meta.glob("./layers/**/*", {

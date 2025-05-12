@@ -25,35 +25,35 @@ import { Schema } from "../../src/core/schema/core/types.js";
 import { bodyGlobals } from "../../src/core/request/body-template.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 import { mixing } from "../../src/core/schema/core/contexts.js";
-import { JSON } from "../../src/core/json.js";
+import { JSON } from "../../src/core/raw-json.js";
 
 describe("schema tests", () => {
   it("should create schemas for basic types", async () => {
-    const s = mixing("abc");
+    const s = mixing("abc")!;
 
     assert.equal(await executeOp(s, "render", renderCtx(s)), "abc");
   });
 
   it("should render expressions", async () => {
-    const s = mixing('abc{{pqr = "xyz"}}');
+    const s = mixing('abc{{pqr = "xyz"}}')!;
 
     assert.equal(await executeOp(s, "render", renderCtx(s)), "abcxyz");
   });
 
   it("should render dependent expressions", async () => {
-    const s = mixing('pre{{pqr = "xyz"}}{{abc = pqr.toUpperCase()}}post');
+    const s = mixing('pre{{pqr = "xyz"}}{{abc = pqr.toUpperCase()}}post')!;
 
     assert.equal(await executeOp(s, "render", renderCtx(s)), "prexyzXYZpost");
   });
 
   it("should render dependent expressions either order", async () => {
-    const s = mixing('pre{{abc = pqr.toUpperCase()}}{{pqr = "xyz"}}post');
+    const s = mixing('pre{{abc = pqr.toUpperCase()}}{{pqr = "xyz"}}post')!;
 
     assert.equal(await executeOp(s, "render", renderCtx(s)), "preXYZxyzpost");
   });
 
   it("should merge values into templates", async () => {
-    const s = mixing(arrays.multivalue(["xqz", "abc{{z}}"]));
+    const s = mixing(arrays.multivalue(["xqz", "abc{{z}}"]))!;
     const z = merge(s, muxContext(s, ["xq{{z}}"]))!;
 
     assert.deepEqual(await executeOp(z, "render", renderCtx(z)), [
@@ -63,7 +63,7 @@ describe("schema tests", () => {
   });
 
   it("should merge templates into templates into values", async () => {
-    const s = mixing("xq7" as string);
+    const s = mixing("xq7" as string)!;
     const z = merge(s, mixContext(s, "xq{{z}}"))!;
     const q = merge(z, mixContext(z, "xq{{z}}"))!;
 
@@ -71,11 +71,7 @@ describe("schema tests", () => {
   });
 
   it("should merge templates into values", async () => {
-    const s = mixing(
-      arrays.multivalue(
-        ["xq{{z}}", "abc{{z}}"].map((template) => mixing(template)),
-      ),
-    );
+    const s = mixing(arrays.multivalue(["xq{{z}}", "abc{{z}}"]))!;
     const z = merge(s, muxContext(s, ["xqz"]))!;
 
     assert.deepEqual(await executeOp(z, "render", renderCtx(z)), [
@@ -88,7 +84,7 @@ describe("schema tests", () => {
     const s = mixing({
       a: "b",
       c: "d",
-    });
+    })!;
 
     assert.deepStrictEqual(await executeOp(s, "render", renderCtx(s)), {
       a: "b",
@@ -99,7 +95,7 @@ describe("schema tests", () => {
   it("should match and renders resolved", async () => {
     const s = mixing({
       a: "{{x}}",
-    });
+    })!;
 
     merge(s, mixContext(s, { a: "xyz" }, { x: "xyz" }));
 
@@ -115,19 +111,12 @@ describe("schema tests", () => {
     const s = mixing({
       a: "{{x}}",
       b: "{{x}}",
-    });
+    })!;
 
-    assert.throws(
-      () => {
-        const ctx = mixContext(s, { a: "abc", b: "xyz" });
-        merge(s, ctx);
-      },
-      (error) => {
-        const errorMessage = (error as Error)?.message ?? error;
-        assert(errorMessage?.includes("redefined:x"));
-        return true;
-      },
-    );
+    const ctx = mixContext(s, { a: "abc", b: "xyz" });
+    merge(s, ctx);
+    assert(ctx.diagnostics.length === 1);
+    assert(String(ctx.diagnostics[0].err).includes("redefined:x"));
   });
 
   it("should render objects with expressions", async () => {
@@ -135,7 +124,7 @@ describe("schema tests", () => {
       a: bodyGlobals.$$number("{{abc = 1 + 1}}"),
       b: bodyGlobals.$$number("{{xyz = 2 + 2}}"),
       c: "{{pqr = abc + xyz}}",
-    });
+    })!;
 
     assert.deepStrictEqual(
       unboxObject(await executeOp(s, "render", renderCtx(s))),
@@ -153,7 +142,7 @@ describe("schema tests", () => {
       b: bodyGlobals.$$number("{{xyz = 2 + 2}}"),
       c: "{{pqr = abc + xyz}}",
       d: { x: "{{d}}" },
-    });
+    })!;
     const ctx = mixContext(s, { a: 7, b: 10 } as any);
     const result = merge(s, ctx);
     assert(result);
@@ -162,7 +151,7 @@ describe("schema tests", () => {
   it("should match required properties", async () => {
     const s = mixing({
       x: { d: "{{!d}}" as string | number },
-    });
+    })!;
     const ctx = matchContext(s, { a: 7, b: 10 } as any);
     const result = merge(s, ctx);
     assert.strictEqual(result, undefined);
@@ -172,7 +161,7 @@ describe("schema tests", () => {
   it("should mix missing required properties", async () => {
     const s = mixing({
       x: { d: "{{!d}}" as string | number },
-    });
+    })!;
 
     merge(s, mixContext(s, { a: 7, b: 10 } as any));
   });
@@ -185,7 +174,7 @@ describe("schema tests", () => {
           b: "{{b}}" as string | number,
         },
       ],
-    });
+    })!;
 
     merge(
       s,
@@ -212,7 +201,7 @@ describe("schema tests", () => {
           ab: "{{ab}}" as string | number,
         },
       ],
-    });
+    })!;
 
     const merged = merge(
       s,
@@ -245,7 +234,7 @@ describe("schema tests", () => {
     const s = mixing({
       xy: "{{x}}123",
       xx: "{{x}}345",
-    });
+    })!;
 
     const merged = merge(
       s,
@@ -268,7 +257,7 @@ describe("schema tests", () => {
           a: "{{p}}:{{qqq}}",
         },
       ],
-    });
+    })!;
 
     s = merge(
       s,
@@ -301,7 +290,7 @@ describe("schema tests", () => {
           a: "{{p}}:{{qqq}}",
         },
       ],
-    });
+    })!;
 
     const mc = muxContext(s, {
       list: [
@@ -309,7 +298,7 @@ describe("schema tests", () => {
           a: "{{@a = 'a:a:a'}}:{{qqq = 'q:q'}}",
         },
       ],
-    });
+    })!;
 
     s = merge(s, mc)!;
 
@@ -329,7 +318,7 @@ describe("schema tests", () => {
   it("should match templates as literals", async () => {
     const schema = mixing({
       a: "{{a}}",
-    });
+    })!;
 
     const matchCtx = createMergingContext(
       { mode: "match", phase: "validate" },
@@ -352,7 +341,7 @@ describe("schema tests", () => {
   it("should bind to structural values", async () => {
     const schema = mixing({
       a: ["{{a.item}}"],
-    });
+    })!;
 
     const matchCtx = createMergingContext(
       { mode: "match", phase: "validate" },
@@ -373,7 +362,7 @@ describe("schema tests", () => {
   it("should bind to structural values 2", async () => {
     const schema = mixing({
       a: [{ item: "{{list.item}}" }],
-    });
+    })!;
 
     const matchCtx = createMergingContext(
       { mode: "match", phase: "validate" },
@@ -394,7 +383,7 @@ describe("schema tests", () => {
   it("should bind to structural values simple", async () => {
     const schema = mixing({
       a: ["{{q.@value}}"],
-    });
+    })!;
 
     const matchCtx = createMergingContext(
       { mode: "match", phase: "validate" },
@@ -424,7 +413,7 @@ describe("schema tests", () => {
   it("should bind to structural values 3", async () => {
     const schema = mixing({
       a: [["{{q.sublist.item}}"]],
-    });
+    })!;
 
     const matchCtx = createMergingContext(
       { mode: "match", phase: "validate" },
@@ -450,7 +439,7 @@ describe("schema tests", () => {
   it("should render with structural values", async () => {
     const schema = mixing({
       a: [{ item: "{{list.item}}" }],
-    });
+    })!;
 
     const { schema: mux } = mergeSchema(
       { mode: "mux", phase: "build" },
@@ -481,7 +470,7 @@ describe("schema tests", () => {
   it("should render with structural values", async () => {
     const schema = mixing({
       a: ["{{list.@value}}"],
-    });
+    })!;
 
     const result = await executeOp(
       schema,
@@ -504,7 +493,7 @@ describe("schema tests", () => {
   it("should export structural values", async () => {
     const schema = mixing({
       a: ["{{list.@value}}"],
-    });
+    })!;
 
     const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
       a: ["a", "b", "c", "d"],
@@ -518,7 +507,7 @@ describe("schema tests", () => {
   it("should not export secret structural values", async () => {
     const schema = mixing({
       a: ["{{@list.@value}}"],
-    });
+    })!;
 
     const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
       a: ["a", "b", "c", "d"],
@@ -540,7 +529,7 @@ describe("schema tests", () => {
   it("should infer structural values length", async () => {
     const schema = mixing({
       a: [{ item: "{{a.v}}", ITEM: "{{ = v.toUpperCase() }}" }],
-    });
+    })!;
 
     const result = await executeOp(
       schema,
@@ -566,7 +555,7 @@ describe("schema tests", () => {
   it("should infer deep structural values length", async () => {
     const schema = mixing({
       a: [["{{q.sublist.item}}"]],
-    });
+    })!;
 
     const matchCtx = createMergingContext(
       { mode: "match", phase: "validate" },
@@ -596,7 +585,7 @@ describe("schema tests", () => {
   it("should render complex values", async () => {
     const schema = mixing({
       a: [["{{q.sublist.item}}"]],
-    });
+    })!;
 
     const result = await executeOp(
       schema,
@@ -628,7 +617,7 @@ describe("schema tests", () => {
         ["{{key}}", undefined],
         [["{{headers.@key}}", "{{headers.value}}"]],
       ),
-    });
+    })!;
 
     const result = await executeOp(
       schema,
@@ -660,7 +649,7 @@ describe("schema tests", () => {
         ["{{key}}", "{{value}}"],
         [["{{headers.@key}}", "{{headers.@value}}"]],
       ),
-    });
+    })!;
 
     const result = await executeOp(
       schema,
@@ -692,7 +681,7 @@ describe("schema tests", () => {
         ["{{key}}", undefined],
         [["{{headers.@key}}", "{{headers.value}}"]],
       ),
-    });
+    })!;
 
     const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
       a: [

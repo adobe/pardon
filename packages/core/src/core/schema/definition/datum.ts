@@ -70,7 +70,7 @@ import {
   unboxObject,
 } from "./scalar.js";
 import { uniqReducer } from "../../../util/uniq-reducer.js";
-import { JSON } from "../../json.js";
+import { JSON } from "../../raw-json.js";
 
 type DatumRepresentation = {
   patterns: Pattern[];
@@ -330,7 +330,8 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
       if (
         (context.mode === "match" || info?.literal) &&
         appraised !== undefined &&
-        info?.template === undefined
+        info?.template === undefined &&
+        context.phase === "validate"
       ) {
         const redact = patterns.some(
           (pattern) =>
@@ -427,8 +428,9 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 
       return defineScalar<T>(mergedSelf);
     },
-    render(context) {
-      return renderScalar(context, self);
+    async render(context) {
+      const result = await renderScalar(context, self);
+      return datumPreviewExpression(context, result) as T;
     },
     resolve(context) {
       return resolveScalar(context, self, false);
@@ -531,6 +533,7 @@ async function doRenderScalar<T>(
 
     if (result === undefined) {
       if (
+        mode === "render" ||
         mode === "prerender" ||
         mode === "postrender" ||
         configuredPatterns.some(
@@ -547,7 +550,7 @@ async function doRenderScalar<T>(
 
   if (mode === "preview" && result === undefined) {
     // TODO: this unfortunately discards any known type here.
-    return configuredPatterns[0].source as T;
+    return configuredPatterns[0]?.source as T;
   } else if (result !== undefined && isScalar(result)) {
     const issue = defineMatchesInScope(context, configuredPatterns, result, {
       unboxed,
@@ -920,23 +923,41 @@ export function datumTemplate<T extends Scalar>(
       };
     },
     expand(context) {
-      return defineScalar(
-        mergeRepresentation(
-          context,
-          {
-            patterns: [],
-          },
-          {
-            template,
-            type: type ?? scalarFuzzyTypeOf(context, template),
-            custom,
-            literal,
-            unboxed,
-          },
-        )!,
-      ) as Schema<T>;
+      const rep = mergeRepresentation(
+        context,
+        {
+          patterns: [],
+        },
+        {
+          template,
+          type: type ?? scalarFuzzyTypeOf(context, template),
+          custom,
+          literal,
+          unboxed,
+        },
+      );
+
+      return rep && (defineScalar(rep) as Schema<T>);
     },
   });
+}
+
+function datumPreviewExpression<T>(
+  context: SchemaRenderContext,
+  data: T,
+): T | string {
+  if (typeof data == "string" && context.mode === "preview") {
+    const pattern = patternize(data);
+    const exprs = pattern.vars.map(({ expression, source }) =>
+      expression && source?.includes("$$expr(")
+        ? `(${expression})`
+        : source
+          ? `{{${source}}}`
+          : "?",
+    );
+    return patternRender(pattern, exprs);
+  }
+  return data;
 }
 
 export const datums = {

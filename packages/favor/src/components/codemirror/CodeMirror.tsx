@@ -107,7 +107,9 @@ export default function CodeMirror(props: CodeMirrorProps) {
     ),
   );
 
-  createExtension(Prec.high(EnterNewlines));
+  createExtension(
+    createMemo(() => !props.readonly && Prec.high(EnterNewlines)),
+  );
 
   createExtension([history(), keymap.of(historyKeymap)]);
   createExtension([

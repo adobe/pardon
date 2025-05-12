@@ -69,7 +69,7 @@ export default function PardonPlaygroundLoader(
   }
 
   const loading = (
-    <div class="pp-app grid h-52 flex-grow place-content-center">
+    <div class="pp-app grid h-52 grow place-content-center">
       <span>Loading Pardon Playground...</span>
     </div>
   );
@@ -77,7 +77,7 @@ export default function PardonPlaygroundLoader(
   return (
     <div class="pp-container copypaste-context grid gap-2">
       <div>{props.children}</div>
-      <div class="pp-app-container not-content !mt-0">
+      <div class="pp-app-container not-content mt-0!">
         <Suspense fallback={loading}>
           <Show when={!isSSR()} fallback={loading}>
             <PlaygroundApp {...otherProps} />

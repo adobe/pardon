@@ -13,7 +13,7 @@ governing permissions and limitations under the License.
 /* @refresh reload */
 import { render } from "solid-js/web";
 
-import "./index.pcss";
+import "./index.css";
 import App from "./app";
 
 const root = document.getElementById("root");

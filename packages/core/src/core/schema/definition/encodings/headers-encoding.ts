@@ -12,6 +12,7 @@ governing permissions and limitations under the License.
 import { EncodingType, encodingTemplate } from "./encoding.js";
 import { Template } from "../../core/types.js";
 import { mvKeyedTuples } from "../../scheming.js";
+import { createHeaders } from "../../../request/header-object.js";
 
 const headersEncodingType: EncodingType<Headers, [string, string][]> = {
   as: "Headers",
@@ -19,7 +20,7 @@ const headersEncodingType: EncodingType<Headers, [string, string][]> = {
     return template !== undefined ? [...(template as Headers)] : undefined;
   },
   encode(output) {
-    return output !== undefined ? new Headers(output) : undefined;
+    return output !== undefined ? createHeaders(output) : undefined;
   },
 };
 

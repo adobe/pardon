@@ -39,7 +39,8 @@ const MultiviewContext = createContext<{
   >;
   disabled?: Accessor<boolean | Partial<Record<any, boolean>>>;
   viewSignal: Signal<any>;
-  defaulting: Accessor<any[]>;
+  defaulting: Accessor<readonly any[]>;
+  unbuttoned: Accessor<readonly any[] | undefined>;
 }>();
 
 export default function MultiView<Value extends string>(
@@ -56,6 +57,7 @@ export default function MultiView<Value extends string>(
     disabled?: boolean | Partial<Record<NoInfer<Value>, boolean>>;
     onChange?: (value: NoInfer<Value>) => void;
     children: (viewSignal: Signal<NoInfer<Value>>) => JSX.Element;
+    unbuttoned?: readonly NoInfer<Value>[];
     defaulting?: Accessor<readonly NoInfer<Value>[]>;
   } & Omit<ComponentProps<"div">, "children">,
 ) {
@@ -82,6 +84,7 @@ export default function MultiView<Value extends string>(
         controlProps: createMemo(() => props.controlProps) as Accessor<
           Record<any, ComponentProps<"button">>
         >,
+        unbuttoned: createMemo(() => props.unbuttoned),
         disabled: createMemo(() => contextProps.disabled),
         viewSignal: [view, setView],
         defaulting: createMemo(
@@ -105,6 +108,7 @@ export function Controls<Value extends string>(
     disabled,
     defaulting,
     controlProps,
+    unbuttoned,
   } = useContext(MultiviewContext);
   const selected = createSelector(view);
 
@@ -137,35 +141,41 @@ export function Controls<Value extends string>(
 
   return (
     <For each={Object.entries(controls)}>
-      {([key, control]) => (
-        <button
-          {...props}
-          {...controlPropsObject()?.[key]}
-          class={twMerge(
-            "multiview-button",
-            props.class,
-            controlPropsObject()?.[key]?.class,
-          )}
-          classList={{
-            "multiview-selected": selected(key as Value),
-            ...props.classList,
-            ...controlPropsObject()?.[key]?.classList,
-          }}
-          value={key}
-          onClick={(event) => {
-            (controlPropsObject()?.[key]?.onClick as any)?.(event);
+      {([key, control]) =>
+        unbuttoned()?.includes(key) ? (
+          control
+        ) : (
+          <button
+            {...props}
+            {...controlPropsObject()?.[key]}
+            class={twMerge(
+              "multiview-button",
+              props.class,
+              controlPropsObject()?.[key]?.class,
+            )}
+            classList={{
+              "multiview-selected": selected(key as Value),
+              ...props.classList,
+              ...controlPropsObject()?.[key]?.classList,
+            }}
+            value={key}
+            onClick={(event) => {
+              (controlPropsObject()?.[key]?.onClick as any)?.(event);
 
-            if (!event.defaultPrevented) {
-              setView(() => key as Value);
+              if (!event.defaultPrevented) {
+                setView(() => key as Value);
+              }
+            }}
+            disabled={
+              disabled()
+                ? disabled() === true || disabled()[key] || false
+                : false
             }
-          }}
-          disabled={
-            disabled() ? disabled() === true || disabled()[key] || false : false
-          }
-        >
-          {control as JSX.Element}
-        </button>
-      )}
+          >
+            {control}
+          </button>
+        )
+      }
     </For>
   );
 }

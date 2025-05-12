@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import { PardonDatabase, Id, cachedOps } from "../sqlite.js";
 import { arrayIntoObject } from "../../util/mapping.js";
 import { httpOps } from "./http-entity.js";
-import { JSON } from "../../core/json.js";
+import { JSON } from "../../core/raw-json.js";
 
 type InternalValueEntity = {
   http: Id;
@@ -104,7 +104,7 @@ WHERE "http" = :http
       case "boolean":
         return { typeof: jsTypeof, value: JSON.stringify(value) };
       case "bigint":
-        return { typeof: jsTypeof, value: JSON.rawJSON(String(value)) };
+        return { typeof: jsTypeof, value: String(value) };
       case "string":
         return { typeof: jsTypeof, value: value as string };
       case "undefined":

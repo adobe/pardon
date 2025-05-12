@@ -70,7 +70,7 @@ const tracingHooks = {
   },
   onRenderComplete({
     context: { trace, awaited, timestamps, durations },
-    outbound: { request, redacted },
+    outbound: { request, redacted, reduced },
   }) {
     const payload: TracingHookPayloads["onRenderComplete"] = {
       trace,
@@ -80,11 +80,13 @@ const tracingHooks = {
         results: awaited.results.map(({ context: { trace } }) => trace),
       },
       outbound: {
-        request: HTTP.requestObject.json(redacted),
+        request: HTTP.requestObject.json({ ...redacted, values: reduced }),
+        values: redacted.values,
       },
       secure: {
         outbound: {
-          request: HTTP.requestObject.json(request),
+          request: HTTP.requestObject.json({ ...request, values: {} }),
+          values: request.values,
         },
       },
     };
@@ -426,10 +428,12 @@ const handlers = {
       http: HTTP.stringify({ ...redacted, values: reduced }),
       outbound: {
         request: HTTP.requestObject.json({ ...redacted, values: reduced }),
+        values: redacted.values,
       },
       secure: {
         outbound: {
           request: HTTP.requestObject.json(request),
+          values: request.values,
         },
       },
     };

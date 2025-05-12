@@ -1,15 +1,7 @@
-import corvu from "@corvu/tailwind";
-
 /** @type {import("tailwindcss").Config} */
 export default {
   darkMode: "media",
-  content: ["./src/**/*.{html,jsx,tsx,pcss}"],
-  plugins: [
-    corvu,
-    ({ addVariant }) => {
-      addVariant("light", "@media (prefers-color-scheme: light)");
-    },
-  ],
+  content: ["./src/**/*.{html,jsx,tsx,css}"],
   theme: {
     fontFamily: {
       mono: ["Source Code Pro", "Consolas", "monospace"],

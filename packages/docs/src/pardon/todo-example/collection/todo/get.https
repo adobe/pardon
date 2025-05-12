@@ -1,0 +1,18 @@
+flow:
+  context:
+    - origin?
+    - env?
+    - todo
+  provides:
+    - task
+    - completed
+>>>
+GET https://todo.example.com/todos/{{todo}}
+
+<<< created
+200 OK
+
+{
+  task,
+  completed: +completed
+}

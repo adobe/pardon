@@ -10,6 +10,19 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-.inline-icon {
-  @apply relative top-1 inline-block text-lg;
-}
+import { tap } from "./_tap.ts";
+
+const todoService = tap(
+  import.meta.glob("./todo-example/collection/**/*", {
+    query: "?raw",
+    eager: true,
+    import: "default",
+  }),
+);
+
+console.log(Object.keys(todoService).join("\n"));
+
+export default {
+  layers: ["collection/"],
+  config: { ...todoService },
+} as const;

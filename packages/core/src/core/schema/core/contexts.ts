@@ -17,7 +17,7 @@ import { Schema, Template } from "./types.js";
 export function mixing<T>(
   template: Template<T>,
   meta?: Record<string, string>,
-): Schema<T> {
+): Schema<T> | undefined {
   return createMergingContext(
     { ...meta, mode: "mix", phase: "build" },
     stubSchema(),
@@ -28,7 +28,7 @@ export function mixing<T>(
 export function matching<T>(
   template: Template<T>,
   meta?: Record<string, string>,
-) {
+): Schema<T> | undefined {
   return createMergingContext(
     { ...meta, mode: "match", phase: "build" },
     stubSchema(),
@@ -39,7 +39,7 @@ export function matching<T>(
 export function muxing<T>(
   template: Template<T>,
   meta?: Record<string, string>,
-) {
+): Schema<T> | undefined {
   return createMergingContext(
     { ...meta, mode: "mux", phase: "build" },
     stubSchema(),

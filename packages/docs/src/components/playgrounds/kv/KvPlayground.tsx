@@ -7,7 +7,19 @@ export default function KvPlayground(props: { value: string }) {
   const [valid, setValid] = createSignal(true);
   const parsed = createMemo<string>((previous) => {
     try {
-      const result = JSON.stringify(KV.parse(kv()), null, 2);
+      const {
+        [KV.eoi]: _eoi,
+        [KV.upto]: _upto,
+        [KV.unparsed]: rest,
+        ...data
+      } = KV.parse(kv(), "stream");
+      const result =
+        KV.stringify(data, {
+          indent: 2,
+          split: true,
+          limit: 40,
+          trailer: "\n",
+        }) + (rest ?? "");
       setValid(true);
       return result;
     } catch (error) {

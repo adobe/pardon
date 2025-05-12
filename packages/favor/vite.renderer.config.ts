@@ -15,6 +15,7 @@ import solid from "vite-plugin-solid";
 import Icons from "unplugin-icons/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import IconsResolver from "unplugin-icons/resolver";
+import tailwindcss from "@tailwindcss/vite";
 
 // https://vitejs.dev/config
 export default extendRendererConfig({
@@ -44,6 +45,7 @@ export default extendRendererConfig({
       ],
     }),
     Icons({ compiler: "solid" }),
+    tailwindcss(),
   ],
   build: {
     sourcemap: "inline",

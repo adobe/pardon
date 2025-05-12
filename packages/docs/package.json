@@ -4,25 +4,24 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
-    "dev": "astro dev",
+    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192' astro dev",
     "start": "astro dev",
     "check": "astro check",
     "lint": "eslint",
     "postlint": "astro check",
-    "build": "astro build",
+    "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' astro build",
     "preview": "astro preview",
-    "astro": "astro",
-    "prepare": "patch-package"
+    "astro": "astro"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
     "@astrojs/mdx": "^4.0.3",
     "@astrojs/solid-js": "^5.0.1",
     "@astrojs/starlight": "^0.34.1",
-    "@astrojs/tailwind": "^6.0.0",
     "@codemirror/commands": "^6.6.0",
     "@pkgjs/parseargs": "^0.11.0",
     "@solid-primitives/storage": "^4.1.0",
+    "@tailwindcss/vite": "^4.1.5",
     "astro": "^5.1.1",
     "events": "^3.3.0",
     "pardon": "file:../core",
@@ -32,7 +31,7 @@
     "solid-js": "^1.8.17",
     "source-map-support": "^0.5.21",
     "stream-browserify": "^3.0.0",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.1.5",
     "typescript": "^5.4.5"
   },
   "devDependencies": {
@@ -42,15 +41,13 @@
     "@typescript-eslint/eslint-plugin": "^8.4.0",
     "acorn-walk": "^8.3.4",
     "astring": "^1.9.0",
+    "cross-env": "^7.0.3",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-headers": "^1.1.2",
     "eslint-plugin-prettier": "^5.2.1",
     "import-meta-resolve": "^4.1.0",
-    "patch-package": "^8.0.0",
-    "postcss-nesting": "^13.0.0",
     "prettier-plugin-astro": "^0.14.0",
-    "prettier-plugin-tailwindcss": "^0.6.1",
-    "tailwind-merge": "^2.6.0",
-    "tailwindcss-3d": "^1.0.6"
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "tailwind-merge": "^3.3.0"
   }
 }

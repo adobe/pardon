@@ -108,7 +108,7 @@ export default function PardonPlaygroundDataView(
     return { ...values, ...(search ? { search: String(search) } : null) };
   });
 
-  const display = createMemo(() => KV.stringify(scope(), "\n", 2));
+  const display = createMemo(() => KV.stringify(scope(), { indent: 2 }));
 
   return (
     <CodeMirror

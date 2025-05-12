@@ -31,7 +31,7 @@ import failfast, {
   executeWithFastFail,
 } from "../../../core/execution/flow/failfast.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
-import { JSON } from "../../../core/json.js";
+import { JSON } from "../../../core/raw-json.js";
 import { mapObject } from "../../../util/mapping.js";
 import { parseSmokeConfig } from "../smoke-config.js";
 

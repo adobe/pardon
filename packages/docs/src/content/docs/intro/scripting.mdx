@@ -41,7 +41,7 @@ import {
   serviceWithOrderingAndGetMatching,
 } from'@pardon/products-collections'
 
-import "@components/inline-icon.pcss"
+import "@components/inline-icon.css"
 
 This tutorial expands on Pardon scripting.
 Defining scripts and importing them into collections,
@@ -131,7 +131,7 @@ The key `pardon:example` is a pardon-relative import.  You can import
 external packages too, for instance if you want to customize
 your `User-Agent` based on [`os.platform()`](https://nodejs.org/docs/latest/api/os.html#osplatform) you could do this
 
-<div class="[&_.copy]:!hidden">
+<div class="[&_.copy]:hidden!">
 ```http title="example/user-agent.mix.https"
 import:
   node:os: os
@@ -143,7 +143,7 @@ User-Agent: {{= `pardon/1.0 (${os.platform()})` }}
 
 The non-listed import form is equivalent to
 
-<div class="[&_.copy]:!hidden">
+<div class="[&_.copy]:hidden!">
 ```js
 import * as os from 'node:os'
 ```
@@ -293,7 +293,7 @@ and our `price` function share a namespace (`cost` and `price`).
 
 As in javascript module imports can use `as` to rename imports in
 pardon as well.
-<div class="[&_.copy]:!hidden">
+<div class="[&_.copy]:hidden!">
 ```yaml ins=/ as.*/
 import:
   pardon:example/products:

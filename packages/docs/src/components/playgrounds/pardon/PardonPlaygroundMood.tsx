@@ -7,7 +7,7 @@ import {
   TbMoodNeutral,
   TbMoodUnamused,
 } from "solid-icons/tb";
-import "./playground-mood.pcss";
+import "./playground-mood.css";
 
 export type Mood = "confused" | "confuzzled" | "happy" | "thinking" | "error";
 

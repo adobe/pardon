@@ -10,7 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { type EncodingTypes } from "./body-template.js";
-import { intoURL } from "./url-pattern.js";
+import { createHeaders } from "./header-object.js";
+import { intoURL } from "./url-object.js";
 
 export type SimpleRequestInit = Omit<RequestInit, "body"> & {
   meta?: Record<string, string>;
@@ -85,7 +86,7 @@ export function fetchIntoObject(
     origin: origin || undefined,
     pathname: pathname || undefined,
     searchParams,
-    headers: new Headers(headers),
+    headers: createHeaders(headers),
     body,
   };
 }

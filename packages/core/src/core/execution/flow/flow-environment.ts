@@ -39,7 +39,7 @@ export function createSequenceEnvironment({
       String,
       Number,
       BigInt(n: any) {
-        if (n instanceof Number || n instanceof BigInt) {
+        if (n instanceof Number) {
           return BigInt(n["source"]);
         }
         return BigInt(n);

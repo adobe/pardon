@@ -10,12 +10,17 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-@import "./styling.pcss";
-@import "./components.pcss";
-@import "./corvu-support.pcss";
-@import "./components/InfoDrawer.pcss";
+@reference "tailwindcss";
 
-/* Write your global styles here, in PostCSS syntax */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+.icon-grid {
+  @apply relative top-[-3px] grid h-full place-items-center gap-1;
+}
+
+.icon-grid-col {
+  @apply grid-flow-col grid-rows-1;
+  direction: rtl;
+}
+
+.icon-grid-col > * {
+  direction: normal;
+}

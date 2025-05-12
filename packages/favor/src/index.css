@@ -10,18 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-declare module "core-js-pure/actual/json" {
-  const JSON: Omit<typeof global.JSON, "parse"> & {
-    rawJSON(_: string): any;
-    parse(
-      value: string,
-      receiver?: (
-        key: string,
-        value: any,
-        context: { source: string },
-      ) => unknown,
-    ): any;
-  };
+@import "tailwindcss";
+@config "../tailwind.config.js";
+@plugin "@corvu/tailwind";
 
-  export default JSON;
-}
+@import "./styling.css";
+@import "./components.css";
+@import "./corvu-support.css";
+@import "./components/InfoDrawer.css";
+
+@custom-variant light (@media (prefers-color-scheme: light));

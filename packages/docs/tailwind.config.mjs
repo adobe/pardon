@@ -10,17 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import tailwind3d from "tailwindcss-3d";
-
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./src/**/*.{astro,html,js,jsx,md,mdx,ts,tsx,pcss}"],
+  content: ["./src/**/*.{astro,html,js,jsx,md,mdx,ts,tsx,css}"],
   darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {},
   },
   plugins: [
-    tailwind3d({ legacy: true }),
     ({ addVariant }) => {
       addVariant("light", "@media (prefers-color-scheme: light)");
     },

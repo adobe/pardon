@@ -10,7 +10,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { createNumber, JSON } from "../json.js";
+import { KV } from "../formats/kv-fmt.js";
+import { createNumber, JSON } from "../raw-json.js";
+import { isPatternSimple, patternize } from "../schema/core/pattern.js";
 import { exposeSchematic, isSchematic } from "../schema/core/schema-ops.js";
 import { Schematic, Template } from "../schema/core/types.js";
 import { datums } from "../schema/definition/datum.js";
@@ -29,6 +31,7 @@ import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { redact } from "../schema/definition/structures/redact.js";
 import {
   ReferenceSchematic,
+  ReferenceSchematicOps,
   referenceTemplate,
 } from "../schema/definition/structures/reference.js";
 import {
@@ -64,21 +67,41 @@ export const encodings = {
     );
   },
   $template(value: string) {
-    const template = evalBodyTemplate(value) as Template<string>;
+    if (
+      (typeof value === "string" &&
+        /^(?![0-9])[a-z0-9_-]+$/.test(value.trim())) ||
+      isPatternSimple(patternize(value))
+    ) {
+      return textTemplate(value);
+    }
 
-    return blendEncoding(template, (template) => {
-      if (isSchematic<string>(template)) {
-        if (
-          exposeSchematic<EncodingSchematicOps<string, unknown>>(
-            template,
-          )?.encoding?.().as === "string"
-        ) {
-          return template as Schematic<string>;
+    try {
+      const template = evalBodyTemplate(value) as Template<string>;
+
+      return blendEncoding(template, (template) => {
+        if (isSchematic<string>(template)) {
+          if (
+            exposeSchematic<EncodingSchematicOps<string, unknown>>(
+              template,
+            )?.encoding?.().as === "string"
+          ) {
+            return template as Schematic<string>;
+          }
+
+          // don't accept top-level body aliases, assume it might be templated though.
+          if (
+            exposeSchematic<ReferenceSchematicOps<string>>(template).reference
+          ) {
+            return textTemplate(value);
+          }
         }
-      }
 
-      return jsonEncoding(template);
-    });
+        return jsonEncoding(template);
+      });
+    } catch (error) {
+      void error;
+      return textTemplate(value);
+    }
   },
 } satisfies Record<string, (...args: any) => Template<string>>;
 
@@ -95,6 +118,7 @@ export const bodyGlobals: Record<string, any> = {
   null: null,
   ...encodings,
   $: $ref,
+  $flow: <T>(x: Template<T>) => referenceTemplate<T>({}).$of(x).$flow,
   $bigint: <T>(x: Template<T>) => referenceTemplate<bigint>({}).$of(x).$bigint,
   $nullable: <T>(x: Template<T>) => referenceTemplate({}).$of(x).$nullable,
   $string: <T>(x: Template<T>) => referenceTemplate<string>({}).$of(x).$string,
@@ -155,7 +179,12 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
     }
 
     if (context.environment.option("pretty-print")) {
-      return JSON.stringify(output, null, 2);
+      return KV.stringify(output, {
+        indent: 2,
+        limit: 80,
+        mode: "json",
+        split: true,
+      });
     }
 
     return JSON.stringify(output, null, 0);

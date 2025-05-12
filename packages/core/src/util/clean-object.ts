@@ -14,7 +14,7 @@ export function cleanObject(thing: unknown) {
 
   switch (typeof thing) {
     case "object": {
-      if (thing instanceof Number || thing instanceof BigInt) {
+      if (thing instanceof Number) {
         return thing;
       }
 

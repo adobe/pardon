@@ -40,11 +40,19 @@ export function copypastePlugin() {
               const code = target
                 .getAttribute("data-code")
                 ?.replace(/\u007f/g, "\n");
-              const copyFrom = target.getAttribute("data-copy");
+
+              const [copyFrom, ...args] = target
+                .getAttribute("data-copy")
+                ?.split() ?? [null];
+
+              if (!copyFrom) {
+                return;
+              }
+
               const context = target.closest(`.copypaste-context`);
               const pasteTarget = context
                 ?.querySelector(`[data-pardon-${copyFrom}]`)
-                .pardonPlayground.update(code);
+                .pardonPlayground.update(code, ...args);
             }
           },
           { capture: true },
@@ -68,7 +76,7 @@ export function copypastePlugin() {
         if (copy) {
           context.renderData.blockAst.children[0].children.push(
             <button
-              class="copypaste !p-1.5"
+              class="copypaste p-1.5!"
               data-code={encode}
               data-copy={copy}
             >

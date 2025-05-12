@@ -17,7 +17,7 @@ import {
   fetchIntoObject,
   intoFetchParams,
   intoResponseObject,
-} from "../request/fetch-pattern.js";
+} from "../request/fetch-object.js";
 import { PardonOptions } from "../../api/pardon-wrapper.js";
 import { matchRequest } from "./match.js";
 import { ProgressiveMatch } from "../schema/progress.js";
@@ -29,7 +29,6 @@ import {
   mergeSchema,
 } from "../schema/core/schema-utils.js";
 import {
-  guessContentType,
   httpsRequestSchema,
   httpsResponseSchema,
 } from "../request/https-template.js";
@@ -39,9 +38,13 @@ import {
   EndpointStepsLayer,
   LayeredEndpoint,
 } from "../../config/collection-types.js";
-import { HttpsResponseStep } from "../formats/https-fmt.js";
+import {
+  HttpsRequestStep,
+  HttpsResponseStep,
+  guessContentType,
+} from "../formats/https-fmt.js";
 import { PardonError } from "../error.js";
-import { intoURL, parseURL } from "../request/url-pattern.js";
+import { intoURL, parseURL } from "../request/url-object.js";
 import { HTTP, RequestObject } from "../formats/http-fmt.js";
 import {
   EvaluationScope,
@@ -50,11 +53,12 @@ import {
 } from "../schema/core/types.js";
 import { getContextualValues } from "../schema/core/context.js";
 import { definedObject } from "../../util/mapping.js";
-import { JSON } from "../json.js";
+import { JSON } from "../raw-json.js";
 import { PardonRuntime } from "./types.js";
 import { valueId } from "../../util/value-id.js";
 import { PardonCompiler } from "../../runtime/compiler.js";
 import { cleanObject } from "../../util/clean-object.js";
+import { patternize } from "../schema/core/pattern.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
@@ -123,6 +127,38 @@ const selectOne: PardonExecutionInit["select"] = (
         },
       }) => endpoint,
     );
+
+    // if there are multiple requests that match,
+    // filter down to only one if there's an "exact match" by patternize/template
+    // for pathname or, failing that, origin.
+    const disambiguators: (keyof FetchObject)[] = ["pathname", "origin"];
+    for (const disambiguator of disambiguators) {
+      const { template } = patternize(
+        (fetchObject[disambiguator] as string) ?? "",
+      );
+      const exact = matches.filter(({ endpoint: { layers } }) =>
+        layers
+          .flatMap(
+            ({ steps }) =>
+              steps.filter(
+                ({ type }) => type === "request",
+              ) as HttpsRequestStep[],
+          )
+          .some(
+            ({ request: { [disambiguator]: value } }) =>
+              value && patternize(value as string).template === template,
+          ),
+      );
+
+      if (exact.length === 1) {
+        matches = exact;
+        break;
+      }
+    }
+
+    if (matches.length === 1) {
+      return matches[0];
+    }
 
     throw new PardonError(
       `${
@@ -408,7 +444,7 @@ export const PardonFetchExecution = pardonExecution({
     });
 
     const redacting = mergeSchema(
-      // build is a little more lenient than validate
+      // build used here as it is a little more lenient than validate
       { mode: "match", phase: "build" },
       schema,
       rendered.output,

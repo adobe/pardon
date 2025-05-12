@@ -28,7 +28,8 @@ export function redact<T>(template?: Template<T>) {
       return applied && redactSchema(applied);
     },
     expand(context) {
-      return redactSchema(context.expand(template));
+      const schema = context.expand(template);
+      return schema && redactSchema(schema);
     },
     redacted: true,
   });

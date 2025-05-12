@@ -15,9 +15,9 @@ import { text } from "node:stream/consumers";
 import { HTTP, RequestObject } from "../../../core/formats/http-fmt.js";
 import { PardonError } from "../../../core/error.js";
 import { mapObject } from "../../../util/mapping.js";
-import { intoURL, parseURL } from "../../../core/request/url-pattern.js";
+import { intoURL, parseURL } from "../../../core/request/url-object.js";
 import { extractKVs } from "../../../util/kv-options.js";
-import { JSON } from "../../../core/json.js";
+import { JSON } from "../../../core/raw-json.js";
 
 export type CommandOptions = ReturnType<typeof opts>["values"];
 

@@ -22,7 +22,8 @@ import {
   Node,
 } from "ts-morph";
 import { PardonError } from "../error.js";
-import { JSON } from "../json.js";
+import { JSON } from "../raw-json.js";
+import { arrayIntoObjectAsync } from "../../util/mapping.js";
 
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 
@@ -64,7 +65,13 @@ export function getMessage(
 export function applyTsMorph(
   expression: string,
   ...transforms: (TsMorphTransform | null | undefined)[]
-): { morphed: string; unbound: Set<string> } {
+): {
+  morphed: string;
+  unbound: {
+    symbols: Set<string>;
+    literals: Set<string>;
+  };
+} {
   const exprSourceFile = expressionProject.createSourceFile(
     `/__expr__.ts`,
     `export default (${expression})`,
@@ -101,7 +108,8 @@ export function applyTsMorph(
 
   exprSourceFile.replaceWithText(compiledExpr);
 
-  const unbound = new Set<string>();
+  const symbols = new Set<string>();
+  const literals = new Set<string>();
 
   for (const ident of exprSourceFile.getDescendantsOfKind(
     SyntaxKind.Identifier,
@@ -123,12 +131,31 @@ export function applyTsMorph(
       continue;
     }
 
+    if (ident.getText() === "$") {
+      const tpl = ident
+        .getParentIfKind(ts.SyntaxKind.TaggedTemplateExpression)
+        ?.getTemplate()
+        .asKind(ts.SyntaxKind.NoSubstitutionTemplateLiteral);
+
+      if (tpl) {
+        literals.add(tpl.getLiteralValue());
+      }
+
+      continue;
+    }
+
     if (!ident.getDefinitionNodes()?.length) {
-      unbound.add(ident.getText());
+      symbols.add(ident.getText());
     }
   }
 
-  return { morphed: compiledExpr, unbound };
+  return {
+    morphed: compiledExpr,
+    unbound: {
+      symbols,
+      literals,
+    },
+  };
 }
 
 // helper for recompiling x.await to (await x).
@@ -161,16 +188,23 @@ export function syncEvaluation(
   },
   ...transforms: TsMorphTransform[]
 ): unknown {
-  const { morphed, unbound } = applyTsMorph(expression, ...transforms);
+  const {
+    morphed,
+    unbound: { symbols, literals },
+  } = applyTsMorph(expression, ...transforms);
 
-  const bound = [...unbound].map((name) => [name, binding?.(name)] as const);
+  const bound = [...symbols].map((name) => [name, binding?.(name)] as const);
+  const refs = [...literals].reduce(
+    ($, name) => Object.assign($, { [name]: binding?.(name) }),
+    {} as Record<string, unknown>,
+  );
 
-  const fn = new Function(...bound.map(([k]) => k), `return (${morphed})`);
+  const fn = new Function("$", ...bound.map(([k]) => k), `return (${morphed})`);
 
   const args = bound.map(([, v]) => v);
 
   try {
-    return fn(...args);
+    return fn(([name]: TemplateStringsArray) => refs[name], ...args);
   } catch (error) {
     console.warn(`error evaluating script: ${expression} as ${morphed}`, error);
     throw error;
@@ -186,23 +220,36 @@ export async function evaluation(
   },
   ...transforms: TsMorphTransform[]
 ): Promise<unknown> {
-  const { morphed, unbound } = applyTsMorph(expression, ...transforms);
+  const {
+    morphed,
+    unbound: { symbols, literals },
+  } = applyTsMorph(expression, ...transforms);
 
-  const bound = [...unbound].map((name) => [name, binding?.(name)] as const);
+  const bound = [...symbols].map((name) => [name, binding?.(name)] as const);
+
+  const templated = arrayIntoObjectAsync([...literals], async (name) => ({
+    [name]: await binding?.(name),
+  }));
 
   const fn = new Function(
+    "$",
     ...bound.map(([k]) => k),
     `return (async () => (${morphed}))()`,
   );
 
   try {
-    const args = await Promise.all(
-      bound.map(([k, v]) =>
+    const args = await Promise.all([
+      templated.then(
+        (refs) =>
+          ([name]: TemplateStringsArray) =>
+            refs[name],
+      ),
+      ...bound.map(([k, v]) =>
         Promise.resolve(v).catch((ex) => {
           throw new PardonError(`evaluating ${k}`, ex);
         }),
       ),
-    );
+    ]);
 
     const result = await fn(...args);
 
@@ -230,7 +277,10 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   visitChildren,
   factory,
 }) => {
-  if (ts.isTemplateExpression(currentNode)) {
+  if (
+    ts.isTemplateExpression(currentNode) &&
+    !ts.isTaggedTemplateExpression(currentNode.parent)
+  ) {
     const head = currentNode.head.text;
     const spans = currentNode.templateSpans;
 
@@ -313,15 +363,27 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   if (ts.isPrefixUnaryExpression(currentNode)) {
     switch (currentNode.operator) {
-      case SyntaxKind.PlusToken:
+      case SyntaxKind.PlusPlusToken:
         return factory.createCallExpression(
           factory.createIdentifier("$mux"),
           undefined,
           [currentNode.operand],
         );
-      case SyntaxKind.MinusToken:
+      case SyntaxKind.MinusMinusToken:
         return factory.createCallExpression(
           factory.createIdentifier("$mix"),
+          undefined,
+          [currentNode.operand],
+        );
+      case SyntaxKind.MinusToken:
+        return factory.createCallExpression(
+          factory.createIdentifier("$hidden"),
+          undefined,
+          [currentNode.operand],
+        );
+      case SyntaxKind.PlusToken:
+        return factory.createCallExpression(
+          factory.createIdentifier("$flow"),
           undefined,
           [currentNode.operand],
         );
@@ -518,7 +580,6 @@ function binaryExpression(
 
       if (scalar) {
         const text = rhs.getText();
-
         const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
         return factory.createStringLiteral(pattern);
       } else if (ts.isAsExpression(rhs)) {
@@ -545,6 +606,7 @@ function binaryExpression(
         ).getText();
 
         const pattern = `{{ = $$expr(${JSON.stringify(text)}) }}`;
+
         return factory.createCallExpression(
           factory.createPropertyAccessExpression(lhs, "$of"),
           undefined,

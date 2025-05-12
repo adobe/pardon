@@ -45,10 +45,12 @@ declare global {
     };
     outbound: {
       request: RequestJSON;
+      values?: Record<string, unknown>;
     };
     secure: {
       outbound: {
         request: RequestJSON;
+        values?: Record<string, unknown>;
       };
     };
     error?: any;
@@ -61,6 +63,7 @@ declare global {
     };
     outbound: {
       request: RequestJSON;
+      values?: Record<string, unknown>;
     };
     inbound: {
       outcome?: string;
@@ -88,10 +91,12 @@ declare global {
       };
       outbound: {
         request: RequestJSON;
+        values: Record<string, unknown>;
       };
       secure?: {
         outbound: {
           request: RequestJSON;
+          values: Record<string, unknown>;
         };
       };
     };

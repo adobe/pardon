@@ -32,6 +32,7 @@ export default function PardonInput(
     data?: { values: Accessor<Values>; doc: Accessor<string> };
     onValueChange?(text: string): void;
     onDataChange?(data: { values: Values; doc: string }): void;
+    onDataValidChange?(valid: boolean): void;
     setTextRef?(setText: Setter<string>): void;
     dragDrop?: {
       onDragOver(event: DragEvent): boolean | undefined | void;
@@ -52,7 +53,7 @@ export default function PardonInput(
   const [values, setValues] = createSignal(props.data.values());
 
   const formatted = createMemo(() =>
-    `${KV.stringify(values() ?? {}, "\n", 2, "\n")}${doc() ?? ""}`.trim(),
+    `${KV.stringify(values() ?? {}, { indent: 2, trailer: "\n" })}${doc() ?? ""}`.trim(),
   );
 
   const [text, setText] = createSignal(props.value ?? formatted());
@@ -122,10 +123,10 @@ export default function PardonInput(
         } = KV.parse(text ?? "", "stream");
 
         updateData({ values, doc: unparsed });
+        props.onDataValidChange?.(true);
       } catch (error) {
-        void error;
-        // console.warn(`error parsing: ${text}`, String(error));
-        // ignore
+        void error; // TODO: expose location and highlight error location
+        props.onDataValidChange?.(false);
       }
     }),
   );

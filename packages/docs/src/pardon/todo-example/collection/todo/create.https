@@ -1,0 +1,22 @@
+flow:
+  context:
+    - env?
+    - origin?
+    - task
+    - completed?
+>>>
+POST https://todo.example.com/todos
+Content-Type: application/json
+
+{
+  task,
+  completed: completed as boolean | undefined
+}
+
+<<<
+200 OK
+
+{
+  id: todo as flow,
+  task: task as string | undefined
+}

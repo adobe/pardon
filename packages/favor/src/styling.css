@@ -11,14 +11,6 @@ governing permissions and limitations under the License.
 */
 
 @layer base {
-  .root-color {
-    @apply bg-[#eee] text-[#444];
-    @apply dark:bg-[#234] dark:text-[#ddd];
-    & a:hover {
-      @apply text-[#747bff] dark:text-[#999];
-    }
-  }
-
   :root {
     font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
     font-weight: 400;
@@ -31,7 +23,13 @@ governing permissions and limitations under the License.
     -webkit-text-size-adjust: 100%;
     -webkit-focus-ring-color: none;
 
-    @apply root-color overflow-hidden;
+    @apply overflow-hidden;
+
+    @apply bg-[#eee] text-[#444];
+    @apply dark:bg-[#234] dark:text-[#ddd];
+    & a:hover {
+      @apply text-[#747bff] dark:text-[#999];
+    }
   }
 
   #root {
@@ -64,7 +62,6 @@ governing permissions and limitations under the License.
     font-size: 1em;
     font-weight: 500;
     font-family: inherit;
-    background-color: #1a1a1a;
     cursor: pointer;
     transition: border-color 0.25s;
 
@@ -74,6 +71,11 @@ governing permissions and limitations under the License.
     }
     &:disabled {
       @apply text-zinc-500;
+    }
+
+    /* magic aspect-square fix that handles zero-padding */
+    &.aspect-square {
+      @apply h-[calc(100%)] place-items-center;
     }
   }
 }
