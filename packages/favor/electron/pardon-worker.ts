@@ -34,6 +34,7 @@ import { httpOps, valueOps } from "pardon/database";
 
 import { traced } from "pardon/features/trace";
 import undici from "pardon/features/undici";
+import encodings from "pardon/features/content-encodings";
 import remember, { PardonHttpExecutionContext } from "pardon/features/remember";
 import {
   cleanObject,
@@ -151,6 +152,7 @@ async function initializePardonAndLoadSamples(
 ) {
   const app = await initializePardon(options, [
     undici,
+    encodings,
     failfast,
     traced(
       mapObject(tracingHooks, (fn) => (...args: any) => {

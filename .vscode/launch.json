@@ -24,8 +24,7 @@
         "tsx/esm",
         "--stack-trace-limit=100",
         "src/entry/main/cli/index.ts",
-        "test.http",
-        "--http"
+        "test.http"
       ],
       "env": {
         "NODE_ENV": "development"

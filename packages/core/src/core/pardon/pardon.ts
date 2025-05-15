@@ -503,6 +503,8 @@ export const PardonFetchExecution = pardonExecution({
         `failed to fetch: ${init.method ?? "GET"} ${url}`,
         error as Error,
       );
+    } finally {
+      timestamps.response = Date.now();
     }
   },
   async process({ context, outbound, inbound, match }) {

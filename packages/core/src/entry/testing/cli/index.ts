@@ -34,6 +34,7 @@ import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/raw-json.js";
 import { mapObject } from "../../../util/mapping.js";
 import { parseSmokeConfig } from "../smoke-config.js";
+import contentEncodings from "../../../features/content-encodings.js";
 
 // execute tests
 main().then(
@@ -95,6 +96,7 @@ async function main() {
 
   const context = await initializePardon({ cwd: root }, [
     ff && failfast,
+    contentEncodings,
     trace,
     remember,
   ]);

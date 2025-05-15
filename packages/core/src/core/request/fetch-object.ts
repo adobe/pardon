@@ -43,6 +43,7 @@ export type ResponseObject = {
   statusText?: string;
   headers: Headers;
   meta?: ResponseMeta;
+  rawBody?: Buffer;
   body?: string;
 };
 
@@ -96,10 +97,13 @@ export async function intoResponseObject(
 ): Promise<ResponseObject> {
   const { status, statusText, headers } = response;
 
+  const rawBody = Buffer.from(await response.clone().arrayBuffer());
+
   return {
     status,
     statusText,
     headers,
+    rawBody,
     body: await response.text(),
   };
 }

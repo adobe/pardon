@@ -782,6 +782,9 @@ function wrappedStringify(
         }
 
         return mapObject(value as Record<string, unknown>, {
+          select(value) {
+            return value !== undefined;
+          },
           values(value) {
             return preformat(value);
           },

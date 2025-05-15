@@ -55,6 +55,10 @@
       "import": "./dist/features/undici.js",
       "types": "./dist/types/features/undici.d.ts"
     },
+    "./features/content-encodings": {
+      "import": "./dist/features/content-encodings.js",
+      "types": "./dist/types/features/content-encodings.d.ts"
+    },
     "./features/remember": {
       "import": "./dist/features/remember.js",
       "types": "./dist/types/features/remember.d.ts"

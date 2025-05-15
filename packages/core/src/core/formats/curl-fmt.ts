@@ -55,7 +55,7 @@ function stringify(
   const port = url.port || (url.protocol == "https:" ? 443 : 80);
 
   return [
-    `curl ${method !== "GET" ? `--request ${method} ` : ""}"${quot(url)}"${resolve ? `\\\n  --resolve "${url.hostname}:${port}:$(dig +short ${resolve} | tail -1)" \\\n ` : ""}${
+    `curl ${method !== "GET" ? `--request ${method} ` : ""}"${quot(url)}"${resolve ? ` \\\n  --resolve "${url.hostname}:${port}:$(dig +short ${resolve} | tail -1)" \\\n ` : ""}${
       include ? " --include" : ""
     }`,
     ...headerList(headers).map(

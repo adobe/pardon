@@ -24,6 +24,7 @@ import {
   ResponseObject,
   SimpleRequestInit,
 } from "../core/request/fetch-object.js";
+import MIME from "whatwg-mimetype";
 
 export default function undici(
   execution: typeof PardonFetchExecution,
@@ -51,6 +52,8 @@ export default function undici(
             `failed to fetch: ${init.method ?? "GET"} ${url}`,
             error as Error,
           );
+        } finally {
+          timestamps.response = Date.now();
         }
       },
     },
@@ -91,6 +94,12 @@ async function fetchSNI(
     body,
   } as Parameters<typeof request>[1] & { servername: string });
 
+  const rawBody = await consumers.buffer(response.body);
+
+  const contentType = MIME.parse(
+    [response.headers["content-type"]].flat(1)[0] ?? "",
+  );
+
   return {
     status: response.statusCode,
     headers: new Headers(
@@ -102,6 +111,9 @@ async function fetchSNI(
             : [],
       ),
     ),
-    body: await consumers.text(response.body),
+    rawBody,
+    body: rawBody.toString(
+      (contentType?.parameters.get("charset") as BufferEncoding) ?? "utf-8",
+    ),
   } satisfies ResponseObject;
 }

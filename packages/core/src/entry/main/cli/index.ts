@@ -32,6 +32,7 @@ import { KV } from "../../../core/formats/kv-fmt.js";
 import { executeFlowInContext } from "../../../core/execution/flow/index.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/raw-json.js";
+import contentEncodings from "../../../features/content-encodings.js";
 
 main()
   .then((code) => process.exit(code))
@@ -88,7 +89,7 @@ usage
 
   const context = await initializePardon(
     { environment: values, cwd: options.cwd },
-    [undici, trace, remember],
+    [undici, contentEncodings, trace, remember],
   );
 
   if (options["show-root"]) {
