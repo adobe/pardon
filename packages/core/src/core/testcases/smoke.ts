@@ -110,8 +110,8 @@ export function smoke(
   }
 }
 
-function smalt(context: CaseContext, alternate: Alternation) {
-  const alternates = exalternates(context, alternate);
+async function smalt(context: CaseContext, alternate: Alternation) {
+  const alternates = await exalternates(context, alternate);
 
   if (alternates.length == 0) {
     throw new Error("unexpected smoke.per category: no alternates for value");

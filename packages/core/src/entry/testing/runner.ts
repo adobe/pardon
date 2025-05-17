@@ -538,11 +538,8 @@ export type TestLoadOptions = {
 };
 
 export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
-  const configuration = (
-    await withGamutConfiguration(
-      () => import(testPath, { with: { type: "tests" } }),
-    )
-  ).default as PardonTestConfiguration;
+  const configuration = (await withGamutConfiguration(() => import(testPath)))
+    .default as PardonTestConfiguration;
 
   if (concurrency !== undefined) {
     configuration.concurrency = concurrency;
@@ -556,26 +553,30 @@ export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
       smokeConfig?: SmokeConfig,
       ...filter: string[]
     ) {
-      const alltestcases = describeCases(
+      const alltestcases = await describeCases(
         configuration.closing || (() => {}),
-        trialRegistry.flatMap(({ descriptions }) => {
-          return descriptions.reduce(
-            (cases, description) => describeCases(description, cases),
-            [
-              {
-                defs: {},
-                environment: { ...testenv },
-              },
-            ] as CaseContext[],
-          );
-        }),
+        (
+          await Promise.all(
+            trialRegistry.flatMap(async ({ descriptions }) => {
+              let cases: CaseContext[] | undefined = undefined;
+
+              for (const description of descriptions) {
+                cases = await describeCases(description, cases);
+              }
+
+              return cases ?? [];
+            }),
+          )
+        ).flat(1),
       );
 
       validateTestPlan(alltestcases);
 
-      const cases = describeCases(
-        (helpers) => applySmokeConfig(helpers, smokeConfig),
-        alltestcases,
+      const cases = (
+        await describeCases(
+          (helpers) => applySmokeConfig(helpers, smokeConfig),
+          alltestcases,
+        )
       ).map(
         ({
           environment: {

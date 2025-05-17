@@ -11,16 +11,39 @@ governing permissions and limitations under the License.
 */
 import { type Alternation, type Generation, generalteration } from "./core.js";
 
-export const robin = generalteration(
-  (...options: Generation[] | [Alternation]) => {
+export const robin = Object.assign(
+  generalteration((...options: Generation[] | [Alternation] | unknown[]) => {
     if (options.length === 0) {
       throw new Error("empty round robin");
     }
 
     let i = 0;
-    return () => {
+    return async () => {
       if (i === options.length) i = 0;
       return [options[i++]];
     };
+  }),
+  {
+    apply: generalteration(
+      (
+        args:
+          | Promise<Generation[] | [Alternation] | unknown[]>
+          | Generation[]
+          | [Alternation]
+          | unknown[],
+      ) => {
+        let i = 0;
+        return async () => {
+          const options = await args;
+
+          if (options.length === 0) {
+            throw new Error("empty round robin");
+          }
+
+          if (i === options.length) i = 0;
+          return [options[i++]];
+        };
+      },
+    ),
   },
 );

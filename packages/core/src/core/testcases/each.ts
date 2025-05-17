@@ -11,8 +11,15 @@ governing permissions and limitations under the License.
 */
 import { generalteration } from "./core.js";
 
-export const each = generalteration(
-  (...options) =>
-    () =>
-      options,
+export const each = Object.assign(
+  generalteration(
+    (...options) =>
+      async () =>
+        options,
+  ),
+  {
+    apply: generalteration(
+      (args: Promise<unknown[]> | unknown[]) => async () => await args,
+    ),
+  },
 );

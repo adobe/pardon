@@ -41,5 +41,5 @@ export function defi(
     fi(values).else(() => {
       fi(allowed ?? false);
     });
-  });
+  }) as Generation;
 }

@@ -43,7 +43,7 @@ export default function TestcasePlayground(props: VoidProps<TestcaseOptions>) {
           cases:
             mode === "trials"
               ? await evalTrials(script, smoke)
-              : evalCases(script, smoke),
+              : await evalCases(script, smoke),
         };
       } catch (error) {
         return { error };
@@ -131,19 +131,21 @@ export default function TestcasePlayground(props: VoidProps<TestcaseOptions>) {
   );
 }
 
-function evalCases(script: string, smoke: string) {
-  return describeCases((helpers) => {
-    const helperEntries = Object.entries(helpers);
+async function evalCases(script: string, smoke: string) {
+  return (
+    await describeCases((helpers) => {
+      const helperEntries = Object.entries(helpers);
 
-    new Function(...helperEntries.map(([k]) => k), script)(
-      ...helperEntries.map(([, v]) => v),
-    );
+      new Function(...helperEntries.map(([k]) => k), script)(
+        ...helperEntries.map(([, v]) => v),
+      );
 
-    const { fun, get } = helpers;
+      const { fun, get } = helpers;
 
-    fun("trial", get("trial", "stub"));
-    applySmokeConfig(helpers, parseSmokeConfig(smoke));
-  }).map((ctx) => ctx.environment);
+      fun("trial", get("trial", "stub"));
+      applySmokeConfig(helpers, parseSmokeConfig(smoke));
+    })
+  ).map((ctx) => ctx.environment);
 }
 
 async function evalTrials(script: string, smoke: string) {
@@ -170,16 +172,25 @@ async function evalTrials(script: string, smoke: string) {
       ),
     );
 
-    const trialregistry = await flushTrialRegistry({});
+    const trialRegistry = await flushTrialRegistry({});
 
-    const smoked = describeCases(
+    const allTrials = (
+      await Promise.all(
+        trialRegistry.flatMap(async ({ descriptions }) => {
+          let cases: CaseContext[] | undefined = undefined;
+
+          for (const description of descriptions) {
+            cases = await describeCases(description, cases);
+          }
+
+          return cases ?? [];
+        }),
+      )
+    ).flat(1);
+
+    const smoked = await describeCases(
       (helpers) => applySmokeConfig(helpers, parseSmokeConfig(smoke)),
-      trialregistry.flatMap(({ descriptions }) =>
-        descriptions.reduce<CaseContext[]>(
-          (cases, description) => describeCases(description, cases),
-          undefined!,
-        ),
-      ),
+      allTrials,
     );
 
     return smoked.map(
