@@ -10,6 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { EncodingType } from "./encoding.js";
+import { Buffer } from "node:buffer";
 
 export type TextBufferEncoding = Exclude<BufferEncoding, "binary">;
 
@@ -24,6 +25,7 @@ export function bufferEncoding({
 }: EncodingOptions): EncodingType<string, string> {
   return {
     as: "string",
+    format: `${outer}(${inner})`,
     encode(output) {
       return output && Buffer.from(output, inner).toString(outer);
     },

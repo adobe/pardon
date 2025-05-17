@@ -23,17 +23,19 @@ import {
   Template,
 } from "./types.js";
 
-export function createRenderContext<T>(
+function createRenderingContext<T>(
+  mode: SchemaRenderContext["mode"],
   schema: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
 ): SchemaRenderContext {
   const ctx = {
-    mode: "render",
+    mode,
     keys: [],
     evaluationScopePath: [],
     environment,
     evaluationScope: Scope.createRootScope(),
     diagnostics: [],
+    cycles: new Set(),
   } satisfies SchemaRenderContext;
 
   executeOp(schema, "scope", ctx);
@@ -41,58 +43,32 @@ export function createRenderContext<T>(
   return ctx;
 }
 
+export function createRenderContext<T>(
+  schema: Schema<T>,
+  environment: SchemaScriptEnvironment = new ScriptEnvironment(),
+) {
+  return createRenderingContext("render", schema, environment);
+}
+
 export function createPreviewContext<T>(
-  scheme: Schema<T>,
+  schema: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
 ): SchemaRenderContext {
-  const ctx = {
-    mode: "preview",
-    keys: [],
-    evaluationScopePath: [],
-    environment,
-    evaluationScope: Scope.createRootScope(),
-    diagnostics: [],
-  } satisfies SchemaRenderContext;
-
-  executeOp(scheme, "scope", ctx);
-
-  return ctx;
+  return createRenderingContext("preview", schema, environment);
 }
 
 export function createPrerenderContext<T>(
-  scheme: Schema<T>,
+  schema: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
 ): SchemaRenderContext {
-  const ctx = {
-    mode: "prerender",
-    keys: [],
-    evaluationScopePath: [],
-    environment,
-    evaluationScope: Scope.createRootScope(),
-    diagnostics: [],
-  } satisfies SchemaRenderContext;
-
-  executeOp(scheme, "scope", ctx);
-
-  return ctx;
+  return createRenderingContext("prerender", schema, environment);
 }
 
 export function createPostrenderContext<T>(
-  scheme: Schema<T>,
+  schema: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
 ): SchemaRenderContext {
-  const ctx = {
-    mode: "postrender",
-    keys: [],
-    evaluationScopePath: [],
-    diagnostics: [],
-    environment,
-    evaluationScope: Scope.createRootScope(),
-  } satisfies SchemaRenderContext;
-
-  executeOp(scheme, "scope", ctx);
-
-  return ctx;
+  return createRenderingContext("postrender", schema, environment);
 }
 
 export type ContextMeta = {

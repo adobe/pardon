@@ -72,7 +72,7 @@ export function contextAsFlowParams(
         definitions[(params.rested = item.slice(3).trim())] = true;
       } else {
         const [, name, question, value, expression] =
-          /(\w+)([?]?)(?:\s+as\s+(\w+))?(?:(?:\s+default\s+|\s*=\s*)((?=\S).*))?$/.exec(
+          /([\w-]+)([?]?)(?:\s+as\s+([\w-]+))?(?:(?:\s+default\s+|\s*=\s*)((?=\S).*))?$/.exec(
             item.trim(),
           )!;
 

@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import dns from "node:dns/promises";
 import consumers from "node:stream/consumers";
-import { request } from "undici";
+import { Agent, request } from "undici";
 
 import {
   PardonExecutionContext,
@@ -32,10 +32,7 @@ export default function undici(
   return hookExecution<PardonExecutionContext, typeof PardonFetchExecution>(
     execution,
     {
-      async fetch({
-        context: { timestamps },
-        outbound: { request, redacted },
-      }) {
+      async fetch({ context: { timestamps }, egress: { request, redacted } }) {
         timestamps.request = Date.now();
 
         const [url, init] = intoFetchParams(request);
@@ -72,6 +69,8 @@ async function fetchSNI(
       ? serverhost
       : (await dns.resolve(serverhost, "A"))[0]);
 
+  const insecure = meta?.insecure === "true";
+
   if (hostip) {
     console.info(`undici: resolved ${serverhost} = ${hostip}`);
   }
@@ -92,6 +91,9 @@ async function fetchSNI(
     method,
     headers: rheaders,
     body,
+    ...(insecure && {
+      dispatcher: new Agent({ connect: { rejectUnauthorized: false } }),
+    }),
   } as Parameters<typeof request>[1] & { servername: string });
 
   const rawBody = await consumers.buffer(response.body);

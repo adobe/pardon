@@ -13,19 +13,19 @@ import { type EncodingTypes } from "./body-template.js";
 import { createHeaders } from "./header-object.js";
 import { intoURL } from "./url-object.js";
 
-export type SimpleRequestInit = Omit<RequestInit, "body"> & {
-  meta?: Record<string, string>;
-  body?: string;
-  encoding?: EncodingTypes;
-};
-
 export type RequestMeta = Record<string, string> & {
   resolve?: string;
   body?: EncodingTypes;
+  insecure?: "true" | "false";
 };
 
 export type ResponseMeta = Record<string, string> & {
   body?: EncodingTypes;
+};
+
+export type SimpleRequestInit = Omit<RequestInit, "body"> & {
+  meta?: RequestMeta;
+  body?: string;
 };
 
 export type FetchObject = {

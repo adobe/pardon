@@ -51,8 +51,8 @@ type ExtendedExecutionHooks<
     infer Init,
     infer Context,
     infer Match,
-    infer Outbound,
-    infer Inbound,
+    infer Egress,
+    infer Ingress,
     infer Result
   >
     ? {
@@ -68,47 +68,47 @@ type ExtendedExecutionHooks<
 
         preview?(
           info: { context: Context & ContextExtension; match: Match },
-          next: (info: { context: Context; match: Match }) => Promise<Outbound>,
-        ): Promise<Outbound>;
+          next: (info: { context: Context; match: Match }) => Promise<Egress>,
+        ): Promise<Egress>;
 
         render?(
           info: { context: Context & ContextExtension; match: Match },
-          next: (info: { context: Context; match: Match }) => Promise<Outbound>,
-        ): Promise<Outbound>;
+          next: (info: { context: Context; match: Match }) => Promise<Egress>,
+        ): Promise<Egress>;
 
         fetch?(
           info: {
             context: Context & ContextExtension;
             match: Match;
-            outbound: Outbound;
+            egress: Egress;
           },
           next: (info: {
             context: Context;
             match: Match;
-            outbound: Outbound;
-          }) => Promise<Inbound>,
-        ): Promise<Inbound>;
+            egress: Egress;
+          }) => Promise<Ingress>,
+        ): Promise<Ingress>;
 
         process?(
           info: {
             context: Context & ContextExtension;
             match: Match;
-            outbound: Outbound;
-            inbound: Inbound;
+            egress: Egress;
+            ingress: Ingress;
           },
           next: (info: {
             context: Context;
             match: Match;
-            outbound: Outbound;
-            inbound: Inbound;
+            egress: Egress;
+            ingress: Ingress;
           }) => Promise<Result>,
         ): Promise<Result>;
 
         result?(info: {
           context: Context & ContextExtension;
           match: Match;
-          outbound: Outbound;
-          inbound: Inbound;
+          egress: Egress;
+          ingress: Ingress;
           result: Result;
         }): void | Promise<void>;
 

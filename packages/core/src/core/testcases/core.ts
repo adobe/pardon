@@ -56,12 +56,18 @@ export function normalize(context: CaseContext): Omit<CaseContext, "parent"> {
   return context;
 }
 
+type Alternative = (context: CaseContext) => Promise<any[]>;
+type Generative = (contexts: CaseContext) => Promise<CaseContext[]>;
+
 /** A Generation object */
 export type Generation = {
-  [gen](contexts: CaseContext[]): CaseContext[];
+  [gen](contexts: CaseContext[]): Promise<CaseContext[]>;
 };
 
-type Generative = (context: CaseContext) => CaseContext[];
+/** alternations are multi-values that fork (or nullify) the current case context */
+export type Alternation = {
+  [alt]: Alternative;
+};
 
 /**
  * The live set of case generators, initialized with one that produces
@@ -69,15 +75,10 @@ type Generative = (context: CaseContext) => CaseContext[];
  *
  * These are manipulated so that only the free/unused ones are left
  * to bundle into a composed generation object for the current context.
+ *
+ * TODO: use a AsyncLocalStorage for this
  */
 let nextGenerations: Generation[] = [];
-
-/** alternations are multi-values that fork (or nullify) the current case context */
-export type Alternation = {
-  [alt](context: CaseContext): any[];
-};
-
-type Alternative = (context: CaseContext) => any[];
 
 function runGenerations<T>(generations: Generation[], fn: () => T): T {
   const currentGenerations = nextGenerations;
@@ -134,10 +135,11 @@ export function compile(...generations: Generation[]): Generation {
   desequenced(generations);
 
   return {
-    [gen](contexts) {
-      return generations.reduce((contexts, { [gen]: generator }) => {
-        return generator(contexts);
-      }, contexts);
+    async [gen](contexts) {
+      for (const { [gen]: generator } of generations) {
+        contexts = await generator(contexts);
+      }
+      return contexts;
     },
   };
 }
@@ -148,7 +150,7 @@ export function generation(
 ): Generation & Alternation;
 export function generation(generative: Generative, alternative?: Alternative) {
   return sequence({
-    [gen]: (contexts) => contexts.flatMap(generative),
+    [gen]: (contexts) => asyncFlatMap(contexts, generative),
     ...(alternative &&
       ({ [alt]: (context) => alternative(context) } as Alternation)),
   });
@@ -196,24 +198,36 @@ function desequence(thing: Generation) {
   return thing;
 }
 
-function alternates(value: unknown, context: CaseContext): any[] {
+async function alternates(
+  value: unknown,
+  context: CaseContext,
+): Promise<any[]> {
   context = normalize(context);
+
+  value = await value;
 
   if (!value || isAtomic(value)) {
     return [value];
   }
 
   if (typeof value[alt] === "function") {
-    return value[alt](context).flatMap((value) => alternates(value, context));
+    return asyncFlatMap(value[alt](context), (value) =>
+      alternates(value, context),
+    );
   }
 
   if (Array.isArray(value)) {
     if (value.length === 0) return [[]];
 
     const [head, ...rest] = value;
-    return alternates(head, context).flatMap((z) =>
-      alternates(rest, context).map((next) => [z, ...next]),
-    );
+    const options: any[] = [];
+    const restalt = await alternates(rest, context);
+
+    for (const option of await alternates(head, context)) {
+      options.push(restalt.flatMap((next) => [option, ...next]));
+    }
+
+    return options.flat(1);
   }
 
   if (Object.keys(value).length === 0) {
@@ -226,8 +240,8 @@ function alternates(value: unknown, context: CaseContext): any[] {
     {},
   );
 
-  return alternates(v, context).flatMap((z) =>
-    alternates(rest, context).map((restobj) => ({
+  return asyncFlatMap(alternates(v, context), async (z) =>
+    (await alternates(rest, context)).map((restobj) => ({
       [k]: z,
       ...restobj,
     })),
@@ -265,13 +279,13 @@ export function generalteration<
 >(
   selector: (
     ...args: Args
-  ) => (context?: CaseContext) => Generation[] | unknown[],
+  ) => (context?: CaseContext) => Promise<Generation[] | unknown[]>,
 ): (...alternates: Args) => Alternation & Generation {
   return (...alternatives: Args): Alternation & Generation => {
     if (alternatives.length === 0) {
       return {
-        [alt]: () => [],
-        [gen]: () => [],
+        [alt]: async () => [],
+        [gen]: async () => [],
       } as Alternation & Generation;
     }
 
@@ -286,10 +300,12 @@ export function generalteration<
     }
 
     const options = alternatives.map(generate);
-    const selection = selector(...(options as Args)) as () => Generation[];
+    const selection = selector(...(options as Args)) as () => Promise<
+      Generation[]
+    >;
 
-    return generation((context) =>
-      selection().flatMap((generation) => generation[gen]([context])),
+    return generation(async (context) =>
+      asyncFlatMap(selection(), (generation) => generation[gen]([context])),
     ) as Generation & Alternation;
   };
 }
@@ -307,7 +323,7 @@ export type Filtration = Generation &
  */
 function computed(generator: (context: CaseContext) => unknown): Alternation {
   return {
-    [alt]: (context) => [generator(context)],
+    [alt]: async (context) => [generator(context)],
   };
 }
 
@@ -315,12 +331,17 @@ function computed(generator: (context: CaseContext) => unknown): Alternation {
  * maps an alternation to another alternation, value-by-value
  */
 function reputed(
-  generator: (context: CaseContext, value: any) => unknown[],
+  generator: (
+    context: CaseContext,
+    value: any,
+  ) => unknown[] | Promise<unknown[]>,
   values: unknown | Alternation,
 ): Alternation {
   return {
-    [alt]: (context) =>
-      alternates(values, context).flatMap((value) => generator(context, value)),
+    [alt]: async (context) =>
+      asyncFlatMap(alternates(values, context), (value) =>
+        generator(context, value),
+      ),
   };
 }
 
@@ -364,22 +385,28 @@ function interpret(
  * the core implementation of "set":
  * this is where we expand any alternation values into multiple cases
  */
-function apply(context: CaseContext, updates: CaseValues | Alternation) {
+async function apply(context: CaseContext, updates: CaseValues | Alternation) {
   const { environment } = context;
 
   desequenced(updates);
 
-  return alternates(updates, context).flatMap((alternatives) =>
-    alternates(
-      [
-        ...Object.entries(environment).filter(
-          ([k]) => !(k in (alternatives as any)),
+  const expandedAlternates = await alternates(updates, context);
+
+  return (
+    await asyncFlatMap(
+      expandedAlternates,
+      async (alternatives) =>
+        await alternates(
+          [
+            ...Object.entries(environment).filter(
+              ([k]) => !(k in (alternatives as any)),
+            ),
+            ...Object.entries(alternatives),
+          ].reduce((map, [k, v]) => Object.assign(map, { [k]: v }), {}),
+          context,
         ),
-        ...Object.entries(alternatives),
-      ].reduce((map, [k, v]) => Object.assign(map, { [k]: v }), {}),
-      context,
-    ).map((environment: CaseValues) => ({ ...context, environment })),
-  );
+    )
+  ).map((environment: CaseValues) => ({ ...context, environment }));
 }
 
 export function generateCases(
@@ -391,7 +418,7 @@ export function generateCases(
     },
   ],
 ) {
-  return runGenerations([{ [gen]: () => contexts }], () =>
+  return runGenerations([{ [gen]: async () => contexts }], () =>
     (generate(() => descriptionCallback()) as Generation)[gen](contexts),
   );
 }
@@ -434,66 +461,67 @@ export function fi(
     typeof test === "boolean" ? () => test : matches(test);
 
   let truth: Generation | Alternation = {
-    [gen]: (contexts) => contexts,
-    [alt]: () => [],
+    [gen]: async (contexts) => contexts,
+    [alt]: async () => [],
   };
 
   // default else action - stops execution.
   let untruth: Generation | Alternation = {
-    [gen]: () => [],
-    [alt]: () => [],
+    [gen]: async () => [],
+    [alt]: async () => [],
   };
 
   let sequenced: Generation & Alternation;
 
-  function filtration(
+  async function filtration(
     test: unknown,
     context: CaseContext,
-  ): (CaseValues | boolean)[] {
-    return alternates(test, context).flatMap(
-      (
+  ): Promise<(CaseValues | boolean)[]> {
+    return asyncFlatMap(
+      alternates(test, context),
+      async (
         expansion:
           | CaseValues
           | {
               (
                 environment: CaseValues,
                 defs: Record<string | symbol, Generation | Alternation>,
-              ): boolean | CaseValues | void;
+              ): Promise<boolean | CaseValues | void>;
             },
       ) => {
         if (typeof expansion === "function") {
           const normalized = normalize(context);
           return filtration(
-            expansion(normalized.environment, normalized.defs),
+            await expansion(normalized.environment, normalized.defs),
             context,
           );
         }
 
-        return [expansion];
+        return await alternates(expansion, context);
       },
     );
   }
 
   const ifElse = (sequenced = sequence({
-    [gen](contexts) {
+    async [gen](contexts) {
       if (!isGeneration(truth) || !isGeneration(untruth)) {
         return contexts;
       }
 
-      return contexts.flatMap((context) => {
-        const filtrates = filtration(test, context).filter((filtrate) =>
+      return asyncFlatMap(contexts, async (context) => {
+        const filtrates = (await filtration(test, context)).filter((filtrate) =>
           filter(filtrate)(context),
         );
 
         return (filtrates.length ? truth : untruth)[gen]([context]);
       });
     },
-    [alt](context) {
+    async [alt](context) {
       if (!isAlternation(truth) || !isAlternation(untruth)) {
         return [];
       }
 
-      const filtrates = filtration(test, context).filter((filtrate) =>
+      const filtrates = (await filtration(test, context)).filter((filtrate) =>
         filter(filtrate)(context),
       );
 
@@ -540,13 +568,15 @@ function local(
       const exportGeneration = interpret(...production) as Generation;
 
       return sequence({
-        [gen](contexts) {
-          const locals = localGeneration[gen](
+        async [gen](contexts) {
+          const locals = await localGeneration[gen](
             contexts.map((parent) => ({ environment: {}, defs: {}, parent })),
           );
 
-          return exportGeneration[gen](
-            locals.map((parent) => ({ environment: {}, defs: {}, parent })),
+          return (
+            await exportGeneration[gen](
+              locals.map((parent) => ({ environment: {}, defs: {}, parent })),
+            )
           ).map(({ environment, defs, parent }) =>
             normalize({ environment, defs, parent: parent!.parent }),
           );
@@ -567,14 +597,14 @@ function fun(
 ): Generation {
   const action = interpret(...behavior);
 
-  return generation(({ defs, ...context }) => [
+  return generation(async ({ defs, ...context }) => [
     { defs: { ...defs, [name]: action }, ...context },
   ]);
 }
 
 function exe(name: string | symbol) {
   return generation(
-    (context) => {
+    async (context) => {
       const action = normalize(context).defs[name];
       if (action === undefined) {
         throw new Error(`exe: ${String(name)} - not fun`);
@@ -613,7 +643,7 @@ function shuffle(seed = 1) {
   const next = lcg(seed);
 
   return sequence({
-    [gen](contexts) {
+    async [gen](contexts) {
       const shuffled = [...contexts];
 
       for (let i = shuffled.length - 1; i >= 0; i--) {
@@ -628,7 +658,7 @@ function shuffle(seed = 1) {
 
 export function sort(key: string) {
   return sequence({
-    [gen](contexts) {
+    async [gen](contexts) {
       return [...contexts].sort((ac, bc) => {
         const a = normalize(ac).environment[key];
         const b = normalize(bc).environment[key];
@@ -661,7 +691,7 @@ function debug(
   identifierOrFormat ??= "debug";
 
   return sequence({
-    [gen](contexts) {
+    async [gen](contexts) {
       console.info(`----- cases at ${identifierOrFormat} -----`);
       let count = 1;
       for (const context of contexts) {
@@ -677,13 +707,21 @@ function debug(
 
 export function get(key: string | Alternation, def?: unknown) {
   return {
-    [alt](context) {
+    async [alt](context) {
       const normalized = normalize(context);
-      return exalternates(normalized, key).flatMap(
+      return asyncFlatMap(
+        exalternates(normalized, key),
         (key) => normalized.environment[key] ?? def,
       );
     },
   } as Alternation;
+}
+
+async function asyncFlatMap<T, U>(
+  array: Promise<T[]> | T[],
+  transform: (_: T, index: number, list: T[]) => Promise<U[]> | U[],
+): Promise<U[]> {
+  return (await Promise.all((await array).map(transform))).flat(1);
 }
 
 export { computed, reputed, apply, fun, exe, interpret, local, shuffle, debug };

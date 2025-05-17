@@ -16,6 +16,7 @@ import { createHeaders } from "../../../request/header-object.js";
 
 const headersEncodingType: EncodingType<Headers, [string, string][]> = {
   as: "Headers",
+  format: "Headers",
   decode({ template }) {
     return template !== undefined ? [...(template as Headers)] : undefined;
   },

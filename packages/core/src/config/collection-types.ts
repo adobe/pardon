@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { HttpsFlowConfig, type HttpsSteps } from "../core/formats/https-fmt.js";
+import { HttpsFlowConfig, type HttpsStep } from "../core/formats/https-fmt.js";
 import { EncodingTypes } from "../core/request/body-template.js";
 import {
   DefaultsMap,
@@ -49,10 +49,6 @@ export type Configuration<
       config: Record<string, string>[];
     });
 
-export type EndpointConfiguration = Omit<Configuration, "export"> & {
-  mode?: "mix" | "mux";
-};
-
 // TODO
 //  refactor endpoints/mixins to
 //  a sequence of layers of { dirname, steps, configuration }.
@@ -62,24 +58,23 @@ export type Endpoint = {
   service: string;
   action: string;
   asset: string;
-  steps: HttpsSteps<"mix" | "mux">;
-  configuration: EndpointConfiguration;
+  steps: HttpsStep[];
+  configuration: Configuration;
 };
 
 export type EndpointStepsLayer = {
   path: string;
-  steps: HttpsSteps<"mix" | "mux">;
-  mode?: "mix" | "mux";
+  steps: HttpsStep[];
 };
 
 export type LayeredEndpoint = {
   service: string;
   action: string;
-  configuration: EndpointConfiguration;
+  configuration: Configuration;
   layers: EndpointStepsLayer[];
 };
 
 export type LayeredMixin = {
-  configuration: EndpointConfiguration;
+  configuration: Configuration;
   layers: EndpointStepsLayer[];
 };

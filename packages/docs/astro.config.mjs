@@ -17,6 +17,10 @@ import starlight from "@astrojs/starlight";
 import solid from "@astrojs/solid-js";
 import { pluginFrames } from "astro-expressive-code";
 import { copypastePlugin } from "./src/code/copypaste-plugin";
+import Icons from "unplugin-icons/vite";
+import AutoImportVite from "unplugin-auto-import/vite";
+import AutoImportAstro from "unplugin-auto-import/astro";
+import IconsResolver from "unplugin-icons/resolver";
 
 import tailwindcss from "@tailwindcss/vite";
 
@@ -26,6 +30,14 @@ export default defineConfig({
   base: process.env.SITE_ROOT ?? "/",
   output: "static",
   integrations: [
+    AutoImportAstro({
+      resolvers: [
+        IconsResolver({
+          prefix: "Icon",
+          extension: "jsx",
+        }),
+      ],
+    }),
     starlight({
       title: "Pardon",
       customCss: ["./src/styles/global.css"],
@@ -50,28 +62,8 @@ export default defineConfig({
               link: "/intro/templates",
             },
             {
-              label: "Collections (and Mixins)",
-              link: "/intro/collections",
-            },
-            {
-              label: "Dataflow",
-              link: "/intro/dataflow",
-            },
-            {
-              label: "Scripting",
-              link: "/intro/scripting",
-            },
-            {
-              label: "Collection Layers",
-              link: "/intro/layers",
-            },
-            {
-              label: "Patterns",
-              link: "/intro/patterns",
-            },
-            {
-              label: "Schemas",
-              link: "/intro/schemas",
+              label: "Endpoints",
+              link: "/intro/endpoints",
             },
             {
               label: "Pardon for Testing",
@@ -80,15 +72,19 @@ export default defineConfig({
           ],
         },
         {
+          label: "Reference",
+          items: [
+            { label: "The HTTPS format", link: "/reference/https-format" },
+            { label: "Template Runtime", link: "/reference/template-runtime" },
+            { label: "Built-in values", link: "/reference/builtin-values" },
+          ],
+        },
+        {
           label: "Technology",
           items: [
             {
               label: "Causality Tracking",
               link: "/tech/causality",
-            },
-            {
-              label: "Template Schemas",
-              link: "/tech/schema-tech",
             },
             {
               label: "The KV format",
@@ -104,6 +100,8 @@ export default defineConfig({
       components: {
         PageFrame: "@components/starlight/PageFrame.astro",
         Footer: "@components/starlight/Footer.astro",
+        PageSidebar: "@components/starlight/PageSidebar.astro",
+        //TwoColumnContent: "@components/starlight/TwoColumnContent.astro",
       },
       expressiveCode: {
         frames: false,
@@ -113,7 +111,7 @@ export default defineConfig({
         ],
       },
     }),
-    solid(),
+    solid({}),
   ],
   vite: {
     build: {
@@ -138,6 +136,7 @@ export default defineConfig({
     resolve: {
       alias: Object.entries({
         "node:async_hooks": "./src/polyfill/async_hooks.ts",
+        "node:buffer": "./src/polyfill/buffer.ts",
         events: "./node_modules/events",
         "node:events": "./node_modules/events",
         "fs/promises": "./src/polyfill/fs_promises.ts",
@@ -165,7 +164,19 @@ export default defineConfig({
       })),
     },
 
-    plugins: [tailwindcss()],
+    plugins: [
+      tailwindcss(),
+      AutoImportVite({
+        resolvers: [
+          IconsResolver({
+            prefix: "Icon",
+            extension: "jsx",
+          }),
+        ],
+      }),
+      Icons({ compiler: "solid" }),
+      Icons({ compiler: "astro" }),
+    ],
   },
   experimental: {
     clientPrerender: true,

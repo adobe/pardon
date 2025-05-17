@@ -51,17 +51,24 @@ export type PatternVar = {
   param: string;
   hint?: string;
   expression?: string;
+  redactor?: string;
   re?: RegExp;
   source?: string;
 };
 
-// patterns look, in general, like {{<flags> x.y = ...expression... % /regex/ }}
+// patterns look, in general, like {{<flags> x.y = ...expression... @ redactor % /regex/ }}
 // where flags can be any pattern of these characters: "?!@#:*~/-",
-// the "% /regex/" and "= ...expression..." parts are optional.
-// and the variable name can be dashed or dotted or have a dollarsigns,
+// the "= ...expression...", `"@ redactor" and "% /regex/" parts are optional.
+// the variable name can be dashed or dotted or have a dollarsigns,
 // but must start with letters, dollarsign or underscore.
 const paramPattern =
-  /^([.?!@#:~*/+-]+)?((?:[a-z$_][a-z0-9_$-]*)(?:[.][@a-z$_][a-z0-9_$]*)*)?\s*(?:=\s*((?:[^%]|%\s*[^/\s])*)?)?(?:%\s*([/].*))?$/i;
+  /^([.?!@#:~*/+-]+)?((?:[a-z$_][a-z0-9_$-]*)(?:[.][@a-z$_][a-z0-9_$]*)*)?\s*(?:=\s*((?:[^%]|%\s*[^/\s])*)?)?(?:@\s*([a-z_][a-z0-9_$]*)\s*)?(?:%\s*([/].*))?$/i;
+
+const hintPattern = /^([.?!@#:~*/+-]+)?(.*)/;
+export function parseHints(hinted: string) {
+  const [, hint, param] = hintPattern.exec(hinted)!;
+  return { hint, param };
+}
 
 const literal = /(?:[^{]|[{][^{])+/;
 const squote = /['](?:(?:[^'\\]|[\\].)*)[']/;
@@ -88,7 +95,7 @@ export function parseVariable(source: string) {
     return null;
   }
 
-  let [, hint, param, expression, rex] = match;
+  let [, hint, param, expression, redactor, rex] = match;
   const exprMatch = expression && exprMatcher.exec(expression); // $$expr("...") encodes source with possible }}
   if (exprMatch) {
     expression = JSON.parse(exprMatch[1]);
@@ -99,7 +106,8 @@ export function parseVariable(source: string) {
     variable: {
       source,
       expression,
-      hint,
+      hint: redactor ? `@${hint ?? ""}` : hint,
+      redactor,
       re: parseRex(rex),
     } as PatternVar,
   };

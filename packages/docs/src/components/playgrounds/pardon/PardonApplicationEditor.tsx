@@ -1,6 +1,4 @@
 import CodeMirror from "@components/codemirror/CodeMirror.tsx";
-import { iconSize } from "@components/pardon-shared.ts";
-import { TbCode } from "solid-icons/tb";
 import {
   For,
   createMemo,
@@ -67,7 +65,7 @@ export default function PardonApplicationEditor(
               "icon-grid-col": (document()?.split("\n").length ?? 0) < 4,
             }}
           >
-            <TbCode color="gray" size={iconSize} />
+            <IconTablerCode color="gray" class="text-2xl" />
           </div>
         }
         class="max-h-56 min-h-24 overflow-auto rounded-sm bg-yellow-100 shadow dark:bg-neutral-800"

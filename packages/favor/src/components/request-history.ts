@@ -49,9 +49,11 @@ export const [traces, setTraces] = createSignal<Record<number, Trace>>({});
 export const [activeTrace, updateActiveTrace] = createSignal<number>();
 
 Promise.resolve(initHistory).then((historyJson) => {
-  const history = historyJson ? JSON.parse(historyJson) : { traces: {} };
+  const { traces: savedTraces }: { traces: Record<string, Trace> } = historyJson
+    ? JSON.parse(historyJson)
+    : { traces: {} };
 
-  setTraces({ ...history.traces, ...traces });
+  setTraces({ ...savedTraces, ...traces() });
 });
 
 // create global effects inside a createRoot to avoid a warning.

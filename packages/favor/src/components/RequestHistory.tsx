@@ -22,8 +22,8 @@ import {
 } from "./request-history.ts";
 
 export const RequestSummaryInfo = createContext<{
-  outbound(trace: Trace): void;
-  inbound(trace: Trace): void;
+  egress(trace: Trace): void;
+  ingress(trace: Trace): void;
 }>();
 
 export default function RequestHistory(props: {
@@ -46,7 +46,7 @@ export default function RequestHistory(props: {
   return (
     <div class="flex size-full flex-col bg-zinc-100 dark:bg-slate-800">
       <div class="fade-to-clear flex flex-1 flex-col overflow-auto [--clear-start-opacity:0]">
-        <ul class="flex flex-initial flex-col text-nowrap px-0 py-2 text-xs">
+        <ul class="flex flex-initial flex-col px-0 py-2 text-xs text-nowrap">
           <For each={tree().slice(0, cutoff)}>
             {(trace) => (
               <RequestSummaryTree

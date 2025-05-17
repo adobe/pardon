@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import { generation } from "./core.js";
 
 export function unset(...keys: string[]) {
-  return generation(({ environment, ...context }) => [
+  return generation(async ({ environment, ...context }) => [
     {
       ...context,
       environment: Object.entries(environment)

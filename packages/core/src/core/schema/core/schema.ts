@@ -29,8 +29,7 @@ export function isMergingContext(
 ): context is SchemaMergingContext<unknown> {
   switch (context.mode) {
     case "match":
-    case "mix":
-    case "mux":
+    case "merge":
     case "meld":
       return true;
   }

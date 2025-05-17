@@ -25,7 +25,14 @@ starlight-tabs {
     @apply mt-0! bg-stone-100 p-3 dark:border-0 dark:bg-stone-800 dark:text-stone-200;
 
     @apply leading-5;
-    @apply rounded-b-lg dark:shadow-[inset_0_0_5px_0] dark:shadow-stone-600;
+    @apply rounded-b-lg;
+
+    & > starlight-tabs {
+      @apply -mx-3 -mb-3;
+      & > * > * > * > * {
+        @apply !rounded-t-none;
+      }
+    }
   }
   & > .tablist-wrapper {
     @apply my-0! border-none! pb-0;
@@ -44,16 +51,63 @@ starlight-tabs {
     }
     & > * {
       @apply !py-1;
-      @apply shadow-[inset_4px_0_4px_-5px] shadow-neutral-500 dark:shadow-[inset_0_0_5px_0] dark:shadow-stone-600;
+      @apply light:shadow-neutral-500 dark:shadow-stone-600;
       @apply place-content-center whitespace-nowrap;
       @apply !border-none;
 
       &:not([aria-selected="true"]) {
-        @apply place-content-center bg-stone-200 whitespace-nowrap dark:bg-stone-800 dark:!text-stone-300;
+        @apply place-content-center bg-stone-200 whitespace-nowrap dark:bg-stone-700 dark:!text-stone-300;
       }
       &[aria-selected="true"] {
         @apply border-b-0 bg-stone-300 font-normal! dark:bg-stone-600;
       }
     }
+  }
+}
+
+.code-tabs {
+  a[role="tab"] {
+    @apply font-mono;
+  }
+}
+.tab-subtitle {
+  @apply text-center text-lg font-bold text-shadow-sm;
+}
+
+.sl-markdown-content {
+  ul:not(:where(.not-content *)) {
+    @apply m-0 ml-3;
+  }
+  ul > li:not(:where(.not-content *)) {
+    @apply mt-0 list-item list-inside list-disc leading-snug;
+  }
+  ul ul:not(:where(.not-content *)) {
+    @apply m-0 ml-5;
+  }
+  ul ul li:not(:where(.not-content *)) {
+    @apply mt-0 list-item list-inside list-[square] leading-tight;
+  }
+}
+
+.expressive-code {
+  &:has(figure > pre.\!hidden) {
+    @apply !hidden;
+  }
+}
+
+/* https://stackoverflow.com/questions/66416614/how-to-create-scrollable-element-in-tailwind-without-a-scrollbar */
+/* Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+@layer starlight.core {
+  .hero {
+    padding-block: 1rem !important;
   }
 }

@@ -24,11 +24,9 @@ import {
 } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
-import {
-  applyTsMorph,
-  jsonSchemaTransform,
-} from "../../src/core/evaluation/expression.js";
+import { applyTsMorph } from "../../src/core/evaluation/expression.js";
 import { httpsRequestSchema } from "../../src/core/request/https-template.js";
+import { jsonSchemaTransform } from "../../src/core/request/eval-template.js";
 
 describe("https-schema-tests", () => {
   it("should abc", async () => {
@@ -127,7 +125,7 @@ describe("https-schema-tests", () => {
     console.log("extended", rendered);
   });
 
-  it("should match unwrapped single elements", async () => {
+  it("should match single elements", async () => {
     const jsonBaseSchema = httpsRequestSchema();
 
     const hctx = mixContext(
@@ -136,7 +134,7 @@ describe("https-schema-tests", () => {
         origin: "https://www.example.com",
         pathname: "/test",
         body: `{
-        "x": unwrapSingle("{{hello}}")
+        "x": ![ ..."{{hello}}" ]
       }`,
       },
       "json",
@@ -162,7 +160,7 @@ describe("https-schema-tests", () => {
     console.log(rendered);
 
     assert.equal(
-      context.evaluationScope.subscopes["body.x.0"].values["hello"].value,
+      context!.evaluationScope.subscopes["body.x.0"].values["hello"].value,
       "world",
     );
   });
@@ -178,7 +176,7 @@ describe("https-schema-tests", () => {
           origin: "https://www.example.com",
           pathname: "/test",
           body: `{
-          "x": unwrapSingle("{{hello}}")
+          "x": ![ ..."{{hello}}" ]
         }`,
         },
         "json",
@@ -250,7 +248,7 @@ describe("https-schema-tests", () => {
           origin: "https://www.example.com",
           pathname: "/test",
           body: `{
-          "x": unwrapSingle("{{hello}}")
+          "x": ![ ..."{{hello}}" ]
         }`,
         },
         "json",
@@ -259,7 +257,7 @@ describe("https-schema-tests", () => {
 
     const { schema } = mergeSchema(
       {
-        mode: "mux",
+        mode: "merge",
         phase: "build",
       },
       httpsPattern,
@@ -293,7 +291,7 @@ describe("https-schema-tests", () => {
 
     const { schema } = mergeSchema(
       {
-        mode: "mux",
+        mode: "merge",
         phase: "build",
       },
       httpsPattern,
@@ -460,7 +458,7 @@ describe("https-schema-tests", () => {
     encoding?: string,
   ) {
     return createMergingContext(
-      { mode: "mix", phase: "build", encoding: encoding! },
+      { mode: "merge", phase: "build", encoding: encoding! },
       s,
       template,
       new ScriptEnvironment({
@@ -538,61 +536,46 @@ describe("https-schema-tests", () => {
     }),
   });
 
-  transforms("parens-to-expressions")
-    .from("(a)")
-    .to(
-      `
-      "{{ = $$expr(\\"a\\") }}"
-  `,
-    )
-    .symbols();
+  transforms("parens-to-expressions").from("(a)").to(`$.$expr("a")`).symbols();
 
   transforms("optional-chain").from("a?.b").to(`a?.b`).symbols("a");
 
   transforms("parens-as-assignments")
     .from("b = ('hello')")
-    .to(`b.$of("{{ = $$expr(\\"'hello'\\") }}")`)
-    .symbols("b");
+    .to(`b.$expr("'hello'")`);
 
   transforms("parens-with-noexport-modifier")
     .from("b = ('hello') as internal")
-    .to(`b.$noexport.$of("{{ = $$expr(\\"('hello')\\") }}")`)
-    .symbols("b");
+    .to(`b.$noexport.$expr("('hello')")`);
 
   transforms("no-parens") //
     .from("b = 'hello'")
-    .to(`b.$of('hello')`)
-    .symbols("b");
+    .to(`$merged(b, 'hello')`)
+    .symbols("$merged", "b");
+
+  transforms("as-secret") //
+    .from("{ data: data as secret }")
+    .to(`{ data: data.$secret }`)
+    .symbols("data");
 
   transforms("no-parens-with-modifier")
     .from("b = 'hello' as secret")
-    .to(`b.$redacted.$of('hello')`)
-    .symbols("b");
+    .to(`$merged('hello', b.$secret)`)
+    .symbols("$merged", "b");
 
   transforms("parens-with-redact-modifier")
-    .from("b.$redact = ('hello')")
-    .to(`b.$redact.$of("{{ = $$expr(\\"'hello'\\") }}")`)
-    .symbols("b");
+    .from("b.$secret = ('hello')")
+    .to(`b.$secret.$expr("'hello'")`);
 
   transforms("plus-as-flow").from("+x").to(`$flow(x)`).symbols("x", "$flow");
-
-  transforms("plusplus-as-mux")
-    .from("++['hello']")
-    .to(`$mux(['hello'])`)
-    .symbols("$mux");
-
-  transforms("minusminus-as-mix")
-    .from("--{ d: 'world' }")
-    .to(`$mix({ d: 'world' })`)
-    .symbols("$mix");
 
   // todo: create a template that can merge two templates,
   // maybe
   //        and("{{ a }}", "{{ b = c }}")
   transforms("reference-reference")
     .from("a = b = (c)")
-    .to(`a.$of(b.$of("{{ = $$expr(\\"c\\") }}"))`)
-    .symbols("a", "b");
+    .to(`$merged(a, b.$expr("c"))`)
+    .symbols("a", "b", "$merged");
 
   transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`).symbols();
 
@@ -601,22 +584,36 @@ describe("https-schema-tests", () => {
     .to(`"{{ a % /abc/ }}"`)
     .symbols();
 
+  transforms("regexp-binding-with-hyphenated-variable")
+    .from("$`a-b` = /abc/")
+    .to(`"{{ a-b % /abc/ }}"`)
+    .symbols();
+
+  transforms("regexp-binding-with-hyphenated-variable-and-path")
+    .from("$`a-b`.c = /abc/")
+    .to(`"{{ a-b.c % /abc/ }}"`)
+    .symbols();
+
   transforms("regexp-binding-and-value")
     .from("a = (x) % /abc/")
     .to(`"{{ a = $$expr(\\"x\\") % /abc/ }}"`);
+
+  transforms("regexp-binding-and-value-hyphenated")
+    .from("$`a-b` = (x) % /abc/")
+    .to(`"{{ a-b = $$expr(\\"x\\") % /abc/ }}"`);
 
   transforms("template-binding")
     .from("`<<${ abc }::${ xyz.pqr = 100+5 }>>`")
     .to(`"<<{{ abc }}::{{ xyz.pqr = $$expr(\\"100+5\\") }}>>"`);
 
   transforms("kv-expression")
-    .from(`[key, undefined] * [ [headers.$key, headers.$value] ]`)
-    .to("$keyed([key, undefined], [[headers.$key, headers.$value]])")
-    .symbols("$keyed", "key", "undefined", "headers");
+    .from(`[key, undefined] * [ ...[headers.$key, headers.$value] ]`)
+    .to("$keyed([key, undefined], $elements([headers.$key, headers.$value]))")
+    .symbols("$keyed", "$elements", "key", "undefined", "headers");
 
   transforms("multi-kv-expression")
-    .from(`{ id: key } ** { id: map.$key, value: map.$value }`)
-    .to("$keyed$mv({ id: key }, { id: map.$key, value: map.$value })")
+    .from(`{ id: key } ** { id: map.$key, value: map.each.$value }`)
+    .to("$keyed$mv({ id: key }, { id: map.$key, value: map.each.$value })")
     .symbols("$keyed$mv", "key", "map");
 
   transforms("array-with-value")
@@ -627,7 +624,7 @@ describe("https-schema-tests", () => {
   transforms("kv-with-computed-properties")
     .from(
       `
-{ id: key } * [{
+{ id: key } * [...{
   id: map.$key,
   a: "{{map.value}}",
   a1: ( value + 1 )
@@ -635,17 +632,46 @@ describe("https-schema-tests", () => {
     )
     .to(
       `
-$keyed({ id: key }, [{
-        id: map.$key,
-        a: "{{map.value}}",
-        a1: "{{ = $$expr(\\"value + 1\\") }}"
-    }])
+$keyed({ id: key }, $elements({
+    id: map.$key,
+    a: "{{map.value}}",
+    a1: $.$expr("value + 1")
+}))
 `,
     )
-    .symbols("$keyed", "key", "map");
+    .symbols("$keyed", "$elements", "key", "map");
 
   transforms("function-calls")
     .from("form({ x: a = 10 })")
-    .to('$form({ x: a.$of($$number("10")) })')
-    .symbols("$form", "a", "$$number");
+    .to('$form({ x: $merged(a, $$number("10")) })')
+    .symbols("$form", "a", "$$number", "$merged");
+
+  transforms("merge-operator-array-archetype-and-array")
+    .from(
+      `
+      {
+        x: [...{ p: xs.p, q: xs.q = (1) }] = [{ p: "hello" }, { p: "world", q: 7 }] 
+      }`,
+    )
+    .to(
+      `
+{
+    x: $merged($elements({ p: xs.p, q: xs.q.$expr("1") }), [{ p: "hello" }, { p: "world", q: $$number("7") }])
+}`,
+    );
+
+  transforms("match-mode")
+    .from(`~~{ x: "{{x}}" }`)
+    .to(`$match({ x: "{{x}}" })`)
+    .symbols("$match");
+
+  transforms("meld-mode")
+    .from(`~{ x: "{{x}}" }`)
+    .to(`$meld({ x: "{{x}}" })`)
+    .symbols("$meld");
+
+  transforms("scoped-objects")
+    .from(`{ ...{ x: obj.x, y: obj.y } }`)
+    .to(`$scoped({ x: obj.x, y: obj.y })`)
+    .symbols("$scoped", "obj");
 });

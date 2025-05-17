@@ -15,6 +15,7 @@ import { PardonFetchExecution, pardonExecutionHandle } from "pardon/playground";
 import { type pardon as pardonFn } from "pardon";
 import { createMemo, type Accessor } from "solid-js";
 export { deferred } from "pardon/utils";
+import { users } from "@components/todo-server-hook.ts";
 
 export type ExecutionHandle = ReturnType<typeof createExecutionMemo>;
 export type ExecutionContinuation = Exclude<
@@ -28,7 +29,8 @@ export type PlaygroundOptions = {
   editor?: boolean | string;
   data?: boolean;
   response?: boolean;
-  server?: "products";
+  server?: "products" | "todo";
+  id?: string;
 };
 
 export function createExecutionMemo({
@@ -36,13 +38,13 @@ export function createExecutionMemo({
   execution,
   input,
   restart,
-  runtime,
 }: {
-  context: Accessor<{ application: ApplicationContext } | { error: unknown }>;
+  context: Accessor<
+    { application: ApplicationContext; server?: string } | { error: unknown }
+  >;
   input: Accessor<string>;
   execution: typeof PardonFetchExecution;
   restart: Accessor<object>;
-  runtime?: (pardon: typeof pardonFn) => Record<string, unknown>;
 }) {
   const commonRuntime = {
     delayed: (time: number, value: unknown) =>
@@ -105,12 +107,47 @@ export function createExecutionMemo({
         );
       }
 
-      // hack for scripting.mdx
-      if (resolved === "pardon:example/products/products-helper.ts") {
+      console.log(ctx.server, resolved);
+      // hack for intro
+      if (
+        ctx.server === "todo" &&
+        resolved === "pardon:todo/authorization.ts"
+      ) {
+        function getPassword(username: string) {
+          return users()[username];
+        }
+
+        return {
+          async authorizeUser({
+            origin,
+            username,
+          }: {
+            origin: string;
+            username: string;
+          }) {
+            const {
+              ingress: {
+                secrets: { token },
+              },
+            } = await pardon({
+              origin,
+              username,
+            })`PUT https://todo.example.com/users`();
+
+            return token;
+          },
+          getPassword,
+        };
+      }
+
+      if (
+        ctx.server === "products" &&
+        resolved === "pardon:example/products/products-helper.ts"
+      ) {
         return {
           async price({ product, env }: { product: string; env: string }) {
             const {
-              inbound: {
+              ingress: {
                 values: { price },
               },
             } = await pardon({
@@ -139,12 +176,7 @@ export function createExecutionMemo({
     const { pardon } = ctx;
 
     try {
-      const handle = pardon(
-        {},
-        {
-          runtime: runtime?.(pardon),
-        },
-      );
+      const handle = pardon({}, {});
       const http = input();
       const execution = http ? handle`${input()}`.init() : handle.match("");
 

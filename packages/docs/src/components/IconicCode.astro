@@ -12,32 +12,38 @@ governing permissions and limitations under the License.
 */
 
 import { Icon } from "@astrojs/starlight/components";
-import { TbSettings, TbPencil, TbCode } from "solid-icons/tb";
-import { iconSize } from "./pardon-shared.ts";
+import type { StarlightIcon } from "@astrojs/starlight/types";
 
 type IconProps = Parameters<typeof Icon>[0];
-type SolidIconNames = "setting" | "editor";
 
 export type Props = Omit<IconProps, "name"> & {
-  name: IconProps["name"] | SolidIconNames;
+  name: keyof typeof NamedIcons | StarlightIcon;
   titled?: boolean;
 };
 
+const NamedIcons = {
+  setting: IconTablerSettings,
+  pencil: IconTablerPencil,
+  editor: IconTablerCode,
+} as const;
+
 const { name, titled, ...props } = Astro.props;
+
+const NamedIcon = NamedIcons[name as keyof typeof NamedIcons];
 ---
 
 <div class="iconic relative" data-titled={titled}>
   <slot />
   <div class="icon" data-name={name}>
     {
-      name === "setting" ? (
-        <TbSettings size={iconSize} color="gray" {...props} />
-      ) : name === "pencil" ? (
-        <TbPencil size={iconSize} color="gray" {...props} />
-      ) : name === "editor" ? (
-        <TbCode size={iconSize} color="gray" {...props} />
+      NamedIcon ? (
+        <NamedIcon class="text-2xl" color="gray" {...props} />
       ) : (
-        <Icon name={name} class="icon text-3xl text-gray-500" {...props} />
+        <Icon
+          name={name as StarlightIcon}
+          class="icon text-3xl text-gray-500"
+          {...props}
+        />
       )
     }
   </div>
@@ -45,7 +51,7 @@ const { name, titled, ...props } = Astro.props;
 
 <style>
   .icon {
-    @apply absolute right-[9px] top-[-9.5px] rounded-full border-2 border-dotted scale-75;
+    @apply absolute top-[-9.5px] right-[9px] scale-75 rounded-full border-2 border-dotted;
   }
 
   .icon > * {
@@ -71,6 +77,6 @@ const { name, titled, ...props } = Astro.props;
     .icon,
   .iconic:has(.expressive-code .frame .copy .feedback.show):not(:has(.no-copy))
     > .icon {
-    @apply opacity-30 -translate-x-8;
+    @apply -translate-x-8 opacity-30;
   }
 </style>

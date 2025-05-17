@@ -37,35 +37,6 @@ export type HttpEntityInsert = Pick<HttpEntity, "req">;
 export const httpOps = cachedOps(httpOps_);
 
 export function httpOps_({ sqlite }: PardonDatabase) {
-  // transitional code to update the http table
-  if (
-    (sqlite.pragma('table_info("http")') as any[])?.find(
-      ({ name }) => name === "endpoint",
-    )
-  ) {
-    console.warn("-- (once) migrating http table! --");
-    sqlite.exec(`
-PRAGMA foreign_keys=off;
-BEGIN TRANSACTION;
-
-CREATE TABLE IF NOT EXISTS "http-temp" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
-    "ask" TEXT NOT NULL,
-    "req" TEXT NOT NULL,
-    "res" TEXT,
-    "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-INSERT INTO "http-temp" SELECT "id", "req" as "ask", "req", "res", "created_at" FROM "http";
-DROP TABLE "http";
-ALTER TABLE "http-temp" RENAME TO "http";
-
-COMMIT;
-PRAGMA foreign_keys=on;
-
-DROP TABLE IF EXISTS "http_awaited";
-`);
-  }
-
   sqlite.exec(`
 CREATE TABLE IF NOT EXISTS "http"
 (

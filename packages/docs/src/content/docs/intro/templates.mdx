@@ -24,472 +24,458 @@ import {
   CodeGrid,
   FlexyCodeGrid,
   PardonPlayground,
-  SolidIcon,
+  TemplatePlayground
 } from '@components';
 import {
   productsExample,
   productsExampleWithAuth,
 } from'@pardon/templates-collections'
 
-Pardon's template/schema engine is the foundation of how Pardon understands and builds
-requests.  The engine's main operation is "matching", but the logic includes both
-_conflict detection_ and _progressive enhancement_.
+Pardon's template engine is the foundation for how Pardon understands and builds
+requests.
 
-The composition of multiple (compatible) templates forms a "schema"
-But we'll defer the discussion of exactly what schemas represent and how they are composed for [later](./schemas),
-because we can use basic templates without understanding them.
+For the following discussion, basic understanding of programming terms is assumed.
 
 ## Templates
 
-Pardon's templates are HTTP-like text, but commonly they represent, in part,
-JSON requests.
+Templates are a novel way of structuring or destructuring data, with a
+focus on JSON values, objects, and arrays with "minimal" extra syntax.
 
-But to understand how pardon handles the overall request object we need to first
-look at how it would operate on a single (string) value in a JSON request.
+Some parts of templates represent and break down "atomic" values like numbers, strings, booleans, or `null`, while
+others are suitable for representing structures like objects and arrays.  We can also use templates to manage
+encodings like base64-encoded JSON.
 
-A "simple" pattern (where the entire string is a single interpolated value)
-can match simple values like strings (text), matching these two (in either order)
-would be allowed, and additionally resolve `name` to `"some value"`.
+### Interpolation Variables
 
-<CodeGrid>
-```text "{{name}}"
-"{{name}}"
-```
-```text /"some value"/
-"some value"
-```
-</CodeGrid>
+There is both a string interpolation and a special javascript/typescript syntax for templating,
+the javascript syntax is useful in JSON contexts like request bodies, while the interpolation syntax
+is needed for other parts of the http request, like the request origin, pathname, query params and headers.
 
-Pardon also allows simple templates to match numbers as values,
-here we resolve the value `name` to `123` (as a number rather than as a string).
-<CodeGrid>
-```text "{{name}}"
-"{{name}}"
-```
-```text /123/
-123
-```
-</CodeGrid>
-
-We can also have non-simple templates, a non-simple template can also
-break/compose a string (this only makes sense for strings, of course).
-
-<CodeGrid>
-```text del="{{greeting}}" ins="{{planetoid}}"
-"{{greeting}} {{planetoid}}"
-```
-```text del="hello" ins="world"
-"hello world"
-```
-</CodeGrid>
-
-If multiple templates for the same value are combined, Pardon will try
-to resolve everything.  Here `"hello world"` provides a value for the template,
-and so we can resolve both the `"{{value}}"` and the `"{{greeting}} {{planetoid}}"`
-template against that.
-
-(This makes sense because `/^(.*) (.*)$/` can only match one way).
-
-<FlexyCodeGrid centered columns={3}>
-```text del="{{greeting}}" ins="{{planetoid}}"
-"{{greeting}} {{planetoid}}"
-```
-```text /"{{value}}"/
-"{{value}}"
-```
-```text del="hello" ins="world"
-"hello world"
-```
-</FlexyCodeGrid>
-This resolves the three variables as one might expect.
-<FlexyCodeGrid centered>
-```text del=/greeting = \S*/
-greeting = "hello" 
-```
-```text ins=/planetoid = \S*/
-planetoid = "world"
-```
-```text /value = .*/
-value = "hello world"
-```
-</FlexyCodeGrid>
-
-:::note
-The full structure of a `{{...}}` pattern is covered in 
-[./patterns](patterns).
-:::
-
-Attempting to extend/merge an incompatible template fails: Pardon recognizes these conflicts.
-
-<FlexyCodeGrid centered>
-```text del="hello"
-"hello"
-```
-<Icon name="close" />
-```text del="world"
-"world"
-```
-</FlexyCodeGrid>
-
-Pardon would also reject this combination, as the template would match the regular expression `/^(.+) (.+)$/`
-and `"hello"` is missing a space.
-
-<FlexyCodeGrid centered>
-```text del="hello"
-"hello"
-```
-<Icon name="close" />
-```text del="world"
-"{{greeting}} {{planetoid}}"
-```
-</FlexyCodeGrid>
-
-:::tip
-Pardon is smart enough to reject the combination of `"x-{{abc}}"` and `"y-{{pqr}}"` as long as the _different
-part_ is a (not parameterized) incompatible _start_ or _end_ of the pattern.  The patterns `"{{a}}-x-{{b}}"` and `"{{p}}-y-{{q}}"`
-could be compatible (e.g., `"w-x-y-z"` with `a = "w"`, `b = "y-z"`, `p = "w-x"`, and `q = "z"`) and Pardon
-does not attempt to solve the do-these-regular-expressions-match-anything problem in general.
-:::
-
-## Rendering Templates
-
-All by itself, the template `"{{hello}}"` cannot be rendered without
-providing some value for `hello`. If this template were matched against the text `"world"`, then
-`hello` would be resolved to the value `"world"`.
-
-The value for `hello` could also be provided externally as a value.
-
-We can also provide expressions (javascript!) in templates, which will be evaluated if no value could
-be resolved.
-
-<FlexyCodeGrid centered>
-```text "hello" "'world'"
-"{{hello = 'world'}}"
-```
-<Icon name="right-arrow" />
-```text ins=/".*"/
-"world"
-```
-</FlexyCodeGrid>
-
-But these expression-values match as normal, skipping evaluation.
-
-<FlexyCodeGrid centered>
-```text "hello"
-"{{hello = 'world'}}"
-```
-<Icon name="close" />
-```text /".*"/
-"greetings"
-```
-<Icon name="right-arrow" />
-```text ins=/".*"/
-"greetings"
-```
-</FlexyCodeGrid>
-
-Once a value is resolved (through matching or script evaluation), it can
-be referenced in other parts of the same template or as values in scripts.
-
-For example, consider the following template and it's default output
-<FlexyCodeGrid centered>
-```text
-{ a: "{{hello = 'world'}}",
-  A: "{{HELLO = hello.toUpperCase()}}" }
-```
-<Icon name="right-arrow" />
-```text ins=/".*"/
-{ a: "world",
-  A: "WORLD" }
-```
-</FlexyCodeGrid>
-
-If we merge this schema we can get different results
+Interpolations are structured with the following pieces, _all of which are optional._
 
 <Tabs>
-<TabItem label="just &quot;a&quot;">
-If we specify the value of `a` we resolve `hello="planet"` which becomes
-and the expression for `A` uses it instead of the default.
-<FlexyCodeGrid centered>
-```text /"[a-z]*"/
-{ a: "planet" }
-```
-<Icon name="right-arrow" />
-```text /"[a-z]*"/ ins=/"[A-Z]*"/
-{ a: "planet", A: "PLANET" }
-```
-</FlexyCodeGrid>
-</TabItem>
-<TabItem label="both">
-Alternatively, we can resolve both values which skips any expression evaluation here.
-<FlexyCodeGrid centered>
-```text
-{ a: "planet",
-A: "jupiter" }
-```
-<Icon name="right-arrow" />
-```text ins=/".*"/
-{ a: "planet",
-  A: "jupiter" }
-```
-</FlexyCodeGrid>
-</TabItem>
-<TabItem label="just &quot;A&quot;">
-If we only specify `A`, then `a` retains its default expression and `A` gets
-overridden.
-<FlexyCodeGrid centered>
-```text
-{ A: "jupiter" }
-```
-<Icon name="right-arrow" />
-```text ins=/".*"/
-{ a: "world",
-  A: "jupiter" }
-```
-</FlexyCodeGrid>
-</TabItem>
+  <TabItem label="name">
+    <FlexyCodeGrid centered>
+      ```text "?" ins="name" "= expr" "% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The name identifies this interpolation: if a value is matched,... or a value is passed,... or a value
+    is evaluated somewhere else.
+
+    Names can be hyphenated (but cannot start with a hyphen.)
+  </TabItem>
+  <TabItem label="hints">
+    <FlexyCodeGrid centered>
+      ```text ins="?" "name" "= expr" "% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The hint adds some flavor to how this value is processed, a `?` allows this value to be omitted,
+    a `@` marks it as a secret, `...` modifies the default regex in some contexts (like in the pathname,
+    to allow a value to match multiple path segments), while `-` removes a value from rendering entirely.
+  </TabItem>
+  <TabItem label="expr">
+    <FlexyCodeGrid centered>
+      ```text "?" "name" ins="= expr" "% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The expression provides a default value if one is not available through matching and merging.
+    Expressions can be arbitrary asynchronous javascript expressions.
+  </TabItem>
+  <TabItem label="regex">
+    <FlexyCodeGrid centered>
+      ```text "?" "name" "= expr" ins="% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The regex can be used to specify exactly what values qualify for this field.
+  </TabItem>
 </Tabs>
 
-Pardon can handle any evaluation order that does not result in a cycle
-(including asynchronous / promise expressions).
+We saw these in `GET https://todo.example.com/TODOS/{{todo}}`.
 
-:::caution
-If a value has multiple options to be resolved or evaluated: first of all that would be weird,...
-but hopefully Pardon is consistent about which option it uses.
-:::
+### Template References
 
-## Exploring a template
+In JSON bodies, references might be preferable, as they are shorter to write.  Any raw value identifier
+in a JSON template is treated as a reference! For example, the POST task api in the introduction
+can be represented a little more ergonomically with references, especially the `task` which appears
+as a shorthand property:
 
-Moving on to a (slightly more) real example: a REST API that
-creates products with a name and a price.
-
-```http
->>>
-POST https://example.com/products
+<FlexyCodeGrid centered>
+```http /".*",?/
+POST https://todo.example.com/todos
+Authorization: User {{@token}}
+Content-Type: application/json
 
 {
-  "name": "{{name}}",
-  "price": "{{price}}"
+  "task": "{{task}}",
+  "done": "{{?done}}"
 }
 ```
+```http ins="task" ins="done: done.$optional"
+POST https://todo.example.com/todos
+Authorization: User {{@token}}
+Content-Type: application/json
 
-This is parsed into a structure and applied to a template defined roughly as the following
-
-<FlexyCodeGrid>
-```js
 {
-  method: "{{method}}",
-  url: {
-    origin: "{{origin}}",
-    pathname: "{{pathname}}"
-  },
-  headers: [...],
-  body: ...
-}
-```
-<Icon name="close" />
-```js
-{
-  method: "POST",
-  url: {
-    origin: "https://example.com",
-    pathname: "/products"
-  },
-  headers: [],
-  body: { "name": "{{name}}",
-          "price": "{{price}}" }
+  task,
+  done: done.$optional
 }
 ```
 </FlexyCodeGrid>
 
-:::note
-The `body`, `headers`, `pathname` patterns all have their own tweaks.  The body is actually
-a string template that can handle multiple encodings (determined by the first template that
-specifies anything).
+For simple values, the choice to use references or interpolations is purely a stylistic one.
 
-For instance, in the pathname `{{x}}` is matched with this regex `/[^/]+/` while `{{...x}}` is matched with `/.*/`,
-and `{{/?}}` at the end of a pathname specifies an optional (trailing) slash.
+Expressions in the javascript syntax is "(anything in parentheses)".  For instance a default
+value of `done` can be provided with:
+```js
+{
+  done: done = (false)
+}
+```
+
+This is essentially the same as an interpolated template with a default value.
+```js
+{
+  "done": "{{done = false}}"
+}
+```
+
+We can omit the "optional" hint (`?`) with this expression since there will always be a default.
+
+<TemplatePlayground>
+```
+task="learn pardon"
+
+{
+  task,
+  done: done = (false)
+}
+```
+</TemplatePlayground>
+
+The values below the dashed line are the values of any variables and references
+bound by the template.
+
+## Encodings
+
+Sometimes values have specific encodings that can be broken down further,
+for instance, you might have an APIs that takes (or returns) base64-encoded JSON strings.
+
+Pardon can describe this with `base64(json(...))`.
+
+<TemplatePlayground>
+```
+hello=world
+
+{
+  data: base64(json({ hello }))
+}
+```
+</TemplatePlayground>
+
+We can bind references to each step here to see what's going on, try updating the above with
+`data: base64(j = json(o = { hello }))` to see the `j` and `o` values.
+
+Encodings can also be used to extract data from encoded values!  In the following example,
+we're matching the template with an already base64-encoded value, and we still get `hello=world` out.
+
+<TemplatePlayground>
+```
+{
+  data: base64(json({ hello }))
+}
+---
+{ "data": "eyJoZWxsbyI6IndvcmxkIn0=" }
+```
+</TemplatePlayground>
+
+## Arrays in templates
+
+Processing arrays requires setting up a template to process multiple items.
+Let's start with the template for one item:
+
+<TemplatePlayground>
+```
+[
+  { id, task, done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false }
+]
+```
+</TemplatePlayground>
+
+Adding a second value `{ id: "T1002", task: "world", done: false }`, to the data would not
+work as the arrays now have different lengths.
+
+To work around this, a template needs to specify any number of items...
+
+<TemplatePlayground>
+```
+[
+  ...{ id, task, done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false },
+  { id: "T1002", task: "world", done: false }
+]
+```
+</TemplatePlayground>
+
+... using ellipsis to identify an item as a template for items in the array.
+
+The data is now compatible with the template, but notice how no values are exported!
+The values for each `id`, `task`, and `done` value 
+are in the scope of each array element: there's no way to uniquely identify them.
+For them to show up in the output, we need to give them a property path, `todos.id`, `todos.task` etc...
+
+<TemplatePlayground>
+```
+[
+  ...{ id: todos.id, task: todos.task, done: todos.done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false },
+  { id: "T1002", task: "world", done: true }
+]
+```
+</TemplatePlayground>
+
+The `todos` value is implied to be an array of objects structured as `{ id, task, done }` elements,
+so the actual data paths are `todos[0].id` or `todos[1].task` etc... 
+
+This works in reverse as well, specifying an array of todos as input and the template:
+
+<TemplatePlayground>
+```
+todos=[
+  { id="T1001" task="hello" done=false }
+  { id="T1002" task="world" done=true }
+]
+
+[
+  ...{ id: todos.id, task: todos.task, done: todos.done }
+]
+```
+</TemplatePlayground>
+
+### Mapped Data
+
+Now, as a user of this data, you might not want to have to search the array for 
+a particular `id`: it would be more natural to bind this as a map.
+
+Pardon supports this with a little syntax: `{ id: key } * [...template]`.
+The first part is a template which resolves a value for `key` and then
+the `todos` array is represented internally as a map based on that key.
+
+<TemplatePlayground>
+```
+{ id: key } * [
+  ...{ task: todos.task, done: todos.done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false },
+  { id: "T1002", task: "world", done: true }
+]
+```
+</TemplatePlayground>
+
+This form can also be used in reverse, although in this case
+we add `todos.$key` to render the id back into the list:
+
+<TemplatePlayground>
+```
+todos={
+  T1001={ task=hello done=false }
+  T1002={ task=world done=true }
+}
+
+{ id: key } * [
+  ...{ id: todos.$key, task: todos.task, done: todos.done }
+]
+```
+</TemplatePlayground>
+
+### Unscoped Mapped Data
+
+Keyed arrays can also work unscoped.
+For this usage, we omit the `...` example element.
+
+<TemplatePlayground>
+```
+{ key } * [
+  { key: "hello", value: hello },
+  { key: "hi", value: hi },
+]
+---
+hello=world
+[
+  { key: "hi", value: "developer" },
+  { key: "extra", value: "data" },
+]
+```
+</TemplatePlayground>
+
+Now the values `hello` and `hi` are bound to the root scope, and can be provided as input data, or
+matched.  Additional entries can be added too, so long as the key is distinct.
+
+### Single-Item Arrays
+
+One last feature for dealing with arrays is when we have a single element and we want to treat it as a single-item array.
+This is for interoperability with the Java/Jackson `WRITE_SINGLE_ELEM_ARRAYS_UNWRAPPED` and `ACCEPT_SINGLE_VALUE_AS_ARRAY`
+functionality.
+
+We specify these in Pardon with `![...list.field]` syntax.  Consider the following template expansion
+
+<TemplatePlayground>
+```
+one=[1]
+two=[2,2]
+{
+  one: ![...one.$value],
+  two: ![...two.$value],
+  three: ![...three.$value],
+  four: ![...four.$value],
+  five: ![...five.$value]
+}
+---
+{
+  three: 3,
+  four: [4],
+  five: [5,5]
+}
+```
+</TemplatePlayground>
+
+This demonstates the following cases:
+
+| Case | Description |
+| --- | --- |
+| `one` | a single item list serializes unwrapped |
+| `two` | a multi-item list serializes as a list |
+| `three` | an item match is rendered unwrapped |
+| `four` | a single item list stays as a list |
+| `five` | a multi-item list also remains as a list |
+
+and in all cases the variable/value data is in lists.
+
+## HTTP Templates
+
+HTTP is parsed before being matched into a base http template.
+The template text on the left is parsed into an object for further processing.
+
+<FlexyCodeGrid>
+```http title="http input"
+POST http://origin/path?x=y
+header: value
+
+content
+```
+```json title="parsed"
+{
+  method: "POST",
+  origin: "http://origin",
+  pathname: "/path",
+  searchParams:
+    new URLSearchParams("?x=y"),
+  headers:
+    new Headers({ "header": "value" }),
+  body: 'content'
+}
+```
+</FlexyCodeGrid>
+
+This parsed object data is then merged with a template that represents all http requests.
+
+<FlexyCodeGrid>
+```js title="parsed"
+{
+  method: "POST",
+  origin: "http://service",
+  pathname: "/path",
+  searchParams:
+    new URLSearchParams("?x=y"),
+  headers:
+    new Headers({ "header": "value" }),
+  body: 'content'
+}
+```
+```js title="template"
+{
+    method: "{{method}}",
+    origin: "{{origin}}",
+    pathname: "{{...pathname}}",
+    searchParams: search = ...,
+
+    headers: headers = ...,
+
+    body: body = ...
+}
+```
+</FlexyCodeGrid>
+
+The body template _can be_ interpreted using the special template syntax, but it can also be treated
+as url-encoded form data (that still supports interpolations), or plain text. {/* binary support is pending */}
+The other values in an HTTP template only allow for `{{ ... }}`-style interpolations.
+
+### HTTP Request and Response Bodies
+
+The body template makes a best-guess on what encoding it has.  Some options are `text`, `raw`, `json` (includes script), and `form`.
+
+A `Content-Type` header will help pardon guess about the type.
+
+There is also a meta "header" which will override any guesses.  E.g.,
+```
+[body]: form
+```
+
+(Meta headers are not legal HTTP headers and are not sent).
+
+If the body parses as `JSON` it is JSON, if the body parses as a script,
+it is also `JSON`, unless it defines another encoding at the top level.
+If the body doesn't parse, it is treated as "text", and interpolations still apply.
+
+For example, we can define a form using either `form()` encoding or directly as text.
+<FlexyCodeGrid centered>
+```http
+POST https://...
+
+
+form({ a: 'b' })
+```
+```http
+POST https://...
+[body]: form
+
+a=b&c=d
+```
+```http
+POST https://...
+Content-Type: x-www-form-urlencoded
+
+a=b&c=d
+```
+</FlexyCodeGrid>
+
+Specifying `[body]: raw`, for instance, turns off all template processing and sends the body exactly as is.
+
+:::note
+Some services require the `Content-Type` to be set, `[body]` is usually not necessary.
 :::
 
-Anyway, let's explore how pardon behaves with this template with these quick exercises.
+# Next Steps
 
-<p/>
-<PardonPlayground example={`
-  POST https://example.com/products
+Explore Pardon's testcase generation system and HTTPS flows.
 
-  {
-    "name": "sample",
-    "price": 9.99
-  }
-`} config={productsExample}>
+<CollectionLinkCard href="/intro/testcases" />
 
-<Exercises>
-  <ExerciseItem label="Changing values"
-    prompt="Change the values in the body of the request.">
+A deeper dive into the features and syntax transformations available in the template runtime.
 
-Try updating the name or price values.  Note that since
-price is a javascript number value, the rendering of e.g., `"price": 9.00` will
-become `"price": 9`.
-
-Conversely, providing arrays or objects for these fields will currently confuse Pardon.
-(note: I have not decided if this is a bug or just how things work.)
-
-```http ins="Fez" copy=playground
-POST https://example.com/products
-
-{
-  "name": "Fez",
-  "price": 9.99
-}
-```
-  </ExerciseItem>
-  <ExerciseItem label="Adding fields"
-    prompt="Add another field to the request body.">
-
-Other fields can be added freely into the template.
-
-```http ins=/(?<=9),/ ins=/.*description.*/ copy=playground
-POST https://example.com/products
-
-{
-  "name": "Fez",
-  "price": 9.99,
-  "description": "Fezzes are cool"
-}
-```
-  </ExerciseItem>
-  <ExerciseItem label="Adding queries"
-    prompt="Add a query param to the request url.">
-
-We can also add query params and pardon can integrate it into the request.
-```http ins=/(?<=9),/ ins="?hello=world" copy=playground
-POST https://example.com/products?hello=world
-
-{
-  "name": "Fez",
-  "price": 9.99
-}
-```
-  </ExerciseItem>
-  <ExerciseItem label="Adding headers"
-    prompt="Add a header to the request.">
-
-Headers and query params can also be added, the
-base template does not restrict additional data so long
-as the additional data can be merged in.
-
-```http ins={2} copy=playground
-POST https://example.com/products
-Bowties: also cool
-
-{
-  "name": "Fez",
-  "price": 9.99,
-  "description": "fezzes are cool"
-}
-```
-
-    <Aside type="caution" title="if you are typing this example out">
-    Same as the HTTP wire protocol, a blank line separates the body from the headers.
-    </Aside>
-  </ExerciseItem>
-</Exercises>
-</PardonPlayground>
-
-We've covered the basics of how a template supports 
-building a request. Feel free to explore negative cases as well: change the URL path or origin,
-remove fields from the request, etc... and watch for when pardon can no
-longer match the template (<span class="inline-flex relative translate-y-[25%] text-xl"><SolidIcon name="annoyed"/></span>)
-or render it (<span class="inline-flex relative translate-y-[25%] text-xl"><SolidIcon name="unhappy"/></span>).
-
-## Scripted values
-
-Expressions can use other values from the template, either resolved through matching
-or evaluated in other expressions.
-
-For example, since we have a value for `{{name}}` matched by the template, we
-can use the `name` value in an expression for another field.
-
-<PardonPlayground example={`
-  POST https://example.com/products
-
-  {
-    "name": "pay-by-the-letter",
-    "price": "{{ price = name.length * 10 }}"
-  }
-`}
-config={productsExample}>
-
-<Exercises>
-  <ExerciseItem label="Change value">
-    <ExerciseItemPrompt>Change the name to `"pardon‽"`.</ExerciseItemPrompt>
-
-You can see the `price` value change automatically as
-you add or remove letters from the name value.
-
-```http ins="pardon‽" copy=playground
-POST https://example.com/products
-
-{
-  "name": "pardon‽",
-  "price": "{{ price = name.length * 10 }}"
-}
-```
-  </ExerciseItem>
-  <ExerciseItem label="Changing Expressions"
-    prompt="Set the price to a quarter per letter.">
-
-Inflation has dropped the demand for luxury letters: we need
-to make a drastic price-cut to maintain our order flow rates,
-price is now 25 cents a letter.
-
-```http ins="name.length / 4" copy=playground
-POST https://example.com/products
-
-{
-  "name": "pardon‽",
-  "price": "{{ price = name.length / 4 }}"
-}
-```
-  </ExerciseItem>
-  <ExerciseItem label="Adding Computed Fields"
-    prompt="Add another field to the request body.">
-
-That didn't drive orders enough and management is desperate:
-we need to highlight our payment plan offering:
-
-```http ins=/(?<=[}]"),/ ins=/.*description.*/ ins=/.*toUpperCase.*/ copy=playground
-POST https://example.com/products
-
-{
-  "name": "pardon‽",
-  "price": "{{ price = name.length*0.25 }}",
-  "description":
-    "{{= `${name.toUpperCase()} for only 4 easy payments of ${price/4}!`}}"
-}
-```
-
-(note that parameter expressions don't need a name, we just start with `{{=`...)
-  </ExerciseItem>
-</Exercises>
-
-</PardonPlayground>
-
-{/*
-  * Sharp eyes may notice that the `price` is always a string here, rather than a number.
-  * This is probably a bug?
-  */}
-
-## Next Steps
-
-A thorough discussion of the pattern syntax.
-
-<CollectionLinkCard href="/intro/patterns" />
-
-Exploring a small collection of endpoints for our service example.
-
-<CollectionLinkCard href="/intro/collections" />
-
-An explanation of how templates are composed into schemas.
-
-<CollectionLinkCard href="/intro/schemas" />
+<CollectionLinkCard href="/reference/template-runtime" />

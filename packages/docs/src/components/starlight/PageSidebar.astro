@@ -1,0 +1,53 @@
+---
+/*
+Copyright 2025 Adobe. All rights reserved.
+This file is licensed to you under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+*/
+import Default from "@astrojs/starlight/components/PageSidebar.astro";
+import { TodoView } from "@components";
+
+const { server } = Astro.locals.starlightRoute.entry.data;
+---
+
+{
+  server != "todo" ? (
+    <Default />
+  ) : (
+    <>
+      <div class="right-sidebar-panel sl-hidden lg:sl-block relative flex h-full flex-col">
+        <TodoView>
+          <Default />
+        </TodoView>
+      </div>
+      <div class="small-screen fixed right-0 bottom-0 z-50 rounded-tl-lg bg-gray-500/75 p-5 dark:bg-stone-700/75">
+        <TodoView />
+      </div>
+    </>
+  )
+}
+
+<style>
+  /**
+   * arguably, this is an improvement to the css in TwoColumnContent.astro
+   * (note: mostly tested in Firefox)
+   */
+  @media (min-width: 72rem) {
+    :global(.small-screen) {
+      @apply hidden;
+    }
+    :global(.right-sidebar-container) {
+      width: calc((100% - var(--sl-content-width)) / 2);
+    }
+    :global(.right-sidebar) {
+      width: inherit;
+      max-width: inherit;
+    }
+  }
+</style>

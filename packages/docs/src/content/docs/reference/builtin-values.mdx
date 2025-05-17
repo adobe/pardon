@@ -1,0 +1,58 @@
+---
+# Copyright 2025 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Collections
+description: https files
+next: false
+prev: false
+---
+
+import {
+  FileTree,
+} from '@astrojs/starlight/components';
+
+import {
+  FlexyCodeGrid
+} from "@components";
+
+## Built-in Values
+
+### HTTP Requests
+HTTP requests are parsed and matched with a base template.
+The base template defines the following variables:
+
+| Variable | Note |
+| --- | --- |
+| `method` | The http request method, e.g., `GET`, `POST`, `PUT` |
+| `origin` | The request origin, including the schema and domain |
+| `pathname` | The request path, up to the `?search` part |
+| `search` | The request search params, as an object largely compatible with `URLSearchParams` |
+| `headers` | The request headers, as an object largely compatible with `Headers` |
+| `body` | The request body, usually as a `string`. |
+
+In the templates, `ANY https://....` declares a request with no request method (which matches any),
+and `ANY //` can be used to define a request with no origin to match anything.  These forms are useful
+for writing mixin requests.
+
+In the pathname, `{{variable}}` will have a default regex of `/[^/]+/`, i.e., one or more non-slash characters,
+while the hint `...` as in `{{...variable}}` matches `/.*/` (anything).
+
+Similarly, in the origin, `{{variable}}` matches `/[^.]+/` (one or more non-dots), and `{{...variable}}` matches `/.*/` (anything).
+
+### HTTP Responses
+HTTP responses are parsed and matched with a base template.
+The base template defines the following variables:
+
+| Variable | Note |
+| --- | --- |
+| `status` | The response status |
+| `headers` | The response headers, as an object largely compatible with `Headers` |
+| `body` | The response body, usually as a `string`. |

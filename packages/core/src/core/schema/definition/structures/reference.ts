@@ -19,8 +19,8 @@ import {
   isSchematic,
   merge,
   maybeResolve,
+  directMerge,
 } from "../../core/schema-ops.js";
-import { parseScopedIdentifier } from "../../core/scope.js";
 import {
   Schema,
   SchemaContext,
@@ -30,9 +30,9 @@ import {
   SchematicOps,
   Template,
 } from "../../core/types.js";
-import { stubSchema } from "./stub.js";
-import { redact, RedactedOps } from "./redact.js";
-import { isSecret } from "../hinting.js";
+import { isStubSchema, stubSchema } from "./stub.js";
+import { RedactedOps } from "./redact.js";
+import { isOptional, isRequired, isSecret } from "../hinting.js";
 import {
   convertScalar,
   Scalar,
@@ -46,13 +46,16 @@ import {
   rescope,
 } from "../../core/context-util.js";
 import { isMergingContext } from "../../core/schema.js";
+import { patternize } from "../../core/pattern.js";
+import { isLookupExpr, isLookupValue } from "../../core/scope.js";
 
-type ReferenceSchema<T> = {
+type ReferenceInfo<T> = {
   refs: Set<string>;
   hint: string;
   schema?: Schema<T>;
   encoding?: ScalarType;
   anull?: true;
+  expr?: string;
 };
 
 export type ReferenceSchematicOps<T> = SchematicOps<T> & {
@@ -65,22 +68,24 @@ type ReferenceTemplate<T> = {
   template?: Template<T>;
   encoding?: Exclude<ScalarType, "null">;
   anull?: true;
+  expr?: string;
 };
 
 export type ReferenceSchematic<T> = Schematic<T> & {
-  $of<T>(template: Template<T>): ReferenceSchematic<T>;
+  $expr(expr: string): ReferenceSchematic<T>;
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
   readonly $noexport: ReferenceSchematic<T>;
-  readonly $redacted: ReferenceSchematic<T>;
+  readonly $secret: ReferenceSchematic<T>;
   readonly $optional: ReferenceSchematic<T>;
   readonly $flow: ReferenceSchematic<T>;
-  readonly $redact: ReferenceSchematic<T>;
   readonly $meld: ReferenceSchematic<T>;
   readonly $string: ReferenceSchematic<string>;
   readonly $bool: ReferenceSchematic<boolean>;
+  readonly $boolean: ReferenceSchematic<boolean>;
   readonly $number: ReferenceSchematic<number>;
   readonly $bigint: ReferenceSchematic<bigint>;
+  readonly $null: ReferenceSchematic<T | null>;
   readonly $nullable: ReferenceSchematic<T | null>;
 } & {
   [_: string]: ReferenceSchematic<any>;
@@ -95,13 +100,34 @@ export function isReferenceSchematic<T>(
   );
 }
 
+const types = {
+  $string: { encoding: "string" },
+  $number: { encoding: "number" },
+  $bigint: { encoding: "bigint" },
+  $bool: { encoding: "boolean" },
+  $boolean: { encoding: "boolean" },
+  $null: { anull: true },
+  $nullable: { anull: true },
+};
+
+const hints = {
+  $noexport: "-",
+  $secret: "@",
+  $optional: "?",
+  $required: "!",
+  $meld: "~",
+  $flow: "+",
+};
+
 export function referenceTemplate<T = unknown>(
   reference: ReferenceTemplate<T>,
 ): ReferenceSchematic<T> {
   const referenceSchematic = defineSchematic<ReferenceSchematicOps<T>>({
     expand(context) {
+      const { ref } = reference;
+
       const schema = defineReference({
-        refs: new Set([reference.ref].filter(Boolean)),
+        refs: new Set([ref].filter(Boolean)),
         hint: reference.hint ?? "",
         schema:
           reference.template !== undefined
@@ -109,10 +135,11 @@ export function referenceTemplate<T = unknown>(
             : undefined,
         encoding: reference.encoding,
         anull: reference.anull,
+        expr: reference.expr,
       });
 
-      const value = reference.ref
-        ? context.evaluationScope.resolve(context, reference.ref)
+      const value = ref
+        ? context.evaluationScope.resolve(context, ref)
         : undefined;
 
       if (value?.value !== undefined) {
@@ -123,36 +150,48 @@ export function referenceTemplate<T = unknown>(
     },
     blend(context, next) {
       let { template } = reference;
-      const hint = new Set([...(reference.hint ?? "")]);
+      const { ref } = reference;
+      let hint = reference.hint ?? "";
 
-      if (isSchematic(template)) {
+      while (isSchematic(template)) {
         const ops = exposeSchematic<RedactedOps<T>>(template);
-        if (ops.redacted) {
-          hint.add("@");
+
+        if (!ops.redacted) {
+          break;
         }
-      } else if (isSecret(reference)) {
-        template = redact(template);
-        hint.add("@");
+
+        if (!hint.includes("@")) hint += "@";
+        template = ops.template;
       }
 
       let schema = next({ ...context, template });
-      if (schema && context.template !== undefined) {
-        if (!isSchematic(context.template)) {
-          schema = merge(schema, context);
-        }
+
+      if (template !== undefined && !schema) {
+        return;
+      }
+
+      if (schema && references.has(schema)) {
+        return directMerge(schema, context);
+      }
+
+      if (schema && !isSchematic(context.template)) {
+        schema = merge(schema, context);
       }
 
       if (template !== undefined && !schema) {
         return;
       }
 
-      return defineReference({
-        refs: new Set([reference.ref].filter(Boolean)),
-        hint: [...hint].join(""),
+      schema = defineReference({
+        refs: new Set([ref].filter(Boolean)),
+        hint,
         schema,
         encoding: reference.encoding,
         anull: reference.anull,
+        expr: reference.expr,
       });
+
+      return schema;
     },
     reference() {
       return reference;
@@ -161,110 +200,58 @@ export function referenceTemplate<T = unknown>(
 
   return new Proxy<any>(referenceSchematic, {
     get(target, property) {
-      if (typeof property !== "symbol" && !property.startsWith("$")) {
+      if (typeof property === "symbol") {
+        return target[property];
+      }
+
+      if (!property.startsWith("$")) {
         return referenceTemplate({
           ...reference,
           ref: `${reference.ref}.${property}`,
         });
       }
 
-      return (
-        target[property] ??
-        {
-          get $noexport() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}:`,
-            });
-          },
-          get $redacted() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}@`,
-            });
-          },
-          get $optional() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}?`,
-            });
-          },
-          get $required() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}!`,
-            });
-          },
-          get $meld() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}~`,
-            });
-          },
-          get $flow() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}+`,
-            });
-          },
-          get $redact() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}@`,
-            });
-          },
-          ...(reference.ref && {
-            get $value() {
-              return referenceTemplate({
-                ...reference,
-                ref: `${reference.ref}.@value`,
-              });
-            },
-            get $key() {
-              return referenceTemplate({
-                ...reference,
-                ref: `${reference.ref}.@key`,
-              });
-            },
-          }),
-          $of(template: Template<T>) {
-            return referenceTemplate({
-              ...reference,
-              template,
-            });
-          },
-          get $string() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "string",
-            });
-          },
-          get $number() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "number",
-            });
-          },
-          get $bigint() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "bigint",
-            });
-          },
-          get $bool() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "boolean",
-            });
-          },
-          get $null() {
-            return referenceTemplate({
-              ...reference,
-              anull: true,
-            });
-          },
-        }[property]
-      );
+      if (property === "$expr") {
+        return (expr: string) =>
+          referenceTemplate({
+            ...reference,
+            expr,
+          });
+      }
+
+      if (reference.ref && property == "$value") {
+        return referenceTemplate({
+          ...reference,
+          ref: `${reference.ref}.@value`,
+        });
+      }
+
+      if (reference.ref && property == "$key") {
+        return referenceTemplate({
+          ...reference,
+          ref: `${reference.ref}.@key`,
+        });
+      }
+
+      if (property in hints) {
+        return referenceTemplate({
+          ...reference,
+          hint: `${reference.hint ?? ""}${hints[property]}`,
+        });
+      }
+
+      if (property in types) {
+        return referenceTemplate({
+          ...reference,
+          ...types[property],
+        });
+      }
+
+      if (property in target) {
+        return target[property];
+      }
+
+      throw new Error(`unknown reference modifier: ${String(property)}`);
     },
   });
 }
@@ -281,12 +268,14 @@ function extractReference<T>({
   }
 }
 
-export function defineReference<T = unknown>(
-  referenceSchema: ReferenceSchema<T>,
-): Schema<T> {
-  const { refs, hint, schema, encoding, anull } = referenceSchema;
+const references = new WeakSet<Schema<any>>();
 
-  return defineSchema<T>({
+export function defineReference<T = unknown>(
+  referenceInfo: ReferenceInfo<T>,
+): Schema<T> {
+  const { refs, hint, expr, schema, encoding, anull } = referenceInfo;
+
+  const reference = defineSchema<T>({
     merge(context) {
       const info = extractReference(context);
 
@@ -323,18 +312,39 @@ export function defineReference<T = unknown>(
           });
         }
 
+        if (
+          isRequired(info) &&
+          context.mode === "match" &&
+          context.phase === "validate"
+        ) {
+          if (
+            !expr &&
+            ![...refs].some((ref) => {
+              const declaration = context.evaluationScope.lookup(ref);
+              return (
+                (isLookupExpr(declaration) && declaration.expression) ||
+                isLookupValue(declaration)
+              );
+            })
+          ) {
+            diagnostic(context, `undefined required reference: ${[...refs]}`);
+            return undefined;
+          }
+        }
+
         return defineReference({
           refs: new Set([...refs, info.ref].filter(Boolean)),
           hint: mergedHint,
           schema: merged,
           encoding: info.encoding ?? encoding,
           anull: info.anull || anull,
+          expr: info.expr ?? expr,
         });
       }
 
       if (context.mode === "match") {
         if (context.template !== undefined) {
-          // commitResolution({ resolved: context.template as T }, context);
+          commitResolution({ resolved: context.template as T }, context);
         }
       }
 
@@ -351,17 +361,12 @@ export function defineReference<T = unknown>(
 
       let nextSchema = schema;
 
-      if (encoding) {
+      if (encoding && context.mode === "match") {
         nextSchema = merge(schema ?? stubSchema(), {
           ...context,
-          template: datumTemplate(
-            context.mode === "match"
-              ? (context.template as T & Scalar)
-              : undefined,
-            {
-              type: encoding,
-            },
-          ) as Schematic<T>,
+          template: datumTemplate(context.template as T & Scalar, {
+            type: encoding,
+          }) as Schematic<T>,
         });
 
         if (!nextSchema) {
@@ -375,7 +380,7 @@ export function defineReference<T = unknown>(
 
       nextSchema = merge(nextSchema ?? stubSchema(), {
         ...context,
-        template: resolved ?? context.template,
+        template: context.template ?? resolved,
       });
 
       if (
@@ -391,38 +396,78 @@ export function defineReference<T = unknown>(
       }
 
       return (
-        nextSchema &&
-        defineReference({ ...referenceSchema, schema: nextSchema })
+        nextSchema && defineReference({ ...referenceInfo, schema: nextSchema })
       );
     },
     async render(context) {
       if (schema) {
-        const result = await renderReference(schema, context);
+        const value = await renderReference(schema, context);
 
         // if the schema was a stub, we'll try to derive the value
         // by evaluating the refs.
-        if (result !== undefined) {
-          return convertScalar(result, encoding, { anull }) as T;
+        if (value !== undefined) {
+          return convertScalar(value, encoding, { anull }) as T;
         }
       }
 
       for (const ref of refs) {
+        if (context.cycles.has(`ref:::${ref}`)) {
+          continue;
+        }
+
         const value = (
           context.mode === "render"
-            ? await evaluateIdentifierWithExpression(context, ref)
+            ? await evaluateIdentifierWithExpression(
+                {
+                  ...context,
+                  cycles: new Set(context.cycles).add(`ref:::${ref}`),
+                },
+                ref,
+              )
             : undefined
         ) as T | undefined;
 
-        defineRenderedReferenceValue(context, value);
-
-        return convertScalar(value, encoding, { anull }) as T;
+        if (value !== undefined) {
+          return defineRenderedReferenceValue(
+            context,
+            convertScalar(value, encoding, { anull }) as T,
+          );
+        }
       }
 
-      return anull ? (null as T) : undefined!;
+      if (expr) {
+        const value = (await evaluateIdentifierWithExpression(
+          context,
+          "",
+          expr,
+        )) as T;
+
+        if (value !== undefined) {
+          return defineRenderedReferenceValue(
+            context,
+            convertScalar(value, encoding, { anull }) as T,
+          );
+        }
+      }
+
+      if (anull) {
+        return null as T;
+      }
+
+      if (isOptional({ hint })) {
+        return undefined;
+      }
+
+      if (context.mode === "render" && isStubSchema(schema)) {
+        throw diagnostic(
+          context,
+          `undefined reference: ${[...refs].join("=")}`,
+        );
+      }
     },
     scope(context) {
       for (const ref of refs) {
-        declareRef(context, { ref, hint });
+        declareRef(context, { ref, hint, expr });
 
         if (!isMergingContext(context) && isAbstractContext(context)) {
           context.evaluationScope.resolve(context, ref);
@@ -435,26 +480,26 @@ export function defineReference<T = unknown>(
     },
   });
 
+  references.add(reference);
+
+  return reference;
+
   function declareRef(
     context: SchemaContext,
-    { ref, hint }: { ref?: string; hint?: string },
+    { ref, hint, expr }: { ref: string; hint?: string; expr?: string },
   ) {
-    if (!ref) {
-      return;
-    }
-
     const { evaluationScope: scope } = context;
 
     scope.declare(ref, {
       context,
-      expression: null,
+      expression: expr ?? null,
       hint: hint || null,
       source: null,
       resolved(context) {
         return resolveReference(rescope(context, scope) as SchemaContext<T>);
       },
-      async rendered(context) {
-        return await renderReference(schema, rescope(context, scope));
+      rendered(context) {
+        return renderReference(schema, rescope(context, scope));
       },
     });
   }
@@ -518,23 +563,59 @@ export function defineReference<T = unknown>(
   ) {
     let result: T | string | undefined;
 
-    if (schema) {
+    // resolve before trying to render
+    result = resolveReference(context, schema);
+
+    if (schema && result === undefined) {
       result = await executeOp(schema, "render", context);
     }
 
     if (result === undefined) {
+      // sometimes resolving afterwards works
+      // TODO: determine if race conditions apply here
       result = resolveReference(context, schema);
+    }
+
+    if (result === undefined) {
+      for (const ref of refs) {
+        const key = `ref:::${ref}`;
+        if (context.cycles.has(key)) {
+          continue;
+        }
+
+        const declaration = context.evaluationScope.lookupDeclaration(ref);
+        const rendered = await declaration?.rendered?.({
+          ...context,
+          cycles: new Set(context.cycles).add(key),
+        });
+
+        if (rendered !== undefined) {
+          result = rendered as T;
+          break;
+        }
+      }
     }
 
     const defined = defineRenderedReferenceValue(context, result as T);
 
     if (
-      isSecret(referenceSchema) &&
+      isSecret(referenceInfo) &&
       typeof defined === "string" &&
-      context.mode !== "preview" &&
-      "{{redacted}}" == defined
+      context.mode === "postrender" &&
+      "{{redacted}}" === defined
     ) {
-      return `{{ @${[...refs][0]} }}`;
+      // the value came back as "{{redacted}}" but we have a better name to give it.
+      return `{{ @${[...refs].filter(Boolean)[0] ?? ""} }}`;
+    }
+
+    if (isSecret(referenceInfo)) {
+      const redacted = await context.environment.redact({
+        value: defined,
+        context,
+        patterns: [patternize(`{{ @${[...refs].filter(Boolean)[0] ?? ""} }}`)],
+      });
+
+      return redacted;
     }
 
     return defined;
@@ -549,11 +630,7 @@ export function defineReference<T = unknown>(
     }
 
     for (const ref of refs) {
-      const identifier = parseScopedIdentifier(ref);
-
-      if (!context.evaluationScope.evaluating(identifier.name)) {
-        context.evaluationScope.define(context, ref, result);
-      }
+      context.evaluationScope.define(context, ref, result);
     }
 
     return result;

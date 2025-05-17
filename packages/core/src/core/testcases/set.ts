@@ -28,16 +28,17 @@ export function set(
   value?: unknown,
 ) {
   if (typeof values === "string") {
-    values = { [values]: value! };
+    const key = values;
+    values = Promise.resolve(value).then((value) => ({ [key]: value! }));
   }
 
   if (typeof values === "function") {
-    return generation((context) =>
-      apply(context, (values as any)(normalize(context).environment)),
+    return generation(async (context) =>
+      apply(context, await (values as any)(normalize(context).environment)),
     );
   }
 
-  return generation((context) =>
-    apply(context, values as Exclude<typeof values, string>),
+  return generation(async (context) =>
+    apply(context, (await values) as Exclude<typeof values, string>),
   );
 }

@@ -228,10 +228,10 @@ function formatTracedResult({
     trace,
     durations: { request },
   },
-  outbound: {
+  egress: {
     redacted: { method, origin, pathname },
   },
-  inbound: {
+  ingress: {
     redacted: { status },
     outcome,
   },
@@ -241,10 +241,10 @@ function formatTracedResult({
 
 function formatTracedStep({
   outcome: { name } = { name: "ok" },
-  outbound: {
+  egress: {
     redacted: { method, origin, pathname },
   },
-  inbound: {
+  ingress: {
     redacted: { status },
   },
 }: SequenceStepReport) {
@@ -264,7 +264,7 @@ function writeHttpRequestResponseFile(
     awaited,
   });
 
-  let values = operation.outbound.redacted.values;
+  let values = operation.egress.redacted.values;
   if (operation.context.ask) {
     const { values: askValues = {} } = HTTP.parse(operation.context.ask);
     values = mapObject(values, {
@@ -283,10 +283,10 @@ function writeHttpRequestResponseFile(
     ),
     `${info ? YAML.stringify(info, { lineWidth: Infinity, defaultStringType: "PLAIN", doubleQuotedMinMultiLineLength: Infinity }).trim() : ""}
 >>> ${fmtTraceId(traceId)} (${operation.endpoint.configuration.path})
-${HTTP.stringify({ ...operation.outbound.redacted, values }).trim()}
+${HTTP.stringify({ ...operation.egress.redacted, values }).trim()}
 
 <<<
-${HTTP.responseObject.stringify(operation.inbound.redacted)}`.trim(),
+${HTTP.responseObject.stringify(operation.ingress.redacted)}`.trim(),
   );
 }
 
@@ -538,11 +538,8 @@ export type TestLoadOptions = {
 };
 
 export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
-  const configuration = (
-    await withGamutConfiguration(
-      () => import(testPath, { with: { type: "tests" } }),
-    )
-  ).default as PardonTestConfiguration;
+  const configuration = (await withGamutConfiguration(() => import(testPath)))
+    .default as PardonTestConfiguration;
 
   if (concurrency !== undefined) {
     configuration.concurrency = concurrency;
@@ -556,26 +553,30 @@ export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
       smokeConfig?: SmokeConfig,
       ...filter: string[]
     ) {
-      const alltestcases = describeCases(
+      const alltestcases = await describeCases(
         configuration.closing || (() => {}),
-        trialRegistry.flatMap(({ descriptions }) => {
-          return descriptions.reduce(
-            (cases, description) => describeCases(description, cases),
-            [
-              {
-                defs: {},
-                environment: { ...testenv },
-              },
-            ] as CaseContext[],
-          );
-        }),
+        (
+          await Promise.all(
+            trialRegistry.flatMap(async ({ descriptions }) => {
+              let cases: CaseContext[] | undefined = undefined;
+
+              for (const description of descriptions) {
+                cases = await describeCases(description, cases);
+              }
+
+              return cases ?? [];
+            }),
+          )
+        ).flat(1),
       );
 
       validateTestPlan(alltestcases);
 
-      const cases = describeCases(
-        (helpers) => applySmokeConfig(helpers, smokeConfig),
-        alltestcases,
+      const cases = (
+        await describeCases(
+          (helpers) => applySmokeConfig(helpers, smokeConfig),
+          alltestcases,
+        )
       ).map(
         ({
           environment: {

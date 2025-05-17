@@ -23,18 +23,18 @@ import { ScriptEnvironment } from "../../src/core/schema/core/script-environment
 import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
-import { mixing } from "../../src/core/schema/core/contexts.js";
+import { merging } from "../../src/core/schema/core/contexts.js";
 import { JSON } from "../../src/core/raw-json.js";
 import { encodings } from "../../src/core/request/body-template.js";
 
 describe("schema json tests", () => {
   it("should parse and render json", async () => {
-    const s = mixing(
+    const s = merging(
       jsonEncoding({
         b: "{{= 10 + a}}",
         a: "{{a = 10}}",
       }),
-    );
+    )!;
 
     const result = await executeOp(s, "render", renderCtx(s));
     assert.equal(typeof result, "string");
@@ -46,14 +46,14 @@ describe("schema json tests", () => {
   });
 
   it("should parse match base64encoded json", async () => {
-    const s = mixing(
+    const s = merging(
       base64Encoding(
         jsonEncoding({
           x: "{{x}}",
           a: "{{a}}",
         }),
       ),
-    );
+    )!;
 
     const sample = Buffer.from(JSON.stringify({ a: "abc", x: "xyz" })).toString(
       "base64",
@@ -67,7 +67,7 @@ describe("schema json tests", () => {
   });
 
   it("should parse and match a form", async () => {
-    const singleValueFormEncoding = mixing(encodings.$form({}));
+    const singleValueFormEncoding = merging(encodings.$form({}))!;
 
     const s = merge(
       singleValueFormEncoding,
@@ -105,10 +105,10 @@ describe("schema json tests", () => {
   });
 
   it("should support multivalue forms", async () => {
-    const u = mixing(encodings.$form());
+    const u = merging(encodings.$form())!;
 
     const m = mergeSchema(
-      { mode: "mux", phase: "build" },
+      { mode: "merge", phase: "build" },
       u,
       "a={{x}}&a={{y}}&b=1&b=2&b=3",
       new ScriptEnvironment(),
@@ -130,9 +130,9 @@ describe("schema json tests", () => {
   });
 
   it("should support missing bodies", async () => {
-    const u = mixing(encodings.$form());
+    const u = merging(encodings.$form())!;
     const s = mergeSchema(
-      { mode: "mix", phase: "build" },
+      { mode: "merge", phase: "build" },
       u,
       "b=1&b=2&b=3",
       new ScriptEnvironment(),
@@ -147,8 +147,8 @@ describe("schema json tests", () => {
 
   it("should support multivalue handling 2", async () => {
     const s = mergeSchema(
-      { mode: "mix", phase: "build" },
-      mixing(encodings.$form()),
+      { mode: "merge", phase: "build" },
+      merging(encodings.$form())!,
       "a={{x}}&a={{?y}}&a={{?z}}",
       new ScriptEnvironment(),
     )!.schema!;
@@ -173,7 +173,7 @@ describe("schema json tests", () => {
     primer: Parameters<typeof createMergingContext<T>>[2],
   ) {
     return createMergingContext(
-      { mode: "mix", phase: "build" },
+      { mode: "merge", phase: "build" },
       s,
       primer,
       new ScriptEnvironment({

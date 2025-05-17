@@ -19,6 +19,7 @@ import { Schema, SchematicOps, Template } from "../../core/types.js";
 
 export type RedactedOps<T> = SchematicOps<T> & {
   readonly redacted: true;
+  readonly template?: Template<T>;
 };
 
 export function redact<T>(template?: Template<T>) {
@@ -32,6 +33,7 @@ export function redact<T>(template?: Template<T>) {
       return schema && redactSchema(schema);
     },
     redacted: true,
+    template,
   });
 }
 

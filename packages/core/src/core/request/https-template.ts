@@ -37,29 +37,36 @@ import {
 } from "../schema/core/schema-ops.js";
 import { encodings, EncodingTypes } from "./body-template.js";
 import { JSON } from "../raw-json.js";
-import { mixing } from "../schema/core/contexts.js";
+import { merging } from "../schema/core/contexts.js";
 import { encodingTemplate } from "../schema/definition/encodings/encoding.js";
 import { guessContentType } from "../formats/https-fmt.js";
+import { mergedSchematic } from "../schema/definition/structures/merge.js";
 
 export type HttpsRequestObject = FetchObject & {
-  computations?: Record<string, unknown>;
+  computations?: Record<string, string>;
   values?: Record<string, unknown>;
 };
 
 export function bodyReference(template: Template<string>): Schematic<string> {
-  return referenceTemplate({
-    ref: "body",
-    hint: ":?",
-  }).$of(template);
+  return mergedSchematic(
+    template,
+    referenceTemplate({
+      ref: "body",
+      hint: "-?",
+    }),
+  );
 }
 
 export function searchReference(
   template: Template<URLSearchParams>,
 ): Schematic<URLSearchParams> {
-  return referenceTemplate({
-    ref: "search",
-    hint: ":?",
-  }).$of(template);
+  return mergedSchematic(
+    template,
+    referenceTemplate({
+      ref: "search",
+      hint: "-",
+    }),
+  );
 }
 
 type BodySchematicOps = SchematicOps<string> & {
@@ -113,12 +120,13 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
         return merged && bodySchema(merged);
       }
 
-      if (encoding) {
+      if (encoding && encoding !== "json") {
         const encodedTemplate = encodings[`$${encoding}`](template);
 
         const encodedMergeContext = {
           ...context,
           template: encodedTemplate,
+          encoding,
         };
 
         const merged = merge(schema ?? stubSchema(), encodedMergeContext);
@@ -129,25 +137,25 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
       }
 
       try {
-        const templateEncoded = encodings.$template(template);
+        const templateEncoded = encodings.$template(template, encoding);
 
-        // special case to enable "xyz=123" single-value forms that otherwise parse as valid
-        // templates to be still treated as forms.
-        if (
+        const isSingleReference =
           schema &&
           isSchematic(templateEncoded) &&
           exposeSchematic<ReferenceSchematicOps<unknown>>(templateEncoded)
-            .reference
-        ) {
-          throw new Error("cannot merge body reference template encodings");
-        }
+            .reference;
 
-        const merged = merge(schema ?? stubSchema(), {
-          ...context,
-          template: templateEncoded,
-        });
-        if (merged) {
-          return bodySchema(merged);
+        // special case to enable "xyz=123" single-value forms that otherwise parse as valid
+        // templates to be still treated as forms.
+        if (!isSingleReference) {
+          const merged = merge(schema ?? stubSchema(), {
+            ...context,
+            template: templateEncoded,
+          });
+
+          if (merged) {
+            return bodySchema(merged);
+          }
         }
       } catch (error) {
         void error;
@@ -167,6 +175,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
           ...context,
           template: encodings.$raw(template),
         });
+
         if (merged) {
           return bodySchema(merged);
         }
@@ -188,9 +197,6 @@ const originTemplate = (base: string) =>
   datums.pattern<string>(base, {
     re: ({ hint }) => {
       switch (true) {
-        // origin is defined as `"{{?:origin}}"`
-        case hint?.includes("?:"):
-          return /.*/;
         // we also allow `"{{...}}"` components to have dots.
         case hint?.includes("..."):
           return /.*/;
@@ -206,7 +212,7 @@ const pathnameTemplate = (base: string) =>
     re: ({ hint }) => {
       switch (true) {
         case hint?.includes("!/"):
-          return "";
+          return /$/;
         case hint?.includes("?/") && hint?.includes("..."):
           return /(?:[/].*)?/;
         case hint?.includes("?/"):
@@ -220,21 +226,21 @@ const pathnameTemplate = (base: string) =>
   });
 
 export function httpsRequestSchema(): Schema<HttpsRequestObject> {
-  return mixing<HttpsRequestObject>({
+  return merging<HttpsRequestObject>({
     method: "{{method = 'GET'}}",
-    origin: originTemplate("{{?:origin}}"),
-    pathname: pathnameTemplate("{{...pathname}}"),
+    origin: originTemplate("{{-...origin}}"),
+    pathname: pathnameTemplate("{{-...pathname}}"),
     searchParams: searchReference(
       encodingTemplate(queryEncodingType, mvKeyedTuples),
     ),
     headers: headersTemplate(),
     body: bodyReference(bodyTemplate()),
-    computations: hiddenTemplate<Record<string, unknown>>(),
+    computations: hiddenTemplate<Record<string, string>>(),
   })!;
 }
 
 export function httpsResponseSchema(): Schema<ResponseObject> {
-  return mixing<ResponseObject>({
+  return merging<ResponseObject>({
     ...scopedFields("res", {
       status: datums.pattern<string>("{{status}}", {
         re: ({ hint }) => (hint === "?" ? /\d/ : /\d+/),

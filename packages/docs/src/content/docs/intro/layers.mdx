@@ -28,20 +28,26 @@ import '@components/inline-icon.css';
 
 import { simpleLayers } from '@pardon/layers-collections.ts';
 
+:::note
+These docs are stale and need a refresh
+:::
+
 ## Stacking layers
 
-In pardon, we have collections which are organized by services, 
+In pardon, collections are organized by service directories, 
 and the endpoints are organized within these directories.
-The design invites version controlled and broad sharing,
-but that, in turn, limits what kind of specifics can go into the
+
+The design is intended to invite using version control / sharing,
+but that, in turn, limits what kind of specifics can go into a
 collection.
 
-For instance, where to source credentials for the same services differs
-across teams, and also perhaps some other defaults and patterns of use.
+For instance, where to load credentials for the same services differs
+across teams, since each team will have access to different secrets.
 
 To support easy inter-team, intra-team, and personal (or other) patterns
 of use, a Pardon application context references one or more collection
 layers and composes them.
+Collections may define services or provide team-shared configuration.
 
 For example, let's add a layer to the base `service.yaml` of our example service.
 
@@ -63,7 +69,7 @@ config:
   Because the config structure is based on maps, there's really only one
   way for this to be interpreted. <span class="inline-icon"><SolidIcon name="wink" class="text-lg"/></span>
   
-  With this Now `env=local` will configure any call
+  With this `env=local` will configure any call
   to go to `http://localhost:8080`.
 ```http title=".../dev/collection/example/service.yaml" ins={3-4}
 config:
@@ -78,22 +84,19 @@ With targetted overrides, we can define additional configurations,
 update defaults, and add or customize mixins.
 
 <PardonPlayground
-  editor="/extension/example/service.yaml"
-  values
-  data
   example="https://example.com/ping"
-  layers={simpleLayers.layers}
+  editor="extension/example/service.yaml"
   config={{
     ...simpleLayers.config,
-    '/extension/example/service.yaml': `
-`.trim() }}>
+    'extension/example/service.yaml': "" }}
+  layers={simpleLayers.layers}>
 <Exercises>
   <ExerciseItem label="env=local"
     prompt="extend the configuration with a local env">
 
     Let's try this out! First, we extend the our
     service configuration with a local environment:
-```http title="/extension/example/service.yaml" ins={1-4} copy=collection
+```http title="extension/example/service.yaml" ins={1-6}
 config:
   origin:
     env:

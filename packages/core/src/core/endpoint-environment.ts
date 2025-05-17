@@ -12,8 +12,9 @@ governing permissions and limitations under the License.
 import { Configuration, LayeredEndpoint } from "../config/collection-types.js";
 import {
   Pattern,
-  isPatternLiteral,
+  PatternRegex,
   isPatternRegex,
+  isPatternSimple,
   patternRender,
   patternValues,
 } from "./schema/core/pattern.js";
@@ -26,6 +27,9 @@ import { HttpsRequestObject } from "./request/https-template.js";
 import { PardonError } from "./error.js";
 import { SchemaContext, SchemaMergingContext } from "./schema/core/types.js";
 import { isSecret } from "./schema/definition/hinting.js";
+import { isScalar } from "./schema/definition/scalar.js";
+import { PardonAppContext } from "./pardon/pardon.js";
+import { makeSecretsProxy } from "../runtime/secrets.js";
 
 function simpleValues(values: Record<string, any>): Record<string, string> {
   return mapObject(values, {
@@ -37,23 +41,24 @@ function simpleValues(values: Record<string, any>): Record<string, string> {
 }
 
 export function createEndpointEnvironment({
+  app,
   endpoint,
   values = {},
+  secrets = {},
   runtime = {},
-  compiler,
-  secrets,
   options,
   context,
 }: {
+  app: ScriptEnvironment["app"] & Pick<PardonAppContext, "compiler">;
   endpoint: LayeredEndpoint;
   values?: Record<string, unknown>;
+  secrets?: Record<string, unknown>;
   runtime?: Record<string, unknown>;
-  compiler: PardonCompiler;
-  secrets?: boolean;
   options?: Record<string, boolean>;
   context?: SchemaMergingContext<HttpsRequestObject>;
 }) {
   const environment = new ScriptEnvironment({
+    app,
     name: endpoint.configuration.name,
     config: endpoint.configuration.config,
     defaults: endpoint.configuration.defaults,
@@ -75,9 +80,12 @@ export function createEndpointEnvironment({
       Boolean,
       ...runtime,
     },
-    resolve(name, context) {
+    resolve(context, { name, scoped }) {
+      // todo - revisit use of scoped here
+      void scoped;
       return (
-        values[name] ||
+        values[name] ??
+        secrets[name] ??
         resolveDefaults(name, endpoint?.configuration?.defaults, context)
       );
     },
@@ -85,17 +93,20 @@ export function createEndpointEnvironment({
       return resolvedDefaults(context, endpoint?.configuration?.defaults);
     },
     evaluate(name, context) {
+      if (name === "secrets") {
+        return makeSecretsProxy(context);
+      }
+
       context.evaluationScope.imported(name, context);
 
-      return resolveImport(
+      return importFromConfiguration(
         name,
         endpoint.configuration,
-        compiler,
-        `pardon:${endpoint.configuration.path}`,
+        app.compiler,
       );
     },
-    redact(value, patterns) {
-      if (secrets) {
+    async redact(value, patterns) {
+      if (options?.secrets) {
         return value;
       }
 
@@ -106,28 +117,59 @@ export function createEndpointEnvironment({
           return value;
         }
 
-        const values = patternValues(pattern, String(value));
-        if (!values) {
-          return value;
+        if (!isScalar(value) && !isPatternSimple(pattern)) {
+          return "{{redacted}}";
         }
 
-        if (isPatternLiteral(pattern)) {
-          return pattern.source;
+        const parts =
+          isScalar(value) && !isPatternSimple(pattern)
+            ? patternValues(pattern, String(value))
+            : [value];
+
+        if (!parts) {
+          return "{{redacted}}";
         }
 
-        return patternRender(
-          pattern,
-          values.map((part, i) => {
-            const variable = pattern.vars[i];
-            const { param } = variable;
+        const render = await Promise.all(
+          parts.map(async (part: string | typeof value, index: number) => {
+            const variable = pattern.vars[index];
+            const { param, redactor } = variable;
 
-            if (isSecret(variable)) {
-              return `{{@${param}}}`;
+            if (isSecret(variable) || redactor) {
+              if (redactor) {
+                const redactorFunction =
+                  (await importFromConfiguration(
+                    redactor,
+                    endpoint.configuration,
+                    app.compiler,
+                  )) ?? runtime[redactor];
+
+                return redactorFunction(part, variable.param, value);
+              }
+
+              const maybeRedactor =
+                (await importFromConfiguration(
+                  `redact$${param}`,
+                  endpoint.configuration,
+                  app.compiler,
+                )) ?? runtime[`redact$${param}`];
+
+              if (typeof maybeRedactor === "function") {
+                return maybeRedactor(part, variable.param, value);
+              }
+
+              return `{{ @${param ?? ""} }}`;
             }
 
             return part;
           }),
         );
+
+        if (isPatternSimple(pattern)) {
+          return render[0];
+        }
+
+        return patternRender(pattern, render);
       }
 
       return "{{redacted}}";
@@ -140,6 +182,19 @@ export function createEndpointEnvironment({
     },
     options(key) {
       return options?.[key];
+    },
+    get context() {
+      const {
+        service,
+        action,
+        configuration: { name },
+      } = endpoint;
+
+      return {
+        service,
+        action,
+        endpoint: name,
+      };
     },
   });
 
@@ -191,6 +246,19 @@ export function resolveDefaults(
   return defaulting;
 }
 
+function importFromConfiguration(
+  name: string,
+  configuration: Configuration,
+  compiler: PardonCompiler,
+) {
+  return resolveImport(
+    name,
+    configuration,
+    compiler,
+    `pardon:${configuration.path}`,
+  );
+}
+
 export async function resolveImport(
   name: string,
   configuration: Pick<Configuration, "import">,
@@ -235,7 +303,7 @@ function findImport(
   return null;
 }
 
-function isPatternRedacted(pattern: Pattern) {
+function isPatternRedacted(pattern: Pattern): pattern is PatternRegex {
   return isPatternRegex(pattern) && pattern.vars.some(isSecret);
 }
 

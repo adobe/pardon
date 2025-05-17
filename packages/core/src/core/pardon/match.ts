@@ -11,12 +11,12 @@ governing permissions and limitations under the License.
 */
 import {
   LayeredEndpoint,
-  EndpointConfiguration,
   EndpointStepsLayer,
+  Configuration,
 } from "../../config/collection-types.js";
 import { PardonExecutionContext } from "./pardon.js";
 import { mapObject } from "../../util/mapping.js";
-import { HttpsResponseStep } from "../formats/https-fmt.js";
+import { isHttpRequestStep } from "../formats/https-fmt.js";
 import {
   HttpsRequestObject,
   httpsRequestSchema,
@@ -31,7 +31,34 @@ import { isScalar } from "../schema/definition/scalar.js";
 function selectEndpoints(
   endpoints: Record<string, LayeredEndpoint>,
   values: Record<string, unknown>,
-) {
+): LayeredEndpoint[] {
+  if (values.endpoint === "-/-") {
+    return [
+      {
+        action: "-",
+        service: "-",
+        configuration: {
+          name: "-",
+          config: [{}],
+          path: "-",
+        },
+        layers: [
+          {
+            path: "-",
+            steps: [
+              {
+                type: "request",
+                computations: {},
+                values: {},
+                request: { headers: new Headers() },
+              },
+            ],
+          },
+        ],
+      },
+    ];
+  }
+
   return Object.values(endpoints)
     .filter(({ configuration: { name: endpoint }, service }) =>
       values.endpoint
@@ -62,7 +89,7 @@ function selectDefaultEndpoints(
 }
 
 type MixinMatch = {
-  configuration: Partial<EndpointConfiguration>;
+  configuration: Partial<Configuration>;
   layers: LayeredEndpoint["layers"];
   specifier: string;
 };
@@ -73,7 +100,7 @@ class PardonEndpointMatcher {
   endpoint: LayeredEndpoint;
 
   readonly responseLayers: (EndpointStepsLayer & {
-    configuration: Partial<EndpointConfiguration>;
+    configuration: Partial<Configuration>;
   })[] = [];
 
   readonly acceptedMixins: string[] = [];
@@ -180,8 +207,6 @@ class PardonEndpointMatcher {
       archetypeSchema,
     } = this;
 
-    const { compiler } = app();
-
     const endpoint = {
       ...this.endpoint,
       configuration: mergeConfigurations({
@@ -201,7 +226,7 @@ class PardonEndpointMatcher {
       requestContext &&
       createEndpointEnvironment({
         endpoint,
-        compiler,
+        app: app(),
         values: { ...implied, ...this.context.values },
       })
         .init({ context: requestContext })
@@ -212,7 +237,7 @@ class PardonEndpointMatcher {
     }
 
     const environment = createEndpointEnvironment({
-      compiler,
+      app: app(),
       endpoint,
       values: { ...implied, ...this.context.values },
       context: requestContext,
@@ -258,15 +283,20 @@ class PardonEndpointMatcher {
 
     layers = cloneLayers(layers);
 
-    const matches = layers.every(({ steps, mode }) => {
-      if (!steps.find(({ type }) => type === "request")) {
+    const matches = layers.every(({ steps }) => {
+      if (!steps.some(isHttpRequestStep)) {
         return true;
       }
 
       while (steps.length) {
         const behavior = steps.shift()!;
 
-        if (behavior.type === "response") {
+        if (
+          !isHttpRequestStep(behavior) ||
+          (implied.variant &&
+            behavior.variant &&
+            implied.variant != behavior.variant)
+        ) {
           continue;
         }
 
@@ -280,16 +310,27 @@ class PardonEndpointMatcher {
 
         const result = matcher.extend(
           { ...behavior.request, computations: behavior.computations },
-          { mode, environment, values: behavior.values },
+          { environment, values: behavior.values },
         );
 
         if (result?.matching.schema) {
+          if (behavior.variant) {
+            implied.variant ??= behavior.variant;
+          }
+
           matcher = result.progress!;
           requestSchema = result.matching.schema;
           requestContext = result.matching.context;
-          const { context } = result.matching;
+          const { context, error } = result.matching;
 
-          Object.assign(implied, context.environment.implied(implied, context));
+          if (error) {
+            throw error;
+          }
+
+          Object.assign(
+            implied,
+            context!.environment.implied(implied, context),
+          );
 
           return true;
         }
@@ -346,9 +387,7 @@ class PardonEndpointMatcher {
 
     this.responseLayers.push(
       ...layers!.map(({ steps, ...info }) => ({
-        steps: steps.filter(
-          ({ type }) => type === "response",
-        ) as HttpsResponseStep[],
+        steps: steps.filter((step) => !isHttpRequestStep(step)),
         ...info,
         configuration: endpoint.configuration,
       })),

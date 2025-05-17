@@ -70,12 +70,13 @@ export function diagnostic(
 }
 
 export function loc({
+  mode,
   environment,
   evaluationScopePath: scopes,
   keys,
 }: SchemaContext) {
   const name = environment?.name?.();
-  return `${name ? `${name}: ` : ""}${scopes.map((s) => `:${s}`).join("")}|${keys
+  return `(${mode}${name ? `|${name}` : ""}) ${scopes.map((s) => `:${s}`).join("")}|${keys
     .map((k) => `.${k}`)
     .join("")}`;
 }

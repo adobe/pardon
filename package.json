@@ -12,10 +12,10 @@
     "format": "npx prettier -w ."
   },
   "devDependencies": {
-    "lint-staged": "^15.2.2",
+    "lint-staged": "^16.1.2",
     "node-git-hooks": "^1.0.7",
     "prettier-plugin-astro": "^0.14.0",
-    "prettier-plugin-tailwindcss": "^0.6.5",
+    "prettier-plugin-tailwindcss": "^0.6.14",
     "typescript": "^5.5.2"
   },
   "lint-staged": {

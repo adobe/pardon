@@ -1,33 +1,31 @@
 import { HTTP } from "pardon";
 import {
   Show,
+  createEffect,
   createMemo,
   createResource,
-  createSignal,
+  on,
   type ComponentProps,
   type ParentProps,
   type Setter,
 } from "solid-js";
 import CodeMirror from "@components/codemirror/CodeMirror.tsx";
 
-import { TbLock, TbLockOpen, TbArrowBarRight } from "solid-icons/tb";
-import { type Mood } from "@components/playgrounds/pardon/PardonPlaygroundMood";
-import { iconSize } from "@components/pardon-shared.ts";
 import { type ExecutionHandle } from "@components/playgrounds/pardon/pardon-playground-shared";
-import PardonPlaygroundRenderMood from "@components/playgrounds/pardon/PardonPlaygroundRenderMood";
 import { useSecretsSignal } from "@components/playgrounds/pardon/PardonPlaygroundSecretsSignalContext";
+import type { FlightStatus } from "./PardonPlaygroundResponseView.tsx";
 
 export default function PardonPlaygroundRenderView(
   props: ParentProps<{
     executionHandle: ExecutionHandle;
     onRequest?: () => void;
-    inflight?: boolean;
+    inflight?: FlightStatus;
     secretsRef?: Setter<boolean>;
+    reset: () => void;
   }> &
     ComponentProps<"div">,
 ) {
   const { secrets, setSecrets, enabled: secretsEnabled } = useSecretsSignal();
-  const [mood, setMood] = createSignal<Mood>("confused");
 
   const [execution] = createResource(
     () => ({ executionHandle: props.executionHandle() }),
@@ -51,12 +49,12 @@ export default function PardonPlaygroundRenderView(
       } catch (error) {
         return {
           render: undefined,
-          error,
+          error: displayError(error),
         };
       }
 
       try {
-        const render = await execution.outbound;
+        const render = await execution.egress;
 
         return {
           render: {
@@ -67,7 +65,7 @@ export default function PardonPlaygroundRenderView(
       } catch (error) {
         return {
           render: undefined,
-          error,
+          error: displayError(error),
         };
       }
     },
@@ -102,31 +100,36 @@ export default function PardonPlaygroundRenderView(
       : pardon()?.render?.redacted;
   });
 
+  createEffect(
+    on(
+      () => props.inflight,
+      (inflight) => {
+        if (inflight === "pending") {
+          props.reset();
+        }
+      },
+    ),
+  );
+
   return (
     <CodeMirror
+      value={output()}
+      readonly={true}
+      class={
+        "rounded-md bg-neutral-200 p-2 shadow outline-gray-500 dark:bg-fuchsia-950"
+      }
+      classList={{
+        [props.class ?? ""]: true,
+        ...props.classList,
+        "opacity-50": Boolean(pardon()?.error || execution.loading),
+      }}
       icon={
         <div
           class="icon-grid"
           classList={{
-            "icon-grid-col": (output()?.split("\n").length ?? 0) < 3,
+            "icon-grid-col": (output()?.split("\n").length ?? 0) < 4,
           }}
         >
-          <Show when={props.onRequest}>
-            <button
-              class="-m-1 rounded-md border-none bg-transparent p-1 leading-none transition-transform hover:rotate-12 hover:bg-yellow-200 dark:hover:bg-fuchsia-900"
-              onClick={() => {
-                props.onRequest?.();
-              }}
-            >
-              <span
-                classList={{
-                  pulse: props.inflight,
-                }}
-              >
-                <TbArrowBarRight size={iconSize} />
-              </span>
-            </button>
-          </Show>
           <Show when={secretsEnabled}>
             <button
               class="-m-1 rounded-md border-none bg-transparent p-1 leading-none hover:bg-yellow-200 dark:hover:bg-fuchsia-900"
@@ -139,28 +142,28 @@ export default function PardonPlaygroundRenderView(
             >
               <Show
                 when={secretsEnabled && secrets()}
-                fallback={<TbLock color="gray" size={iconSize} />}
+                fallback={<IconTablerLock color="gray" class="text-2xl" />}
               >
-                <TbLockOpen color="gray" size={iconSize} />
+                <IconTablerLockOpen color="gray" class="text-2xl" />
               </Show>
             </button>
           </Show>
-          <PardonPlaygroundRenderMood
-            executionHandle={props.executionHandle}
-            moodRef={setMood}
-          />
         </div>
       }
-      value={output()}
-      readonly={true}
-      class={
-        "rounded-md bg-neutral-200 p-2 shadow outline-gray-500 dark:bg-fuchsia-950"
-      }
-      classList={{
-        [props.class ?? ""]: true,
-        ...props.classList,
-        "opacity-50": Boolean(pardon()?.error || mood() === "thinking"),
-      }}
     />
   );
+}
+
+function displayError(error: any) {
+  const stack: string[] = [];
+
+  stack.unshift(String(error?.message ?? error));
+
+  while (error.cause) {
+    error = error.cause;
+
+    stack.unshift(String(error?.message ?? error));
+  }
+
+  return stack.join("\n");
 }

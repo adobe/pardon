@@ -59,9 +59,9 @@
       "import": "./dist/features/content-encodings.js",
       "types": "./dist/types/features/content-encodings.d.ts"
     },
-    "./features/remember": {
-      "import": "./dist/features/remember.js",
-      "types": "./dist/types/features/remember.d.ts"
+    "./features/persist": {
+      "import": "./dist/features/persist.js",
+      "types": "./dist/types/features/persist.d.ts"
     },
     "./features/trace": {
       "import": "./dist/features/trace.js",
@@ -71,9 +71,9 @@
       "import": "./dist/database.js",
       "types": "./dist/types/database.d.ts"
     },
-    "./internals": {
-      "import": "./dist/internals.js",
-      "types": "./dist/types/internals.d.ts"
+    "./templates": {
+      "import": "./dist/templates.js",
+      "types": "./dist/types/templates.d.ts"
     },
     "./loader": "./dist/loader.js"
   },
@@ -95,7 +95,7 @@
     "@rollup/plugin-typescript": "^12.1.0",
     "@types/better-sqlite3": "^7.6.5",
     "@types/http-proxy": "^1.17.14",
-    "@types/node": "^22.1.0",
+    "@types/node": "^24.1.0",
     "@types/split": "^1.0.5",
     "@types/whatwg-mimetype": "^3.0.2",
     "@typescript-eslint/eslint-plugin": "^8.0.1",
@@ -116,7 +116,7 @@
     "rollup-plugin-generate-package-json": "^3.2.0",
     "rollup-plugin-hashbang": "^3.0.0",
     "split": "^1.0.1",
-    "ts-morph": "^25.0.0",
+    "ts-morph": "^26.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.7.3",
     "undici": "^7.8.0",
@@ -124,7 +124,7 @@
     "yaml": "^2.3.2"
   },
   "optionalDependencies": {
-    "better-sqlite3": "^11.1.2"
+    "better-sqlite3": "^12.2.0"
   },
   "overrides": {
     "node-gyp": "^10"

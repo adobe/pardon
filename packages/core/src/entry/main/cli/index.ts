@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --stack-trace-limit=69
+#!/usr/bin/env -S node --enable-source-maps --stack-trace-limit=69 --no-warnings=ExperimentalWarning
 /*
 Copyright 2025 Adobe. All rights reserved.
 This file is licensed to you under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@ import { CURL } from "../../../core/formats/curl-fmt.js";
 
 import { recall } from "./recall.js";
 import trace from "../../../features/trace.js";
-import remember from "../../../features/remember.js";
+import persist from "../../../features/persist.js";
 import undici from "../../../features/undici.js";
 import { inspect } from "node:util";
 import { mapObject } from "../../../util/mapping.js";
@@ -90,7 +90,7 @@ usage
 
   const context = await initializePardon(
     { environment: values, cwd: options.cwd },
-    [undici, contentEncodings, trace, remember],
+    [undici, contentEncodings, trace, persist],
   );
 
   if (options["show-root"]) {
@@ -100,7 +100,9 @@ usage
   }
 
   if (options.recall) {
-    recall(context, options.recall.split(","), scalars(values));
+    await recall(context, options.recall.split(","), scalars(values), {
+      args,
+    });
 
     return 0;
   }
@@ -134,7 +136,6 @@ usage
     environment = values;
 
     try {
-      console.log("loading", resolve(process.cwd(), script));
       const { default: defaultExport, main } = await import(
         resolve(process.cwd(), script)
       );
@@ -222,7 +223,7 @@ ${YAML.stringify({
     }
   } else {
     const {
-      inbound: { values, secrets, response, redacted },
+      ingress: { values, secrets, response, redacted },
     } = await rendering.result;
 
     const kv = options.secrets ? secrets : values;

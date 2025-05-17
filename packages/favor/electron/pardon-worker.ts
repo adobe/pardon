@@ -35,7 +35,7 @@ import { httpOps, valueOps } from "pardon/database";
 import { traced } from "pardon/features/trace";
 import undici from "pardon/features/undici";
 import encodings from "pardon/features/content-encodings";
-import remember, { PardonHttpExecutionContext } from "pardon/features/remember";
+import persist, { PardonHttpExecutionContext } from "pardon/features/persist";
 import {
   cleanObject,
   HttpsRequestStep,
@@ -71,7 +71,7 @@ const tracingHooks = {
   },
   onRenderComplete({
     context: { trace, awaited, timestamps, durations },
-    outbound: { request, redacted, reduced },
+    egress: { request, redacted, reduced },
   }) {
     const payload: TracingHookPayloads["onRenderComplete"] = {
       trace,
@@ -80,12 +80,12 @@ const tracingHooks = {
         requests: awaited.requests.map(({ context: { trace } }) => trace),
         results: awaited.results.map(({ context: { trace } }) => trace),
       },
-      outbound: {
+      egress: {
         request: HTTP.requestObject.json({ ...redacted, values: reduced }),
         values: redacted.values,
       },
       secure: {
-        outbound: {
+        egress: {
           request: HTTP.requestObject.json({ ...request, values: {} }),
           values: request.values,
         },
@@ -107,7 +107,8 @@ const tracingHooks = {
   },
   onResult({
     context: { awaited, trace, timestamps, durations },
-    inbound: { response, redacted, values, flow, secrets, outcome },
+    ingress: { response, redacted, values, secrets, outcome },
+    output,
   }) {
     const payload: TracingHookPayloads["onResult"] = {
       trace,
@@ -116,18 +117,18 @@ const tracingHooks = {
         requests: awaited.requests.map(({ context: { trace } }) => trace),
         results: awaited.results.map(({ context: { trace } }) => trace),
       },
-      inbound: {
+      ingress: {
         response: HTTP.responseObject.json(redacted),
         outcome,
         values,
-        flow,
       },
       secure: {
-        inbound: {
+        ingress: {
           response: HTTP.responseObject.json(response),
           values: secrets,
         },
       },
+      output,
     };
 
     return {
@@ -160,7 +161,7 @@ async function initializePardonAndLoadSamples(
       }) as typeof tracingHooks,
       Date.now(), // should make trace ids unique per run?
     ),
-    remember,
+    persist,
   ]);
 
   const samples = loadSamples(app.samples || []);
@@ -334,7 +335,10 @@ const handlers = {
           } else {
             return {
               ...interaction,
-              headers: [...interaction.headers],
+              headers:
+                interaction.type !== "script"
+                  ? [...interaction.headers]
+                  : undefined,
             } as Omit<HttpsResponseStep, "headers"> & {
               headers: [string, string][];
             };
@@ -416,7 +420,7 @@ const handlers = {
   async render(handle: string) {
     const { execution } = ongoing[handle];
 
-    const { request, redacted, reduced } = await execution.outbound;
+    const { request, redacted, reduced } = await execution.egress;
 
     const { trace, ask, durations } =
       (await execution.context) as PardonHttpExecutionContext;
@@ -428,12 +432,12 @@ const handlers = {
         durations,
       },
       http: HTTP.stringify({ ...redacted, values: reduced }),
-      outbound: {
+      egress: {
         request: HTTP.requestObject.json({ ...redacted, values: reduced }),
         values: redacted.values,
       },
       secure: {
-        outbound: {
+        egress: {
           request: HTTP.requestObject.json(request),
           values: request.values,
         },
@@ -455,31 +459,31 @@ const handlers = {
       },
     } = ongoing[handle];
 
-    const { endpoint, outbound, inbound } = await execution.result;
+    const { endpoint, egress, ingress } = await execution.result;
 
     const secure = {
-      outbound: {
-        request: HTTP.requestObject.json(outbound.request),
+      egress: {
+        request: HTTP.requestObject.json(egress.request),
       },
-      inbound: {
-        response: HTTP.responseObject.json(inbound.response),
-        values: inbound.secrets,
+      ingress: {
+        response: HTTP.responseObject.json(ingress.response),
+        values: ingress.secrets,
       },
     };
 
     const result = {
       context: { ask, trace, durations },
       endpoint,
-      outcome: inbound.outcome,
-      outbound: {
+      outcome: ingress.outcome,
+      egress: {
         request: HTTP.requestObject.json({
-          ...outbound.redacted,
-          values: outbound.reduced,
+          ...egress.redacted,
+          values: egress.reduced,
         }),
       },
-      inbound: {
-        response: HTTP.responseObject.json(inbound.redacted),
-        values: inbound.values,
+      ingress: {
+        response: HTTP.responseObject.json(ingress.redacted),
+        values: ingress.values,
       },
       secure,
     };
@@ -526,7 +530,7 @@ const handlers = {
     return Object.entries(related)
       .sort(([attp], [bttp]) => Number(bttp) - Number(attp))
       .slice(0, limit)
-      .map(([http, values]) => {
+      .map(([http, relations]) => {
         const entity = getHttpEntity({ http });
         if (!entity) {
           return;
@@ -534,17 +538,26 @@ const handlers = {
 
         const { ask, req, res, created_at } = entity;
 
+        const values = arrayIntoObject(
+          getValuesByHttp({ http }),
+          ({ name, value, scope, type }) =>
+            scope === "" && type === "res" && { [name]: value },
+        );
+
+        const output = arrayIntoObject(
+          getValuesByHttp({ http }),
+          ({ name, value, scope, type }) =>
+            scope === "" && type.endsWith("+out") && { [name]: value },
+        );
+
         return {
           http: Number(http),
           ask,
           req,
           res,
           values,
-          inbound: arrayIntoObject(
-            getValuesByHttp({ http }),
-            ({ name, value, scope, type }) =>
-              scope === "" && type === "res" && { [name]: value },
-          ),
+          output,
+          relations,
           created_at,
         };
       })

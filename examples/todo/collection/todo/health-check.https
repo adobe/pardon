@@ -1,0 +1,4 @@
+defaults:
+  auth-type: none
+>>>
+GET https://todo.example.com/health-check

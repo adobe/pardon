@@ -4,8 +4,6 @@ import CodeMirror from "@components/codemirror/CodeMirror.tsx";
 import type { ExecutionHandle } from "@components/playgrounds/pardon/pardon-playground-shared";
 import { useSecretsSignal } from "@components/playgrounds/pardon/PardonPlaygroundSecretsSignalContext";
 import { useResponseSignal } from "@components/playgrounds/pardon/PardonPlaygroundResponseSignalContext";
-import { TbArrowBarDown, TbArrowBarRight, TbEye } from "solid-icons/tb";
-import { iconSize } from "@components/pardon-shared.ts";
 import { usePardonApplicationContext } from "@components/playgrounds/pardon/PardonApplication";
 import { KV } from "pardon/playground";
 
@@ -56,7 +54,7 @@ export default function PardonPlaygroundDataView(
 
       if (response?.result) {
         const {
-          inbound: { values, secrets },
+          ingress: { values, secrets },
         } = response.result;
         return {
           data: { values, secrets },
@@ -69,7 +67,7 @@ export default function PardonPlaygroundDataView(
         const {
           request: { values: secrets },
           redacted: { values },
-        } = await execution.outbound;
+        } = await execution.egress;
 
         return {
           data: { values, secrets },
@@ -126,14 +124,13 @@ export default function PardonPlaygroundDataView(
         >
           <Show
             when={response()}
-            fallback={<TbArrowBarRight color="gray" size={iconSize} />}
+            fallback={<IconTablerArrowBarRight color="gray" class="text-2xl" />}
           >
-            <TbArrowBarDown color="gray" size={iconSize} />
+            <IconTablerArrowBarDown color="gray" class="text-2xl" />
           </Show>
-          <TbEye
+          <IconTablerEye
             color="gray"
-            size={iconSize}
-            class="transition-transform hover:rotate-12"
+            class="text-2xl transition-transform hover:rotate-12"
           />
         </div>
       }

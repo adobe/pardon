@@ -29,6 +29,7 @@ import { templateSchematic } from "../../template.js";
 
 export type EncodingType<Outer, Inner> = {
   as: Outer extends string ? "string" : Exclude<string, "string">;
+  format: string;
   decode(context: SchemaMergingContext<Outer>): Template<Inner> | undefined;
   encode(
     value: Inner | undefined,
@@ -51,6 +52,18 @@ function decode<T, S>(
     }
 
     if (ops.encoding() !== encoding) {
+      // subcase of encoding mismatches that we resolve by attempting decoding.
+      // ... ¯\_(ツ)_/¯ ...
+      if (ops.encoding().as === encoding.as && !isSchematic(ops.template!())) {
+        return {
+          ...context,
+          template: encoding.decode({
+            ...context,
+            template: ops.template!() as T,
+          }),
+        };
+      }
+
       diagnostic(context, "cannot merge with different encoding");
       return undefined;
     }
@@ -84,7 +97,9 @@ export function encodingTemplate<T, S>(
         return encoding;
       },
       template() {
-        return template;
+        // this gets used when merging this without expanding so
+        // if we have source here we need to present that instead.
+        return source ?? template;
       },
     },
   );
@@ -102,8 +117,21 @@ export function encodingSchema<T, S>(
 
         return result && encodingSchema(encoding, result);
       } catch (error) {
-        diagnostic(context, error);
-        return undefined;
+        void error;
+
+        try {
+          const result = merge(schema, {
+            ...context,
+            template: context.template as S,
+          });
+          return result && encodingSchema(encoding, result);
+        } catch (error) {
+          diagnostic(context, error);
+          return undefined;
+        }
+
+        //        diagnostic(context, error);
+        //        return undefined;
       }
     },
 

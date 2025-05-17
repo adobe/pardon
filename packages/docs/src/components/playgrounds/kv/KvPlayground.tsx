@@ -1,5 +1,5 @@
 import CodeMirror from "@components/codemirror/CodeMirror.jsx";
-import { JSON, KV } from "pardon/formats";
+import { KV } from "pardon/formats";
 import { createMemo, createSignal } from "solid-js";
 
 export default function KvPlayground(props: { value: string }) {
@@ -7,12 +7,7 @@ export default function KvPlayground(props: { value: string }) {
   const [valid, setValid] = createSignal(true);
   const parsed = createMemo<string>((previous) => {
     try {
-      const {
-        [KV.eoi]: _eoi,
-        [KV.upto]: _upto,
-        [KV.unparsed]: rest,
-        ...data
-      } = KV.parse(kv(), "stream");
+      const { [KV.unparsed]: rest, ...data } = KV.parse(kv(), "stream");
       const result =
         KV.stringify(data, {
           indent: 2,

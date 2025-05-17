@@ -22,10 +22,11 @@ import {
   Identifier,
 } from "./types.js";
 import { loc } from "./context-util.js";
+import { PardonAppContext } from "../../pardon/pardon.js";
 
 export type ScriptDataResolver = (
-  name: string,
   context: SchemaContext,
+  options: { name: string; scoped?: boolean },
 ) => unknown | undefined;
 
 export type ScriptDataEvaluator = (
@@ -34,8 +35,8 @@ export type ScriptDataEvaluator = (
 ) => unknown | undefined | Promise<unknown | undefined>;
 
 export type ScriptResolver = (
-  name: Identifier,
   context: SchemaContext,
+  info: { identifier: Identifier; scoped?: boolean },
 ) => unknown | undefined;
 
 export type ScriptEvaluator = (
@@ -46,7 +47,7 @@ export type ScriptEvaluator = (
 export type RenderRedactor = <T>(
   value: T,
   patterns: Pattern[] | null,
-) => T | string | undefined;
+) => Promise<T | string | undefined> | T | string | undefined;
 
 export type ScriptExpressionRenderer = <T>(info: {
   evaluation: () => Promise<T>;
@@ -62,6 +63,7 @@ export type ScriptDefaultsResolver = (
 export type ScriptOptions = (key: string) => unknown;
 
 export class ScriptEnvironment implements SchemaScriptEnvironment {
+  app: Pick<PardonAppContext, "database">;
   name: () => string | undefined;
   input: Record<string, unknown>;
   space: ConfigSpace;
@@ -72,7 +74,10 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   expression?: ScriptExpressionRenderer;
   options?: ScriptOptions;
 
+  extendedContextValues?: Record<string, any>;
+
   constructor({
+    app = {},
     name,
     config,
     defaults,
@@ -84,7 +89,9 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     express,
     options,
     resolvedDefaults,
+    context,
   }: {
+    app?: Pick<PardonAppContext, "database">;
     name?: string;
     config?: Record<string, string>[];
     defaults?: DefaultsMap;
@@ -96,39 +103,50 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     redact?: RenderRedactor;
     express?: ScriptExpressionRenderer;
     options?: ScriptOptions;
+    context?: Record<string, any>;
   } = {}) {
+    this.app = app;
     this.name = () => name;
     this.input = input ?? {};
     this.space = new ConfigSpace(config ?? [{}], defaults);
     this.space.choose(input ?? {});
 
-    this.resolver = (identifier, context) => {
-      return resolveAccess(
-        this.input[identifier.root] ??
-          runtime?.[identifier.root] ??
-          resolve?.(identifier.root, context),
+    this.resolver = (context, { identifier, scoped }) => {
+      let value = this.input[identifier.root];
+      if (value === undefined) {
+        value = resolve?.(context, { name: identifier.root, scoped });
+      }
+
+      const resolved = resolveAccess(context, {
+        value,
         identifier,
-        context,
-      );
+        scoped,
+      });
+
+      return resolved;
     };
+
     this.resolvedDefaults = resolvedDefaults;
 
     this.evaluator = (identifier, context) =>
-      evaluate?.(identifier.root, context);
+      runtime?.[identifier.root] ?? evaluate?.(identifier.root, context);
 
     this.redactor = redact;
     this.expression = express;
     this.options = options;
+    this.extendedContextValues = context;
   }
 
   resolve({
     identifier,
     context,
+    scoped,
   }: {
-    identifier: Identifier;
     context: SchemaContext<unknown>;
+    identifier: Identifier;
+    scoped?: boolean;
   }): unknown {
-    return this.resolver?.(identifier, context);
+    return this.resolver?.(context, { identifier, scoped });
   }
 
   evaluate({
@@ -138,10 +156,12 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     identifier: Identifier;
     context: SchemaRenderContext;
   }): unknown | undefined | Promise<unknown | undefined> {
-    return (
-      this.resolver?.(identifier, context) ??
-      this.evaluator?.(identifier, context)
-    );
+    const resolved = this.resolver?.(context, { identifier, scoped: false });
+    if (resolved !== undefined) {
+      return resolved;
+    }
+
+    return this.evaluator?.(identifier, context);
   }
 
   match(
@@ -190,6 +210,10 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     }
 
     return values;
+  }
+
+  get contextValues() {
+    return { ...this.extendedContextValues, ...this.implied(), ...this.input };
   }
 
   init({ context }: { context: SchemaContext }) {
@@ -241,7 +265,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
       : evaluation();
   }
 
-  redact<T>({
+  async redact<T>({
     value,
     context: { mode },
     patterns,
@@ -249,7 +273,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     value: T;
     context: SchemaRenderContext;
     patterns: Pattern[] | null;
-  }): string | T | undefined {
+  }) {
     if (mode === "preview") {
       return value;
     }
@@ -263,25 +287,36 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 }
 
 export function resolveAccess(
-  value: unknown,
-  identifier: Identifier,
   context: SchemaContext,
+  {
+    identifier,
+    value,
+    scoped,
+  }: { identifier: Identifier; value: unknown; scoped?: boolean },
 ) {
-  if (identifier.path.length == 0) {
-    return value;
-  }
-
   const indices = indexChain(context.evaluationScope);
 
-  if (identifier.name.endsWith(".@key")) {
-    const keyIndex = indices.length - identifier.path.length;
-    return indices[keyIndex]?.key;
+  // scoped resoltion is only for detecting conflicts with
+  // existing definitions.
+  if (!scoped) {
+    if (identifier.path.length === 0) {
+      return value;
+    }
+
+    if (identifier.name.endsWith(".@key")) {
+      const keyIndex = indices.length - identifier.path.length;
+      return indices[keyIndex]?.key;
+    }
+  } else {
+    if (identifier.path.length === 0 && indices.length === 0) {
+      return value;
+    }
   }
 
   const resolved = identifier.path.reduce<unknown>(
     (value, step, idx) => {
-      value = value?.[step];
       const index = indices[indices.length - idx - 1];
+      value = step === "@value" ? value : value?.[step];
       if (!index) {
         return undefined;
       } else if (index.key === undefined) {
@@ -295,13 +330,13 @@ export function resolveAccess(
           })
         ) {
           index.struts.push({
-            loc: loc(context) + identifier.name,
+            loc: loc(context) + ":::" + identifier.name,
             root: identifier.root,
             path: identifier.path.slice(0, idx),
             name: identifier.path[idx],
           });
         }
-      } else {
+      } else if (String(index.key) !== "@value") {
         value = value?.[String(index.key)];
       }
 
@@ -310,7 +345,7 @@ export function resolveAccess(
     { [identifier.path[0]]: value },
   );
 
-  if (identifier.name.endsWith(".@value")) {
+  if (identifier.name.endsWith(".@value") || identifier.name === "@value") {
     return resolved;
   }
 

@@ -43,7 +43,7 @@ export function isSecret({ hint }: Hinting = {}) {
 
 // matched and generated values will not be exported
 export function isNoExport({ hint }: Hinting = {}) {
-  return hint?.includes(":");
+  return hint?.includes("-");
 }
 
 // signals a reference can meld with another reference in a
@@ -59,5 +59,5 @@ export function isFlowExport({ hint }: Hinting = {}) {
 
 // skips exporting entirely
 export function isHidden({ hint }: Hinting = {}) {
-  return hint?.includes("-");
+  return hint?.includes("#");
 }

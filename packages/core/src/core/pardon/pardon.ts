@@ -13,7 +13,6 @@ import { pardonExecution } from "../execution/pardon-execution.js";
 import {
   FetchObject,
   ResponseObject,
-  SimpleRequestInit,
   fetchIntoObject,
   intoFetchParams,
   intoResponseObject,
@@ -29,19 +28,23 @@ import {
   mergeSchema,
 } from "../schema/core/schema-utils.js";
 import {
+  HttpsRequestObject,
   httpsRequestSchema,
   httpsResponseSchema,
 } from "../request/https-template.js";
 import { ScriptEnvironment } from "../schema/core/script-environment.js";
 import {
-  EndpointConfiguration,
+  Configuration,
   EndpointStepsLayer,
   LayeredEndpoint,
 } from "../../config/collection-types.js";
 import {
-  HttpsRequestStep,
   HttpsResponseStep,
+  HttpsScriptStep,
   guessContentType,
+  isHttpRequestStep,
+  isHttpResponseStep,
+  isHttpScriptStep,
 } from "../formats/https-fmt.js";
 import { PardonError } from "../error.js";
 import { intoURL, parseURL } from "../request/url-object.js";
@@ -50,15 +53,19 @@ import {
   EvaluationScope,
   Schema,
   SchemaMergingContext,
+  SchemaRenderContext,
 } from "../schema/core/types.js";
 import { getContextualValues } from "../schema/core/context.js";
-import { definedObject } from "../../util/mapping.js";
+import { definedObject, mapObject } from "../../util/mapping.js";
 import { JSON } from "../raw-json.js";
 import { PardonRuntime } from "./types.js";
 import { valueId } from "../../util/value-id.js";
-import { PardonCompiler } from "../../runtime/compiler.js";
 import { cleanObject } from "../../util/clean-object.js";
-import { patternize } from "../schema/core/pattern.js";
+import { parseHints, patternize } from "../schema/core/pattern.js";
+import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
+import { evaluation } from "../evaluation/expression.js";
+import { isSecret } from "../schema/definition/hinting.js";
+import { makeSecretsProxy } from "../../runtime/secrets.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
@@ -66,11 +73,11 @@ export type PardonAppContext = Pick<
 >;
 
 export type PardonExecutionMatch = {
-  schema: Schema<FetchObject>;
-  context: SchemaMergingContext<FetchObject>;
+  schema: Schema<HttpsRequestObject>;
+  context: SchemaMergingContext<HttpsRequestObject>;
   endpoint: LayeredEndpoint;
   layers: (EndpointStepsLayer & {
-    configuration: Partial<EndpointConfiguration>;
+    configuration: Partial<Configuration>;
   })[];
   values: Record<string, any>;
 };
@@ -78,35 +85,35 @@ export type PardonExecutionMatch = {
 export type PardonExecutionInit = {
   ask?: string;
   url?: URL | string;
-  init?: SimpleRequestInit;
+  init?: Partial<RequestObject>;
   options?: PardonOptions;
   values: Record<string, any>;
   runtime?: Record<string, unknown>;
-  configuration?: EndpointConfiguration;
+  configuration?: Configuration;
   select?: PardonSelectOne;
   app(): PardonAppContext;
 };
 
-export type PardonExecutionOutbound = {
+export type PardonExecutionEgress = {
   request: RequestObject;
   redacted: RequestObject;
   reduced: Record<string, any>;
   evaluationScope: EvaluationScope;
 };
 
-export type PardonExecutionInbound = ResponseObject;
+export type PardonExecutionIngress = ResponseObject;
 
 export type PardonExecutionResult = {
   endpoint: string;
-  outbound: PardonExecutionOutbound;
-  inbound: {
-    object: ResponseObject;
+  output: Record<string, any>;
+  egress: PardonExecutionEgress;
+  ingress: {
+    actual: ResponseObject;
     response: ResponseObject;
     redacted: ResponseObject;
     outcome?: string;
     values: Record<string, any>;
     secrets: Record<string, any>;
-    evaluationScope: EvaluationScope;
   };
 };
 
@@ -138,12 +145,7 @@ const selectOne: PardonExecutionInit["select"] = (
       );
       const exact = matches.filter(({ endpoint: { layers } }) =>
         layers
-          .flatMap(
-            ({ steps }) =>
-              steps.filter(
-                ({ type }) => type === "request",
-              ) as HttpsRequestStep[],
-          )
+          .flatMap(({ steps }) => steps.filter(isHttpRequestStep))
           .some(
             ({ request: { [disambiguator]: value } }) =>
               value && patternize(value as string).template === template,
@@ -175,6 +177,8 @@ const selectOne: PardonExecutionInit["select"] = (
 };
 
 export type PardonExecutionContext = PardonExecutionInit & {
+  values: Record<string, any>;
+  secrets?: Record<string, any>;
   timestamps: {
     intent?: number;
     request?: number;
@@ -187,6 +191,40 @@ export type PardonExecutionContext = PardonExecutionInit & {
   };
 };
 
+function redactAsk(ask: string | undefined) {
+  if (ask === undefined) return undefined;
+  const { values, ...http } = HTTP.parse(ask);
+
+  return HTTP.stringify({ ...http, values: redactValues(values ?? {}) });
+}
+
+export function parseSecretsFromValues(values?: Record<string, any>) {
+  return {
+    values: redactValues(values ?? {}),
+    secrets: secretValues(values ?? {}),
+  };
+}
+
+function redactValues(values: Record<string, any>) {
+  return unredactValues(
+    mapObject(values, {
+      filter: (key) => !isSecret(parseHints(key)),
+    }),
+  );
+}
+
+function secretValues(values: Record<string, any>) {
+  return unredactValues(
+    mapObject(values, {
+      filter: (key) => isSecret(parseHints(key)),
+    }),
+  );
+}
+
+function unredactValues(values: Record<string, any>) {
+  return mapObject(values, { keys: (key) => parseHints(key).param });
+}
+
 export const PardonFetchExecution = pardonExecution({
   init({
     url,
@@ -198,7 +236,7 @@ export const PardonFetchExecution = pardonExecution({
     ...otherContextData
   }: PardonExecutionInit): PardonExecutionContext {
     const {
-      method = (values.method as string) ?? "GET",
+      method = values.method as string | undefined,
       headers = [],
       body = undefined,
       meta,
@@ -207,7 +245,7 @@ export const PardonFetchExecution = pardonExecution({
     return {
       url,
       init,
-      values: values ?? {},
+      ...parseSecretsFromValues(values),
       options,
       timestamps: {
         intent: Date.now(),
@@ -215,15 +253,16 @@ export const PardonFetchExecution = pardonExecution({
       durations: {},
       app,
       ask:
-        ask ??
+        redactAsk(ask) ??
         HTTP.stringify({
           ...(url && parseURL(url)),
           method,
           headers: new Headers(headers),
           body,
-          values,
+          values: redactValues(values),
           meta,
         }),
+
       ...otherContextData,
     };
   },
@@ -231,7 +270,7 @@ export const PardonFetchExecution = pardonExecution({
     if (configuration) {
       const request = fetchIntoObject(url, init);
       const { values } = context;
-      const { compiler } = context.app();
+      const app = context.app();
       const endpoint: LayeredEndpoint = {
         action: "flow",
         layers: [],
@@ -239,11 +278,11 @@ export const PardonFetchExecution = pardonExecution({
         configuration,
       };
       const { schema, context: mergeContext } = mergeSchema(
-        { mode: "mux", phase: "build" },
+        { mode: "merge", phase: "build" },
         httpsRequestSchema(),
-        request,
+        request as HttpsRequestObject,
         createEndpointEnvironment({
-          compiler,
+          app,
           endpoint,
           values,
         }),
@@ -254,7 +293,7 @@ export const PardonFetchExecution = pardonExecution({
         values,
         schema: schema!,
         layers: [],
-        context: mergeContext,
+        context: mergeContext!,
       };
     }
 
@@ -278,8 +317,8 @@ export const PardonFetchExecution = pardonExecution({
     }
 
     if (context.options?.unmatched) {
-      const { app, values } = context;
-      const { compiler } = app();
+      const { values } = context;
+      const app = context.app();
       const endpoint: LayeredEndpoint = {
         service: "-",
         action: "-",
@@ -296,11 +335,11 @@ export const PardonFetchExecution = pardonExecution({
       const archetype = httpsRequestSchema();
 
       const muxed = mergeSchema(
-        { mode: "mux", phase: "build" },
+        { mode: "merge", phase: "build" },
         archetype,
-        request,
+        request as HttpsRequestObject,
         createEndpointEnvironment({
-          compiler,
+          app,
           endpoint,
           values,
         }),
@@ -311,8 +350,8 @@ export const PardonFetchExecution = pardonExecution({
       }
 
       return {
-        schema: muxed.schema,
-        context: muxed.context,
+        schema: muxed.schema!,
+        context: muxed.context!,
         endpoint,
         values,
         layers: [],
@@ -354,17 +393,18 @@ export const PardonFetchExecution = pardonExecution({
       selectOne(goodMatches, { context, fetchObject: request })
     );
   },
-  async preview({
-    context: { app, values: inputValues },
-    match: { schema, values, endpoint },
-  }) {
-    const { compiler } = app();
+  async preview({ context, match: { schema, values, endpoint } }) {
+    const { values: inputValues } = context;
+    const app = context.app();
     const previewingEnv = createEndpointEnvironment({
       endpoint,
       values,
-      compiler,
-      secrets: true,
-      options: { "pretty-print": true },
+      app,
+      options: {
+        "pretty-print": true,
+        // preview won't render real secrets, so we don't redact them
+        secrets: true,
+      },
     });
 
     const rendered = await previewSchema(schema, previewingEnv);
@@ -379,9 +419,8 @@ export const PardonFetchExecution = pardonExecution({
         ...values,
         ...renderedValues,
       },
-      compiler,
-      secrets: false,
-      options: { "pretty-print": true },
+      app,
+      options: { "pretty-print": true, secrets: false },
     });
 
     const redacted = await previewSchema(schema, redactingEnv);
@@ -390,7 +429,7 @@ export const PardonFetchExecution = pardonExecution({
       schema,
       redacted.output,
       endpoint,
-      compiler,
+      app,
       inputValues,
     );
 
@@ -411,25 +450,65 @@ export const PardonFetchExecution = pardonExecution({
       evaluationScope: rendered.context.evaluationScope,
     };
   },
-  async render({
-    context: { durations, app, runtime, options, values: inputValues },
-    match: { schema, values, endpoint },
-  }) {
-    const { compiler } = app();
+  async render({ context, match: { schema, values, endpoint, layers } }) {
+    const {
+      durations,
+      runtime,
+      options,
+      values: inputValues,
+      secrets,
+      init: { computations } = {},
+    } = context;
+
+    const app = context.app();
+
+    const mergeComputations = mergeSchema(
+      { mode: "merge", phase: "build" },
+      schema,
+      {
+        computations: hiddenTemplate(computations),
+      },
+    );
+
+    if (!mergeComputations.schema) {
+      throw new PardonError(
+        "unexpected: failed to merge computations into matched schema: " +
+          (mergeComputations.error ??
+            mergeComputations.context?.diagnostics[0]),
+      );
+    }
+
+    schema = mergeComputations.schema;
 
     const renderStart = Date.now();
 
     const renderingEnv = createEndpointEnvironment({
       endpoint,
       values,
-      compiler,
+      secrets,
+      app,
       runtime,
-      secrets: true,
-      options: { "pretty-print": options?.pretty ?? false },
+      options: { "pretty-print": options?.pretty ?? false, secrets: true },
     });
 
     const rendered = await renderSchema(schema, renderingEnv);
 
+    // execute all pre-request steps: these follow the matched request.
+    for (const { steps } of layers) {
+      while (steps.length && isHttpScriptStep(steps[0])) {
+        const script = steps.shift() as HttpsScriptStep;
+
+        await executePreRequestScriptStep(context, script, {
+          values: {
+            ...rendered.context.environment.contextValues,
+            ...rendered.context.evaluationScope.resolvedValues({
+              secrets: true,
+            }),
+            egress: rendered.output,
+          },
+        });
+      }
+    }
     const renderedValues = rendered.context.evaluationScope.resolvedValues({
       secrets: false,
     });
@@ -437,10 +516,10 @@ export const PardonFetchExecution = pardonExecution({
     const redactingEnv = createEndpointEnvironment({
       endpoint,
       values: { ...values, ...renderedValues },
-      compiler,
+      secrets,
+      app,
       runtime: {},
-      secrets: false,
-      options: { "pretty-print": options?.pretty ?? true },
+      options: { "pretty-print": options?.pretty ?? true, secrets: false },
     });
 
     const redacting = mergeSchema(
@@ -452,16 +531,19 @@ export const PardonFetchExecution = pardonExecution({
     )!;
 
     if (!redacting.schema) {
-      console.error("failed to redact output: ", redacting.context.diagnostics);
+      console.error(
+        "failed to redact output: ",
+        redacting.error ?? redacting.context?.diagnostics[0],
+      );
     }
 
-    const redacted = await renderSchema(redacting.schema!, redactingEnv);
+    const redacted = await postrenderSchema(redacting.schema!, redactingEnv);
 
     const reduced = reducedValues(
       schema,
       redacted.output,
       endpoint,
-      compiler,
+      app,
       inputValues,
     );
 
@@ -484,7 +566,7 @@ export const PardonFetchExecution = pardonExecution({
       evaluationScope: rendered.context.evaluationScope,
     };
   },
-  async fetch({ context: { timestamps }, outbound: { request, redacted } }) {
+  async fetch({ context: { timestamps }, egress: { request, redacted } }) {
     if (timestamps) {
       timestamps.request = Date.now();
     }
@@ -507,15 +589,15 @@ export const PardonFetchExecution = pardonExecution({
       timestamps.response = Date.now();
     }
   },
-  async process({ context, outbound, inbound, match }) {
-    const { compiler } = context.app();
+  async process({ context, egress, ingress, match }) {
+    const app = context.app();
     const { layers, endpoint } = match;
 
     const now = Date.now();
 
     const encoding =
-      inbound.meta?.body ??
-      guessContentType(inbound.body ?? "", inbound.headers) ??
+      ingress.meta?.body ??
+      guessContentType(ingress.body ?? "", ingress.headers) ??
       "raw";
 
     let matchedSchema: Schema<ResponseObject> | undefined;
@@ -525,16 +607,25 @@ export const PardonFetchExecution = pardonExecution({
       schema: httpsResponseSchema(),
       match: true,
       object: {
-        ...inbound,
-        statusText: inbound.statusText?.trim() || undefined,
+        ...ingress,
+        statusText: ingress.statusText?.trim() || undefined,
       },
       values: {},
     });
 
-    for (const { steps, configuration } of layers) {
-      for (const responseTemplate of steps) {
-        const { status, headers, body, outcome, meta } =
-          responseTemplate as HttpsResponseStep;
+    layers: for (const { steps } of layers) {
+      while (steps.length) {
+        if (!steps.some(isHttpResponseStep)) {
+          continue layers;
+        }
+
+        while (!isHttpResponseStep(steps[0])) {
+          steps.shift();
+        }
+
+        const responseTemplate = steps.shift() as HttpsResponseStep;
+
+        const { status, headers, body, outcome, meta } = responseTemplate;
 
         const result = matcher.extend(
           {
@@ -543,7 +634,7 @@ export const PardonFetchExecution = pardonExecution({
             meta,
             ...(body && { body }),
           },
-          { mode: configuration.mode, environment: new ScriptEnvironment() },
+          { environment: new ScriptEnvironment() },
         );
 
         if (result?.progress) {
@@ -554,6 +645,11 @@ export const PardonFetchExecution = pardonExecution({
 
           matchedSchema = result.matching.schema;
           break;
+        } else {
+          // remove all post-request script steps.
+          while (steps.length && isHttpScriptStep(steps[0])) {
+            steps.shift();
+          }
         }
       }
     }
@@ -566,7 +662,7 @@ export const PardonFetchExecution = pardonExecution({
       const merged = mergeSchema(
         { mode: "match", phase: "build", body: encoding },
         responseSchema,
-        inbound,
+        ingress,
         new ScriptEnvironment(),
       );
 
@@ -578,7 +674,7 @@ export const PardonFetchExecution = pardonExecution({
 
     const [uncensored, redacted] = await Promise.all(
       [{ secrets: true }, { secrets: false }].map(async ({ secrets }) => {
-        const { output, context } = await postrenderSchema(
+        const { output: response, context } = await postrenderSchema(
           matchedSchema,
           createEndpointEnvironment({
             endpoint: {
@@ -589,20 +685,22 @@ export const PardonFetchExecution = pardonExecution({
               configuration: {
                 name: endpoint.configuration.name,
                 path: endpoint.configuration.path,
+                import: endpoint.configuration.import,
                 config: [{}],
               },
             },
-            compiler,
-            secrets,
+            app,
             options: {
               "pretty-print": true,
+              secrets,
             },
           }),
         );
 
         return {
-          output,
+          response,
           evaluationScope: context.evaluationScope,
+          context,
           values: cleanResponseValues(
             getContextualValues(context, { secrets }),
           ),
@@ -610,19 +708,47 @@ export const PardonFetchExecution = pardonExecution({
       }),
     );
 
+    const output = redacted.evaluationScope.resolvedValues({ flow: true });
+
+    // execute all pre-request steps: these follow the matched request.
+    for (const { steps } of layers) {
+      while (steps.length && isHttpScriptStep(steps[0])) {
+        const script = steps.shift() as HttpsScriptStep;
+
+        const {
+          service,
+          action,
+          configuration: { name },
+        } = endpoint;
+
+        await executePostRequestScriptStep(uncensored.context, script, {
+          values: {
+            service,
+            action,
+            endpoint: name,
+            ...context.values,
+            ...egress.request.values,
+            ...uncensored.values,
+            egress: egress.request,
+            ingress,
+          },
+        });
+      }
+    }
+
     return {
       endpoint: endpoint.configuration.path,
-      outbound,
-      inbound: {
-        object: inbound,
+      egress,
+      ingress: {
+        actual: ingress,
         outcome: matchedOutcome,
         evaluationScope: uncensored.evaluationScope,
-        response: uncensored.output,
+        response: uncensored.response,
         secrets: uncensored.values,
-        redacted: redacted.output,
+        redacted: redacted.response,
         values: redacted.values,
-        flow: redacted.evaluationScope.resolvedValues({ flow: true }),
       },
+      output,
     };
   },
   error() {},
@@ -647,19 +773,18 @@ function cleanResponseValues(response: Record<string, unknown>) {
 }
 
 function reducedValues(
-  schema: Schema<RequestObject>,
-  output: RequestObject,
+  schema: Schema<HttpsRequestObject>,
+  request: RequestObject,
   endpoint: LayeredEndpoint,
-  compiler: PardonCompiler,
+  app: PardonAppContext,
   values: Record<string, any>,
 ) {
   const matchingEnv = createEndpointEnvironment({
     endpoint,
     values: {},
-    compiler,
+    app,
     runtime: {},
-    secrets: false,
-    options: {},
+    options: { secrets: false },
   });
 
   const reducedValues = { ...values };
@@ -668,11 +793,15 @@ function reducedValues(
     const matching = mergeSchema(
       { mode: "match", phase: "build" },
       schema,
-      output,
+      request,
       matchingEnv,
     );
 
-    const resolvedValues = getContextualValues(matching.context);
+    if (matching.error) {
+      throw matching.error;
+    }
+
+    const resolvedValues = getContextualValues(matching.context!);
 
     for (const [key, value] of Object.entries(resolvedValues)) {
       try {
@@ -693,4 +822,40 @@ function reducedValues(
   }
 
   return reducedValues;
+}
+
+async function executePreRequestScriptStep(
+  context: PardonExecutionContext,
+  step: HttpsScriptStep,
+  { values }: { values: Record<string, unknown> },
+) {
+  const script = `(() => { ${step.script} ;;; })()`;
+
+  await evaluation(script, {
+    binding(key) {
+      return values[key] ?? globalThis[key];
+    },
+  });
+}
+
+async function executePostRequestScriptStep(
+  context: SchemaRenderContext,
+  step: HttpsScriptStep,
+  { values }: { values: Record<string, unknown> },
+) {
+  const script = `(() => { ${step.script} ;;; })()`;
+
+  await evaluation(script, {
+    binding(key) {
+      return (
+        values[key] ??
+        globalThis[key] ??
+        {
+          get secrets() {
+            return makeSecretsProxy(context);
+          },
+        }[key]
+      );
+    },
+  });
 }

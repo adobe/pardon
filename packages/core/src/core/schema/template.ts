@@ -29,12 +29,13 @@ import {
 } from "./core/schema-ops.js";
 import { datums } from "./definition/datum.js";
 import { isScalar } from "./definition/scalar.js";
+import { valueSchema } from "./definition/structures/value.js";
 
 export function templateSchematic<
   T,
   E extends Record<string, unknown> = Record<never, never>,
 >(
-  expand: (context: SchemaMergingContext<T>) => Schema<T>,
+  expand: (context: SchemaMergingContext<T>) => Schema<T> | undefined,
   extension: E,
 ): Schematic<T> {
   return defineSchematic({
@@ -67,6 +68,8 @@ export function expandInContext<T>(
     } else {
       template = datums.datum(template);
     }
+  } else if (context.mode === "match") {
+    return valueSchema(template as T);
   }
 
   if (Array.isArray(template)) {
@@ -89,7 +92,7 @@ export function expandInContext<T>(
     );
 
     if (ops.expand && !ops.render) {
-      return ops.expand(context);
+      return ops.expand({ ...context, template });
     }
   } else if (typeof template === "function") {
     // this shouldn't happen
@@ -101,7 +104,7 @@ export function expandInContext<T>(
     return template as Schema<T>;
   }
 
-  return stubSchema(); // scalars.any(schema as string | number | boolean);
+  return stubSchema();
 }
 
 export function expandTemplate<T>(

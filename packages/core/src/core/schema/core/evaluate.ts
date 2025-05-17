@@ -83,6 +83,9 @@ function synthesizeExpressionDeclaration(
       return {
         ...lookup,
         expression: expression ?? lookup.expression,
+        context: lookup.context
+          ? { ...lookup.context, cycles: context.cycles }
+          : null,
       } as typeof lookup & { context: SchemaRenderContext };
     }
   }
@@ -95,7 +98,7 @@ function synthesizeExpressionDeclaration(
     source:
       expression === undefined
         ? `{{}}`
-        : `{{= $$expr(${JSON.stringify(expression)}) }}`,
+        : `{{ = $$expr(${JSON.stringify(expression)}) }}`,
   };
 }
 
@@ -104,6 +107,12 @@ async function renderIdentifierInExpression(
   name: string,
   renderExpression?: string,
 ) {
+  const lookup = renderContext?.evaluationScope.lookup(name);
+
+  if (isLookupValue(lookup)) {
+    return lookup.value;
+  }
+
   const { context, expression, source, hint, rendered, aggregates } =
     synthesizeExpressionDeclaration(renderContext, name, renderExpression);
 
@@ -116,7 +125,7 @@ async function renderIdentifierInExpression(
     );
   }
 
-  return context.evaluationScope.rendering(context, name, async () => {
+  return context.evaluationScope.rendering(context, name, async (context) => {
     const identifier = parseScopedIdentifier(name);
 
     if (expression) {
@@ -135,7 +144,7 @@ async function renderIdentifierInExpression(
     }
 
     const result = await context.environment.evaluate({
-      context: context,
+      context,
       identifier,
     });
 
@@ -246,9 +255,8 @@ export function resolveIdentifier(context: SchemaContext, identifier: string) {
     const declaration = scope.lookupDeclaration(identifier);
 
     if (
-      declaration &&
-      resolution.context.evaluationScope !==
-        declaration?.context.evaluationScope
+      declaration?.context &&
+      resolution.context.evaluationScope !== declaration.context.evaluationScope
     ) {
       return;
     }

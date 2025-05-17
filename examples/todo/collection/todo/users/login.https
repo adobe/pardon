@@ -1,0 +1,20 @@
+defaults:
+  auth-type: none
+>>>
+PUT https://todo.example.com/users
+Content-Type: application/json
+
+{
+  username: "{{username}}",
+  password: "{{@password = secrets.password}}"
+}
+
+<<<
+200 OK
+
+{
+  "token": "{{@token}}"
+}
+
+!!!
+secrets({ username, env }).password ??= password

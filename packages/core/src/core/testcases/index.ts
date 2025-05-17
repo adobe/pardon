@@ -67,12 +67,21 @@ const CaseHelpers = Object.freeze({
 
 export type CaseHelpers = typeof CaseHelpers;
 
-export default function describeCases(
+// hint that description() itself cannot be async
+export default async function describeCases(
+  description: (arg: CaseHelpers) => Promise<void>,
+  contexts?: CaseContext[],
+): Promise<never>;
+export default async function describeCases(
+  description: (arg: CaseHelpers) => void,
+  contexts?: CaseContext[],
+): Promise<CaseContext[]>;
+export default async function describeCases(
   description: (arg: CaseHelpers) => void,
   contexts?: CaseContext[],
 ) {
   try {
-    return generateCases(() => description(CaseHelpers), contexts).map(
+    return (await generateCases(() => description(CaseHelpers), contexts)).map(
       normalize,
     );
   } catch (error) {

@@ -17,6 +17,7 @@ export default function PardonPlaygroundLoader(
     example?: string;
     config: Record<string, string>;
     layers?: string[];
+    id?: string;
   }>,
 ) {
   const [configProps, otherProps] = splitProps(props, ["config", "children"]);
@@ -37,10 +38,15 @@ export default function PardonPlaygroundLoader(
       default: (passedProps: typeof otherProps) => {
         const [componentProps, applicationProps] = splitProps(passedProps, [
           "options",
+          "id",
         ]);
 
         return (
-          <PardonApplication config={config()} {...applicationProps}>
+          <PardonApplication
+            config={config()}
+            {...applicationProps}
+            server={componentProps.options.server}
+          >
             <PardonPlayground {...componentProps}>
               <Show when={componentProps.options.editor}>
                 <PardonApplicationEditor
@@ -80,6 +86,9 @@ export default function PardonPlaygroundLoader(
       <div class="pp-app-container not-content mt-0!">
         <Suspense fallback={loading}>
           <Show when={!isSSR()} fallback={loading}>
+            <div class="t-0 l-0 absolute z-10 -translate-x-3/4 text-3xl opacity-50">
+              <IconTablerDirectionArrows />
+            </div>
             <PlaygroundApp {...otherProps} />
           </Show>
         </Suspense>

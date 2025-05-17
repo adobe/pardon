@@ -22,9 +22,11 @@ import { CURL } from "./curl-fmt.js";
 import { type KeyValueStringifyOptions, KV } from "./kv-fmt.js";
 import { encodeSearchComponent } from "../request/search-object.js";
 import { createHeaders } from "../request/header-object.js";
+import { mapObject } from "../../util/mapping.js";
 
 export type RequestObject = FetchObject & {
   values?: Record<string, unknown>;
+  computations?: Record<string, string>;
 };
 
 export type HttpFormatOptions = {
@@ -32,6 +34,33 @@ export type HttpFormatOptions = {
   indent?: number;
   kv?: KeyValueStringifyOptions;
 };
+
+type Lines = {
+  peek(): string;
+  next(): string;
+  rest(): string[];
+  eof: boolean;
+};
+
+function intoLines(text: string): Lines {
+  const lines = text.split("\n");
+  let index = 0;
+
+  return {
+    peek() {
+      return lines[index];
+    },
+    next() {
+      return lines[index++];
+    },
+    rest() {
+      return lines.slice(index);
+    },
+    get eof() {
+      return index >= lines.length;
+    },
+  };
+}
 
 export const HTTP = {
   parse,
@@ -157,24 +186,42 @@ function parse(
   file: string,
   options: { acceptcurl?: boolean } = {},
 ): Partial<RequestObject> {
-  const { [KV.unparsed]: rest, ...values } = KV.parse(file, "stream");
-  const lines = (rest ?? "").split("\n");
+  const { [KV.unparsed]: rest, ...data } = KV.parse(file, "stream", {
+    allowExpressions: true,
+  });
+  const lines = intoLines(rest ?? "");
 
-  if (options.acceptcurl && /^curl\s/.test(lines[0].trim())) {
+  const computations: Record<string, string> = {};
+  const values = Object.assign(
+    {},
+    mapObject(data, {
+      select(value, key) {
+        if (KV.isExprValue(value)) {
+          computations[key as string] =
+            `{{ -${key as string} = $$expr(${JSON.stringify(KV.loadExprValue(value))}) }}`;
+          return false;
+        }
+
+        return true;
+      },
+    }),
+  );
+
+  if (options.acceptcurl && /^curl\s/.test(lines.peek().trim())) {
     const {
-      request: { values, ...request },
-    } = CURL.parse(lines.join("\n"))!;
+      request: { values: curlValues, ...request },
+    } = CURL.parse(lines.rest().join("\n"))!;
     const [url, { headers, ...init }] = intoFetchParams(request);
 
     return {
       ...parseURL(url),
       headers: createHeaders(headers),
       ...init,
-      values,
+      values: { ...curlValues, ...values },
     };
   }
 
-  const requestLine = lines.shift()!;
+  const requestLine = lines.next()!;
   if (!requestLine.trim()) {
     return { values };
   }
@@ -195,8 +242,8 @@ function parse(
   let [, method = "GET", url = ""] = urlMatch;
 
   scanComments(lines);
-  while (lines.length > 0 && /^\s*[/?&]/.test(lines[0])) {
-    url += trimComment(lines.shift()!.trim());
+  while (!lines.eof && /^\s*[/?&]/.test(lines.peek())) {
+    url += trimComment(lines.next()!.trim());
     scanComments(lines);
   }
 
@@ -211,14 +258,17 @@ function parse(
     headers: createHeaders(headers),
     ...(body && { body }),
     values,
+    computations,
   };
 }
 
 function parseResponseObject(response: string): ResponseObject {
-  const lines = (response ?? "").split("\n");
+  const lines = intoLines(response ?? "");
 
   scanComments(lines, { andBlankLines: true });
-  const [, status, statusText] = /\s*(\d+)(?:\s*(.*))?$/.exec(lines.shift()!)!;
+  const [, status, statusText] = /\s*(\d+?)(?:\s+(.*))?$/.exec(
+    lines.next()!.trim(),
+  )!;
 
   const { headers, meta } = scanHeaders(lines);
 
@@ -227,12 +277,12 @@ function parseResponseObject(response: string): ResponseObject {
   return { status, statusText, headers: createHeaders(headers), meta, body };
 }
 
-function scanHeaders(lines: string[]) {
+function scanHeaders(lines: Lines) {
   const headers: [string, string][] = [];
   const meta: Record<string, string> = {};
 
-  while ((scanComments(lines), lines.length > 0)) {
-    const headerline = trimComment(lines.shift()!);
+  while ((scanComments(lines), !lines.eof)) {
+    const headerline = trimComment(lines.next()!);
 
     if (!headerline) {
       break;
@@ -301,23 +351,20 @@ function trimComment(line: string) {
   return line.replace(/\s*(?:#.*)?$/, "");
 }
 
-function scanComments(
-  lines: string[],
-  { andBlankLines: andBlanks = false } = {},
-) {
+function scanComments(lines: Lines, { andBlankLines: andBlanks = false } = {}) {
   while (
-    lines.length &&
-    (/^#/.test(lines[0]) || (andBlanks && !lines[0].trim()))
+    !lines.eof &&
+    (/^#/.test(lines.peek()) || (andBlanks && !lines.peek().trim()))
   ) {
-    lines.shift();
+    lines.next();
   }
 }
 
-function scanBody(lines: string[]) {
+function scanBody(lines: Lines) {
   const bodyLines: string[] = [];
 
-  while ((scanComments(lines, { andBlankLines: false }), lines.length)) {
-    bodyLines.push(lines.shift()!);
+  while ((scanComments(lines, { andBlankLines: false }), !lines.eof)) {
+    bodyLines.push(lines.next()!);
   }
 
   return bodyLines.join("\n").trim();

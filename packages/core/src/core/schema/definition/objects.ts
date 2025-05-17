@@ -9,11 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import {
-  arrayIntoObject,
-  mapObject,
-  mapObjectAsync,
-} from "../../../util/mapping.js";
+import { mapObjectAsync } from "../../../util/mapping.js";
 import { isMergingContext } from "../core/schema.js";
 import { stubSchema } from "./structures/stub.js";
 import {
@@ -127,17 +123,17 @@ function mergeRepresentation<M extends Record<string, unknown>>(
 
   const scoped = Boolean(rep.scoped || info?.scoped);
 
-  const value =
-    info?.value === undefined
-      ? rep.value
-      : merge(rep.value, {
-          ...fieldContext(context, scoped),
-          phase: "build",
-          template: info?.value,
-        });
-
-  if (!value) {
-    throw diagnostic(context, `could not match archetype value`);
+  let value = rep.value ?? stubSchema();
+  if (info?.value) {
+    const merged = merge(value!, {
+      ...fieldContext(context, scoped),
+      phase: "build",
+      template: info?.value,
+    });
+    if (!merged) {
+      throw diagnostic(context, `could not match archetype value`);
+    }
+    value = merged;
   }
 
   const object = inflatedObject(context, { ...rep, scoped, value }, info);
@@ -159,7 +155,7 @@ function defineObject<M extends Record<string, unknown>>(
       const { scoped, value } = self;
       if (isMergingContext(context)) {
         executeOp(
-          value,
+          value ?? stubSchema(),
           "scope",
           fieldContext({ ...context, phase: "validate" }, scoped, undefined),
         );
@@ -189,7 +185,7 @@ function defineObject<M extends Record<string, unknown>>(
     },
     async render(context) {
       const { scoped } = self;
-      const inflated = await inflateRender(context);
+      const inflated = inflatedObject(context, self);
 
       const rendered = (await mapObjectAsync(
         inflated as Record<string, Schema<M[keyof M]>>,
@@ -219,37 +215,10 @@ function defineObject<M extends Record<string, unknown>>(
   ) {
     const inflationSchema = fieldScopeContext(context, undefined);
 
-    executeOp(value, "scope", inflationSchema as SchemaContext<M[keyof M]>);
-  }
-
-  async function inflateRender(context: SchemaRenderContext) {
-    const { value, object } = self;
-    const inflationSchema = fieldScopeContext(context, undefined);
-    executeOp(value, "scope", inflationSchema);
-
-    return arrayIntoObject(
-      [
-        object,
-        ...(
-          await Promise.all(
-            inflationSchema.evaluationScope.index?.struts?.map(
-              async (strut) => {
-                return await context.environment.evaluate({
-                  context,
-                  identifier: strut,
-                });
-              },
-            ) || [],
-          )
-        )
-          .filter((values) => values !== undefined)
-          .map((values) =>
-            mapObject(values as Record<string, unknown>, () => value),
-          ),
-      ],
-      (value) => {
-        return value;
-      },
+    executeOp(
+      value ?? stubSchema(),
+      "scope",
+      inflationSchema as SchemaContext<M[keyof M]>,
     );
   }
 }

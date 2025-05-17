@@ -18,7 +18,7 @@ export type ExecutionResult = Awaited<
   ReturnType<typeof window.pardon.continue>
 >;
 
-export type ExecutionOutboundResult = {
+export type ExecutionEgressResult = {
   context: { ask: string; trace: number };
 } & Omit<Awaited<ReturnType<typeof window.pardon.render>>, "secure">;
 

@@ -17,56 +17,127 @@ prev: false
 
 import {
   FileTree,
+  Tabs,
+  TabItem
 } from '@astrojs/starlight/components';
 
-## The Https format
+## The .https format
 
-Pardon's introduces a new format for describing and recording HTTP calls.
+Pardon introduces a new format for describing the HTTP interaction:  The HTTPS or "HTTP Schema"
+format.
 
-The overall syntax is an optional yaml header followed by a sequence of
-requests and responses delimited by lines starting with `>>>` and `<<<` respectively.
+An https file starts with a yaml block (which may be empty), followed by a sequence of request, response, and script blocks.
 
-Requests look like (optional) KV data, a request starting with an HTTP method and a URL (the
-url may be line-broken before `/`, `?` and `&` characters, since headers should not start with these
-characters.)  Followed by headers, a blank line, and a body.
+Each block starts with a specific sigil at the start of a line:
 
-Responses are similar but instead of the HTTP method and URL, they have a response code and
-(optional) status text.
+  - `>>>` starts a request,
+  - `<<<` starts a response, and
+  - `!!!` starts a script.
 
-The semantics of these files is determined by their sub-extension:
+Requests are parsed as KV data, then the method and URL,
+header lines. Any body content is separated from the headers by a blank line.
 
-<FileTree>
-- endpoint.https is a collection https file, used as a template to match a single request and response.
-- mixin.mix.https is a mixin template meant to extend a collection https file.
-- muxin.mux.https is a mixin template meant to further parameterized a collection https file with a semi-concrete request.
-- sequence.flow.https is a program: executing a sequence of requests one-at-a-time.
-- previous.log.https is a record of previous requests and their responses.
-</FileTree>
+Lines following the URL starting with `/`, `?` and `&` are appended to it, allowing
+long URLs to be broken up naturally. {/* although, technically, `&` is valid in header names. */}
+
+### Anatomy of an HTTPS request
+
+<Tabs>
+  <TabItem label="sigil">
+    ```http {1}
+    >>> variant
+    x=y
+    POST https://service/path?query=value
+    header: value
+
+    content
+    ```
+  </TabItem>
+  <TabItem label="kv data">
+    ```http {2}
+    >>> variant
+    x=y
+    POST https://service/path?query=value
+    header: value
+
+    content
+    ```
+  </TabItem>
+  <TabItem label="HTTP-format request">
+    ```http {3-6}
+    >>> variant
+    x=y
+    POST https://service/path?query=value
+    header: value
+
+    content
+    ```
+  </TabItem>
+    <TabItem label="Alternate request line">
+    ```http {3-6}
+    >>> variant
+    x=y
+    POST https://service/very/long/path
+      /broken/up
+      ?query=value
+      &another=param
+    header: value
+
+    content
+    ```
+  </TabItem>
+</Tabs>
+
+Responses start with a status code and optional status text, headers,
+and body content.  `x` or `*` can be used in place of numbers in the status code, e.g.,
+`2xx` matches all 200 responses.
+
+## Semantics
+
+The semantics of an https file is determined by their sub-extension.
+
+- `*.https` is a collection https file, used as a template to match a single request and response.
+- `*.mix.https` is a mixin template meant to extend a collection https file.
+- `*.flow.https` is a program: executing a sequence of requests one-at-a-time.
 
 ### Endpoints and Mixins
 
-Endpoints and mixins are evaluated till first-match.  Pardon attempts to find the first match
-of an endpoint against a request, discarding request and response templates along the way.
-Once the first request tempalte is matched, other request options are discarded but 
-all remaining response templates are available to process the response (per environment/mixin).
+Standard `*.https` files represent an API endpoint: they are meant to match a
+single https request and its response.
 
-The response is evaluated through a schema created by the first remaining response template
-from the endpoint and the first match from each of the active mixins.
+Requests are matched against all endpoints: For each endpoint, the request is matched
+against each request block in turn, if any match, the endpoint is selected.
+Any mixins are then applied, with enabled and matching mixins applying their templates
+to the request, picking the first matching one (selected mixings can apply their own mixins as well).
 
-Responses can have statuses written as `5xx` or `5**` to indicate any 500-series status code, similarly
-`2xx` works as well to cover 200-series responses.
+Once the request is rendered, any script blocks immediately following the request are executed.
+The request could then be sent.  The first matching response block in each selected layer is
+then applied to the response (only considering response blocks _after_ the selected request).
+If any script blocks follow the response, they are executed too.
 
-This is how endpoints represent the alternatives of a single request/response interaction.
+In https requests, the request sigil may have a `variant`
+```
+>>> {{?variant}}
+```
 
-### Units and Flows
+And the response sigil may have an `outcome` 
+```
+<<< {{?outcome}}
+```
 
-Units and flows (sequences) are executed by the test case-runner.
+These variables would be available in the egress and ingress values, respectively.
+
+### Flows
+
+Flows are usually executed by the test case-runner or scripts.
 These are structured in groupos of request and responses for that group.
 
 In sequences, requests and responses are named and a response matching a request name
-works like a "goto".
+works like a _goto_.
 
-### Logs
-
-Logs are simply pairs of requests and their corresponding responses.  We can use these to
-replay requests and maybe compare responses.
+| flow step | description |
+| --- | --- |
+| `>>> label` | a named request |
+| `<<< label` | a named response - label = next request or outcome of flow |
+| `>>> label / 10` | a named request that will run at most 10 times in this flow execution |
+| `<<< label +2s` | a named response that will wait 2 seconds before executing the next request |

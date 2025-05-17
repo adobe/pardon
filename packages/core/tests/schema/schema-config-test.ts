@@ -333,7 +333,7 @@ describe("schema configuration magic", () => {
     environment: SchemaScriptEnvironment,
   ) {
     return createMergingContext(
-      { mode: "mix", phase: "build" },
+      { mode: "merge", phase: "build" },
       s,
       primer,
       environment,

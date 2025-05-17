@@ -115,12 +115,10 @@ export default function PardonInput(
   createEffect(
     on(text, (text) => {
       try {
-        const {
-          [KV.unparsed]: unparsed = "",
-          [KV.eoi]: _eoi,
-          [KV.upto]: _upto,
-          ...values
-        } = KV.parse(text ?? "", "stream");
+        const { [KV.unparsed]: unparsed = "", ...values } = KV.parse(
+          text ?? "",
+          "stream",
+        );
 
         updateData({ values, doc: unparsed });
         props.onDataValidChange?.(true);

@@ -11,32 +11,20 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import {
-  TbArrowBarRight,
-  TbCode,
-  TbEye,
-  TbMoodEmpty,
-  TbMoodWink2,
-  TbArrowsHorizontal,
-  TbSettings,
-  TbMoodAnnoyed,
-  TbMoodSad,
-} from "solid-icons/tb";
-import type { IconTypes } from "solid-icons";
-
 const SolidIcons = {
-  fetch: TbArrowBarRight,
-  wink: TbMoodWink2,
-  annoyed: TbMoodAnnoyed,
-  unhappy: TbMoodSad,
-  code: TbCode,
-  shrug: TbMoodEmpty,
-  eye: TbEye,
-  setting: TbSettings,
-  equiv: TbArrowsHorizontal,
+  fetch: IconTablerArrowBarRight,
+  wink: IconTablerMoodWink2,
+  annoyed: IconTablerMoodAnnoyed,
+  unhappy: IconTablerMoodSad,
+  code: IconTablerCode,
+  shrug: IconTablerMoodEmpty,
+  eye: IconTablerEye,
+  setting: IconTablerSettings,
+  pencil: IconTablerPencil,
+  equiv: IconTablerArrowsHorizontal,
 };
 
-type Props = { name: keyof typeof SolidIcons } & Parameters<IconTypes>[0];
+type Props = { name: keyof typeof SolidIcons };
 
 const { name, ...props } = Astro.props;
 

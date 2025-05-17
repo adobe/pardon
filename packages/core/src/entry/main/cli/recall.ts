@@ -13,12 +13,22 @@ import { valueOps } from "../../../db/entities/value-entity.js";
 import { httpOps } from "../../../db/entities/http-entity.js";
 import { PardonError } from "../../../core/error.js";
 import { PardonRuntime } from "../../../core/pardon/types.js";
+import { FILE } from "../../../runtime/file.js";
+import { HTTP, HTTPS, ResponseObject } from "../../../modules/formats.js";
+import {
+  HttpsScheme,
+  isHttpResponseStep,
+  isHttpScriptStep,
+} from "../../../core/formats/https-fmt.js";
+import { httpsResponseSchema } from "../../../core/request/https-template.js";
+import { mergeSchema } from "../../../core/schema/core/schema-utils.js";
+import { evaluation } from "../../../core/evaluation/expression.js";
 
-export function recall(
+export async function recall(
   { database }: PardonRuntime<"loading">,
   lookup: string[],
   values: Record<string, string>,
-  locale?: Intl.Locale,
+  { locale, args }: { locale?: Intl.Locale; args?: string[] } = {},
 ) {
   if (!database) {
     throw new PardonError("database not available");
@@ -41,8 +51,18 @@ export function recall(
 
   const related = getRelatedValues([...interesting], values);
 
+  const [filter] = args?.filter((name) => name.endsWith(".filter.https")) ?? [];
+
+  const filterexecution = filter
+    ? HTTPS.parse(await FILE.text(filter), "filter" as "merge")
+    : undefined;
+
   for (const [http, scope] of Object.entries(related)) {
     const { req, res, ask, created_at } = getHttpEntity({ http });
+
+    if (!(await acceptResult({ req, res }, values, filterexecution))) {
+      continue;
+    }
 
     console.info(
       `# (${new Intl.DateTimeFormat(locale, {
@@ -74,4 +94,85 @@ export function recall(
       console.info(`<<<\n${res}`);
     }
   }
+}
+
+/**
+ * this is a quick implementation, need to move this to the UI
+ * (and probably refactor the pattern in general.)
+ */
+async function acceptResult(
+  { res }: { req?: string; res?: string },
+  { ...values }: Record<string, any>,
+  filterexecution?: HttpsScheme<"source">,
+) {
+  if (!filterexecution) {
+    return true;
+  }
+
+  if (!res && filterexecution.steps.some(isHttpResponseStep)) {
+    return false;
+  }
+
+  const steps = filterexecution.steps.slice();
+
+  while (steps.length) {
+    const step = steps.shift()!;
+    if (isHttpResponseStep(step)) {
+      const responseObject: ResponseObject = {
+        status: step.status,
+        headers: new Headers(step.headers),
+        meta: step.meta,
+        body: step.body,
+      };
+      const { schema } = mergeSchema(
+        { mode: "merge", phase: "build" },
+        httpsResponseSchema(),
+        responseObject,
+      );
+
+      const merged =
+        schema &&
+        mergeSchema(
+          { mode: "match", phase: "validate" },
+          schema!,
+          HTTP.responseObject.parse(res!),
+        );
+
+      if (!merged?.schema) {
+        while (steps.length && !isHttpResponseStep(step)) {
+          steps.shift();
+        }
+        if (!steps.length) {
+          return false;
+        }
+        continue;
+      }
+      Object.assign(
+        values,
+        merged.context!.evaluationScope.resolvedValues({ secrets: true }),
+      );
+    } else if (isHttpScriptStep(step)) {
+      let filtered = true;
+      await evaluation(`(async () => { ${step.script} ;;; })()`, {
+        binding(key) {
+          return (
+            values[key] ??
+            {
+              get $filter() {
+                return (condition: any) => (filtered &&= condition);
+              },
+              FILE,
+            }[key] ??
+            globalThis[key]
+          );
+        },
+      });
+
+      if (!filtered) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }

@@ -136,23 +136,26 @@ export function exposeSchematic<O extends SchematicOps<unknown>>(
   return template() as Partial<O>;
 }
 
+export function directMerge<T>(
+  schema: Schema<T>,
+  context: SchemaMergingContext<T>,
+) {
+  return exposeSchema<SchemaOps<T>>(schema).merge!(context);
+}
+
 export function merge<T>(
   schema: Schema<T>,
   context: SchemaMergingContext<T>,
 ): Schema<T> | undefined {
-  const scheme = exposeSchema(schema);
-
   if (isSchematic(context.template)) {
     const ops = exposeSchematic<SchematicOps<T>>(context.template);
 
     if (ops.blend) {
-      return ops.blend(context, (context) => merge(schema, context)) as
-        | Schema<T>
-        | undefined;
+      return ops.blend(context, (context) => merge(schema, context));
     }
   }
 
-  return scheme.merge!(context) as Schema<T> | undefined;
+  return directMerge(schema, context);
 }
 
 export function isSchema<T = unknown>(thing: unknown): thing is Schema<T> {

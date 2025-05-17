@@ -40,6 +40,7 @@ const EnterToBody = keymap.of([
         selection: { ranges },
         doc,
       } = view.state;
+
       if (ranges.length !== 1) {
         return false;
       }
@@ -50,15 +51,11 @@ const EnterToBody = keymap.of([
       }
 
       const currentLine = doc.lineAt(from);
-      if (currentLine.from !== from) {
-        return false;
-      }
-
-      if (currentLine.number !== doc.lines) {
-        return false;
-      }
-
-      if (doc.lines < 2 || doc.line(doc.lines - 1).length) {
+      if (
+        currentLine.from !== from ||
+        doc.lines < 2 ||
+        doc.line(doc.lines - 1).length
+      ) {
         view.dispatch([
           view.state.update({
             changes: { from, insert: "\n" },
@@ -66,6 +63,10 @@ const EnterToBody = keymap.of([
           }),
         ]);
 
+        return true;
+      }
+
+      if (currentLine.number !== doc.lines) {
         return false;
       }
 
@@ -152,7 +153,7 @@ export default function CodeMirror(props: CodeMirrorProps) {
       }}
     >
       <Show when={otherprops.icon}>
-        <div class="absolute right-3 top-3 z-10">{otherprops.icon!}</div>
+        <div class="absolute top-2 right-3 z-10">{otherprops.icon!}</div>
       </Show>
     </div>
   );

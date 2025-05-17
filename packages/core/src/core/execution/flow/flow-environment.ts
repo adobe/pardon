@@ -47,7 +47,9 @@ export function createSequenceEnvironment({
       Math,
       Date,
     },
-    resolve(name, context) {
+    resolve(context, { name, scoped }) {
+      // todo: check if scoped should skip resolution here in any cases.
+      void scoped;
       const value = values[name];
 
       return value !== undefined

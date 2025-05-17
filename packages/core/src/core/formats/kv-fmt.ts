@@ -19,33 +19,210 @@ KV format is key=value where value can be in lenient JSON
 (quoting strings is optional... only need to quote strings for
 true, false, null, "", strings that look like numbers or
 contain non identifier characters (a-z0-9$_)).
+
+`=` can (and should) be used in place of `:` in objects.
+
+As an extension, javascript expressions can either be parenthesized
+or follow := assignments at the top level.
 */
 
 // a kv token is:
 //  whitespace
 //  a single-quoted string
 //  a double-quoted string
-//  a backtick-quoted string. (with out ${...} interpolations)
-//  syntax characters, any of these: {}[]:,=
+//  a backtick-quoted string. (without ${...} interpolations)
+//  syntax characters, any of these: {}[]():,=
 //  a word token, which can contain letters, digits, underscores, $, @, +, - (as a minus or hyphen), and can contain :
 //  comment (starting with # till end of line)
+//
+// text following := or starting with "(" is retokenized as a javascript expression.
+// only (), {}, [], and `` nesting is assured, and that the sequence does not
+// end with something that can continue an expression.
 const tokenizer =
-  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\],]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
-const kevsplitter = /^((?!['"])[^:=]+)([:=])(.*)$/im;
-const evsplitter = /^([:=])(.*)$/im;
+  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\](),]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
+const kevsplitter = /^((?!['"])[^:=]+)(:=|:(?!=)|=)(.*)$/im;
+const evsplitter = /^(:=|:(?!=)|=)(.*)$/im;
 
-function tokenize(data: string) {
+type ExpressionParseState = {
+  stack: string[];
+  token: string;
+  strict: boolean;
+};
+
+function makeExpressionParseState(strict: boolean): ExpressionParseState {
+  return { stack: [], token: "", strict: strict };
+}
+
+const EXPR_ONGOING = false;
+const EXPR_END = true;
+
+// understands just enough javascript to keep syntax together.
+function addToExpression(
+  tokens: string[],
+  tokensAt: number,
+  state: ExpressionParseState,
+  followingToken?: string | null,
+): typeof EXPR_ONGOING | typeof EXPR_END | (string & {}) {
+  const { stack } = state;
+
+  const token = tokens[tokensAt++];
+  state.token += token;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    const top = stack[stack.length - 1] ?? ".";
+
+    switch (top) {
+      case ".":
+      case "(":
+      case "[":
+      case "{": {
+        const expected = ")]}".indexOf(c);
+
+        if (expected !== -1) {
+          if (top === "([{"[expected]) {
+            stack.pop();
+          } else {
+            return `expected ${c}`;
+          }
+        }
+        if ("([{'\"`".includes(c)) stack.push(c);
+        break;
+      }
+      case "'":
+        if (c === "\\") i++;
+        else if (c === "'") stack.pop();
+        break;
+      case '"':
+        if (c === "\\") i++;
+        else if (c === '"') stack.pop();
+        break;
+      case "`":
+        if (c === "\\") i++;
+        else if (c === "$" && token[i + 1] === "{") {
+          stack.push("{");
+          i++;
+        } else if (c === "`") stack.pop();
+        break;
+    }
+  }
+
+  while (tokensAt < tokens.length && !tokens[tokensAt]?.trim()) {
+    tokensAt++;
+  }
+
+  if (stack.length === 0) {
+    if (state.strict) {
+      return EXPR_END;
+    }
+
+    const nextToken = tokens[tokensAt] ?? "";
+    const lookahead = `${state.token.trim().slice(-1)[0] ?? " "}${nextToken[0]?.trim() || followingToken?.trim() || " "}`;
+
+    // check for possible continuations of expressions here, using the
+    // last character of the previous token and the first of the next.
+    if (!/^(?:[-+*/.!?^|&<>=%:]|.[-+*/.!?^|&<>=%:`([])/.test(lookahead)) {
+      return EXPR_END;
+    }
+  }
+
+  return EXPR_ONGOING;
+}
+
+type TokenizationState = {
+  retokenized: string[];
+  ctx: string[];
+  expression?: ExpressionParseState;
+  exit?: boolean;
+};
+
+function tokenize(data: string, options?: { allowExpressions?: boolean }) {
   // returns strings that alternate between values that match the tokenizer and the
   // values in between (which should be empty strings until the end of the kv data).
   //
   // we use a two-pass tokenization to allow values with `=` and `:` in them.
   // first pass tokenizes without splitting on `=` and `:`, second pass splits them
   // unless the preceeding token was an `=` or `:`, in which case we don't (as we're in a value).
-  return data.split(tokenizer).reduce<{ retokenized: string[]; ctx: string[] }>(
-    (state, tokenOrSplit, index) => {
-      if (!(index & 1)) {
-        state.retokenized.push(tokenOrSplit);
+
+  return data.split(tokenizer).reduce<TokenizationState>(
+    (state, tokenOrSplit, index, tokens) => {
+      // if we're in expression state, keep it going...
+      if (state.expression) {
+        const result = addToExpression(tokens, index, state.expression);
+
+        // we can keep going.
+        if (result === EXPR_ONGOING) {
+          return state;
+        }
+
+        // if the result is not false, we've hit the end, either successfully completing
+        // the expression or failing to.
+        const { token } = state.expression;
+        state.expression = undefined;
+
+        if (result === EXPR_END) {
+          state.retokenized[state.retokenized.length - 1] = token;
+
+          return state;
+        }
+
+        // on parse failure, move whole expression token to unmatched location.
+        state.retokenized[state.retokenized.length - 2] += token;
+        state.retokenized[state.retokenized.length - 1] = "";
+
         return state;
+      }
+
+      if (!(index & 1) || state.exit) {
+        state.retokenized.push(tokenOrSplit);
+        state.exit ||= Boolean(tokenOrSplit);
+        return state;
+      }
+
+      if (options?.allowExpressions) {
+        const reindex = state.retokenized.length - 2;
+        const prevNonBlankTokenIndex = previousNonBlankIndex(
+          state.retokenized,
+          reindex - 2,
+        );
+        const prevNonBlankToken = previousNonBlankToken(
+          state.retokenized,
+          reindex,
+        );
+
+        if (
+          prevNonBlankToken == ":=" &&
+          !inValue(tokens, prevNonBlankTokenIndex)
+        ) {
+          const retokenizedColonEq = previousNonBlankToken(
+            state.retokenized,
+            state.retokenized.length - 2,
+          );
+
+          if (retokenizedColonEq === ":=") {
+            const expression = makeExpressionParseState(false);
+            if (addToExpression(tokens, index, expression) === true) {
+              state.retokenized.push(expression.token);
+              return state;
+            } else {
+              state.retokenized.push(tokens[index]);
+              return { ...state, expression };
+            }
+          }
+        }
+
+        if (
+          tokens[index] === "(" &&
+          !inValue(state.retokenized, previousNonBlankIndex(tokens, index))
+        ) {
+          const expression = makeExpressionParseState(true);
+          if (addToExpression(tokens, index, expression) === true) {
+            state.retokenized.push(expression.token);
+            return state;
+          } else {
+            state.retokenized.push("");
+            return { ...state, expression };
+          }
+        }
       }
 
       if (
@@ -56,6 +233,11 @@ function tokenize(data: string) {
         if (ke) {
           const [, key, eq, value] = ke;
           state.retokenized.push(key, "", eq, "", value);
+
+          if (options?.allowExpressions && eq === ":=" && value.trim()) {
+            return startRetokenizedExpression(tokens, index, state);
+          }
+
           return state;
         }
 
@@ -63,6 +245,9 @@ function tokenize(data: string) {
         if (ev) {
           const [, eq, value] = ev;
           state.retokenized.push(eq, "", value);
+          if (options?.allowExpressions && eq === ":=" && value.trim()) {
+            return startRetokenizedExpression(tokens, index, state);
+          }
           return state;
         }
       }
@@ -85,24 +270,61 @@ function tokenize(data: string) {
   ).retokenized;
 }
 
+function startRetokenizedExpression(
+  tokens: string[],
+  index: number,
+  state: TokenizationState,
+) {
+  const expression = makeExpressionParseState(false);
+  const expressionResult = addToExpression(
+    state.retokenized,
+    state.retokenized.length - 1,
+    expression,
+    nextNonBlankToken(tokens, index),
+  );
+  if (expressionResult === true) {
+    state.retokenized[state.retokenized.length - 1] = expression.token;
+    return state;
+  } else {
+    state.retokenized[state.retokenized.length - 1] = "";
+    return { ...state, expression };
+  }
+}
+
 // simple token should allow somewhat complex values like e.g., email addresses and paths without quotes
 const simpleToken = /^[a-z0-9~!@#$%^&|*_./:=?+-]+$/i;
 const simpleKey = /^[a-z0-9$@_.+-]*$/i;
 
 const unparsed = Symbol("unparsed");
-const upto = Symbol("upto");
-const eoi = Symbol("end-of-input");
+const eoi = Symbol("eoi");
 
 export type ParseMode = "object" | "stream" | "value";
 
 export type KeyValueStringifyOptions = {
   indent?: number;
   mode?: "kv" | "json";
+  compact?: boolean;
   limit?: number;
   trailer?: string;
   split?: boolean;
   value?: boolean;
+  quote?: "single" | "double" | "auto";
 };
+
+const ExpressionTag = Symbol("kv-expr");
+export type ExpressionValue = (() => string) & { [ExpressionTag]: true };
+
+function makeExprValue(token: string): ExpressionValue {
+  return Object.assign(() => token, { [ExpressionTag]: true as const });
+}
+
+function loadExprValue(expr: ExpressionValue) {
+  return expr();
+}
+
+function isExprValue(expr: any): expr is ExpressionValue {
+  return typeof expr === "function" && expr[ExpressionTag];
+}
 
 export const KV: {
   parse(data: string, mode: "value"): unknown;
@@ -110,35 +332,37 @@ export const KV: {
   parse(
     data: string,
     mode: "stream",
+    options?: { allowExpressions?: boolean },
   ): Record<string, unknown> & {
     [unparsed]?: string;
-    [eoi]?: string;
-    [upto]?: number;
   };
   parse(data: string): unknown;
   stringify(data: unknown, options?: KeyValueStringifyOptions): string;
-  stringifyKey(key: string): string;
+  stringifyKey(key: string, options?: KeyValueStringifyOptions): string;
   isSimpleKey(key: string): boolean;
   tokenize(
     data: string,
   ): { token: string; key?: string; value?: unknown; span?: number }[];
+  isExprValue(value: any): value is ExpressionValue;
+  loadExprValue(value: ExpressionValue): string;
+  makeExprValue(value: string): ExpressionValue;
   unparsed: typeof unparsed;
-  eoi: typeof eoi;
-  upto: typeof upto;
 } = {
-  parse(data: string, parseMode?: ParseMode): any {
+  parse(
+    data: string,
+    parseMode?: ParseMode,
+    { allowExpressions }: { allowExpressions?: boolean } = {},
+  ): any {
     const result: Record<string, unknown> & {
       [unparsed]?: string;
-      [eoi]?: string;
-      [upto]?: number;
     } = {};
 
     if (parseMode === "value") {
       data = "value=" + data;
     }
 
-    const tokens = tokenize(data ?? "");
-    const stack: { (token: string): void; [eoi]?(): void | boolean }[] = [];
+    const tokens = tokenize(data ?? "", { allowExpressions });
+    const stack: { (token: string): void }[] = [];
     let parsed = 0;
 
     function decode(token: string) {
@@ -154,6 +378,8 @@ export const KV: {
           return JSON.parse(
             `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
           );
+        case allowExpressions && /^[(].*[)]$/.test(token):
+          return makeExprValue(token);
         default:
           if (token === "null") {
             return null;
@@ -174,7 +400,7 @@ export const KV: {
         if (
           typeof expected === "string"
             ? expected === token
-            : expected.test(token)
+            : expected.exec(token)?.[0] === token
         ) {
           return next(token);
         }
@@ -235,53 +461,59 @@ export const KV: {
         }
       };
 
-    const value = (consumer: (token: unknown | typeof eoi) => void | boolean) =>
-      Object.assign(
-        (token: string) => {
-          switch (true) {
-            case "{" === token:
-              return stack.push(object({}, consumer));
-            case "[" === token:
-              return stack.push(array([], consumer));
-            default:
-              return consumer(decode(token));
-          }
-        },
-        {
-          [eoi]: () => consumer(eoi),
-        },
-      );
-
-    const key = Object.assign(
+    const value =
+      (consumer: (token: unknown | typeof eoi) => void | boolean) =>
       (token: string) => {
         switch (true) {
-          case !simpleKey.test(token) && !/^['"]/.test(token):
-            throw new Error(`unexpected ${token}: expected key for key=value`);
+          case "{" === token:
+            return stack.push(object({}, consumer));
+          case "[" === token:
+            return stack.push(array([], consumer));
           default:
-            stack.push(
-              expect("=", () =>
-                stack.push(
-                  value((value: unknown) => {
-                    if (value === eoi) {
-                      result[eoi] = decode(token);
-                      return;
-                    }
-
-                    token = token.replace(/^@/, "");
-                    result[decode(token)] = value;
-                    stack.push(key);
-                  }),
-                ),
-              ),
-            );
+            return consumer(decode(token));
         }
-      },
-      {
-        [eoi]() {
-          return true;
-        },
-      },
-    );
+      };
+
+    const expr =
+      (consumer: (token: string | typeof eoi) => void | boolean) =>
+      (token: string) => {
+        switch (true) {
+          default:
+            return consumer(token);
+        }
+      };
+
+    const key = (token: string) => {
+      switch (true) {
+        case !simpleKey.test(token) && !/^['"]/.test(token):
+          throw new Error(`unexpected ${token}: expected key for key=value`);
+        default:
+          stack.push(
+            expect(/=|:=/, (assignment) =>
+              stack.push(
+                assignment === "="
+                  ? value((value: unknown) => {
+                      if (value === eoi) {
+                        return;
+                      }
+
+                      //token = token.replace(/^@/, "");
+                      result[decode(token)] = value;
+                      stack.push(key);
+                    })
+                  : expr((value) => {
+                      if (value === eoi) {
+                        return;
+                      }
+
+                      result[decode(token)] = makeExprValue(value);
+                      stack.push(key);
+                    }),
+              ),
+            ),
+          );
+      }
+    };
 
     if (
       (!parseMode && nextNonBlankToken(tokens, 1) !== "=") ||
@@ -338,7 +570,11 @@ export const KV: {
       if (tokens[i] !== "") {
         if (parseMode === "stream") {
           if (stack.length !== 1 || !stack.pop()![eoi]?.()) {
-            result[upto] = tokens.slice(parsed).join("").length;
+            // result[upto] = tokens.slice(parsed).join("").length;
+          }
+
+          if (tokens[i] === "*") {
+            i++;
           }
 
           result[unparsed] = tokens.slice(i).join("");
@@ -362,10 +598,6 @@ export const KV: {
           stack[0] !== key &&
           stack[0][eoi]
         ) {
-          if (!stack.pop()![eoi]?.()) {
-            result[upto] = tokens.slice(parsed).join("").length;
-          }
-
           result[unparsed] = tokens.slice(i).join("");
           return result;
         }
@@ -376,8 +608,12 @@ export const KV: {
         if (
           stack.length === 1 &&
           stack[0] === key &&
-          !/^=$/.test(nextNonBlankToken(tokens, i + 1)!)
+          !/^(?:=|:=)$/.test(nextNonBlankToken(tokens, i + 1)!)
         ) {
+          if (tokens[i + 1] === "*") {
+            i += 2;
+          }
+
           result[unparsed] = tokens.slice(i).join("");
           return result;
         }
@@ -391,10 +627,12 @@ export const KV: {
         throw new Error("failed to parse entire text as kv format");
       }
 
-      if (!stack.pop()![eoi]?.()) {
-        result[unparsed] = tokens.slice(parsed).join("");
-        return;
+      if (tokens[parsed] === "*") {
+        parsed++;
       }
+
+      result[unparsed] = tokens.slice(parsed).join("");
+      return;
     }
 
     if (parseMode === "value") {
@@ -408,15 +646,16 @@ export const KV: {
     const text = wrappedStringify(
       values,
       options?.mode === "json"
-        ? options.indent
+        ? (options?.compact === undefined ? options?.indent : !options?.compact)
           ? JSONEncoding
           : JSONEncodingCompact
-        : options?.indent
+        : (options?.compact === undefined ? options?.indent : !options?.compact)
           ? KeyValueEncoding
           : KeyValueEncodingCompact,
       {
         indent: options?.indent ?? 0,
         limit: options?.limit ?? 0,
+        quote: options?.quote,
       },
       {
         split: options?.split ?? false,
@@ -447,7 +686,7 @@ export const KV: {
             tokens.push(token);
             break;
           case inValue(tokens) &&
-            ![":", "="].includes(tokens[tokens.length - 2]):
+            ![":", "=", ":="].includes(tokens[tokens.length - 2]):
             tokens[tokens.length - 2] += token;
             break;
           default:
@@ -546,9 +785,11 @@ export const KV: {
     return key ? simpleKey.test(key) : false;
   },
 
+  isExprValue,
+  loadExprValue,
+  makeExprValue,
+
   unparsed,
-  eoi,
-  upto,
 };
 
 type Preformatted =
@@ -570,8 +811,11 @@ function isJsonUnit(
 }
 
 type KeyValueEncodingRules = {
-  key(key: string): string;
-  value(value: unknown): string;
+  key(key: string, options: KeyValueStringifyOptions | undefined): string;
+  value(
+    value: unknown,
+    options: KeyValueStringifyOptions | undefined,
+  ): string | undefined;
   objects: {
     wrapped: { entrysep: string };
     inline: {
@@ -589,7 +833,7 @@ type KeyValueEncodingRules = {
   };
 };
 
-function toRawJson(value: any): JSON.RawJSON {
+function toRawJson(value: any): JSON.RawJSON | undefined {
   if (typeof value?.toJSON === "function") {
     value = value.toJSON();
   }
@@ -598,15 +842,20 @@ function toRawJson(value: any): JSON.RawJSON {
     return JSON.rawJSON(String(value));
   }
 
+  if (typeof value === "function") {
+    return undefined;
+  }
+
   return JSON.isRawJSON(value) ? value : JSON.rawJSON(JSON.stringify(value));
 }
 
 const KeyValueEncoding: KeyValueEncodingRules = {
   key: stringifyKey,
-  value: (value) =>
+  value: (value, options?: KeyValueStringifyOptions) =>
     dequoteJson(
       JSON.stringify(value, (_, value) => toRawJson(value)),
       true,
+      options,
     ),
   arrays: {
     inline: { start: "[ ", end: " ]" },
@@ -617,7 +866,7 @@ const KeyValueEncoding: KeyValueEncodingRules = {
     inline: {
       start: "{ ",
       end: " }",
-      entrysep: ", ",
+      entrysep: " ",
     },
     wrapped: {
       entrysep: "",
@@ -629,10 +878,11 @@ const KeyValueEncoding: KeyValueEncodingRules = {
 
 const KeyValueEncodingCompact: KeyValueEncodingRules = {
   key: stringifyKey,
-  value: (value) =>
+  value: (value, options?: KeyValueStringifyOptions) =>
     dequoteJson(
       JSON.stringify(value, (_, value) => toRawJson(value)),
       true,
+      options,
     ),
   arrays: {
     inline: { start: "[", end: "]" },
@@ -654,10 +904,10 @@ const KeyValueEncodingCompact: KeyValueEncodingRules = {
 };
 
 const JSONEncoding: KeyValueEncodingRules = {
-  key: JSON.stringify,
-  value: (value) => toRawJson(value).rawJSON,
+  key: (key) => JSON.stringify(key),
+  value: (value) => toRawJson(value)?.rawJSON,
   arrays: {
-    inline: { start: "[ ", end: " ]" },
+    inline: { start: "[", end: "]" },
     itemsep: ", ",
     empty: "[]",
   },
@@ -676,8 +926,8 @@ const JSONEncoding: KeyValueEncodingRules = {
 };
 
 const JSONEncodingCompact: KeyValueEncodingRules = {
-  key: JSON.stringify,
-  value: (value) => toRawJson(value).rawJSON,
+  key: (key) => JSON.stringify(key),
+  value: (value) => toRawJson(value)?.rawJSON,
   arrays: {
     inline: { start: "[", end: "]" },
     itemsep: ",",
@@ -700,15 +950,16 @@ const JSONEncodingCompact: KeyValueEncodingRules = {
 function wrappedStringify(
   v: unknown,
   encoding: KeyValueEncodingRules,
-  options: {
-    indent?: number;
-    limit?: number;
-  },
+  options: KeyValueStringifyOptions,
   toplevel?: { split?: boolean; unwrap: boolean },
 ) {
   const { indent = 0, limit = 0 } = options ?? {};
 
-  return doFormat(preformat(v), { nobreak: toplevel?.unwrap }, toplevel).text;
+  return doFormat(
+    preformat(v, options),
+    { nobreak: toplevel?.unwrap },
+    toplevel,
+  ).text;
 
   function needsWrap(
     value: Preformatted,
@@ -767,15 +1018,18 @@ function wrappedStringify(
     }
   }
 
-  function preformat(value: unknown) {
+  function preformat(
+    value: unknown,
+    options: KeyValueStringifyOptions | undefined,
+  ) {
     switch (true) {
       case typeof value !== "object" || isJsonUnit(value):
-        return encoding.value(value);
+        return encoding.value(value, options);
       case Array.isArray(value):
         if (value.length === 0) {
           return encoding.arrays.empty;
         }
-        return value.map(preformat);
+        return value.map((item) => preformat(item, options));
       default:
         if (!toplevel?.unwrap && Object.keys(value).length === 0) {
           return encoding.objects.empty;
@@ -786,10 +1040,10 @@ function wrappedStringify(
             return value !== undefined;
           },
           values(value) {
-            return preformat(value);
+            return preformat(value, options);
           },
           keys(key) {
-            return encoding.key(key);
+            return encoding.key(key, options);
           },
         });
     }
@@ -913,6 +1167,7 @@ function wrappedStringify(
           dent = depth;
 
           const text = Object.entries(value as Record<string, Preformatted>)
+            .filter(([, value]) => value !== undefined)
             .map(([key, value], index) => {
               const { text, dent: next } = doFormat(value, {
                 dent: depth + key.length + objectindent,
@@ -958,10 +1213,10 @@ function wrappedStringify(
 
 function inValue(tokens: string[], i = tokens.length) {
   while (tokens[--i] === "") {
-    const next = tokens[--i];
+    const prev = tokens[--i];
 
-    if (next?.trim()) {
-      if (["=", ":"].includes(tokens[i])) {
+    if (prev?.trim()) {
+      if (["=", ":", ":="].includes(tokens[i])) {
         return !inValue(tokens, i);
       }
 
@@ -984,7 +1239,27 @@ function nextNonBlankToken(tokens: string[], i: number) {
   return null;
 }
 
-function dequoteJson(text: string, inValue: boolean) {
+function previousNonBlankIndex(tokens: string[], i: number) {
+  while (i >= 2 && tokens[--i] === "") {
+    const prev = tokens[--i];
+
+    if (prev?.trim()) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function previousNonBlankToken(tokens: string[], i: number) {
+  return tokens[previousNonBlankIndex(tokens, i)] ?? null;
+}
+
+function dequoteJson(
+  text: string,
+  inValue: boolean,
+  options: KeyValueStringifyOptions | undefined,
+) {
   if (text === "") {
     return '""';
   }
@@ -1003,7 +1278,7 @@ function dequoteJson(text: string, inValue: boolean) {
 
     const token = tokens[i + 1];
     if (token.startsWith('"')) {
-      output.push(dequoteText(token, inValue));
+      output.push(dequoteText(token, inValue, options));
     } else {
       output.push(token);
     }
@@ -1012,7 +1287,11 @@ function dequoteJson(text: string, inValue: boolean) {
   return output.join("");
 }
 
-function dequoteText(token: string, inValue: boolean) {
+function dequoteText(
+  token: string,
+  inValue: boolean,
+  options?: KeyValueStringifyOptions,
+) {
   const text = JSON.parse(token);
   switch (true) {
     case text === "null":
@@ -1023,10 +1302,33 @@ function dequoteText(token: string, inValue: boolean) {
     case (inValue ? simpleToken : simpleKey).test(text):
       return text;
     default:
-      return token;
+      return requote(token, options);
   }
 }
 
-function stringifyKey(key: string) {
-  return key && simpleKey.test(key) ? key : JSON.stringify(key);
+function stringifyKey(
+  key: string,
+  options: KeyValueStringifyOptions | undefined,
+) {
+  return key && simpleKey.test(key)
+    ? key
+    : requote(JSON.stringify(key), options);
+}
+
+function requote(
+  quotedValue: string,
+  { quote }: KeyValueStringifyOptions = {},
+) {
+  if (
+    quote === "single" ||
+    (quote === "auto" &&
+      quotedValue.includes('"') &&
+      !quotedValue.includes("'"))
+  ) {
+    const decoded: string = JSON.parse(quotedValue);
+
+    return `'${decoded.replace(/['\\]/g, (match) => (match === "'" ? "\\'" : match === "\\" ? "\\\\" : match))}'`;
+  }
+
+  return quotedValue;
 }

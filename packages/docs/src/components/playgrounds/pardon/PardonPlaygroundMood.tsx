@@ -1,43 +1,46 @@
-import { Match, Switch, type VoidProps } from "solid-js";
-import {
-  TbMoodSad,
-  TbMoodSmile,
-  TbMoodAnnoyed,
-  TbMoodEdit,
-  TbMoodNeutral,
-  TbMoodUnamused,
-} from "solid-icons/tb";
-import "./playground-mood.css";
-
-export type Mood = "confused" | "confuzzled" | "happy" | "thinking" | "error";
+import { createResource, type ParentProps } from "solid-js";
+import PardonPlaygroundMoodComponent from "@components/playgrounds/pardon/PardonPlaygroundMoodComponent";
+import { type ExecutionHandle } from "@components/playgrounds/pardon/pardon-playground-shared";
 
 export default function PardonPlaygroundMood(
-  props: VoidProps<{
-    mood: Mood;
-    type?: "request" | "response";
-    iconSize?: number | string;
+  props: ParentProps<{
+    executionHandle: ExecutionHandle;
   }>,
 ) {
-  const ThinkingMoodIcon =
-    props.type === "response" ? TbMoodNeutral : TbMoodEdit;
+  const [mood] = createResource(
+    () => ({ executionHandle: props.executionHandle() }),
+    async ({ executionHandle }) => {
+      if ("error" in executionHandle) {
+        return "confuzzled";
+      }
+
+      const { execution } = executionHandle;
+
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
+      const previewing = execution.preview;
+
+      try {
+        await previewing;
+      } catch (error) {
+        return "confused";
+      }
+
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+
+      try {
+        await execution.egress;
+      } catch (error) {
+        return "error";
+      }
+
+      return "happy";
+    },
+  );
 
   return (
-    <Switch>
-      <Match when={props.mood === "confused"}>
-        <TbMoodAnnoyed size={props.iconSize} />
-      </Match>
-      <Match when={props.mood === "confuzzled"}>
-        <TbMoodUnamused size={props.iconSize} />
-      </Match>
-      <Match when={props.mood === "error"}>
-        <TbMoodSad size={props.iconSize} />
-      </Match>
-      <Match when={props.mood === "thinking"}>
-        <ThinkingMoodIcon class="pulse" color="gray" size={props.iconSize} />
-      </Match>
-      <Match when={props.mood === "happy"}>
-        <TbMoodSmile color="gray" size={props.iconSize} />
-      </Match>
-    </Switch>
+    <PardonPlaygroundMoodComponent
+      mood={mood.loading ? "thinking" : (mood() ?? "thinking")}
+    />
   );
 }

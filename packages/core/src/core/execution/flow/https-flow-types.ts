@@ -18,7 +18,7 @@ import {
   HttpsScriptStep,
 } from "../../formats/https-fmt.js";
 import {
-  PardonExecutionOutbound,
+  PardonExecutionEgress,
   PardonExecutionResult,
 } from "../../pardon/pardon.js";
 import { Schema } from "../../schema/core/types.js";
@@ -37,12 +37,13 @@ export type SequenceReport = {
 };
 
 export type SequenceStepReport = {
-  outbound: Omit<PardonExecutionOutbound, "evaluationScope">;
-  inbound: Omit<PardonExecutionResult["inbound"], "evaluationScope">;
+  egress: Omit<PardonExecutionEgress, "evaluationScope">;
+  ingress: Omit<PardonExecutionResult["ingress"], "evaluationScope">;
   outcome?: { name: string; delay?: number };
   values: {
     send: Record<string, unknown>;
     recv: Record<string, unknown>;
+    data: Record<string, unknown>;
     flow: Record<string, unknown>;
   };
   context: FlowContext;

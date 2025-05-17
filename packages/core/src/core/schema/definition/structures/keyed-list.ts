@@ -69,8 +69,8 @@ function keyedList<T>(
     },
     expand(context) {
       return defineKeyedList({
-        key: tempContext(context).expand(key),
-        object: { ...context }.expand(object),
+        key: tempContext(context).expand(key)!,
+        object: { ...context }.expand(object)!,
         multivalued: false,
       });
     },
@@ -93,8 +93,8 @@ function mvKeyedList<T>(
       return defineMvKeyedList({
         key: tempContext(
           fieldScopeContext({ ...context, template: undefined }, undefined),
-        ).expand(key),
-        object: context.expand(object),
+        ).expand(key)!,
+        object: context.expand(object)!,
         multivalued: true,
       });
     },
@@ -220,22 +220,26 @@ function defineMvKeyedList<T>(self: KeyedListRepresentation<T, true>) {
       const { template } = context;
 
       if (typeof template === "function") {
-        const keyedOps = exposeSchematic<KeyedTemplateOps<T>>(template);
+        const keyedOps = exposeSchematic<
+          KeyedTemplateOps<T> & KeyedListOps<T, true>
+        >(template);
+
         if (!keyedOps.keyed) {
           diagnostic(
             context,
-            `cannot merge keyed list with other schematic (${Object.keys(keyedOps).join("/")})`,
+            `cannot merge mv-keyed list with other schematic (${Object.keys(keyedOps).join("/")})`,
           );
           return undefined;
         }
 
-        const keyed = keyedOps.keyed(context);
+        const ops = exposeSchematic<KeyedListOps<T, true>>(
+          keyedOps.keyed!(context),
+        );
 
-        const ops = exposeSchematic<KeyedListOps<T, true>>(keyed);
         if (!ops.keymap) {
           diagnostic(
             context,
-            `cannot merge keyed list with other schematic (${Object.keys(ops).join("/")})`,
+            `cannot merge mv-keyed list values non-keymap schematic (${Object.keys(ops).join("/")})`,
           );
           return undefined;
         }

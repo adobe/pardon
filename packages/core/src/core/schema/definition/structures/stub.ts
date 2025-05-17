@@ -13,10 +13,16 @@ import { diagnostic } from "../../core/context-util.js";
 import { defineSchema, executeOp } from "../../core/schema-ops.js";
 import { Schema, Template } from "../../core/types.js";
 
+const stubs = new WeakSet<Schema<any>>();
+
+export function isStubSchema(schema?: Schema<unknown>) {
+  return !schema || stubs.has(schema);
+}
+
 export function stubSchema<T = any>(
   fallbackSchema?: Schema<T> | null,
 ): Schema<T> {
-  return defineSchema<T>({
+  const stub = defineSchema<T>({
     merge(context) {
       const { template } = context;
 
@@ -51,4 +57,8 @@ export function stubSchema<T = any>(
       }
     },
   });
+
+  stubs.add(stub);
+
+  return stub;
 }

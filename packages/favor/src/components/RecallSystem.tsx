@@ -53,13 +53,15 @@ export default function RecallSystem(props: {
     () => ({ values: values(), args: args(), options: options() }),
     async ({ values, args, options: { limit = "30" } = {} }) => {
       const limitn = Number(limit);
-      return recv(
+      const memory = recv(
         await window.pardon.recall(
           args,
           ship(values),
           isNaN(limitn) ? 30 : limitn,
         ),
-      ); // TODO: pagination
+      );
+
+      return memory;
     },
   );
 
@@ -107,12 +109,32 @@ export default function RecallSystem(props: {
         }}
       ></ValuesInput>
       <Suspense fallback={<LoadingSplash />}>
-        <div class="fade-to-clear flex flex-col overflow-auto text-nowrap text-xs [--clear-start-opacity:0]">
+        <div class="fade-to-clear flex flex-col overflow-auto pb-2 text-xs text-nowrap [--clear-start-opacity:0]">
           <For each={memory()}>
-            {({ http, req, res, ask, values, inbound, created_at }) => {
+            {({
+              http,
+              req,
+              res,
+              ask,
+              relations,
+              values,
+              output,
+              created_at,
+            }) => {
               const request = HTTP.parse(req);
 
-              const sortedValues = Object.entries(values).sort(numericKeySort);
+              const sortedValues =
+                Object.entries(relations).sort(numericKeySort);
+
+              const selectedValues = sortedValues
+                .slice(0, 3)
+                .flatMap(([, keyvalue]) => Object.entries(keyvalue));
+
+              const displayedValues = selectedValues.length
+                ? selectedValues
+                : Object.entries(output);
+
+              console.log({ sortedValues, output });
 
               const trace = -http;
               const durations = {};
@@ -145,20 +167,21 @@ export default function RecallSystem(props: {
                         trace,
                         context: { durations, timestamps },
                         awaited: { requests: [], results: [] },
-                        outbound: {
+                        egress: {
                           request: HTTP.requestObject.json(request),
+                          values: {},
                         },
                       },
                       result: {
                         trace,
                         context: { timestamps, durations },
                         awaited: { requests: [], results: [] },
-                        inbound: {
+                        ingress: {
                           response,
-                          values: inbound,
+                          values,
                           outcome: undefined,
-                          flow: {},
                         },
+                        output,
                       },
                     }}
                     onRestore={props.onRestore}
@@ -172,9 +195,7 @@ export default function RecallSystem(props: {
                       <KeyValueCopier
                         readonly
                         noIcon
-                        initialData={sortedValues
-                          .slice(0, 3)
-                          .flatMap(([, keyvalue]) => Object.entries(keyvalue))}
+                        initialData={displayedValues}
                       />
                       <Show when={sortedValues.length > 3}>...</Show>
                     </div>

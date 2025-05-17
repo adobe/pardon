@@ -54,13 +54,12 @@ export class ProgressiveMatch<T extends RequestObject | ResponseObject>
   extend(
     extension: T,
     options: {
-      mode?: "mix" | "mux";
       environment: ScriptEnvironment;
       values?: Record<string, unknown>;
     },
   ) {
     const extended = mergeSchema(
-      { mode: options.mode ?? "mix", phase: "build", ...extension.meta },
+      { mode: "merge", phase: "build", ...extension.meta },
       this.schema,
       extension,
       options.environment,
@@ -72,7 +71,7 @@ export class ProgressiveMatch<T extends RequestObject | ResponseObject>
       extended.schema &&
       mergeSchema(
         {
-          mode: this.match ? "match" : "mux",
+          mode: this.match ? "match" : "merge",
           phase: "validate",
           ...(this.object as any)?.meta,
         },
@@ -81,7 +80,7 @@ export class ProgressiveMatch<T extends RequestObject | ResponseObject>
         options.environment,
       );
 
-    if (matching?.schema && !matching.context.environment.exhausted()) {
+    if (matching?.schema && !matching.context!.environment.exhausted()) {
       return {
         matching,
         progress: new ProgressiveMatch<T>({

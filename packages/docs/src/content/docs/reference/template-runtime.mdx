@@ -1,0 +1,193 @@
+---
+# Copyright 2025 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Template Runtime
+description: template scripting
+next: false
+prev: false
+---
+
+import {
+  FileTree,
+} from '@astrojs/starlight/components';
+
+import {
+  FlexyCodeGrid,
+  TemplatePlayground
+} from "@components"
+
+## The Template Runtime
+
+Pardon's JSON templates are transformed and evaluated as javascript expressions.
+This is a synchronous evaluation to form a template object, which is then processed
+into a schema via merge operations.
+
+### References
+
+In pardon templates, "pure" JSON represents itself (with `{{interpolations}}`).  Pardon
+uses any JS syntax beyond JSON for adding more structure.
+
+For example, shorthand-property-assignement for a variable is not JSON:
+<FlexyCodeGrid centered>
+```json
+{ "a": "{{a}}" }
+```
+```ts
+{ a }
+```
+</FlexyCodeGrid>
+A value of `a` is provided as a reference template object.
+
+Reference template objects support various (chainable) operations, such as variable hinting
+
+<div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
+| Hint | Description |
+| --- | --- |
+| `ref.$hint(hint)` | adds hint(s) to the reference, e.g., `'?'` for optional |
+| `ref.$optional` | same as `ref.$hint('?') -- allow this value to be missing when rendering |
+| `ref.$secret` | same as `ref.$hint('@') -- redacts this variable in non-secret contexts |
+| `ref.$required` | same as `ref.$hint('!') -- ensures this value is present when matching |
+| `ref.$flow` | same as `ref.$hint('+') -- signals this variable for further use |
+| `ref.$noexport` | same as `ref.$hint('-') -- does not export this variable |
+| `ref.$meld` | same as `ref.$hint('~') -- merges refs in keyed/multivalue contexts |
+</div>
+
+References also support typing hints
+
+<div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
+| Type | Description |
+| --- | --- |
+| `ref.$number` | treat this reference as a `number` |
+| `ref.$bigint` | treat this reference as a `bigint` |
+| `ref.$string` | treat this reference as a `string` |
+| `ref.$boolean` | treat this reference as a `boolean`|
+| `ref.$bool` | same as above, but shorter |
+| `ref.$nullable` | also allow `null` values, renders as `null` when undefined |
+| `ref.$null` | same as above, but shorter |
+</div>
+
+Typing hints affect matching and rendering: when matching the value must be of the same or similar type,
+while when rendering a value is cast to the type when possible.
+
+References support binding mechanisms, they can be bound to to-be-evaluated scripts.
+
+<div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
+| Action | Description |
+| --- | --- |
+| `ref.$expr(script)` | declares a default value for `ref` as the evaluation of `script` (as a string) |
+</div>
+
+References support pathing, `ref.x` is a reference to `"ref.x"`.  Since `@value` and `@key` are special
+subpaths for scoped references, and `@` is not a valid identifier, there are two path references as well:
+
+<div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
+| Pathing | Description |
+| --- | --- |
+| `ref.$value` | is a reference to `"ref.@value"` |
+| `ref.$key` | is a reference to `"ref.@key"` |
+</div>
+
+For reference variable names that include hyphens, an alternate syntax is supported: `` $`a-b` ``.
+
+### Reference Syntax Transformations
+
+Some of the reference API is designed to be used via syntax transformations, for instance here's some syntax
+that is usually nice than using the API directly.
+
+<div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
+| Syntax | Transformation |
+| --- | --- |
+| `ref = template` | `$merged(ref, template)` | 
+| `ref = (expr)` | `ref.$expr("expr")` |
+| `(expr)` | `$.$expr("expr")` |
+</div>
+
+For references that match simple values (strings, numbers, booleans) a regex can be specified.
+This changes the ref to an inline string.
+
+<div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
+| Syntax | Transformation |
+| --- | --- |
+| `ref % /regex/` | `"{{ ref % /regex/ }}"` |
+| `ref = (expr) % /regex/` | `"{{ ref = $$expr("expr") % /regex/ }}"` |
+</div>
+
+Hints and types can be applied via `as type` typescript casts.
+<div class="[&_td]:whitespace-nowrap [&_td]:!align-middle">
+| Syntax | Transformation |
+| --- | --- |
+| `ref as optional` | `ref.$optional` | 
+| `ref as flow \| bool` | `ref.$optional.$boolean` |
+</div>
+
+Adding a regex switches the transform to the inline syntax, because regexes can only validate simple values.
+<div class="[&_td]:whitespace-nowrap [&_td]:!align-middle">
+| Syntax | Transformation |
+| --- | --- |
+| `ref % /regex/` | `{{ ref % /regex/ }}` |
+| `ref = (expr) % /regex/` | `{{ ref = $$expr("expr") % /regex/ }}` |
+</div>
+
+## Other syntax transformations
+
+Other syntax transformations are available to support representing structures and scoping with minimal syntax.
+
+<div class="[&_td]:whitespace-nowrap [&_td]:!align-middle">
+| Syntax | Transformation |
+| --- | --- |
+| `f(...)` | `$f(...)` |
+| `a.b.f(...)` | `a.b.$f(...)` |
+| `(expr)` | `$.$expr("expr")` |
+| `[...template]` | `$elements(template)` |
+| `![...template]` | `$itemOrArray(template)` |
+| `{ key } * [...item]` | `$keyed({ key }, $elements(item))` |
+| `{ key } ** [...item]` | `$keyed$mv({ key }, $elements(item))` |
+| `{ ...template }` | `$scoped(template)` |
+| `~~ template` | `$match(template)` |
+| `x = template` | `$merged(template, x)` |
+| `123` | `$$number('123')` |
+</div>
+
+`match` mode mimics response processing, and this could be useful for providing literal
+JSON that might contain template-like values (`"{{...}}"`) that should not be treated as interpolations.
+
+`merge` is an inline merge of two templates, we've seen this before with `reference = template` pattern but it
+can be used for any binding. In most cases, merging should be distributive, e.g.,
+<FlexyCodeGrid centered>
+```js
+{ a: b } = { a: 10 }
+```
+</FlexyCodeGrid>
+should result in the same schema as `{ a: b = 10 }`.
+
+`$$number` is a wrapper applied to numbers in JSON, it produces a `new Number()` (object) with a `source` field equal
+to the original value.  This can be a little annoying, as `$$number(123) == 123` and yet `$$number(123) !== 123`,
+but it's a tradeoff to allow very big numbers and arbitrary precission decimals to get reserialized as-is and
+not mangled by the `String(Number(original))` processing implicit in basic JSON parsing/serialization.
+
+## Explore
+
+<TemplatePlayground>
+```
+a=true
+b="1024"
+{ 
+  a, "a-as-string": a.$string,
+  b, "b-as-number": b.$number,
+  c: c.$optional.$number
+}
+---
+{
+  // c: "1234" /* does not match c to number */
+  // c: 1234   /* matches */
+}
+```
+</TemplatePlayground>

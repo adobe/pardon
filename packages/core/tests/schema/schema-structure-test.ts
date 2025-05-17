@@ -24,19 +24,24 @@ import {
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
-import { mixing } from "../../src/core/schema/core/contexts.js";
+import { merging } from "../../src/core/schema/core/contexts.js";
+import { mergedSchematic } from "../../src/core/schema/definition/structures/merge.js";
 
 describe("schema structure", () => {
   it("should render captures / references", async () => {
-    const s = mixing({
+    const s = merging({
       computed: "{{= body.toLowerCase()}}",
       json: referenceTemplate<string[]>({ ref: "json" }),
-      body: referenceTemplate({ ref: "body" }).$of(
+      body: mergedSchematic(
         jsonEncoding(
-          referenceTemplate({ ref: "json" }).$of(["A", "B", '{{C = "C"}}']),
+          mergedSchematic(
+            ["A", "B", '{{C = "C"}}'],
+            referenceTemplate({ ref: "json" }),
+          ),
         ),
+        referenceTemplate({ ref: "body" }),
       ),
-    });
+    })!;
 
     const result = (await executeOp(s, "render", renderCtx(s)))!;
 
@@ -52,7 +57,7 @@ describe("schema structure", () => {
   });
 
   it("should capture key-values", async () => {
-    const s = mixing(
+    const s = merging(
       keyed(
         { name: evalBodyTemplate("key") as Schematic<string> },
         {
@@ -60,7 +65,7 @@ describe("schema structure", () => {
           world: { name: "world", value: evalBodyTemplate("world") },
         },
       ),
-    );
+    )!;
 
     const matchCtx = mixContext(s, [
       { name: "world", value: "earth" },
@@ -78,13 +83,13 @@ describe("schema structure", () => {
   });
 
   it("should capture key-values structure", async () => {
-    const s = mixing(
+    const s = merging(
       evalBodyTemplate(`
       { name: key } * [
-       { value: named.value }
+       ...{ value: named.value }
       ]
     `),
-    );
+    )!;
 
     const matchCtx = mixContext(s, [
       { name: "world", value: "earth" },

@@ -9,11 +9,11 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { isBoxedPrimitive } from "node:util/types";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
 import { valueId } from "../../../util/value-id.js";
 import { PardonError } from "../../error.js";
-import { shared } from "../../tracking.js";
 import {
   isFlowExport,
   isNoExport,
@@ -48,7 +48,7 @@ export class Scope implements EvaluationScope, ScopeData {
   values: Record<string, ValueDefinition> = {};
   subscopes: Record<string, Scope> = {};
   evaluations: Record<string, undefined | Promise<unknown>> = {};
-  resolutionStarted: Record<string, boolean> = {};
+  resolutions: Record<string, any> = {};
 
   constructor(parent?: Scope, path: string[] = [], index?: ScopeIndex) {
     this.parent = parent;
@@ -141,10 +141,25 @@ export class Scope implements EvaluationScope, ScopeData {
   resolvedValues(
     options: ResolvedValueOptions = { secrets: false },
   ): Record<string, unknown> {
-    return {
+    return devalue({
       ...this.parent?.resolvedValues(options),
       ...this.exportableValues(options),
-    };
+    });
+
+    function devalue(exports: any) {
+      if (!exports || typeof exports != "object" || isBoxedPrimitive(exports)) {
+        return exports;
+      }
+
+      if (Array.isArray(exports)) {
+        return exports.map(devalue);
+      }
+
+      if (exports["@value"]) {
+        return devalue(exports["@value"]);
+      }
+      return mapObject(exports, devalue);
+    }
   }
 
   subscope(name: string, index: ScopeIndex) {
@@ -188,8 +203,8 @@ export class Scope implements EvaluationScope, ScopeData {
     identifier: string,
     declaration: Omit<ExpressionDeclaration, "identifier" | "path" | "name">,
   ) {
-    const { name, path } = parseScopedIdentifier(identifier);
     const { context } = declaration;
+    const { name, path } = parseScopedIdentifier(identifier);
 
     let declared = this.declarations[name];
 
@@ -224,21 +239,7 @@ export class Scope implements EvaluationScope, ScopeData {
         return;
       }
 
-      if (expression && declared.expression) {
-        // TODO: revisit why we need to compare declared.expression == expression
-        // and fix the double declaration upstream?
-        // TODO: revisit if we even want to do this, maybe overriding is good?
-        if (expression !== declared.expression) {
-          throw diagnostic(
-            context,
-            `redeclared ${identifier} = (${expression}): previously defined @${loc(
-              declared.context,
-            )} as (${declared.expression})`,
-          );
-        }
-      }
-
-      declared.expression ??= expression;
+      declared.expression = expression ?? declared.expression;
       declared.source = source;
       declared.hint ??= hint || null;
       declared.context = context;
@@ -270,14 +271,8 @@ export class Scope implements EvaluationScope, ScopeData {
         };
       }
 
-      // expressions override the need to attempt render-match matches.
-      // we combine render and resolution triggers
-      // in the hopes that one of them will work.
-      declared.rendered = declared.expression
-        ? undefined
-        : combineAsync(rendered, declared.rendered);
-
       declared.resolved = combineSync(resolved, declared.resolved);
+      declared.rendered = combineAsync(rendered, declared.rendered);
     }
 
     if (path.length && this.index) {
@@ -308,7 +303,23 @@ export class Scope implements EvaluationScope, ScopeData {
     identifier: string,
     value: T,
   ): T | undefined {
-    const { name, path } = parseScopedIdentifier(identifier);
+    const { name, path, root } = parseScopedIdentifier(identifier);
+
+    if (
+      context.mode === "render" ||
+      context.mode === "prerender" ||
+      context.mode === "preview"
+    ) {
+      const resolved = context.environment.resolve({
+        context,
+        identifier: { name, path, root },
+        scoped: true,
+      });
+
+      if (resolved !== undefined && !fuzzyMatch(resolved, value)) {
+        throw diagnostic(context, `conflicting definition of ${name}`);
+      }
+    }
 
     const current = this.values[name];
 
@@ -316,13 +327,7 @@ export class Scope implements EvaluationScope, ScopeData {
 
     // extra fuzzy match because null values might resolve to string "null" + type null, etc...
     if (current) {
-      if (
-        current.value === value ||
-        (isScalar(current.value) &&
-          isScalar(value) &&
-          String(current.value) === String(value)) ||
-        valueId(value) === valueId(current.value)
-      ) {
+      if (fuzzyMatch(value, current.value)) {
         // upgrade the type to the value if we used to have a string.
         if (typeof current.value === "string") {
           current.value = value;
@@ -331,20 +336,20 @@ export class Scope implements EvaluationScope, ScopeData {
         return value;
       }
 
-      if (isMergingContext(context)) {
-        diagnostic(
-          context,
-          `redefined:${name}=${valueId(value)} :: previously defined as ${valueId(current.value)}`,
-        );
+      if (context.mode === "postrender") {
+        return value;
+      }
 
-        // TODO: make this return undefined and propagate the error
+      const error = diagnostic(
+        context,
+        `redefined:${name}=${valueId(value)} :: previously defined as ${valueId(current.value)}`,
+      );
+
+      if (isMergingContext(context)) {
         return undefined;
       }
 
-      throw diagnostic(
-        context,
-        `redefined:${name}=${value} :: previously defined as ${current.value}`,
-      );
+      throw error;
     }
 
     if (value === undefined) {
@@ -357,11 +362,14 @@ export class Scope implements EvaluationScope, ScopeData {
       }
 
       const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
+
       if (!isOptional({ hint })) {
-        throw diagnostic(context, `undefined:${identifier}`);
+        this.lookupDeclaration(identifier);
+        throw diagnostic(context, `undefined: ${identifier}`);
       }
     }
 
+    // todo: remove "this.values[identifier] ="
     this.values[name] = this.values[identifier] = {
       identifier,
       value,
@@ -369,7 +377,7 @@ export class Scope implements EvaluationScope, ScopeData {
       path,
       context,
       declaration: this.declarations[identifier],
-      ...(DEBUG ? { stack: new Error("defined:here") } : {}),
+      ...(DEBUG ? { stack: new Error(`${loc(context)}: defined:here`) } : {}),
     };
 
     return value;
@@ -383,8 +391,8 @@ export class Scope implements EvaluationScope, ScopeData {
 
     if (value) {
       if (
-        !declaration ||
-        value.context.evaluationScope === declaration?.context.evaluationScope
+        !declaration?.context ||
+        value.context.evaluationScope === declaration.context?.evaluationScope
       ) {
         return value;
       }
@@ -401,7 +409,7 @@ export class Scope implements EvaluationScope, ScopeData {
     let lookup = this.lookup(name);
 
     if (isLookupExpr(lookup) && lookup.resolved) {
-      this.resolving(context, name, lookup.resolved);
+      this.resolving(context, name, lookup);
       lookup = this.lookup(name);
     }
 
@@ -411,31 +419,31 @@ export class Scope implements EvaluationScope, ScopeData {
 
     const identifier = parseScopedIdentifier(name);
 
-    const value = context.environment.resolve({
+    const resolved = context.environment.resolve({
       context,
       identifier,
     });
 
-    if (value !== undefined) {
-      if (this.define(context, name, value) === undefined) {
+    if (resolved !== undefined) {
+      if (this.define(context, name, resolved) === undefined) {
         return undefined;
       }
 
-      return this.values[identifier.name];
+      return this.values[name];
     }
   }
 
   rendering<T>(
     context: SchemaRenderContext,
     name: string,
-    action: () => Promise<T>,
+    action: (context: SchemaRenderContext) => Promise<T>,
   ) {
     type RenderingChainError = (Error | { message: string; cause?: Error }) & {
       loc: string;
       data?: any;
     };
     const location = loc(context);
-    const evaluating = `${location}: evaluating ${name}`;
+    const evaluating = `${location}: evaluating ${name} - undefined`;
     const chainError: RenderingChainError = DEBUG
       ? Object.assign(new Error(evaluating), {
           loc: location,
@@ -446,12 +454,18 @@ export class Scope implements EvaluationScope, ScopeData {
         };
 
     const identifier = parseScopedIdentifier(name);
+    const key = identifier.name;
+
+    if (context.cycles.has(name)) {
+      return undefined;
+    }
 
     const evaluation =
       name === ""
-        ? action()
-        : ((this.evaluations[identifier.name] ??= this._doEvaluate(
+        ? action(context)
+        : ((this.evaluations[key] ??= this._doEvaluate(
             context,
+            key,
             name,
             action,
           )) as Promise<T>);
@@ -470,36 +484,25 @@ export class Scope implements EvaluationScope, ScopeData {
   resolving<T>(
     context: SchemaContext,
     name: string,
-    action: (context: SchemaContext) => T,
+    declaration: ExpressionDeclaration,
   ) {
-    const identifier = parseScopedIdentifier(name);
-
-    if (this.resolutionStarted[identifier.name]) {
-      // or error on recursive resolution?
-      return undefined;
+    if (declaration.resolved === undefined || declaration.resolving) {
+      return;
     }
 
-    this.resolutionStarted[identifier.name] = true;
+    declaration.resolving = true;
 
-    const value = action(context);
+    try {
+      const value = declaration.resolved!(context) as T;
 
-    if (value === undefined) {
-      return undefined;
+      if (value === undefined) {
+        return;
+      }
+
+      return this.define(context, name, value);
+    } finally {
+      declaration.resolving = false;
     }
-
-    return this.define(context, name, action(context));
-  }
-
-  cached<T>(
-    context: SchemaRenderContext,
-    action: () => Promise<T> | T,
-    ...keys: string[]
-  ): Promise<T> | Exclude<T, undefined> {
-    const key = [...context.keys, ...keys].join(".");
-
-    return (this.cache[key] ??= disarm(
-      shared(async () => action()),
-    )) as Promise<T>;
   }
 
   evaluating(name: string) {
@@ -508,12 +511,13 @@ export class Scope implements EvaluationScope, ScopeData {
 
   async _doEvaluate<T>(
     context: SchemaRenderContext,
+    key: string,
     name: string,
-    action: () => Promise<T>,
+    action: (context: SchemaRenderContext) => Promise<T>,
   ): Promise<T> {
     const identifier = parseScopedIdentifier(name);
 
-    this.evaluations[identifier.name] = disarm(
+    this.evaluations[key] = disarm(
       Promise.reject(
         new PardonError(
           `${loc(context)} ${identifier.name}: circular definition`,
@@ -521,7 +525,18 @@ export class Scope implements EvaluationScope, ScopeData {
       ),
     );
 
-    const value = await action();
+    const value = await action({
+      ...context,
+      cycles: new Set(context.cycles).add(key),
+    });
+
+    if (typeof value === "function") {
+      return value;
+    }
+
+    if (value === undefined) {
+      return value!;
+    }
 
     const result = name !== "" ? this.define(context, name, value) : value;
 
@@ -551,6 +566,7 @@ function findDefinition(identifier: string, inScope: EvaluationScope) {
   let firstRenderedDeclaration: ExpressionDeclaration | undefined;
   let firstExpressionDeclaration: ExpressionDeclaration | undefined;
   let firstAggregateDeclaration: ExpressionDeclaration | undefined;
+  let firstDeclaration: ExpressionDeclaration | undefined;
 
   for (const scope of scopeChain(inScope)) {
     if (identifier in scope.declarations) {
@@ -565,13 +581,15 @@ function findDefinition(identifier: string, inScope: EvaluationScope) {
       if (declaration.aggregates) {
         firstAggregateDeclaration ??= declaration;
       }
+      firstDeclaration ??= declaration;
     }
   }
 
   return (
     firstRenderedDeclaration ??
     firstExpressionDeclaration ??
-    firstAggregateDeclaration
+    firstAggregateDeclaration ??
+    firstDeclaration
   );
 }
 
@@ -599,9 +617,9 @@ function combineAsync<F extends (...args: any) => Promise<unknown>>(
   if (!gn) return fn;
 
   return (async (...args: Parameters<F>) => {
-    return ((await fn(...(args as any))) ?? (await gn(...(args as any)))) as
-      | Awaited<ReturnType<F>>
-      | undefined;
+    const result = await fn(...args);
+    if (result !== undefined) return result;
+    return gn(...args);
   }) as F;
 }
 
@@ -613,7 +631,9 @@ function combineSync<F extends (...args: any) => unknown>(
   if (!gn) return fn;
 
   return ((...args: Parameters<F>) => {
-    return fn(...(args as any)) ?? gn(...(args as any));
+    const result = fn(...args);
+    if (result !== undefined) return result;
+    return gn(...args);
   }) as F;
 }
 
@@ -699,4 +719,12 @@ export function indexChain(scope: EvaluationScope | undefined) {
   }
 
   return chain;
+}
+
+function fuzzyMatch(value: any, other: any) {
+  return (
+    other === value ||
+    (isScalar(other) && isScalar(value) && String(other) === String(value)) ||
+    valueId(value) === valueId(other)
+  );
 }

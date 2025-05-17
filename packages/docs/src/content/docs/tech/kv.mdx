@@ -40,6 +40,17 @@ GET https://example.com
 This format is accepted at the top of any pardon `.http` template and allows
 us to specify values directly above the request without additional syntax.
 
+:::tip
+In the case that the text following KV data is KV-compatible, a single `*`
+will terminate the KV data. For example
+```
+a=b
+*
+c=d
+```
+parses as `{ "a": "b" }` as KV data followed by `c=d` as text.
+:::
+
 The main advantages of the KV format are
 
 - less syntax than JSON (quotes can be elided in many cases, commas in all cases).
@@ -58,7 +69,7 @@ Try experimenting here
   kv_list = [1 2 3]
   commas = [1,2,3,4,]
 
-  json_obj = { "p": q, "r": s }
+  json_obj = { "p": q, "r": "s" }
   kv_obj={ p=q r=s }
 
   keywords=[null true false]

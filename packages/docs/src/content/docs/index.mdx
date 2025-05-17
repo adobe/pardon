@@ -13,6 +13,8 @@ title: Pardon‽
 hero:
   tagline: |
     Pardon is your new favorite HTTP API framework.
+
+    <br/><span class="text-sm">An elegant tool for a more civilized age.</span>
   image:
     file: "@assets/pardon-icon.svg"
 
@@ -28,22 +30,22 @@ import { CollectionLinkCard } from '@components';
 import { Image } from 'astro:assets'
 import PardonIcon from  "@assets/pardon-icon.svg"
 
-## What is Pardon
-
-Pardon is a tool for making HTTP API requests as easy as possible.
-
 <CardGrid stagger>
   <Card title="pardon" icon="seti:powershell">
     The commandline tool: runs requests like curl, or in http format.
 
     ```bash
     $ pardon GET https://your.api.here/
-    $ pardon ./call-me-maybe.http
+    ```
+    ```bash
+    $ pardon ./example.http
     ```
   </Card>
   <Card title="favor" icon="laptop">
     The desktop application, for browsing and editing collections
     and interacting with requests.
+
+    ![alt text](images/favor.png)
   </Card>
   <Card title="pardon-api" icon="seti:javascript">
     Use the Pardon API directly in javascript.

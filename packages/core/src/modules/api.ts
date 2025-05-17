@@ -42,19 +42,4 @@ export { type ScopeData } from "../core/schema/core/types.js";
 export { HTTPS, type HttpsScheme } from "../core/formats/https-fmt.js";
 export { PardonError } from "../core/error.js";
 
-import { readFile } from "node:fs/promises";
-import { homely } from "../util/resolvehome.js";
-import JSON from "core-js-pure/actual/json";
-
-export const FILE = {
-  text,
-  json,
-};
-
-async function text(path: string) {
-  return (await readFile(homely(path), "utf-8")).trimEnd();
-}
-
-async function json(path: string) {
-  return JSON.parse(await text(path));
-}
+export { FILE } from "../runtime/file.js";

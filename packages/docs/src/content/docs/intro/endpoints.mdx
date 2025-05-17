@@ -1,0 +1,188 @@
+---
+# Copyright 2025 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Templates
+description: A quick introduction to Pardon's templates
+next: false
+prev: false
+---
+
+import { Tabs, TabItem, Icon, Aside } from '@astrojs/starlight/components';
+import {
+  Exercises,
+  ExerciseItem,
+  ExerciseItemPrompt,
+  CodeGrid,
+  FlexyCodeGrid,
+  PardonPlayground,
+  TemplatePlayground
+} from '@components';
+import {
+  productsExample,
+  productsExampleWithAuth,
+} from'@pardon/templates-collections'
+
+## Endpoints
+
+Pardon endpoints are represented with https files.  Each API call for services you've setup to be called
+by pardon should be represented by a single endpoint,
+ideally any sufficiently-specified request should _match_ a single endpoint: this means
+that the input HTTP request should only potentially merge with a single endpoint.
+
+## Endpoint Files
+
+Endpoints are organized in collection folders.  Inside a `collection` folder, subfolders define
+different services, and each subfolder should contain a `service.yaml` to identify it.
+The name of the subfolder is the `service`.
+
+### Endpoints Configuration
+
+In the introduction we specified requests to `https://todo.example.com/...`, while in the quickstart
+we configured this with `env=local` to change the request origin.  In other popular HTTP frameworks,
+this would require defining the request collection with something like `{{origin}}/todos/{{todo}}`,
+making the collection dependent on a separately maintained environment to be functional.
+
+In Pardon we can configure the requests with map that binds different values of `env` to different
+values of `origin`.
+
+```yaml
+config:
+  origin:
+    env:
+      local: http://localhost:{{port=8080}}
+      stage: http://todos-stage.example.com
+      prod: http://todos.example.com
+```
+
+(we can define these per-endpoint, but generally the origin config would go into a `service.yaml`.)
+
+Configuring `origin` works because the HTTP request is parsed to match the origin in the URL with `{{origin}}`.
+Any template-interpolated value can be configured this way.
+
+When matching a request to an endpoint, the `origin` must be compatible with one of these 
+alternatives, but a value for `env` could override the matched origin.
+
+For example, a request to stage can be specified with a direct match to the stage origin
+```http
+GET https://todos-stage.example.com/todos
+```
+or we can use the production origin and override env
+```http
+env=stage
+GET https://todos.example.com/todos
+```
+
+In both cases the intent of the request is clear.
+
+When making requests to our local applications, we can use `env=local` and, optionally, also define
+`port` if the default specified in `http://localhost:{{port=8080}}` is not right for us, or we can
+specify the service value, as in `service=todo GET http://localhost:8080/todos/...`, because otherwise
+the localhost domain isn't enough to identify what service we're calling.
+
+Specifying a value for `service` restricts the endpoints that are considered to the todo service,
+making the origin unnecessary for identifing it.
+
+### Complex Configuration
+
+More layers of configuration can be incorporated into the config mapping.
+
+```yaml
+config:
+  origin:
+    env:
+      local: http://localhost:{{port=8080}}
+      stage: 
+        region:
+          auto: https://todos-stage.example.com
+          east: https://todos-stage-east.example.com
+          west: https://todos-stage-west.example.com
+      prod: 
+        region:
+          auto: https://todos.example.com
+          east: https://todos-east.example.com
+          west: https://todos-west.example.com
+defaults:
+  region: auto
+```
+
+This binds the origin configuration to two other values: the value of `env` and the value of `region`.
+The defaults mapping can supply default values.  Defaults can be keyed on other values similar to the config.
+
+A request to `https://todos-east.example.com/todos` naturally implies `env=prod` and `region=east`,
+while `env=stage https://todos-east.example.com/todos` becomes
+`https://todos-stage-east.example.com/todos` (keeping the region value) and `region=west https://todos-east.example.com/todos`
+becomes `https://todos-west.example.com/todos` (keeping the env value), etc.
+
+### Mixins, Defaults and Configuration
+
+Once an endpoint is matched and selected, we apply its mixins in order.
+Mixins are additional endpoint configurations which are merged into the 
+request.
+
+Config + defaults can be used to create opt-in and opt-out mixins.
+
+An opt-out mixin will have a config compatible with defaults, and `x=any_other_value_than_enabled` 
+would be used to disable it.
+
+```https
+config:
+  x: enabled
+defaults:
+  x: enabled
+>>>
+...
+```
+
+While an opt-in mixin will have a config incompatible with defaults, and `x=enabled` must be specified
+for the mixin to apply.
+
+```https
+config:
+  x: enabled
+defaults:
+  x: disabled
+>>>
+...
+```
+
+As mixins apply, defaults are aggregated (but not overridden), and the same configuration
+key (with specific values for each mixin) can be used to select one-of-many options.
+
+## Endpoint Layering
+
+Endpoint files are mixins which are bundled together by their path/identity.
+
+As an example, you can have a base `todo-service/collection/todo/todos/create.https` file
+
+```
+>>>
+POST https://todo.example.com/todos/{{todo}}
+
+{ task, done: done.$optional }
+```
+
+And maybe a `todo-service-ext/collection/todo/todos/create.https` file like
+
+```
+>>>
+POST https://todo.example.com/todos/{{todo}}
+
+{ priority: priority.$optional }
+```
+
+This adds the capability to parameterize the todo request with a `priority=asap` value, and also to remember the priority
+of a request if a `priority` value (or field) is specified. (previous requests can be looked up by values).
+
+When matching the endpoint, _all_ of the endpoint layers must merge with the request.  Mixins can be similarly layered,
+and a mixin (by identity) is only applied if _all_ of the mixin layers merge with the request.
+
+The order of application of templates is "endpoint < request", "endpoint < mixin1 < request", "endpoint < mixin1 < mixin2 < request", etc...
+keeping any mixins that successfully merge: only rendering the final result after all applicable mixins are merged.

@@ -278,12 +278,10 @@ export function KeyValueCopierWidget(
             const [editorView, setEditorView] = createSignal<EditorView>();
 
             function flushEditor() {
-              const {
-                [KV.eoi]: _eoi,
-                [KV.unparsed]: remainder,
-                [KV.upto]: _upto,
-                ...data
-              } = KV.parse(newData(), "stream");
+              const { [KV.unparsed]: remainder, ...data } = KV.parse(
+                newData(),
+                "stream",
+              );
 
               addValues(data);
 

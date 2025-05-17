@@ -23,10 +23,18 @@ import {
 } from '@components';
 import { Icon, Tabs, TabItem, FileTree } from '@astrojs/starlight/components';
 
+:::note
+These docs are stale and need a refresh.
+
+- Split test api (gamut/trials) docs from testcase enumeration framework.
+- Split flow documtation into own document.
+- Highlight testcase enumeration supports async.
+:::
+
 ## Tests
 
-Tests build on top of collections and use additional "sequence" https files.
-These are a similar format but used as scripts for running a sequence of request/responses,
+Tests build on top of collections and use additional "flow" https files.
+These are a similar format but used as scripts for running a flow of request/responses,
 (rather than as templates for a single request response.)
 
 Pardon's test system executes _trials_.  Trials can be organized in _gamuts_ (similar to
@@ -38,7 +46,7 @@ a test, and a sequence to execute.
 
 <FileTree>
 - tests/service.test.ts
-- sequences/ping.flow.https
+- flows/ping.flow.https
 - pardon.test.ts
 - ...
 - pardonrc.yaml
@@ -46,7 +54,7 @@ a test, and a sequence to execute.
 </FileTree>
 
 These files 
- - define the trials/sequences to run, and
+ - define the trials/flows to run, and
  - configure the test environment
 
 <Tabs>
@@ -62,7 +70,7 @@ import { trial, executeFlow } from 'pardon/testing'
 trial("%env/ping", () => execute("ping.flow"));
 ```
   </TabItem>
-  <TabItem label="sequences/example-ping.flow.https">
+  <TabItem label="flows/example-ping.flow.https">
 Here we define that we expect `ping` to reply with `pong`.
 The context lists what `environment` values should be picked up to configure the request.
 (env configures whether this ping should be configured for `stage` or `prod`, or perhaps `local`).
@@ -97,7 +105,6 @@ set to both `stage` and `prod`, but also allows `local`)
   </TabItem>
 </Tabs>
 
-
 ## Flows
 
 Pardon's test engine is built to flow data as naturally as possible:
@@ -129,15 +136,15 @@ So this flow specifies the following steps.
 
 ```ts
 const { env, port } = environment;
-const { inbound } = pardon({ env, port })`https://example.com/ping`();
-... match inbound against the responses and assert at least one matches ...
+const { ingress } = pardon({ env, port })`https://example.com/ping`();
+... match ingress against the responses and assert at least one matches ...
 ```
 
 Additionally we can name responses...
 
 <Tabs>
   <TabItem label='name response outcome'>
-```http title="sequences/ping.flow.https" ins=/(?<=<<< )pong/
+```http title="flows/ping.flow.https" ins=/(?<=<<< )pong/
 context:
   - env
   - port?
@@ -169,7 +176,7 @@ trial("%env/ping", () => {
   </TabItem>
 </Tabs>
 
-### Naming requests to script sequences
+### Naming requests and flow control
 
 We can name requests, too.  If there's a request name that matches an outcome name
 we run that request next.  An unnamed outcome goes to the "next" request in the list.
@@ -177,57 +184,45 @@ We can also specify retry limits and delays along with requests and
 responses, respectively.
 
 As an example, some services expose async resources that we need to poll
-for when they become ready. This example specifies two requests and their
-respective response matching behavior
+for when they become ready.
 
-```http ins=/(?<=<<< |>>> )success.*/ del=/(?<=<<< |>>> )waiting.*/ {1-11,13-24}
+```http ins=/(?<=<<< )check/ ins=">>> check / 25" del=/(?<=<<< |>>> )done.*/ {1-7,9-17}
 >>>
-POST ...
+POST https://example.com/create-long-running-task
 
-<<< success
+<<< +10s
 200 OK
 
-{ status: "done" }
+{ task }
 
-<<< waiting +10s
+>>> check / 25
+GET https://example.com/task/{task}
 
-{ status: "processing" }
-
->>> waiting / 10
-GET ...
-
-<<< success
+<<< done
 200 OK
 
-{ status: "done" }
-
-<<< waiting +5s
-200 OK
-
-{ status: "processing" }
+<<< check +5s
+202 pending
 ```
 
-This sequence starts with a `POST` request, matching the response status
-to `done` or `processing`, in the case of done the outcome is `success` and
-as there's no request named `success` we are done.
+This sequence starts with a `POST` request, captures the `task` identifier in the response, and proceeds
+to check the progress of the task in 5 second intervals after giving it a 10 second head-start.
 
-If the outcome is `waiting`, we wait 10 seconds, and then proceed to run the GET request:
-again we match the status of the result, waiting 5 more seconds
-for each `processing` response.
+The check request has a 25 attempt limit specified.
 
-Because the GET request is named `waiting / 10`, we would poll the resource at most 10 times before giving up.
+If the response labeled `done` is matched, this ends the sequence because there's no request with that label.
 
 ### Using sequences in sequences
 
 Each sequence is run sequentially, but they can rely on any number of sequences to run before,
-and these are run in parallel.
+which are run in parallel with each other.
 
 Imagine we want to find pre-defined products named `"pen"` and `"pencil"`, we could
 define a unit that searches the products list and returns the id as `product` in the environment.
 
 We could define a `find-product.flow.https` sequence.  
 
-```http title="sequences/find-product.flow.https"
+```http title="flows/find-product.flow.https"
 context:
   - env
   - port?
@@ -238,21 +233,20 @@ GET https://example.com/products?name={{name}}
 <<<
 200 OK
 
-mux([
-  "id": "{{product}}""
-])
+[
+  { "id": product }
+]
 ```
+(this search assumes that we return exactly one result)
 
-Using this sequence we can define a flow to order pens and pencils.
-First we would `use` the `find-product.unit` twice and map
-the response product id value, and then we can use those values.
+We can use one flow in another.
 
-```http title="sequences/order-pens-and-pencils.flow.https"
+```http title="flows/order-pens-and-pencils.flow.https"
 context:
   - env
   - port?
 use:
-  - sequence: find-product.unit
+  - flow: find-product.flow
     context:
       - env
       - port?
@@ -260,7 +254,7 @@ use:
     provides:
       - product: pencils
 
-  - sequence: find-product.unit
+  - flow: find-product.flow
     context:
       - env
       - port?
@@ -268,12 +262,12 @@ use:
     provides:
       - product: pens
 >>>
-POST https://example.com/orders
+POST https://example.com/checkout
 
 {
   "cart": [
-    { "product": "{{pens}}", "quantity": 2 },
-    { "product": "{{pencils}}", "quantity": 3 }
+    { "product": pens, "quantity": 2 },
+    { "product": pencils, "quantity": 3 }
   ]
 }
 
@@ -285,45 +279,10 @@ POST https://example.com/orders
 }
 ```
 
-The pardon test runner would execute the `find-product.unit` calls
-in parallel.
+Pardon runs the two `find-product.flow` calls in parallel.
 
-:::tip
-The above is illustrative of the flow/uses system but in this case
-it's arguably more scalable to externalize this in the test script;
-for example the following code would be easier to reuse for other cases.
-
-```ts
-const [pens, pencils] = (await Promise.all(
-  ['pens', 'pencils'].map(name => execute('find-product.unit', { name }))
-)).map((result) => result.product);
-
-execute('order.flow', { cart: [
-  { product: pencils, quantity: 5 },
-  { product: pens, quantity: 1 },
-] })
-```
-
-The order.flow could be something like this:
-
-```http title="sequences/order.flow.https"
-context:
-  - env
-  - port?
-  - cart
->>>
-POST https://example.com/orders
-
-{
-  cart: [
-    {
-      product: "{{cart.product}}",
-      quantity: "{{cart.quantity}}"
-    }
-  ]
-}
-```
-:::
+This is just one option of many for connecting requests.
+{/* there may be too many options, the test/automation systems haven't quite come together yet. */}
 
 ## Parameterized Testcases
 

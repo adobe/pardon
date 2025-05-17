@@ -31,6 +31,7 @@ type Props = {
   config: Record<string, string>;
   layers?: string[];
   example?: string;
+  id?: string;
 } & Omit<PlaygroundOptions, "server">;
 
 const { secrets, editor, values, data, response, ...props } = Astro.props;
@@ -48,12 +49,15 @@ const { secrets, editor, values, data, response, ...props } = Astro.props;
   @reference "../styles/global.css";
 
   .pp-container {
-    @apply mt-4 overflow-clip rounded-md border-8 border-transparent bg-zinc-100 bg-clip-border p-2 pb-4 dark:bg-zinc-800;
+    @apply mt-4 overflow-clip rounded-md border-transparent bg-zinc-100 bg-clip-border pb-4 dark:bg-zinc-800;
+    starlight-tabs {
+      @apply shadow-none!;
+    }
   }
   .pp-app-container {
-    @apply border-0 border-t-2 border-dashed border-zinc-400 px-2 pt-5 dark:border-sky-700;
+    @apply border-0 border-t-2 border-zinc-400 px-2 pt-2 dark:border-sky-700;
   }
   .pp-app {
-    @apply border-0 border-r-2 border-l-2 border-solid border-zinc-400 px-2 dark:border-sky-700;
+    @apply border-solid border-zinc-400 px-3;
   }
 </style>

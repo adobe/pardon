@@ -145,7 +145,7 @@ export async function processOptions(
   if (!args.length) {
     return {
       values,
-      init: { method: (method ?? values.method ?? "GET") as string },
+      init: { method: (method ?? values.method) as string },
     };
   }
 

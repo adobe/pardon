@@ -10,10 +10,10 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { tap } from "./_tap.ts";
+import { tap } from "./helper.ts";
 
 const baseLayers = tap(
-  import.meta.glob("./layers/**/*", {
+  import.meta.glob("./layers/**", {
     query: "?raw",
     eager: true,
     import: "default",
@@ -21,6 +21,6 @@ const baseLayers = tap(
 );
 
 export const simpleLayers = {
-  layers: ["/collection/", "/extension/"],
+  layers: ["collection/", "extension/"],
   config: { ...baseLayers },
 } as const;

@@ -37,7 +37,13 @@ function applySchema<T>(
     const matchedSchema = merge(schema, context);
 
     if (matchedSchema && context.diagnostics.length) {
-      throw new Error("unpropagated error");
+      for (const diagnostic of context.diagnostics) {
+        console.warn(diagnostic.loc, diagnostic.err);
+      }
+      return { context };
+      throw new Error(
+        "unpropagated error (" + context.diagnostics.length + ")",
+      );
     }
 
     return { context, schema: matchedSchema, error: undefined };
@@ -52,11 +58,15 @@ export function mergeSchema<T>(
   schema: Schema<T>,
   template: Template<T>,
   environment?: SchemaScriptEnvironment,
-) {
-  return applySchema(
-    createMergingContext(how, schema, template, environment),
-    schema,
-  );
+): { context?: SchemaMergingContext<T>; schema?: Schema<T>; error?: any } {
+  try {
+    return applySchema(
+      createMergingContext(how, schema, template, environment),
+      schema,
+    );
+  } catch (error) {
+    return { error };
+  }
 }
 
 export async function renderSchema<T>(
@@ -99,7 +109,7 @@ export async function previewSchema<T>(
   return { output, context };
 }
 
-export function unredactedScalarValues(
+export function scopedScalarValues(
   data: ScopeData,
 ): { name: string; scope: string; value: Scalar }[] {
   const definitions = Object.entries(data.values)
@@ -128,7 +138,7 @@ export function unredactedScalarValues(
   return [
     ...definitions,
     ...Object.values(data.subscopes || {}).flatMap((subscopeData) =>
-      unredactedScalarValues(subscopeData),
+      scopedScalarValues(subscopeData),
     ),
   ];
 }

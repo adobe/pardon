@@ -42,7 +42,8 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
   @reference "../styles/global.css";
 
   .flexy-code-grid {
-    @apply flex flex-1 gap-2;
+    @apply gap-3 bg-neutral-500/5 p-3;
+    @apply flex flex-1;
     & > * {
       @apply min-w-0;
     }
@@ -59,10 +60,26 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
       @apply hidden!;
     }
     figure {
-      @apply flex! min-h-full!;
+      @apply flex! min-h-full! flex-col;
+    }
+    .expressive-code .frame.has-title pre {
+      border: var(--ec-brdWd) solid var(--ec-brdCol);
     }
     pre {
-      @apply grow!;
+      @apply grow! overflow-auto;
+    }
+    figcaption.header {
+      @apply grid place-items-center;
+      @apply bg-none;
+      &::before {
+        @apply border-none outline-none;
+      }
+      & > span.title {
+        @apply bg-inherit;
+        &::after {
+          @apply border-none!;
+        }
+      }
     }
   }
   .flexy-code-grid-centered {

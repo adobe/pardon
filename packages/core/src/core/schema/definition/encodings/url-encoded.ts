@@ -17,6 +17,7 @@ export const queryEncodingType: EncodingType<
   string | Record<string, string> | [string, string][]
 > = {
   as: "string",
+  format: "query",
   encode(output) {
     return output !== undefined
       ? intoSearchParams(output as string)
@@ -48,6 +49,7 @@ export const formEncodingType: EncodingType<
   [string, string][]
 > = {
   as: "string",
+  format: "form",
   decode({ template }) {
     return template
       ? parseForm(

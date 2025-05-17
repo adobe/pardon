@@ -28,6 +28,7 @@ import { JSON } from "../raw-json.js";
 
 import MIME from "whatwg-mimetype";
 import { createHeaders } from "../request/header-object.js";
+import { mapObject } from "../../util/mapping.js";
 
 export type HttpsResponseStep = {
   type: "response";
@@ -40,7 +41,7 @@ export type HttpsRequestStep = {
   request: FetchObject;
   computations: Record<string, string>;
   values: Record<string, any>;
-  name?: string;
+  variant?: string;
   source?: string;
 };
 
@@ -51,11 +52,21 @@ export type HttpsScriptStep = {
   source?: string;
 };
 
-export type HttpsSteps<Mode extends string> = Mode extends "flow"
-  ? (HttpsRequestStep | HttpsResponseStep | HttpsScriptStep)[]
-  : (HttpsRequestStep | HttpsResponseStep)[];
+export function isHttpRequestStep(step: HttpsStep): step is HttpsRequestStep {
+  return step.type === "request";
+}
 
-export type HttpsMode = "mix" | "mux" | "flow" | "log";
+export function isHttpResponseStep(step: HttpsStep): step is HttpsResponseStep {
+  return step.type === "response";
+}
+
+export function isHttpScriptStep(step: HttpsStep): step is HttpsScriptStep {
+  return step.type === "script";
+}
+
+export type HttpsStep = HttpsRequestStep | HttpsResponseStep | HttpsScriptStep;
+
+export type HttpsMode = "merge" | "flow" | "log";
 
 export type FlowName = `${string}.flow`;
 
@@ -80,10 +91,10 @@ export type UseFlow = {
   provides?: string | ValueMapping;
 };
 
-export type HttpsSchemeType<Mode extends string, Configuration> = {
+export type HttpsSchemeType<Mode extends HttpsMode, Configuration> = {
   mode: Mode;
   configuration: Configuration;
-  steps: HttpsSteps<Mode>;
+  steps: HttpsStep[];
 };
 
 export type HttpsScheme<Phase extends ResourceProcessingPhase> =
@@ -108,21 +119,26 @@ export type HttpsFlowScheme = HttpsSchemeType<"flow", HttpsFlowConfig>;
 
 export type HttpsTemplateScheme<
   Phase extends ResourceProcessingPhase = "runtime",
-> = HttpsSchemeType<"mix" | "mux", HttpsTemplateConfiguration<Phase>>;
+> = HttpsSchemeType<"merge", HttpsTemplateConfiguration<Phase>>;
 
 export const HTTPS = { parse };
 
-function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
+function parse(
+  file: string,
+  mode: HttpsMode = "merge",
+): HttpsScheme<HttpsMode extends "flow" ? "flow" : "source"> {
   const lines = file.split("\n");
-  const steps: HttpsSteps<typeof mode> = [];
+  const steps: HttpsStep[] = [];
   const inlineConfiguration: string[] = [];
 
   try {
     while (lines.length) {
       scanComments(lines, { allowBlank: true });
+
       if (/^\s*(?:>>>|<<<|!!!)/.test(lines[0])) {
         break;
       }
+
       if (lines.length) {
         inlineConfiguration.push(lines.shift()!);
       }
@@ -140,11 +156,9 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
         continue;
       }
 
-      if (mode === "flow") {
-        if (/^\s*!!!/.test(lines[0])) {
-          (steps as HttpsSteps<"flow">).push(scanScript(lines, lines.shift()!));
-          continue;
-        }
+      if (/^\s*!!!/.test(lines[0])) {
+        (steps as HttpsStep[]).push(scanScript(lines, lines.shift()!));
+        continue;
       }
 
       throw new PardonError("invalid HTTPS flow start: " + lines[0]);
@@ -169,25 +183,44 @@ function scanRequestComputations(file: string) {
   const values: Record<string, any> = {};
 
   for (;;) {
+    // deprecated
     if (file.trim().startsWith(":")) {
-      const [, expression, rest] = /\s*(:[^\n]*)\n(.*)/s.exec(file)!;
-      const parsed = parseVariable(expression);
+      const [, expression, rest] = /\s*:([^\n]*)\n(.*)/s.exec(file)!;
+      const parsed = parseVariable(`${expression}`);
       if (!parsed) break;
-      computations[parsed.param] = `{{${parsed.variable.source}}}`;
+      computations[parsed.param] = `{{-${parsed.variable.source}}}`;
       file = rest;
-    } else {
-      const {
-        [KV.unparsed]: rest,
-        [KV.eoi]: _eoi,
-        [KV.upto]: _upto,
-        ...data
-      } = KV.parse(file, "stream");
-      if (Object.keys(data).length === 0) {
-        break;
-      }
-      Object.assign(values, data);
-      file = rest ?? "";
+
+      console.warn(
+        ":value = expression syntax replaced with value=(expression) syntax",
+        parsed.variable.source,
+      );
+      continue;
     }
+
+    const { [KV.unparsed]: rest, ...data } = KV.parse(file, "stream", {
+      allowExpressions: true,
+    });
+    if (Object.keys(data).length === 0) {
+      break;
+    }
+
+    Object.assign(
+      values,
+      mapObject(data, {
+        select(value, key) {
+          if (KV.isExprValue(value)) {
+            computations[key as string] =
+              `{{ -${key as string} = $$expr(${JSON.stringify(KV.loadExprValue(value))}) }}`;
+            return false;
+          }
+
+          return true;
+        },
+      }),
+    );
+
+    file = rest ?? "";
   }
 
   return { computations, values, rest: file };
@@ -196,7 +229,7 @@ function scanRequestComputations(file: string) {
 function scanRequest(lines: string[], first: string): HttpsRequestStep {
   const linesCopy = lines.slice();
 
-  const [, name] = /^>>>\s*(.*?)\s*$/.exec(first) ?? [];
+  const [, variant] = /^>>>\s*(.*?)\s*$/.exec(first) ?? [];
 
   // Horribly inefficient code here, but it only runs on load so...
   const { computations, values, rest } = scanRequestComputations(
@@ -217,7 +250,7 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
       }),
       computations,
       values,
-      name,
+      variant,
       source: [first, ...linesCopy.slice(0, -lines.length)].join("\n"),
     };
   }
@@ -265,7 +298,7 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
     request: { ...request, meta },
     computations,
     values,
-    name,
+    variant: variant,
     source: [first, ...linesCopy.slice(0, -lines.length)].join("\n"),
   };
 }

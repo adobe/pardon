@@ -10,11 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { PardonError } from "../error.js";
 import { KV } from "../formats/kv-fmt.js";
 import { createNumber, JSON } from "../raw-json.js";
 import { isPatternSimple, patternize } from "../schema/core/pattern.js";
 import { exposeSchematic, isSchematic } from "../schema/core/schema-ops.js";
 import { Schematic, Template } from "../schema/core/types.js";
+import { arrays } from "../schema/definition/arrays.js";
 import { datums } from "../schema/definition/datum.js";
 import { base64Encoding } from "../schema/definition/encodings/base64-encoding.js";
 import {
@@ -27,7 +29,9 @@ import {
   formEncodingType,
   parseForm,
 } from "../schema/definition/encodings/url-encoded.js";
+import { objects } from "../schema/definition/objects.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
+import { mergedSchematic } from "../schema/definition/structures/merge.js";
 import { redact } from "../schema/definition/structures/redact.js";
 import {
   ReferenceSchematic,
@@ -35,14 +39,12 @@ import {
   referenceTemplate,
 } from "../schema/definition/structures/reference.js";
 import {
-  muxTemplate,
-  tuple,
-  unwrapSingle,
+  itemOrArray,
   makeKeyed,
-  mixTemplate,
   matchTemplate,
   mvKeyedTuples,
   blendEncoding,
+  meldTemplate,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
@@ -66,7 +68,7 @@ export const encodings = {
       textTemplate(datums.antipattern<string>(value)),
     );
   },
-  $template(value: string) {
+  $template(value: string, encoding?: string /* EncodingTypes */) {
     if (
       (typeof value === "string" &&
         /^(?![0-9])[a-z0-9_-]+$/.test(value.trim())) ||
@@ -90,12 +92,18 @@ export const encodings = {
 
           // don't accept top-level body aliases, assume it might be templated though.
           if (
+            encoding === "text" ||
             exposeSchematic<ReferenceSchematicOps<string>>(template).reference
           ) {
             return textTemplate(value);
           }
         }
 
+        if (encoding && encoding !== "json") {
+          throw new PardonError(
+            `encoding specified as ${encoding} but falling back to json`,
+          );
+        }
         return jsonEncoding(template);
       });
     } catch (error) {
@@ -110,6 +118,12 @@ export type EncodingTypes = InternalEncodingTypes extends `$${infer Pretty}`
   ? Pretty
   : never;
 
+const anonRef = referenceTemplate({});
+
+function withAnonymousRef<T>(ref: ReferenceSchematic<T>) {
+  return (template: Template<T>) => mergedSchematic(template, ref);
+}
+
 // error TS7056: The inferred type of this node exceeds the maximum length the compiler will serialize.
 // An explicit type annotation is needed.
 export const bodyGlobals: Record<string, any> = {
@@ -118,21 +132,30 @@ export const bodyGlobals: Record<string, any> = {
   null: null,
   ...encodings,
   $: $ref,
-  $flow: <T>(x: Template<T>) => referenceTemplate<T>({}).$of(x).$flow,
-  $bigint: <T>(x: Template<T>) => referenceTemplate<bigint>({}).$of(x).$bigint,
-  $nullable: <T>(x: Template<T>) => referenceTemplate({}).$of(x).$nullable,
-  $string: <T>(x: Template<T>) => referenceTemplate<string>({}).$of(x).$string,
-  $number: <T>(x: Template<T>) => referenceTemplate<number>({}).$of(x).$number,
-  $bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).$of(x).$bool,
-  $redact: redact,
-  $mux: muxTemplate,
-  $mix: mixTemplate,
+  $flow: withAnonymousRef(anonRef.$flow),
+  $noexport: withAnonymousRef(anonRef.$noexport),
+
+  $bigint: withAnonymousRef(anonRef.$bigint),
+  $nullable: withAnonymousRef(anonRef.$nullable),
+  $string: withAnonymousRef(anonRef.$string),
+  $number: withAnonymousRef(anonRef.$number),
+  $bool: withAnonymousRef(anonRef.$bool),
+  $boolean: withAnonymousRef(anonRef.$boolean),
+
+  $elements<T>(item: Template<T>) {
+    return arrays.archetype(item);
+  },
+  $scoped<T>(item: Template<T>) {
+    return objects.scoped({}, item);
+  },
+  $secret: redact,
   $match: matchTemplate,
+  $meld: meldTemplate,
   $hidden: hiddenTemplate,
+  $merged: mergedSchematic,
   $keyed: makeKeyed,
   $keyed$mv: makeKeyed.mv,
-  $tuple: tuple,
-  $unwrapSingle: unwrapSingle,
+  $itemOrArray: itemOrArray,
   $$number(source: string) {
     return createNumber(source);
   },
@@ -150,8 +173,15 @@ export function jsonEncoding(template?: Template<unknown>): Template<string> {
   return encodingTemplate(jsonEncodingType, template);
 }
 
+export function jsonScriptEncoding(
+  template?: Template<unknown>,
+): Template<string> {
+  return encodingTemplate(jsonScriptEncodingType, template);
+}
+
 export const jsonEncodingType: EncodingType<string, unknown> = {
   as: "string",
+  format: "json",
   decode({ template, mode }) {
     if ((template ?? "") == "") {
       return undefined;
@@ -166,6 +196,10 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
     } catch (error) {
       if (mode === "match") {
         throw error;
+      }
+
+      if (/^[_a-z0-9]+=[^&=]+$/i.test(template.trim())) {
+        throw new Error("simple-form template script");
       }
 
       // fallback to script evaluation (in non-match contexts)
@@ -190,6 +224,51 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
     return JSON.stringify(output, null, 0);
   },
 };
+
+export const jsonScriptEncodingType: EncodingType<string, string> = {
+  as: "string",
+  format: "json-script",
+  decode({ template, mode }) {
+    if ((template ?? "") == "") {
+      return undefined;
+    }
+
+    if (typeof template !== "string") {
+      throw new Error("json cannot parse non-string");
+    }
+
+    const templateText = JSON.parse(template);
+
+    try {
+      return JSON.parse(templateText);
+    } catch (error) {
+      if (mode === "match") {
+        throw error;
+      }
+
+      // fallback to script evaluation (in non-match contexts)
+      // if body doesn't parse
+      return evalBodyTemplate(templateText);
+    }
+  },
+  encode(output, context) {
+    if (output === undefined) {
+      return undefined;
+    }
+
+    if (context.environment.option("pretty-print")) {
+      return KV.stringify(output, {
+        mode: "json",
+        indent: 2,
+        limit: 80,
+        split: true,
+      });
+    }
+
+    return JSON.stringify(output, null, 0);
+  },
+};
+
 function $ref(
   template: TemplateStringsArray,
   ...args: never[]

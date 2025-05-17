@@ -100,7 +100,7 @@ function buildDefinitionSchema(definitions: Record<string, any>) {
         return `{{?${key}}}`;
       }
 
-      return `{{?${key} = $$expr(${JSON.stringify(value)})}}`;
+      return `{{ ?${key} = $$expr(${JSON.stringify(value)}) }}`;
     },
     filter(_key, defined) {
       return Boolean(defined);
@@ -108,7 +108,7 @@ function buildDefinitionSchema(definitions: Record<string, any>) {
   }) as Record<string, unknown>;
 
   return mergeSchema(
-    { mode: "mux", phase: "build" },
+    { mode: "merge", phase: "build" },
     stubSchema(),
     definitionSchemaTemplate,
   ).schema!;
@@ -225,7 +225,7 @@ export async function executeHttpsSequence(
 
 const flowScriptTransform: (unbound: {
   symbols: Set<string>;
-  literals: Set<string>; // TODO
+  literals: Set<string>;
 }) => TsMorphTransform =
   (unbound) =>
   ({ factory, visitChildren }) => {
@@ -248,6 +248,18 @@ const flowScriptTransform: (unbound: {
       }
     }
 
+    if (
+      ts.isTaggedTemplateExpression(node) &&
+      ts.isIdentifier(node.tag) &&
+      node.tag.text === "$" &&
+      ts.isNoSubstitutionTemplateLiteral(node.template)
+    ) {
+      return factory.createElementAccessExpression(
+        factory.createIdentifier("environment"),
+        factory.createStringLiteral(node.template.text),
+      );
+    }
+
     return node;
   };
 
@@ -262,12 +274,15 @@ async function executeHttpsFlowSequence(
 
   const retries = { ...sequence.tries };
 
+  let contextual: Record<string, any> = {};
+
   while (index < sequence.interactions.length) {
     const next = sequence.interactions[index];
 
     flowContext.checkAborted();
 
     if (retries[index] !== undefined) {
+      console.log(`step ${index + 1}: retries remaining: ${retries[index]}`);
       if (--retries[index] < 0) {
         throw new Error(
           `ran out of retries for step ${index + 1} of ${sequence.name}`,
@@ -276,38 +291,31 @@ async function executeHttpsFlowSequence(
     }
 
     if (next.type === "script") {
-      const scriptValues = {};
-
-      const script = `(() => { ${next.script.script} ;;; })()`;
-
-      const { morphed, unbound } = applyTsMorph(script);
-      void morphed;
-
-      await evaluation(
-        script,
-        {
-          binding(key) {
-            if (key === "environment") {
-              return scriptValues;
-            }
-
-            return resultValues[key];
-          },
-        },
-        flowScriptTransform(unbound),
-      );
+      const { values: scriptValues, target } = await runFlowScript(next, {
+        ...contextual,
+        ...resultValues,
+      });
 
       flowValues = { ...flowValues, ...scriptValues };
       resultValues = { ...resultValues, ...scriptValues };
       flowContext.mergeEnvironment(scriptValues);
       index++;
+
+      if (target) {
+        index = sequence.interactionMap[target] ?? sequence.interactions.length;
+      }
+
       continue;
     }
 
+    contextual = {};
+
     const {
       outcome,
-      values: { send, recv, flow },
+      values: { send, recv, flow, data },
       context: stepResultContext,
+      ingress,
+      egress,
     } = await executeHttpsSequenceStep({
       sequenceInteraction: next,
       sequenceScheme: sequence.scheme,
@@ -317,18 +325,24 @@ async function executeHttpsFlowSequence(
       context: flowContext,
     });
 
+    contextual = {
+      ingress: ingress.redacted,
+      egress: egress.redacted,
+      ...send,
+      ...data,
+      ...recv,
+    };
+
     flowContext = stepResultContext;
 
     // return value from flow has lots of data
     resultValues = {
       ...resultValues,
-      ...send,
-      ...recv,
       ...flow,
     };
 
     // if the outcome is named in the flow, loop, else exit
-    if (outcome) {
+    if (outcome?.name) {
       index =
         sequence.interactionMap[outcome.name] ?? sequence.interactions.length;
     } else {
@@ -342,7 +356,7 @@ async function executeHttpsFlowSequence(
       ]);
     }
 
-    if (index == sequence.interactions.length && outcome) {
+    if (index == sequence.interactions.length && outcome?.name) {
       flowValues = {
         outcome: outcome.name,
         ...flowValues,
@@ -365,7 +379,10 @@ async function executeHttpsFlowSequence(
         ...resultValues,
       };
 
-  return { result, context: flowContext };
+  return {
+    result,
+    context: flowContext,
+  };
 }
 
 async function evaluateDependentFlows(
@@ -512,8 +529,8 @@ function parseHttpsSequenceScheme({
       }),
     );
 
-    if (flowItem.name) {
-      const { name, retries } = parseIncome(flowItem.name)! ?? {};
+    if (flowItem.variant) {
+      const { name, retries } = parseIncome(flowItem.variant)! ?? {};
 
       if (retries) {
         tries[interactions.length - 1] = retries;
@@ -619,14 +636,14 @@ error = ${error?.stack ?? error}
     throw error;
   }
 
-  const { outbound, inbound } = await execution.result;
+  const { egress, ingress, output } = await execution.result;
 
   console.log(`<<<
-${HTTP.responseObject.stringify(inbound.redacted)}`);
+${HTTP.responseObject.stringify(ingress.redacted)}`);
 
   const matching =
     responseTemplates.length === 0
-      ? ({ result: "matched", preview: inbound.redacted } as Awaited<
+      ? ({ result: "matched", preview: ingress.redacted } as Awaited<
           ReturnType<typeof matchResponseToOutcome>
         >)
       : await matchResponseToOutcome(
@@ -637,7 +654,7 @@ ${HTTP.responseObject.stringify(inbound.redacted)}`);
             values: executionValues,
           },
           responseTemplates,
-          inbound.response,
+          ingress.response,
         );
 
   if (matching.result === "unmatched") {
@@ -671,26 +688,25 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
   const outcome = parseOutcome(outcomeText);
 
   const flowResponseValues =
-    responseTemplates.length === 0
-      ? inbound.evaluationScope.resolvedValues({ flow: true })
-      : valuesFromScope(scope);
+    responseTemplates.length === 0 ? output : flowValuesFromScope(scope);
 
   // makes unit tests better for now.
-  if (outcome) {
+  if (outcome?.name) {
     console.info(`  > ${outcome.name}`);
   }
 
   //  console.log(
-  //    `${outbound.request.method} ${intoURL(outbound.request)} (${inbound.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
+  //    `${egress.request.method} ${intoURL(egress.request)} (${ingress.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
   //  );
 
   return {
-    outbound: withoutEvaluationScope(outbound),
-    inbound: withoutEvaluationScope(inbound),
+    egress: withoutEvaluationScope(egress),
+    ingress: withoutEvaluationScope(ingress),
     outcome,
     values: {
-      send: removeHttpValues(outbound.request.values),
-      recv: inbound.values,
+      send: removeHttpValues(egress.redacted.values),
+      recv: ingress.values,
+      data: scope?.resolvedValues() ?? {},
       flow: flowResponseValues,
     },
     context: flowContext.mergeEnvironment(flowResponseValues),
@@ -738,7 +754,7 @@ async function matchResponseToOutcome(
       responseTemplate as HttpsResponseStep;
 
     let merged = mergeSchema(
-      { mode: "mux", phase: "build" },
+      { mode: "merge", phase: "build" },
       responseSchema,
       {
         status,
@@ -759,15 +775,19 @@ async function matchResponseToOutcome(
       const preview = await prerenderSchema(merged.schema, previewEnv);
 
       merged = mergeSchema(
-        { mode: "mux", phase: "build" },
+        { mode: "merge", phase: "build" },
         merged.schema,
         preview.output,
       );
 
+      if (merged.error) {
+        throw merged.error;
+      }
+
       templates.push({
         outcome,
         preview: preview.output,
-        diagnostics: merged.context.diagnostics.map(({ loc }) => loc),
+        diagnostics: merged.context!.diagnostics.map(({ loc }) => loc),
       });
     }
 
@@ -791,10 +811,14 @@ async function matchResponseToOutcome(
         preview: templates.slice(-1)[0].preview,
       } satisfies MatchedResponseOutcome;
     } else if (match) {
+      if (match.error) {
+        throw match.error;
+      }
+
       templates
         .slice(-1)[0]
         .diagnostics.push(
-          ...(match?.context.diagnostics.map(({ loc }) => loc) || []),
+          ...(match?.context!.diagnostics.map(({ loc }) => loc) || []),
         );
     }
   }
@@ -802,26 +826,26 @@ async function matchResponseToOutcome(
   return { result: "unmatched", templates };
 }
 
-function valuesFromScope(scope?: EvaluationScope): Record<string, unknown> {
+function flowValuesFromScope(scope?: EvaluationScope): Record<string, unknown> {
   if (!scope) {
     return {};
   }
 
-  return scope.resolvedValues({ secrets: false });
+  return scope.resolvedValues({ secrets: false, flow: true });
 }
 
 function parseOutcome(outcome?: string) {
   if (!outcome?.trim()) {
     return;
   }
-  const [, name, delay, unit] = /^\s*([^\s+]+)(?:\s*[+](\d+)(ms|s)\s*)?$/.exec(
-    outcome.trim(),
-  )!;
+
+  const [, name, delay, unit] =
+    /^\s*([^\s+]+)?(?:\s*[+](\d+)(ms|s|m)\s*)?$/.exec(outcome.trim())!;
 
   if (delay) {
     return {
       name,
-      delay: Number(delay) * { ms: 1, s: 1000 }[unit ?? "ms"]!,
+      delay: Number(delay) * { ms: 1, s: 1000, m: 60 * 1000 }[unit ?? "ms"]!,
     };
   }
 
@@ -852,4 +876,52 @@ function usageNeeded(
   contextAsFlowParams(provides, defined);
 
   return Object.keys(defined).some((key) => options[key] === undefined);
+}
+
+class Goto extends Error {
+  target: string;
+  constructor(target: string) {
+    super("goto: " + target);
+    this.target = target;
+  }
+}
+
+async function runFlowScript(
+  next: HttpScriptInterraction,
+  resultValues: Record<string, any>,
+): Promise<{ values: Record<string, any>; target?: string }> {
+  const scriptValues = {};
+
+  const script = `(() => { ${next.script.script} ;;; })()`;
+
+  const { unbound } = applyTsMorph(script);
+
+  try {
+    await evaluation(
+      script,
+      {
+        binding(key) {
+          if (key === "environment") {
+            return scriptValues;
+          }
+
+          if (key === "goto") {
+            return (next: string) => {
+              throw new Goto(next);
+            };
+          }
+
+          return resultValues[key];
+        },
+      },
+      flowScriptTransform(unbound),
+    );
+  } catch (error) {
+    if (error instanceof Goto) {
+      return { values: scriptValues, target: error.target };
+    }
+    throw error;
+  }
+
+  return { values: scriptValues };
 }

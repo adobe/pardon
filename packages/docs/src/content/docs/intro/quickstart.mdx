@@ -18,18 +18,19 @@ prev: false
 [`http://localhost:3000`]: http://localhost:3000
 
 import { FileTree, Aside } from '@astrojs/starlight/components';
-import { SolidIcon, CollectionLinkCard } from '@components';
+import { CollectionLinkCard } from '@components';
 
 :::tip
 These docs assume a NodeJS installation and basic experience with 
 `git`, `node`, and `npm`.
 
-The quickstart here is intended to quickly showcase Pardon's features
-without going into the details of how it works.
+This should get you up and running.
 :::
 
-The `example/todo` repo contains a sample server and Pardon collection.
-You can use this to demo some workflows.
+The `example/todo` directory in the pardon sources contains a sample server and Pardon collection.
+This is actually the same collection and server used in the introduction.
+
+We will use this to get startd with exploring the desktop and/or command-line applications.
 
 ## Installation and Building
 
@@ -41,6 +42,8 @@ $ npm install
 $ npm install --prefix=packages/core
 $ npm install --prefix=packages/favor
 $ npm run package --prefix=packages/favor # this also builds pardon's core
+# --- optionally, to run this documentation locally --
+$ npm install --prefix=packages/docs; npm start --prefix=packages/docs
 ```
 
 <Aside type="caution" title="Building on Windows">
@@ -60,7 +63,7 @@ $ npm run package
 </Aside>
 
 The Pardon application is built into `./packages/favor/out/...`
-(path depends on your plaform, have not tested any linux flavors yet.)
+(the path depends on your plaform, we have not tested any linux flavors yet.)
 
 Optionally, you can link the built application as a command-line tool as well.
 ```bash title="optional"
@@ -68,42 +71,35 @@ $ cd packages/core
 $ npm link . # remove with: npm uninstall -g pardon
 ```
 
-## Setup the example-todo service
+As a commmand-line program, `pardon` is like a simple but easier-to-use curl
+that is enhanced with collections and can run `.http` files.
 
-In another folder clone the `example/todo` branch.
+## Example todo service
 
-```bash
-$ git clone  https://github.com/adobe/pardon.git -b example/todo example-todo
-$ cd example-todo
-$ npm start # runs a local server
-```
+The pardon source contains a simple server, and a pardon collection.
 
-This runs a simple in-memory "TODO list" application as a local service.
-We can use pardon to run basic CRUD operations (create, read, update, delete)
-to explore how pardon works.
-
-The repository contains a simple server:
 <FileTree>
-- package.json     support for `npm start` to run the server
-- server/
-  - mini-server.js  minimal server framework
-  - index.js        basic TODO app frontend/backend logic
-</FileTree>
-
-... and a Pardon project / collection for interacting with that server:
-<FileTree>
-- package.json      includes `"pardon": {}` configuration
-- collection/todo/
-  - service.yaml    configuration for our todo environments
-  - ping.https      ping the service
-  - list.https      list the todos
-  - update.https    update a todo entry
-  - get.https       get a todo entry
-  - create.https    create a new todo entry
-  - delete.https    delete a todo entry
-  - todo-helper.ts  functions for working with the service
-  - toggle.mix.https a mixin for making update "toggle"
-- pardon.test.ts    testcases for this service
+- examples/todo
+  - package.json           configures pardon
+  - server                 an http service (data stored in memory)
+    - index.js
+    - mini-router.js
+    - todo-service.js
+  - collection/todo
+    - service.yaml         common configuration for the todo service
+    - user-auth.mix.https  common definition for authorized requests
+    - authorization.ts     
+    - health-check.https
+    - users
+      - create.https
+      - login.https
+      - delete.https
+    - todos
+      - list.https
+      - create.https
+      - get.https
+      - delete.https
+      - update.https
 </FileTree>
 
 After running `npm start`, please open a browser to [`http://localhost:3000`] to view the TODO list.
@@ -111,143 +107,47 @@ After running `npm start`, please open a browser to [`http://localhost:3000`] to
 ## Open the example workspace
 
 It's time to run the pardon application (find it in `./packages/favor/out/...`) and
-set the context to the `example-todo` directory (setting the context is in the file menu).
+set the workspace to the `examples/todo` directory to pick up the configuration 
+in `examples/todo/package.json`.
 
-If everything went well, you should have
+<div class="*:nth-1:origin-top-left *:nth-2:origin-bottom-right  relative">
+![set pardon workspace](../images/quickstart/set-workspace.png)
 
-```
+![select example/todo](../images/quickstart/set-workspace-2.png)
+</div>
+
+When running the command line app, please run it from within this
+folder.
+
+Now enter this into the top input:
+
+```http
 env=local
-```
-in the globals, and
-```http
-GET https://todo.example.com/ping
-```
-in the main input.  This request should be shown as `GET http://localhost:3000/ping`
-and there should be a button to actually make the request.
-
-If the server is running, you can run this and get `pong` back.
-
-You should also see the list of endpoints, (with ping highlighted because it matches
-the current request).
-<FileTree>{/* not the best component for this*/}
-- todo
-  - create
-  - delete
-  - get
-  - list
-  - **ping**
-  - update
-</FileTree>
-
-The other endpoint we can run trivially is `list`,
-select that and the request editor will change to
-
-```http
-GET https://todo.example.com/todos
+username=test
+@password=pw
+POST https://todo.example.com/users
 ```
 
-and when we run this we should get back something like this
+Pardon will show you the request it would send.
 
-```http
-200 OK
-connection: close
-content-length: 65
-content-type: application/json
-date: --- now ---
+![select example/todo](../images/quickstart/create-user.png)
 
-[
-  {
-    "task": "get setup with pardon",
-    "completed": false,
-    "id": "T1001"
-  }
-]
-```
+To send the request, click the large `[POST | http...]` button.
 
-From this we see a pre-populated task with pardon has an id of `T1001`.
+If the todo server is running, the user will be created with that password in the server.
+Pardon will also persist the password as a secret.
 
-To change this, we can use the update endpoint
+You can run the same commands as the introduction, but with `env=local` added to
+configure the requests for localhost.  (This ability to switch environments is one
+of Pardon's key features.)
 
-```text ins="todo=T1001" ins="completed=true"
-todo=T1001
-completed=true
-
-PUT https://todo.example.com/todos/{{todo}}
-```
-
-alternatively, we can specify this entirely with values given an `endpoint` and other data.
-
-```text ins="todo=T1001" ins="completed=true"
-method=PUT
-endpoint=todo/update
-todo=T1001
-completed=true
-```
-
-:::note
-for sanity, pardon defaults `method` to `GET` if not specified, which is done for various reasons
-but most importantly it is intended to prevent accidents.
-:::
-
-Remember to keep the <a href="http://localhost:3000" target="_blank" rel="noopener">http://localhost:3000</a>
-page open while you run this to see the todo list update from the API calls.
-
-Try again, but with `completed=false` to mark the todo action as pending again.
-
-```text ins="false"
-todo=T1001
-completed=false
-
-PUT https://todo.example.com/todos/{{todo}}
-```
-
-## Automation
-
-Manually changing `completed` every time we want to toggle something is great,
-but what if we could automatically compute the `completed` for each request?
-
-For this next experiment, instead of setting the `completed` value, try `do=toggle`
-(use the "samples" directory to even-more-easily configure the request.)
-
-```text ins="do=toggle"
-todo=T1001
-do=toggle
-
-PUT http://todo.example.com/todos/{{todo}}
-```
-
-this will automatically produce the opposite value of completed each time this request
-is rendered.
-
-The details are covered in later tutorials, but what we have here is pardon requests
-making pardon requests... executing the following script:
-
-```ts title="todo-helper.ts"
-import { pardon } from "pardon";
-
-type TodoOptions = { origin: string; todo: string; };
-
-export async function getCompleted({ origin, todo }: TodoOptions) {
-  const { inbound } = await pardon({
-    origin,
-    todo,
-  })`GET https://todo.example.com/todos/{{todo}}`();
-
-  return inbound.values.completed;
-}
-```
-
-The operative files here are the `get.https` endpoint, where `completed` is parsed
-from the response, and `toggle.mix.https` for how `getCompleted` is used in a template.
-
-Making successive calls using this configuration can now toggle the todo's `completed` value.
-
-You can see in the application via the history, that the call made was dependent on the `GET` call
-first. (Pardon tracks which promises are `await`ed to build this graph!).
+A `pardon.db` file is created in the workspace folder, this stores
+every request and response pardon makes, but stripped of any secrets or derived secrets.
+(Any secrets explicitly saved with the `secrets` mechanism are in their own tables.).
 
 ## Next Steps
 
-Now that we've seen the behavior of `pardon`, we can explore its inner workings,
-starting with the template/schema engine.
+Now that we've running, we can explore Pardon's inner workings,
+starting with the template engine.
 
 <CollectionLinkCard href="/intro/templates" />

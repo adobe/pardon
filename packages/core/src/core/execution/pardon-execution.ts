@@ -23,12 +23,12 @@ import { disarm } from "../../util/promise.js";
  *  - init() -> context,
  *  - match() -> match,
  *  - preview() -> preview,
- *  - render() -> outbound,
- *  - fetch() -> inbound, and
+ *  - render() -> egress,
+ *  - fetch() -> ingress, and
  *  - process() -> result.
  */
 
-export type PardonExecutor<Init, Context, Match, Outbound, Inbound, Result> = {
+export type PardonExecutor<Init, Context, Match, Egress, Ingress, Result> = {
   /**
    * Initialize the context based on input (command-line, UX info)
    */
@@ -43,11 +43,11 @@ export type PardonExecutor<Init, Context, Match, Outbound, Inbound, Result> = {
   /**
    * A preview render that doesn't evaluate any scripts.
    */
-  preview(info: { context: Context; match: Match }): Promise<NoInfer<Outbound>>;
+  preview(info: { context: Context; match: Match }): Promise<NoInfer<Egress>>;
   /**
    * Renders the template into a request.
    */
-  render(info: { context: Context; match: Match }): Promise<Outbound>;
+  render(info: { context: Context; match: Match }): Promise<Egress>;
   /**
    * Executes the request, producing a response.
    * (this is where "fetch" happens)
@@ -55,73 +55,67 @@ export type PardonExecutor<Init, Context, Match, Outbound, Inbound, Result> = {
   fetch(info: {
     context: Context;
     match: Match;
-    outbound: Outbound;
-  }): Promise<Inbound>;
+    egress: Egress;
+  }): Promise<Ingress>;
   /**
    * Process the response, and produce the final result.
    */
   process(info: {
     context: Context;
     match: Match;
-    outbound: Outbound;
-    inbound: Inbound;
+    egress: Egress;
+    ingress: Ingress;
   }): Promise<Result>;
 
   error(error: PardonExecutionError, info: any): unknown;
 };
 
-export interface PardonContinuations<
-  Context,
-  Match,
-  Outbound,
-  Inbound,
-  Result,
-> {
+export interface PardonContinuations<Context, Match, Egress, Ingress, Result> {
   // init()
   get context(): Promise<Context> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   // match()
   get match(): Promise<Match> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   // preview()
-  get preview(): Promise<Outbound> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
-  get outbound(): Promise<Outbound> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
-  get inbound(): Promise<Inbound> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+  get preview(): Promise<Egress> &
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
+  get egress(): Promise<Egress> &
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
+  get ingress(): Promise<Ingress> &
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   get result(): Promise<Result> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
 
   reprocess(context: Partial<Context>): Promise<Result>;
 }
 
-export type PardonExecution<Init, Context, Match, Outbound, Inbound, Result> = {
-  executor: PardonExecutor<Init, Context, Match, Outbound, Inbound, Result>;
+export type PardonExecution<Init, Context, Match, Egress, Ingress, Result> = {
+  executor: PardonExecutor<Init, Context, Match, Egress, Ingress, Result>;
   init(
     init: Init,
   ): Promise<Context> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   match(
     init: Init,
   ): Promise<Match> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   preview(
     init: Init,
-  ): Promise<Outbound> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+  ): Promise<Egress> &
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   render(
     init: Init,
-  ): Promise<Outbound> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+  ): Promise<Egress> &
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   fetch(
     init: Init,
-  ): Promise<Inbound> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+  ): Promise<Ingress> &
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
   process(
     init: Init,
   ): Promise<Result> &
-    PardonContinuations<Context, Match, Outbound, Inbound, Result>;
+    PardonContinuations<Context, Match, Egress, Ingress, Result>;
 };
 
 export function pardonExecution<
@@ -165,9 +159,9 @@ export function pardonExecution<
     let initializing: Continuations["context"];
     let matching: Continuations["match"];
     let previewing: Continuations["preview"];
-    let outbound: Continuations["outbound"];
+    let egress: Continuations["egress"];
     let requesting_: Promise<Response>;
-    let inbound: Continuations["inbound"];
+    let ingress: Continuations["ingress"];
     let processing: Continuations["result"];
 
     function mixin<X extends Promise<unknown>, Y>(
@@ -197,14 +191,14 @@ export function pardonExecution<
       get preview() {
         return match().preview;
       },
-      get outbound() {
-        return match().outbound;
+      get egress() {
+        return match().egress;
       },
-      get inbound() {
-        return match().outbound.inbound;
+      get ingress() {
+        return match().egress.ingress;
       },
       get result() {
-        return match().outbound.inbound.result;
+        return match().egress.ingress.result;
       },
       reprocess,
     }));
@@ -220,14 +214,14 @@ export function pardonExecution<
           get preview() {
             return preview();
           },
-          get outbound() {
+          get egress() {
             return render();
           },
-          get inbound() {
-            return render().inbound;
+          get ingress() {
+            return render().ingress;
           },
           get result() {
-            return render().inbound.result;
+            return render().ingress.result;
           },
           reprocess,
         },
@@ -242,14 +236,14 @@ export function pardonExecution<
             context: initializing,
             match: matching,
             preview: previewing,
-            get outbound() {
+            get egress() {
               return render();
             },
-            get inbound() {
-              return render().inbound;
+            get ingress() {
+              return render().ingress;
             },
             get result() {
-              return render().inbound.result;
+              return render().ingress.result;
             },
             reprocess,
           },
@@ -257,9 +251,9 @@ export function pardonExecution<
       }
 
       function render() {
-        return (outbound ??= mixin(
+        return (egress ??= mixin(
           Promise.all([initializing, matching]).then(([context, match]) =>
-            executeStep("render", { context, match: match }),
+            executeStep("render", { context, match }),
           ),
           {
             context: initializing,
@@ -267,10 +261,10 @@ export function pardonExecution<
             get preview() {
               return preview();
             },
-            get outbound() {
-              return outbound;
+            get egress() {
+              return egress;
             },
-            get inbound() {
+            get ingress() {
               return fetch();
             },
             get result() {
@@ -281,12 +275,12 @@ export function pardonExecution<
         ));
 
         function fetch() {
-          requesting_ ??= Promise.all([initializing, matching, outbound]).then(
-            ([context, match, outbound]) =>
-              executeStep("fetch", { context, match, outbound }),
+          requesting_ ??= Promise.all([initializing, matching, egress]).then(
+            ([context, match, egress]) =>
+              executeStep("fetch", { context, match, egress }),
           );
 
-          return (inbound ??= mixin(
+          return (ingress ??= mixin(
             requesting_.then(async (result) => {
               await process();
               return result;
@@ -297,9 +291,9 @@ export function pardonExecution<
               get preview() {
                 return preview();
               },
-              outbound,
-              get inbound() {
-                return inbound;
+              egress,
+              get ingress() {
+                return ingress;
               },
               get result() {
                 return process();
@@ -310,13 +304,13 @@ export function pardonExecution<
 
           function process() {
             return (processing ??= mixin(
-              Promise.all([initializing, matching, outbound, requesting_]).then(
-                ([context, match, outbound, inbound]) =>
+              Promise.all([initializing, matching, egress, requesting_]).then(
+                ([context, match, egress, ingress]) =>
                   executeStep("process", {
                     context,
                     match,
-                    outbound,
-                    inbound,
+                    egress,
+                    ingress,
                   }),
               ),
               {
@@ -325,8 +319,8 @@ export function pardonExecution<
                 get preview() {
                   return preview();
                 },
-                outbound,
-                inbound,
+                egress,
+                ingress,
                 get result() {
                   return processing;
                 },
@@ -343,14 +337,14 @@ export function pardonExecution<
       const match = await executeStep("match", {
         context,
       });
-      const outbound = await initializing.outbound;
-      const inbound = await initializing.inbound;
+      const egress = await initializing.egress;
+      const ingress = await initializing.ingress;
 
       return executeStep("process", {
         context,
         match,
-        outbound,
-        inbound,
+        egress,
+        ingress,
       });
     }
   }
@@ -367,10 +361,10 @@ export function pardonExecution<
       return start(init).preview;
     },
     render(init: Init) {
-      return start(init).outbound;
+      return start(init).egress;
     },
     fetch(init: Init) {
-      return start(init).inbound;
+      return start(init).ingress;
     },
     process(init: Init) {
       return start(init).result;

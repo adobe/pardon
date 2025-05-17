@@ -37,7 +37,7 @@ export type TracedRenderStart = TracedRequest<{
 export type TracedRenderComplete = TracedRequest<{
   awaited: { requests: TracedRequest[]; results: TracedResult[] };
 }> & {
-  outbound: Omit<ProcessedHookInput["outbound"], "evaluationScope">;
+  egress: Omit<ProcessedHookInput["egress"], "evaluationScope">;
 };
 
 export type PardonTraceExtension<Ext = unknown> = {
@@ -63,13 +63,14 @@ function traceRequest({
 function traceResult({
   context,
   match: { endpoint },
-  result: { outbound, inbound },
+  result: { egress, ingress, output },
 }: Pick<ProcessedHookInput, "context" | "match" | "result">) {
   return {
     context,
     endpoint,
-    outbound: withoutEvaluationScope(outbound),
-    inbound: withoutEvaluationScope(inbound),
+    egress: withoutEvaluationScope(egress),
+    ingress: withoutEvaluationScope(ingress),
+    output,
   };
 }
 
@@ -137,19 +138,19 @@ export default function trace<Execution extends typeof PardonFetchExecution>(
       await disconnected(() => notifier?.onRenderStart(traced));
       trackRequest(traced);
 
-      const outbound = await next(info);
+      const egress = await next(info);
 
       info.context.awaited.results = awaitedResults();
       await disconnected(() =>
-        notifier?.onRenderComplete({ ...traced, outbound }),
+        notifier?.onRenderComplete({ ...traced, egress }),
       );
 
-      return outbound;
+      return egress;
     },
     async fetch(info) {
       notifier?.onSend({
         ...traceRequest(info),
-        outbound: withoutEvaluationScope(info.outbound),
+        egress: withoutEvaluationScope(info.egress),
       });
 
       return undefined!;

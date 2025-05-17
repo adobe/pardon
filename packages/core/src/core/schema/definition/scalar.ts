@@ -37,7 +37,7 @@ export function convertScalar(
 
   switch (type) {
     case "null":
-      return value === "null" ? null : undefined;
+      return value === "null" || value === null ? null : undefined;
     case "boolean":
       return value === "false"
         ? false

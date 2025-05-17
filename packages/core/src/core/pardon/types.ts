@@ -15,10 +15,10 @@ import { PardonCompiler } from "../../runtime/compiler.js";
 import { type PardonExecution } from "../execution/pardon-execution.js";
 import {
   PardonExecutionContext,
-  PardonExecutionInbound,
+  PardonExecutionIngress,
   PardonExecutionInit,
   PardonExecutionMatch,
-  PardonExecutionOutbound,
+  PardonExecutionEgress,
   PardonExecutionResult,
 } from "./pardon.js";
 import { PardonCollection, Workspace } from "../../runtime/init/workspace.js";
@@ -45,8 +45,8 @@ export type PardonRuntime<Type extends "loading" | "ready" = "ready"> = {
           PardonExecutionInit,
           PardonExecutionContext,
           PardonExecutionMatch,
-          PardonExecutionOutbound,
-          PardonExecutionInbound,
+          PardonExecutionEgress,
+          PardonExecutionIngress,
           PardonExecutionResult
         >;
 

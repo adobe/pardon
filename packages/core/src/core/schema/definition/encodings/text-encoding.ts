@@ -15,6 +15,7 @@ import { encodingTemplate, EncodingType } from "./encoding.js";
 
 const textEncoder: EncodingType<string, string> = {
   as: "string",
+  format: "text",
   decode({ template, mode }) {
     if (mode === "match") {
       return template as string;

@@ -10,6 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { PardonAppContext } from "../../pardon/pardon.js";
 import { Pattern } from "./pattern.js";
 
 /**
@@ -36,7 +37,7 @@ export type SchemaWarnings = {
  * hopefully of type T.
  */
 export type SchemaMergingContext<T> = SchemaContextBase & {
-  mode: "match" | "mix" | "mux" | "meld";
+  mode: "match" | "merge" | "meld";
   phase: "validate" | "build";
   evaluationScope: EvaluationScope;
   environment: SchemaScriptEnvironment;
@@ -140,6 +141,7 @@ export type SchemaRenderContext = SchemaContextBase & {
   mode: "render" | "prerender" | "postrender" | "preview";
   evaluationScope: EvaluationScope;
   environment: SchemaScriptEnvironment;
+  cycles: Set<string>;
 };
 
 /**
@@ -187,22 +189,16 @@ export type EvaluationScope = {
 
   define<T>(context: SchemaContext<T>, key: string, value: T): T | undefined;
 
-  cached<T>(
-    context: SchemaRenderContext,
-    action: () => Promise<T> | T,
-    ...keys: string[]
-  ): Promise<T> | Exclude<T, undefined>;
-
   rendering<T>(
     context: Pick<SchemaRenderContext, "evaluationScope">,
     name: string,
-    action: () => Promise<T>,
-  ): Promise<T>;
+    action: (context: SchemaRenderContext) => Promise<T>,
+  ): Promise<T> | undefined;
 
   resolving<T>(
     context: SchemaContext,
     name: string,
-    action: () => T,
+    declaration: ExpressionDeclaration,
   ): T | undefined;
 
   evaluating(name: string): boolean;
@@ -229,9 +225,13 @@ export type EvaluationScope = {
   readonly index?: ScopeIndex;
 
   readonly declarations: Record<string, ExpressionDeclaration>;
+
+  readonly resolutions: Record<string, any>;
 } & ScopeData;
 
 export interface SchemaScriptEnvironment {
+  readonly app?: Pick<PardonAppContext, "database">;
+
   name?(): string | undefined;
 
   evaluating<T>(info: {
@@ -246,7 +246,7 @@ export interface SchemaScriptEnvironment {
     value: T;
     context: SchemaRenderContext;
     patterns: Pattern[] | null;
-  }): T | string | undefined;
+  }): Promise<T | string | undefined> | T | string | undefined;
 
   match(
     template: Pattern,
@@ -267,6 +267,7 @@ export interface SchemaScriptEnvironment {
   resolve(info: {
     context: SchemaContext<unknown>;
     identifier: Identifier;
+    scoped?: boolean;
   }): unknown;
 
   evaluate(info: {
@@ -277,6 +278,8 @@ export interface SchemaScriptEnvironment {
   reset(): void;
 
   option(key: string): unknown;
+
+  readonly contextValues: Record<string, any>;
 }
 
 export type Identifier = {
@@ -303,9 +306,10 @@ export type ExpressionDeclaration = ValueDeclaration & {
   hint: string | null;
   source: string | null;
   context: SchemaContext<unknown>;
-  resolved?(context: SchemaContext<unknown>): unknown;
-  rendered?(context: SchemaRenderContext): Promise<unknown>;
+  resolved?(context: SchemaContext<unknown>): unknown | undefined;
+  rendered?(context: SchemaRenderContext): Promise<unknown | undefined>;
   aggregates?: Record<string, AggregateDeclaration>;
+  resolving?: boolean;
 };
 
 export type AggregateDeclaration = {

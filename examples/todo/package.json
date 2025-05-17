@@ -1,0 +1,10 @@
+
+{
+  "type": "module",
+  "scripts": {
+    "start": "node ./server"
+  },
+  "pardon": {
+    "collections": "./collection"
+  }
+}

@@ -20,12 +20,13 @@ type ConfigProps = {
   example?: string;
   config: Record<string, string>;
   layers?: string[];
+  server?: string;
 };
 
 const PardonApplicationContext =
   createContext<
     Accessor<
-      | { application: ApplicationContext }
+      | { application: ApplicationContext; server?: string }
       | { application?: undefined; error: unknown }
     >
   >();
@@ -39,7 +40,10 @@ export function usePardonApplicationContext() {
 export function PardonApplication(props: ParentProps<ConfigProps>) {
   const applicationContext = createMemo(() => {
     try {
-      return { application: createApplicationContext(props) };
+      return {
+        application: createApplicationContext(props),
+        server: props.server,
+      };
     } catch (error) {
       return { error };
     }
