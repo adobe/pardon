@@ -72,7 +72,7 @@ export type PardonExecutionMatch = {
   layers: (EndpointStepsLayer & {
     configuration: Partial<EndpointConfiguration>;
   })[];
-  values: Record<string, unknown>;
+  values: Record<string, any>;
 };
 
 export type PardonExecutionInit = {
@@ -80,7 +80,7 @@ export type PardonExecutionInit = {
   url?: URL | string;
   init?: SimpleRequestInit;
   options?: PardonOptions;
-  values: Record<string, unknown>;
+  values: Record<string, any>;
   runtime?: Record<string, unknown>;
   configuration?: EndpointConfiguration;
   select?: PardonSelectOne;
@@ -90,7 +90,7 @@ export type PardonExecutionInit = {
 export type PardonExecutionOutbound = {
   request: RequestObject;
   redacted: RequestObject;
-  reduced: Record<string, unknown>;
+  reduced: Record<string, any>;
   evaluationScope: EvaluationScope;
 };
 
@@ -101,11 +101,11 @@ export type PardonExecutionResult = {
   outbound: PardonExecutionOutbound;
   inbound: {
     object: ResponseObject;
-    outcome?: string;
     response: ResponseObject;
-    secrets: Record<string, unknown>;
     redacted: ResponseObject;
-    values: Record<string, unknown>;
+    outcome?: string;
+    values: Record<string, any>;
+    secrets: Record<string, any>;
     evaluationScope: EvaluationScope;
   };
 };
@@ -651,7 +651,7 @@ function reducedValues(
   output: RequestObject,
   endpoint: LayeredEndpoint,
   compiler: PardonCompiler,
-  values: Record<string, unknown>,
+  values: Record<string, any>,
 ) {
   const matchingEnv = createEndpointEnvironment({
     endpoint,

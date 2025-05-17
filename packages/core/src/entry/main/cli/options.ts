@@ -106,6 +106,9 @@ export function opts() {
         short: "T",
         type: "boolean",
       },
+      "run-script": {
+        type: "string",
+      },
       help: {
         short: "h",
         type: "boolean",

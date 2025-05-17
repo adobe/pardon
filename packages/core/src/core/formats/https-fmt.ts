@@ -39,7 +39,7 @@ export type HttpsRequestStep = {
   type: "request";
   request: FetchObject;
   computations: Record<string, string>;
-  values: Record<string, unknown>;
+  values: Record<string, any>;
   name?: string;
   source?: string;
 };
@@ -166,7 +166,7 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
 
 function scanRequestComputations(file: string) {
   const computations: HttpsRequestStep["computations"] = {};
-  const values: Record<string, unknown> = {};
+  const values: Record<string, any> = {};
 
   for (;;) {
     if (file.trim().startsWith(":")) {

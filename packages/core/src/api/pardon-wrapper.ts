@@ -39,7 +39,7 @@ type FetchArgs =
     ];
 
 export function pardon(
-  values: Record<string, unknown> = {},
+  values: Record<string, any> = {},
   executionContext?: Omit<Partial<PardonExecutionContext>, "values">,
 ) {
   if (!runtime) {
@@ -141,22 +141,19 @@ export function template(source: string) {
   }
 
   function init(
-    values: Record<string, string>,
+    values: Record<string, any>,
     extra?: Partial<PardonExecutionContext>,
   ) {
     return pardon(values, extra)`${source}`;
   }
 
   return Object.assign(
-    (
-      values: Record<string, string>,
-      extra: Partial<PardonExecutionContext>,
-    ) => {
+    (values: Record<string, any>, extra: Partial<PardonExecutionContext>) => {
       return init(values, extra)();
     },
     {
       request(
-        values: Record<string, string>,
+        values: Record<string, any>,
         extra: Partial<PardonExecutionContext>,
       ) {
         return init(values, extra).request();

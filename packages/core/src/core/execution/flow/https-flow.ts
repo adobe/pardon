@@ -62,8 +62,8 @@ import { dirname } from "node:path";
 export type SequenceReport = {
   type: "unit" | "flow";
   name: string;
-  values: Record<string, unknown>;
-  result?: Record<string, unknown>;
+  values: Record<string, any>;
+  result?: Record<string, any>;
   error?: unknown;
   deps: SequenceReport[];
   steps: SequenceStepReport[];
@@ -370,7 +370,7 @@ async function executeHttpsFlowSequence(
 
 async function evaluateDependentFlows(
   configuration: HttpsFlowConfig,
-  values: Record<string, unknown>,
+  values: Record<string, any>,
   flowContext: FlowContext,
 ) {
   const effectiveValues = {

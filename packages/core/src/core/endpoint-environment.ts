@@ -27,7 +27,7 @@ import { PardonError } from "./error.js";
 import { SchemaContext, SchemaMergingContext } from "./schema/core/types.js";
 import { isSecret } from "./schema/definition/hinting.js";
 
-function simpleValues(values: Record<string, unknown>): Record<string, string> {
+function simpleValues(values: Record<string, any>): Record<string, string> {
   return mapObject(values, {
     filter(_key, mapped) {
       return typeof mapped === "string" || typeof mapped === "number";

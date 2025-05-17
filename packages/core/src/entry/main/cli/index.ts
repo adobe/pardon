@@ -33,6 +33,7 @@ import { executeFlowInContext } from "../../../core/execution/flow/index.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/raw-json.js";
 import contentEncodings from "../../../features/content-encodings.js";
+import { resolve } from "node:path";
 
 main()
   .then((code) => process.exit(code))
@@ -124,6 +125,30 @@ usage
       console.info(KV.stringify(resultContext.environment, { indent: 2 }));
     }
     return;
+  }
+
+  if (options["run-script"]) {
+    const script = options["run-script"];
+
+    await initTrackingEnvironment();
+    environment = values;
+
+    try {
+      console.log("loading", resolve(process.cwd(), script));
+      const { default: defaultExport, main } = await import(
+        resolve(process.cwd(), script)
+      );
+      if (typeof defaultExport === "function") {
+        await defaultExport(values);
+      } else if (typeof main === "function") {
+        await main(values);
+      }
+    } catch (ex) {
+      console.warn(`${script}: failed to execute`, ex);
+      return 1;
+    }
+
+    return 0;
   }
 
   const rendering = disarm(

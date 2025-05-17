@@ -28,8 +28,8 @@ import { FlowParamsDict } from "./flow-params.js";
 export type SequenceReport = {
   type: "unit" | "flow";
   name: string;
-  values: Record<string, unknown>;
-  result?: Record<string, unknown>;
+  values: Record<string, any>;
+  result?: Record<string, any>;
   error?: unknown;
   deps: SequenceReport[];
   steps: SequenceStepReport[];

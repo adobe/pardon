@@ -18,7 +18,7 @@ export interface ProgressiveMatchData<T> {
   object: Template<T>;
   schema: Schema<T>;
   context?: SchemaMergingContext<T>;
-  values: Record<string, unknown>;
+  values: Record<string, any>;
   match?: boolean;
 }
 
@@ -34,7 +34,7 @@ export class ProgressiveMatch<T extends RequestObject | ResponseObject>
   object: Template<T>;
   schema: Schema<T>;
   context?: SchemaMergingContext<T>;
-  values: Record<string, unknown>;
+  values: Record<string, any>;
   match?: boolean;
 
   constructor({
