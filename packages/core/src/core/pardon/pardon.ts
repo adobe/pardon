@@ -198,7 +198,7 @@ export const PardonFetchExecution = pardonExecution({
     ...otherContextData
   }: PardonExecutionInit): PardonExecutionContext {
     const {
-      method = (values.method as string) ?? "GET",
+      method = values.method as string | undefined,
       headers = [],
       body = undefined,
       meta,

@@ -145,7 +145,7 @@ export async function processOptions(
   if (!args.length) {
     return {
       values,
-      init: { method: (method ?? values.method ?? "GET") as string },
+      init: { method: (method ?? values.method) as string },
     };
   }
 
@@ -170,7 +170,7 @@ export async function processOptions(
     throw new Error("method in values must be a string.");
   }
 
-  request.method ??= method ?? (values.method as string) ?? "GET";
+  request.method ??= method ?? (values.method as string);
 
   if (values.method && values.method && values.method !== request.method) {
     throw new Error("method in input does not match method in request");

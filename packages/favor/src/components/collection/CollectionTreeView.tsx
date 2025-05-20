@@ -140,16 +140,9 @@ export function CollectionTreeView(
                     props.item.info.archetype,
                   );
 
-                  const method =
-                    props.item.info.archetype
-                      ?.trim()
-                      .split(" ")[0]
-                      .toUpperCase() ?? "GET";
-
                   event.dataTransfer.setData(
                     "text/value",
                     KV.stringify({
-                      method,
                       endpoint: props.item.info.id,
                     }),
                   );
@@ -162,7 +155,7 @@ export function CollectionTreeView(
                 props.onDblClick?.(props.item, event);
               }}
               class={twMerge(
-                "top-0 flex place-items-center text-nowrap rounded-sm border-0 bg-inherit p-0 px-1.5 font-black active:dark:!bg-stone-600 active:dark:text-white",
+                "top-0 flex place-items-center rounded-sm border-0 bg-inherit p-0 px-1.5 font-black text-nowrap active:dark:!bg-stone-600 active:dark:text-white",
                 restprops.class,
               )}
               classList={{
@@ -188,7 +181,7 @@ export function CollectionTreeView(
             <button
               {...restprops}
               class={twMerge(
-                "z-auto flex place-items-center text-nowrap border-0 bg-inherit p-0 px-1 font-black active:dark:!bg-stone-600",
+                "z-auto flex place-items-center border-0 bg-inherit p-0 px-1 font-black text-nowrap active:dark:!bg-stone-600",
                 restprops.class,
               )}
               onClick={(event) =>

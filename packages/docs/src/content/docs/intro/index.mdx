@@ -30,97 +30,154 @@ import {
  } from '@components';
 import pingExample from '@pardon/ping-example.ts'
 
-## Focused interaction
+## Overview
 
-Pardon works differently that most HTTP frameworks.  With other frameworks,
-first the user selects a request or template to build a request.  Pardon
-inverts this by selecting a compatible template from the request.
+Pardon is, at its core, a composable dynamic templating language powering
+an http framework.  Template composition is used to both match requests and extend them,
+as well as control how they are rendered.
 
-This design focuses the user on the interesting parts of the requests, and the templates
-can supply all the nitty-gritty (Content-Type, Authorization, except).
+Pardon simplifies the description and use of HTTP APIs by providing a consistent design
+language combined with composition to separate concerns. One concern might be the
+environment: production or test, or the local machine.
+Another concern might be the authorization token. By representing these concerns
+separately, they become easier to manage and maintain.
 
-Pardon also can reconfigure requests for different environments.
-For instance, Pardon can understand a request to `https://service.example.com` is production,
-and `https://service-stage.example.com` is stage, and can switch between them.
-Collection can specify the nominal
-`https://example.com` (for legibility), but can be used in any environment.
+## Tutorial
 
-:::note
-Efforts like the OpenAPI specification do solve a subset of these issues, like
-offering a choice of base URLs.  But the format is very much machine-oriented.
-:::
+Let's consider a simple multi-user TODO REST service, hosted at `https://todo.example.com/`,
+with the following REST API:
 
-### Focus on HTTP APIs
+<Tabs>
+  <TabItem label="/ping">
+  Returns `pong`. Used as a healthcheck.
+  Authorization is optional.
 
-Requests are written in a format based on HTTP, so they are easier to understand and maintain
-in any editor (or source-control) than a json-schema or other proprietary format.
+  ```http
+  GET https://todo.example.com/ping
+  Authorization: {{?@authorization}}
+  ```
+  </TabItem>
+  <TabItem label="/users">
+    Requests for managing users
+    <Tabs>
+      <TabItem label="POST">
+      Creates a user.
 
-Both requests and request templates share the same HTTP language.
+      ```http
+      POST https://todo.example.com/users
+      Content-Type: application/json
 
-## Demo time
+      { "username": "{{username}}", "password": "{{@password}}" }
+      ```
+      </TabItem>
+      <TabItem label="PUT /{{user}}/login">
+      Authorizes a user, returns an authorization token.
 
-Let's explore a more concrete example. Consider an `example.com/ping` API that
+      ```http
+      PUT https://todo.example.com/users/{{user}}/login
+      Content-Type: application/json
 
- - also has a stage environnment, `stage.example.com`,
- - requires an explicit `Accept` header,
- - and needs an environment-specific `apikey`.
+      { "password": "{{password}}" }
+      ```
+      </TabItem>
+      <TabItem label="DELETE /{{user}}">
+      Deletes a user.
 
-This `ping.https` endpoint template describes that call.
+      ```http
+      DELETE https://todo.example.com/users/{{user}}
+      Authorization: User {{@authorization}}
+      ```
+      </TabItem>
+    </Tabs>
+  </TabItem>
 
-```http title="example/ping.https"
-config:
-  origin:
-    env:
-      prod: https://example.com
-      stage: https://stage.example.com
->>>
-GET https://example.com/ping
-Accept: text/plain
-api-key: {{ apikey = (env === "prod" ? "system" : "staging") }}
+  <TabItem label="/users/{{user}}/todos">
+    Requests for managing todos
+    <Tabs>
+      <TabItem label="POST ">
+      Creates a new todo.
+
+      ```http
+      POST https://todo.example.com/users/{{user}}/todos
+      Content-Type: application/json
+      Authorization: User {{@authorization}}
+
+      { "task": "{{task}}", "completed": "{{completed}}" }
+      ```
+      </TabItem>
+      <TabItem label="GET">
+      Gets all the todos for a user.
+
+      ```http
+      GET https://todo.example.com/users/{{user}}/todos
+      Authorization: User {{@authorization}}
+      ```
+      </TabItem>
+      <TabItem label="GET">
+      Gets the state of a todo
+
+      ```http
+      PUT https://todo.example.com/users/{{user}}/todos/{{todo}}
+      Authorization: User {{@authorization}}
+      ```
+      </TabItem>
+      <TabItem label="PUT /{{todo}}">
+      Updates a todo.
+
+      ```http
+      PUT https://todo.example.com/users/{{user}}/todos/{{todo}}
+      Content-Type: application/json
+      Authorization: User {{@authorization}}
+
+      { "task": "{{?task}}", "completed": "{{?completed}}" }
+      ```
+      </TabItem>
+      <TabItem label="DELETE /{{todo}}">
+      Deletes a todo.
+
+      ```http
+      DELETE https://todo.example.com/users/{{user}}/todos/{{todo}}
+      Authorization: User {{@authorization}}
+      ```
+      </TabItem>
+    </Tabs>
+  </TabItem>
+</Tabs>
+
+These are Pardon templates.  The little bit of non-obvious
+syntax is the `?` in `"{{?task}}"`, which means that the value is optional,
+and the `@` in `{{@authorization}}` which means that Pardon will treat the
+value as a secret and try to redact it in logs and other contexts.
+
+Given a Pardon collection, a request to update a todo, could omit details
+```http
+PUT https://todo.example.com/users/tim/todos/1000
+
+{ "completed": true }
+```
+or, using the template as is, Pardon can render it with specified values
+```http
+user=tim todo=1000 completed=true
+PUT https://todo.example.com/users/{{user}}/todos/{{todo}}
+
+{ "completed": "{{completed}}" }
+```
+or, pardon can render the endpoint by name, http method, and values only.
+```
+user=tim todo=1000 completed=true
+endpoint=todoservice/todo/update
 ```
 
-This is a configuration section and then an http request template (after the `>>>`),
-the template is interpretted by parsing it and then merging it into the following structure:
+All of the above will produce the same request.
+```http
+PUT https://todo.example.com/users/tim/todos/1000
+Content-Type: application/json
+Authorization: {{@authorization}}
 
-<FlexyCodeGrid centered>
-```json
-{
-  "method": "GET",
-  "origin": "https://example.com",
-  "pathname": "/ping",
-  "headers": [
-    ["accept", "text/plain"],
-    ["api-key", "{{ apikey = ... }}"]
-  ]
-}
+{ "completed": true }
 ```
-```js
-{
-  method: "{{method}}",
-  origin: "{{origin}}",
-  pathname: "{{pathname}}",
-  searchParams: ...,
-  headers: ...,
-  body: ...
-}
-```
-</FlexyCodeGrid>
 
-Where the template strings `"{{method}}"`and `"{{origin}}"` merge with the
-values `"GET"` and `"https://example.com"`, which has the effect of assigning
-these values to `method` and `origin`.
-
-The `config` map in the configuration section teaches Pardon about the `env=stage` and `env=prod` environments,
-associating the two values of `{{origin}}` to those environments, and vice-versa.
-Literal configured values can be overridden or changed in some cases.
-
-Using this template, the input request can be as simple as
-"https://example.com/ping" or "https://stage.example.com".
-When pardon finds only one template compatible with such a request,
-it will use it to fill in all the other details.
-
-For example the `pardon` command line utility can, (using only this template), generate (or make)
-the full requests directly.
+(We will come back to scripting `{{@authorization}}` later).
 
 <Tabs>
   <TabItem label="production">
