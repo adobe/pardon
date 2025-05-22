@@ -1186,17 +1186,16 @@ export default function Main(
                                     class="w-0 flex-1 border-1 border-gray-300 bg-transparent px-2 py-0 text-start text-neutral-700 dark:text-neutral-200 disabled:dark:text-neutral-400"
                                     disabled={newRequestDisabled()}
                                     classList={{
-                                      "bg-orange-300 dark:bg-yellow-900": [
-                                        "POST",
-                                        "PUT",
-                                        "DELETE",
-                                      ].includes(requestInfo()?.method),
-                                      "g-green-300 dark:bg-green-900": [
+                                      "light:bg-orange-300 dark:bg-yellow-900":
+                                        ["POST", "PUT", "DELETE"].includes(
+                                          requestInfo()?.method,
+                                        ),
+                                      "light:bg-green-300 dark:bg-green-900": [
                                         "GET",
                                         "HEAD",
                                         "OPTIONS",
                                       ].includes(requestInfo().method),
-                                      "bg-red-300 dark:bg-fuchsia-900": [
+                                      "light:bg-red-300 dark:bg-fuchsia-900": [
                                         "DELETE",
                                       ].includes(requestInfo()?.method),
                                     }}
