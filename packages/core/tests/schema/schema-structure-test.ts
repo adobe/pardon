@@ -36,7 +36,7 @@ describe("schema structure", () => {
           referenceTemplate({ ref: "json" }).$of(["A", "B", '{{C = "C"}}']),
         ),
       ),
-    });
+    })!;
 
     const result = (await executeOp(s, "render", renderCtx(s)))!;
 
@@ -60,7 +60,7 @@ describe("schema structure", () => {
           world: { name: "world", value: evalBodyTemplate("world") },
         },
       ),
-    );
+    )!;
 
     const matchCtx = mixContext(s, [
       { name: "world", value: "earth" },
@@ -84,7 +84,7 @@ describe("schema structure", () => {
        { value: named.value }
       ]
     `),
-    );
+    )!;
 
     const matchCtx = mixContext(s, [
       { name: "world", value: "earth" },

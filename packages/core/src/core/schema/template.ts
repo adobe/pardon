@@ -29,6 +29,7 @@ import {
 } from "./core/schema-ops.js";
 import { datums } from "./definition/datum.js";
 import { isScalar } from "./definition/scalar.js";
+import { valueSchema } from "./definition/structures/value.js";
 
 export function templateSchematic<
   T,
@@ -67,6 +68,8 @@ export function expandInContext<T>(
     } else {
       template = datums.datum(template);
     }
+  } else if (context.mode === "match") {
+    return valueSchema(template as T);
   }
 
   if (Array.isArray(template)) {
@@ -101,7 +104,7 @@ export function expandInContext<T>(
     return template as Schema<T>;
   }
 
-  return stubSchema(); // scalars.any(schema as string | number | boolean);
+  return stubSchema();
 }
 
 export function expandTemplate<T>(
