@@ -455,7 +455,7 @@ export const PardonFetchExecution = pardonExecution({
       console.error("failed to redact output: ", redacting.context.diagnostics);
     }
 
-    const redacted = await renderSchema(redacting.schema!, redactingEnv);
+    const redacted = await postrenderSchema(redacting.schema!, redactingEnv);
 
     const reduced = reducedValues(
       schema,
@@ -589,6 +589,7 @@ export const PardonFetchExecution = pardonExecution({
               configuration: {
                 name: endpoint.configuration.name,
                 path: endpoint.configuration.path,
+                import: endpoint.configuration.import,
                 config: [{}],
               },
             },

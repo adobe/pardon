@@ -337,8 +337,11 @@ export class Scope implements EvaluationScope, ScopeData {
           `redefined:${name}=${valueId(value)} :: previously defined as ${valueId(current.value)}`,
         );
 
-        // TODO: make this return undefined and propagate the error
         return undefined;
+      }
+
+      if (context.mode === "postrender") {
+        return value;
       }
 
       throw diagnostic(
@@ -357,6 +360,7 @@ export class Scope implements EvaluationScope, ScopeData {
       }
 
       const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
+
       if (!isOptional({ hint })) {
         throw diagnostic(context, `undefined:${identifier}`);
       }
@@ -369,7 +373,7 @@ export class Scope implements EvaluationScope, ScopeData {
       path,
       context,
       declaration: this.declarations[identifier],
-      ...(DEBUG ? { stack: new Error("defined:here") } : {}),
+      ...(DEBUG ? { stack: new Error(`${loc(context)}: defined:here`) } : {}),
     };
 
     return value;

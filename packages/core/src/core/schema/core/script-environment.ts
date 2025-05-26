@@ -46,7 +46,7 @@ export type ScriptEvaluator = (
 export type RenderRedactor = <T>(
   value: T,
   patterns: Pattern[] | null,
-) => T | string | undefined;
+) => Promise<T | string | undefined> | T | string | undefined;
 
 export type ScriptExpressionRenderer = <T>(info: {
   evaluation: () => Promise<T>;
@@ -241,7 +241,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
       : evaluation();
   }
 
-  redact<T>({
+  async redact<T>({
     value,
     context: { mode },
     patterns,
@@ -249,7 +249,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     value: T;
     context: SchemaRenderContext;
     patterns: Pattern[] | null;
-  }): string | T | undefined {
+  }) {
     if (mode === "preview") {
       return value;
     }

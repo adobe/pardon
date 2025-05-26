@@ -98,10 +98,12 @@ export type ParseMode = "object" | "stream" | "value";
 export type KeyValueStringifyOptions = {
   indent?: number;
   mode?: "kv" | "json";
+  compact?: boolean;
   limit?: number;
   trailer?: string;
   split?: boolean;
   value?: boolean;
+  quote?: "single" | "double" | "auto";
 };
 
 export const KV: {
@@ -117,7 +119,7 @@ export const KV: {
   };
   parse(data: string): unknown;
   stringify(data: unknown, options?: KeyValueStringifyOptions): string;
-  stringifyKey(key: string): string;
+  stringifyKey(key: string, options?: KeyValueStringifyOptions): string;
   isSimpleKey(key: string): boolean;
   tokenize(
     data: string,
@@ -411,12 +413,13 @@ export const KV: {
         ? options.indent
           ? JSONEncoding
           : JSONEncodingCompact
-        : options?.indent
+        : options?.indent || options?.compact === false
           ? KeyValueEncoding
           : KeyValueEncodingCompact,
       {
         indent: options?.indent ?? 0,
         limit: options?.limit ?? 0,
+        quote: options?.quote,
       },
       {
         split: options?.split ?? false,
@@ -570,8 +573,8 @@ function isJsonUnit(
 }
 
 type KeyValueEncodingRules = {
-  key(key: string): string;
-  value(value: unknown): string;
+  key(key: string, options: KeyValueStringifyOptions | undefined): string;
+  value(value: unknown, options: KeyValueStringifyOptions | undefined): string;
   objects: {
     wrapped: { entrysep: string };
     inline: {
@@ -603,10 +606,11 @@ function toRawJson(value: any): JSON.RawJSON {
 
 const KeyValueEncoding: KeyValueEncodingRules = {
   key: stringifyKey,
-  value: (value) =>
+  value: (value, options?: KeyValueStringifyOptions) =>
     dequoteJson(
       JSON.stringify(value, (_, value) => toRawJson(value)),
       true,
+      options,
     ),
   arrays: {
     inline: { start: "[ ", end: " ]" },
@@ -629,10 +633,11 @@ const KeyValueEncoding: KeyValueEncodingRules = {
 
 const KeyValueEncodingCompact: KeyValueEncodingRules = {
   key: stringifyKey,
-  value: (value) =>
+  value: (value, options?: KeyValueStringifyOptions) =>
     dequoteJson(
       JSON.stringify(value, (_, value) => toRawJson(value)),
       true,
+      options,
     ),
   arrays: {
     inline: { start: "[", end: "]" },
@@ -654,7 +659,7 @@ const KeyValueEncodingCompact: KeyValueEncodingRules = {
 };
 
 const JSONEncoding: KeyValueEncodingRules = {
-  key: JSON.stringify,
+  key: (key) => JSON.stringify(key),
   value: (value) => toRawJson(value).rawJSON,
   arrays: {
     inline: { start: "[ ", end: " ]" },
@@ -676,7 +681,7 @@ const JSONEncoding: KeyValueEncodingRules = {
 };
 
 const JSONEncodingCompact: KeyValueEncodingRules = {
-  key: JSON.stringify,
+  key: (key) => JSON.stringify(key),
   value: (value) => toRawJson(value).rawJSON,
   arrays: {
     inline: { start: "[", end: "]" },
@@ -700,15 +705,16 @@ const JSONEncodingCompact: KeyValueEncodingRules = {
 function wrappedStringify(
   v: unknown,
   encoding: KeyValueEncodingRules,
-  options: {
-    indent?: number;
-    limit?: number;
-  },
+  options: KeyValueStringifyOptions,
   toplevel?: { split?: boolean; unwrap: boolean },
 ) {
   const { indent = 0, limit = 0 } = options ?? {};
 
-  return doFormat(preformat(v), { nobreak: toplevel?.unwrap }, toplevel).text;
+  return doFormat(
+    preformat(v, options),
+    { nobreak: toplevel?.unwrap },
+    toplevel,
+  ).text;
 
   function needsWrap(
     value: Preformatted,
@@ -767,15 +773,18 @@ function wrappedStringify(
     }
   }
 
-  function preformat(value: unknown) {
+  function preformat(
+    value: unknown,
+    options: KeyValueStringifyOptions | undefined,
+  ) {
     switch (true) {
       case typeof value !== "object" || isJsonUnit(value):
-        return encoding.value(value);
+        return encoding.value(value, options);
       case Array.isArray(value):
         if (value.length === 0) {
           return encoding.arrays.empty;
         }
-        return value.map(preformat);
+        return value.map((item) => preformat(item, options));
       default:
         if (!toplevel?.unwrap && Object.keys(value).length === 0) {
           return encoding.objects.empty;
@@ -786,10 +795,10 @@ function wrappedStringify(
             return value !== undefined;
           },
           values(value) {
-            return preformat(value);
+            return preformat(value, options);
           },
           keys(key) {
-            return encoding.key(key);
+            return encoding.key(key, options);
           },
         });
     }
@@ -984,7 +993,11 @@ function nextNonBlankToken(tokens: string[], i: number) {
   return null;
 }
 
-function dequoteJson(text: string, inValue: boolean) {
+function dequoteJson(
+  text: string,
+  inValue: boolean,
+  options: KeyValueStringifyOptions | undefined,
+) {
   if (text === "") {
     return '""';
   }
@@ -1003,7 +1016,7 @@ function dequoteJson(text: string, inValue: boolean) {
 
     const token = tokens[i + 1];
     if (token.startsWith('"')) {
-      output.push(dequoteText(token, inValue));
+      output.push(dequoteText(token, inValue, options));
     } else {
       output.push(token);
     }
@@ -1012,7 +1025,11 @@ function dequoteJson(text: string, inValue: boolean) {
   return output.join("");
 }
 
-function dequoteText(token: string, inValue: boolean) {
+function dequoteText(
+  token: string,
+  inValue: boolean,
+  options?: KeyValueStringifyOptions,
+) {
   const text = JSON.parse(token);
   switch (true) {
     case text === "null":
@@ -1023,10 +1040,33 @@ function dequoteText(token: string, inValue: boolean) {
     case (inValue ? simpleToken : simpleKey).test(text):
       return text;
     default:
-      return token;
+      return requote(token, options);
   }
 }
 
-function stringifyKey(key: string) {
-  return key && simpleKey.test(key) ? key : JSON.stringify(key);
+function stringifyKey(
+  key: string,
+  options: KeyValueStringifyOptions | undefined,
+) {
+  return key && simpleKey.test(key)
+    ? key
+    : requote(JSON.stringify(key), options);
+}
+
+function requote(
+  quotedValue: string,
+  { quote }: KeyValueStringifyOptions = {},
+) {
+  if (
+    quote === "single" ||
+    (quote === "auto" &&
+      quotedValue.includes('"') &&
+      !quotedValue.includes("'"))
+  ) {
+    const decoded: string = JSON.parse(quotedValue);
+
+    return `'${decoded.replace(/['\\]/g, (match) => (match === "'" ? "\\'" : match === "\\" ? "\\\\" : match))}'`;
+  }
+
+  return quotedValue;
 }

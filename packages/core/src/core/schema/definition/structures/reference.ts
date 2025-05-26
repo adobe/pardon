@@ -31,7 +31,7 @@ import {
   Template,
 } from "../../core/types.js";
 import { stubSchema } from "./stub.js";
-import { redact, RedactedOps } from "./redact.js";
+import { RedactedOps } from "./redact.js";
 import { isSecret } from "../hinting.js";
 import {
   convertScalar,
@@ -46,6 +46,7 @@ import {
   rescope,
 } from "../../core/context-util.js";
 import { isMergingContext } from "../../core/schema.js";
+import { patternize } from "../../core/pattern.js";
 
 type ReferenceSchema<T> = {
   refs: Set<string>;
@@ -125,14 +126,15 @@ export function referenceTemplate<T = unknown>(
       let { template } = reference;
       const hint = new Set([...(reference.hint ?? "")]);
 
-      if (isSchematic(template)) {
+      while (isSchematic(template)) {
         const ops = exposeSchematic<RedactedOps<T>>(template);
-        if (ops.redacted) {
-          hint.add("@");
+
+        if (!ops.redacted) {
+          break;
         }
-      } else if (isSecret(reference)) {
-        template = redact(template);
+
         hint.add("@");
+        template = ops.template;
       }
 
       let schema = next({ ...context, template });
@@ -531,10 +533,21 @@ export function defineReference<T = unknown>(
     if (
       isSecret(referenceSchema) &&
       typeof defined === "string" &&
-      context.mode !== "preview" &&
-      "{{redacted}}" == defined
+      context.mode === "postrender" &&
+      "{{redacted}}" === defined
     ) {
+      // the value came back as "{{redacted}}" but we have a better name to give it.
       return `{{ @${[...refs][0]} }}`;
+    }
+
+    if (isSecret(referenceSchema)) {
+      const redacted = await context.environment.redact({
+        value: defined,
+        context,
+        patterns: [patternize(`{{ @${[...refs][0]} }}`)],
+      });
+
+      return redacted;
     }
 
     return defined;

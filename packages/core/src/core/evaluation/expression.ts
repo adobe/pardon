@@ -491,6 +491,10 @@ function asTypes(node: ts.TypeNode): string[] {
     }
   }
 
+  if (ts.isStringLiteral(node)) {
+    return [`$hint(${JSON.stringify(node.text)})`];
+  }
+
   if (ts.isUnionTypeNode(node)) {
     return node.types.flatMap((type) => asTypes(type));
   }
@@ -502,7 +506,7 @@ const referenceHints = {
   $noexport: ":",
   $optional: "?",
   $required: "!",
-  $redact: "@",
+  $redacted: "@",
   $flow: "+",
   $meld: "~",
 };
@@ -520,21 +524,25 @@ function identifierOf(node: ts.Expression, factory: ts.NodeFactory) {
     if (ts.isPropertyAccessExpression(node)) {
       const name = node.name.text;
 
-      const hint = referenceHints[name];
-      const special = referenceSpecials[name];
-
-      if (hint) {
-        hints.add(hint);
-      } else if (special) {
-        parts.unshift(special);
-      } else if (!name.startsWith("$")) {
-        parts.unshift(name);
+      if (name.startsWith("$hint(") && name.endsWith(")")) {
+        hints.add(JSON.parse(name.slice(6, -1)));
       } else {
-        throw new Error(
-          "illegal reference node name: " +
-            name +
-            " (references must not start with $)",
-        );
+        const hint = referenceHints[name];
+        const special = referenceSpecials[name];
+
+        if (hint) {
+          hints.add(hint);
+        } else if (special) {
+          parts.unshift(special);
+        } else if (!name.startsWith("$")) {
+          parts.unshift(name);
+        } else {
+          throw new Error(
+            "illegal reference node name: " +
+              name +
+              " (references must not start with $)",
+          );
+        }
       }
 
       node = node.expression;
@@ -584,19 +592,18 @@ function binaryExpression(
         return factory.createStringLiteral(pattern);
       } else if (ts.isAsExpression(rhs)) {
         const text = rhs.expression.getText();
-        const types = asTypes(rhs.type);
-        const refValue = ts.isParenthesizedExpression(rhs.expression)
-          ? factory.createStringLiteral(
-              `{{ = $$expr(${JSON.stringify(text)}) }}`,
-            )
-          : rhs.expression;
-        const ref = types.reduce<ts.Expression>(
+        const ref = asTypes(rhs.type).reduce<ts.Expression>(
           (node, type) => factory.createPropertyAccessExpression(node, type),
           lhs,
         );
+        const refValue = ts.isParenthesizedExpression(rhs.expression)
+          ? factory.createStringLiteral(
+              `{{ ${identifierOf(ref, factory)} = $$expr(${JSON.stringify(text)}) }}`,
+            )
+          : rhs.expression;
 
         return factory.createCallExpression(
-          factory.createPropertyAccessExpression(ref, "$of"),
+          factory.createPropertyAccessExpression(lhs, "$of"),
           undefined,
           [refValue],
         );
@@ -605,7 +612,7 @@ function binaryExpression(
           ts.isParenthesizedExpression(rhs) ? rhs.expression : rhs
         ).getText();
 
-        const pattern = `{{ = $$expr(${JSON.stringify(text)}) }}`;
+        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
 
         return factory.createCallExpression(
           factory.createPropertyAccessExpression(lhs, "$of"),

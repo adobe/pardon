@@ -569,7 +569,7 @@ async function doRenderScalar<T>(
     value: result as T,
     context,
     patterns: configuredPatterns,
-  }) as T;
+  }) as Promise<T> | T;
 }
 
 async function renderAndLookup(
@@ -948,9 +948,9 @@ function datumPreviewExpression<T>(
 ): T | string {
   if (typeof data == "string" && context.mode === "preview") {
     const pattern = patternize(data);
-    const exprs = pattern.vars.map(({ expression, source }) =>
+    const exprs = pattern.vars.map(({ expression, source, param, hint }) =>
       expression && source?.includes("$$expr(")
-        ? `(${expression})`
+        ? `{{ ${hint ?? ""}${param ?? ""} = ${expression} }}`
         : source
           ? `{{${source}}}`
           : "?",

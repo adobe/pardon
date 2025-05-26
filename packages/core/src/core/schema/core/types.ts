@@ -246,7 +246,7 @@ export interface SchemaScriptEnvironment {
     value: T;
     context: SchemaRenderContext;
     patterns: Pattern[] | null;
-  }): T | string | undefined;
+  }): Promise<T | string | undefined> | T | string | undefined;
 
   match(
     template: Pattern,

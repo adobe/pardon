@@ -9,11 +9,16 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Configuration, LayeredEndpoint } from "../config/collection-types.js";
+import {
+  Configuration,
+  EndpointConfiguration,
+  LayeredEndpoint,
+} from "../config/collection-types.js";
 import {
   Pattern,
   isPatternLiteral,
   isPatternRegex,
+  isPatternSimple,
   patternRender,
   patternValues,
 } from "./schema/core/pattern.js";
@@ -26,6 +31,7 @@ import { HttpsRequestObject } from "./request/https-template.js";
 import { PardonError } from "./error.js";
 import { SchemaContext, SchemaMergingContext } from "./schema/core/types.js";
 import { isSecret } from "./schema/definition/hinting.js";
+import { isScalar } from "./schema/definition/scalar.js";
 
 function simpleValues(values: Record<string, any>): Record<string, string> {
   return mapObject(values, {
@@ -87,14 +93,9 @@ export function createEndpointEnvironment({
     evaluate(name, context) {
       context.evaluationScope.imported(name, context);
 
-      return resolveImport(
-        name,
-        endpoint.configuration,
-        compiler,
-        `pardon:${endpoint.configuration.path}`,
-      );
+      return importFromConfiguration(name, endpoint.configuration, compiler);
     },
-    redact(value, patterns) {
+    async redact(value, patterns) {
       if (secrets) {
         return value;
       }
@@ -106,28 +107,63 @@ export function createEndpointEnvironment({
           return value;
         }
 
-        const values = patternValues(pattern, String(value));
-        if (!values) {
-          return value;
-        }
-
         if (isPatternLiteral(pattern)) {
           return pattern.source;
         }
 
-        return patternRender(
-          pattern,
-          values.map((part, i) => {
-            const variable = pattern.vars[i];
-            const { param } = variable;
+        if (!isScalar(value) && !isPatternSimple(pattern)) {
+          return "{{redacted}}";
+        }
 
-            if (isSecret(variable)) {
-              return `{{@${param}}}`;
+        const parts =
+          isScalar(value) && !isPatternSimple(pattern)
+            ? patternValues(pattern, String(value))
+            : [value];
+
+        if (!parts) {
+          return "{{redacted}}";
+        }
+
+        const render = await Promise.all(
+          parts.map(async (part: string | typeof value, index: number) => {
+            const variable = pattern.vars[index];
+            const { param, redactor } = variable;
+
+            if (isSecret(variable) || redactor) {
+              if (redactor) {
+                const redactorFunction =
+                  (await importFromConfiguration(
+                    redactor,
+                    endpoint.configuration,
+                    compiler,
+                  )) ?? runtime[redactor];
+
+                return redactorFunction(part, variable.param, value);
+              }
+
+              const maybeRedactor =
+                (await importFromConfiguration(
+                  `redact$${param}`,
+                  endpoint.configuration,
+                  compiler,
+                )) ?? runtime[`redact$${param}`];
+
+              if (typeof maybeRedactor === "function") {
+                return maybeRedactor(part, variable.param, value);
+              }
+
+              return `{{ @${param} }}`;
             }
 
             return part;
           }),
         );
+
+        if (isPatternSimple(pattern)) {
+          return render[0];
+        }
+
+        return patternRender(pattern, render);
       }
 
       return "{{redacted}}";
@@ -189,6 +225,19 @@ export function resolveDefaults(
   }
 
   return defaulting;
+}
+
+function importFromConfiguration(
+  name: string,
+  configuration: EndpointConfiguration,
+  compiler: PardonCompiler,
+) {
+  return resolveImport(
+    name,
+    configuration,
+    compiler,
+    `pardon:${configuration.path}`,
+  );
 }
 
 export async function resolveImport(
