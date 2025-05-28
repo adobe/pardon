@@ -23,12 +23,12 @@ const { server } = Astro.locals.starlightRoute.entry.data;
     {Astro.slots.has("sidebar") && <slot name="sidebar" slot="sidebar" />}
   </Default>
   {
-    server === "products" && (
-      <div class="fixed bottom-0 right-0 z-10">
-        <div class="relative top-96 rounded-tl-md border-0 border-l-2 border-t-2 border-solid border-lime-600 bg-neutral-200 p-2 pb-1 pr-4 transition-[top] duration-500 dark:bg-neutral-800 [&:has(.inline-grid)]:top-0">
+    server === "products" ? (
+      <div class="fixed right-0 bottom-0 z-10">
+        <div class="relative top-96 rounded-tl-md border-0 border-t-2 border-l-2 border-solid border-lime-600 bg-neutral-200 p-2 pr-4 pb-1 transition-[top] duration-500 dark:bg-neutral-800 [&:has(.inline-grid)]:top-0">
           <ProductsView />
         </div>
       </div>
-    )
+    ) : undefined
   }
 </>

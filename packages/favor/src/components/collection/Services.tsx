@@ -177,7 +177,7 @@ export default function Services(props: {
 
   return (
     <div class="flex size-full min-h-0 flex-1 flex-col font-mono">
-      <div class="fade-to-clear flex flex-col overflow-y-auto overflow-x-hidden [--clear-end-opacity:0.8] [--clear-start-opacity:0.5]">
+      <div class="fade-to-clear flex flex-col overflow-x-hidden overflow-y-auto [--clear-end-opacity:0.8] [--clear-start-opacity:0.5]">
         <For each={collection()}>
           {(item) => {
             return (
@@ -217,7 +217,7 @@ export default function Services(props: {
       </div>
 
       <CornerControls
-        class="z-20 pb-1 pr-1"
+        class="z-20 pr-1 pb-1"
         placement="br"
         flex="col"
         actions={{
@@ -266,7 +266,7 @@ export default function Services(props: {
                           <div class="flex size-full flex-col">
                             <div>Create a new asset</div>
                             <input
-                              class="w-full px-2 font-weird"
+                              class="font-weird w-full px-2"
                               value={subPath()}
                               onInput={(event) =>
                                 setSubPath(event.target.value)

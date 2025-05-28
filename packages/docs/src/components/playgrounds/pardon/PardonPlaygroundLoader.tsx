@@ -40,7 +40,11 @@ export default function PardonPlaygroundLoader(
         ]);
 
         return (
-          <PardonApplication config={config()} {...applicationProps}>
+          <PardonApplication
+            config={config()}
+            {...applicationProps}
+            server={componentProps.options.server}
+          >
             <PardonPlayground {...componentProps}>
               <Show when={componentProps.options.editor}>
                 <PardonApplicationEditor

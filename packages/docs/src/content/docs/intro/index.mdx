@@ -11,6 +11,7 @@
 
 title: Introduction to Pardon
 description: An interactive tour of how Pardon works
+server: todo
 prev: false
 next: false
 ---
@@ -29,8 +30,9 @@ import {
   FlexyCodeGrid
  } from '@components';
 import pingExample from '@pardon/ping-example.ts'
+import todoService from '@pardon/todo-service.ts'
 
-## Overview
+# Overview
 
 Pardon is, at its core, a composable dynamic templating language powering
 an http framework.  Template composition is used to both match requests and extend them,
@@ -47,137 +49,281 @@ separately, they become easier to manage and maintain.
 Let's consider a simple multi-user TODO REST service, hosted at `https://todo.example.com/`,
 with the following REST API:
 
-<Tabs>
-  <TabItem label="/ping">
-  Returns `pong`. Used as a healthcheck.
-  Authorization is optional.
+<div class="code-tabs"><Tabs>
+  <TabItem label="misc">
+    <div class="tab-subtitle">Miscelleous Requests</div>
+    <Tabs>
+      <TabItem label="/health-check">
+        Check if the service is up.
 
-  ```http
-  GET https://todo.example.com/ping
-  Authorization: {{?@authorization}}
-  ```
+        ```http
+        GET https://todo.example.com/health-check
+        ```
+      </TabItem>
+    </Tabs>
   </TabItem>
   <TabItem label="/users">
-    Requests for managing users
+    <div class="tab-subtitle">Requests for managing users</div>
     <Tabs>
       <TabItem label="POST">
-      Creates a user.
+        Creates a user.
 
-      ```http
-      POST https://todo.example.com/users
-      Content-Type: application/json
+        ```http
+        POST https://todo.example.com/users
+        Content-Type: application/json
 
-      { "username": "{{username}}", "password": "{{@password}}" }
-      ```
+        {
+          "username": "{{username}}",
+          "password": "{{@password}}"
+        }
+        ```
       </TabItem>
-      <TabItem label="PUT /{{user}}/login">
-      Authorizes a user, returns an authorization token.
+      <TabItem label="PUT">
+        Authorizes a user, returns an authorization token that identifies the user.
 
-      ```http
-      PUT https://todo.example.com/users/{{user}}/login
-      Content-Type: application/json
+        ```http
+        PUT https://todo.example.com/users
+        Content-Type: application/json
 
-      { "password": "{{password}}" }
-      ```
+        {
+          "username": "{{username}}",
+          "password": "{{@password}}"
+        }
+        ```
       </TabItem>
-      <TabItem label="DELETE /{{user}}">
-      Deletes a user.
+      <TabItem label="DELETE">
+        Deletes a user.
 
-      ```http
-      DELETE https://todo.example.com/users/{{user}}
-      Authorization: User {{@authorization}}
-      ```
+        ```http
+        DELETE https://todo.example.com/users
+        Authorization: User {{@user-token}}
+        ```
       </TabItem>
     </Tabs>
   </TabItem>
 
-  <TabItem label="/users/{{user}}/todos">
-    Requests for managing todos
+  <TabItem label="/todos">
+    <div class="tab-subtitle">Requests to manage the todo list</div>
     <Tabs>
-      <TabItem label="POST ">
-      Creates a new todo.
+      <TabItem label="POST">
+        Creates a new todo.
 
-      ```http
-      POST https://todo.example.com/users/{{user}}/todos
-      Content-Type: application/json
-      Authorization: User {{@authorization}}
+        ```http
+        POST https://todo.example.com/todos
+        Content-Type: application/json
+        Authorization: User {{@user-token}}
 
-      { "task": "{{task}}", "completed": "{{completed}}" }
-      ```
+        {
+          "task": "{{task}}",
+          "done": "{{done}}"
+        }
+        ```
       </TabItem>
       <TabItem label="GET">
-      Gets all the todos for a user.
+        Gets all the todos for a user.
 
-      ```http
-      GET https://todo.example.com/users/{{user}}/todos
-      Authorization: User {{@authorization}}
-      ```
-      </TabItem>
-      <TabItem label="GET">
-      Gets the state of a todo
-
-      ```http
-      PUT https://todo.example.com/users/{{user}}/todos/{{todo}}
-      Authorization: User {{@authorization}}
-      ```
-      </TabItem>
-      <TabItem label="PUT /{{todo}}">
-      Updates a todo.
-
-      ```http
-      PUT https://todo.example.com/users/{{user}}/todos/{{todo}}
-      Content-Type: application/json
-      Authorization: User {{@authorization}}
-
-      { "task": "{{?task}}", "completed": "{{?completed}}" }
-      ```
-      </TabItem>
-      <TabItem label="DELETE /{{todo}}">
-      Deletes a todo.
-
-      ```http
-      DELETE https://todo.example.com/users/{{user}}/todos/{{todo}}
-      Authorization: User {{@authorization}}
-      ```
+        ```http
+        GET https://todo.example.com/todos
+        Authorization: User {{@user-token}}
+        ```
       </TabItem>
     </Tabs>
+  </TabItem>
+  <TabItem label="/todos/{{todo}}">
+    <div class="tab-subtitle">Requests for managing a todo</div>
+    <Tabs>
+      <TabItem label="GET">
+        Gets the state of a todo
+
+        ```http
+        PUT https://todo.example.com/todos/{{todo}}
+        Authorization: User {{@user-token}}
+        ```
+      </TabItem>
+      <TabItem label="PUT">
+        Updates a todo.
+
+        ```http
+        PUT https://todo.example.com/todos/{{todo}}
+        Content-Type: application/json
+        Authorization: User {{@user-token}}
+
+        {
+          "task": "{{?task}}",
+          "done": "{{?done}}"
+        }
+        ```
+      </TabItem>
+      <TabItem label="DELETE">
+        Deletes a todo.
+
+        ```http
+        DELETE https://todo.example.com/todos/{{todo}}
+        Authorization: User {{@user-token}}
+        ```
+      </TabItem>
+    </Tabs>
+  </TabItem>
+</Tabs></div>
+
+Pardon's templates are designed to be both human and machine readable, but note that
+the `?` in `"{{?task}}"` means that the value is optional, and the `@` in `{{@auth-token}}`
+indicates a secret which will be redacted in logs (and generally hidden by default).
+
+A pardon collection would have the above templates in `.https` files, or "HTTP-schema" files.
+An http schema file represents one (or more) ways to make a request
+(prefixed by `>>>` for an outbound request),
+and optionally, templates to match and process the response
+(prefixed by `<<<` for an inbound response).
+
+For example, the user login schema can specify a value placeholder in the response,
+demonstrated below with `{{@token}}`. This placeholder both tells Pardon to treat
+this as secret data (not for long term storage), and to to parse the value from the response.
+
+```http
+>>>
+PUT https://todo.example.com/users
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{@password}}"
+}
+
+<<<
+200 OK
+
+{
+  "token": "{{@token}}"
+}
+```
+
+By parsing the value, a script can reference the data directly when using `pardon()`'s internal API
+to access the authorization call.
+
+```ts
+import { pardon } from "pardon";
+
+export async function authorizeUser(username: string) {
+  const password = await getPassword(username);
+
+  const {
+    inbound: {
+      secrets: { token },
+      response: res,
+    },
+  } = await pardon({ username, password })`
+    PUT https://todo.example.com/users
+  `();
+
+  if (!token) {
+    throw new Error(
+      `failed to authorize user ${username}: (${res.status}) ${res.body}`,
+    );
+  }
+
+  return token;
+}
+```
+
+With the above helper, we can use `Authorization: User {{@user-token = authorizeUser(username)}}`
+to automatically specify the credentials for calls that need authorization,
+and Pardon will take care of generating the token.
+
+Pardon's templating is more than text processing, it is a data processing language
+ - Templates both render out and process input.
+ - Templates provide a _skeleton_ of a request, but they do not _constrain_ the request to that skeleton.
+
+## Demo
+
+To get a feel for how pardon templates work, let's exercise this todo API.
+We will go through some basic flows.
+ - make a request.
+ - create a user.
+ - create a todo item.
+ - mark the todo as completed.
+
+<PardonPlayground secrets response example={`
+https://todo.example.com/health-check
+`} {...todoService}>
+
+ <Tabs>
+   <TabItem label="health-check">
+   First, we can check if the server is up.
+   Click the button and see the "server" response below.
+   (this is all running in your browser).
+
+  ```http copy=playground autocopy clear=password
+  GET https://todo.example.com/health-check
+  ```
+   </TabItem>
+   <TabItem label="register">
+   Registers a new user, with a password.
+   
+   You can try the same request, with `PUT` instead of `POST`, to create an
+   "auth token" for that user.
+   
+   This is run automatically for the following requests.  The padlock can toggle
+   display of secrets here.
+  ```http copy=playground clear=todo autocopy
+  username=developer
+  password=pw
+  POST https://todo.example.com/users
+  ```
+   </TabItem>
+   <TabItem label="create todo">
+   You can use the POST API to create a todo for your user.
+
+   Notice how we removed the password, (in this demo, the correct password will be automatically sent).
+   On the right (provided your window is large enough), you will be able to browse the TODO list.
+
+  ```http copy=playground clear=password,todo autocopy
+  POST https://todo.example.com/todos
+
+  {
+    "task": "learn pardon"
+  }
+  ```
+  </TabItem>
+  <TabItem label="complete todo">
+  Now we can mark a TODO done via the update API, you can also
+  update the "task", if you want.  Note that you can replace `{{todo}}`
+  directly in the URL, or you can just use the named parameter
+  (that was added in the last step).
+
+  ```http copy=playground clear=password  autocopy
+  PUT https://todo.example.com/todos/{{todo}}
+
+  {
+    "done": true
+  }
+  ```
   </TabItem>
 </Tabs>
+</PardonPlayground>
 
-These are Pardon templates.  The little bit of non-obvious
-syntax is the `?` in `"{{?task}}"`, which means that the value is optional,
-and the `@` in `{{@authorization}}` which means that Pardon will treat the
-value as a secret and try to redact it in logs and other contexts.
+Feel free to explore the other rest calls, listing todos, deleting todos and/or users.
 
-Given a Pardon collection, a request to update a todo, could omit details
 ```http
-PUT https://todo.example.com/users/tim/todos/1000
-
-{ "completed": true }
-```
-or, using the template as is, Pardon can render it with specified values
-```http
-user=tim todo=1000 completed=true
-PUT https://todo.example.com/users/{{user}}/todos/{{todo}}
-
-{ "completed": "{{completed}}" }
-```
-or, pardon can render the endpoint by name, http method, and values only.
-```
-user=tim todo=1000 completed=true
-endpoint=todoservice/todo/update
+PUT https://todo.example.com/users
+   
+{ username: "developer" }
 ```
 
-All of the above will produce the same request.
-```http
-PUT https://todo.example.com/users/tim/todos/1000
-Content-Type: application/json
-Authorization: {{@authorization}}
+{/*
+  * TODO: discuss pardon's ability to use input data and/or match on request data to 
+  * fill in, e.g, the password for
+  * 
+  *   username=developer
+  *   PUT https://todo.example.com/users
+  *
+  * or
+  *   PUT https://todo.example.com/users
+  *   
+  *   { username: "developer" }
+  */}
 
-{ "completed": true }
-```
-
-(We will come back to scripting `{{@authorization}}` later).
+### Ease of use
 
 <Tabs>
   <TabItem label="production">

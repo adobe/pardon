@@ -2,3 +2,6 @@
 
 @import "./reset.css";
 @import "./tweaks.css";
+
+@custom-variant light (&:where([data-theme="light"] *));
+@custom-variant dark (&:where([data-theme="dark"] *));

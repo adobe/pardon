@@ -24,8 +24,8 @@ export function copypastePlugin() {
   return definePlugin({
     name: "copypaste-plugin",
 
-    jsModules: (context) => [
-      src(context)((context) => {
+    jsModules: () => [
+      src()(() => {
         window.addEventListener(
           "click",
           (event) => {
@@ -35,28 +35,54 @@ export function copypastePlugin() {
               return;
             }
 
-            if (target.classList.contains("copypaste")) {
-              event.stopImmediatePropagation();
-              const code = target
-                .getAttribute("data-code")
-                ?.replace(/\u007f/g, "\n");
-
-              const [copyFrom, ...args] = target
-                .getAttribute("data-copy")
-                ?.split() ?? [null];
-
-              if (!copyFrom) {
-                return;
-              }
-
-              const context = target.closest(`.copypaste-context`);
-              const pasteTarget = context
-                ?.querySelector(`[data-pardon-${copyFrom}]`)
-                .pardonPlayground.update(code, ...args);
-            }
+            copypaste(target);
           },
           { capture: true },
         );
+
+        document.addEventListener("DOMContentLoaded", () => {
+          const StarlightTabsPrototype =
+            customElements.get("starlight-tabs")?.prototype;
+
+          if (StarlightTabsPrototype) {
+            StarlightTabsPrototype.switchTab = ((original) =>
+              function (...args) {
+                const { id } = args[0] as HTMLElement;
+                const panelId = id.replace(/^tab-/, "tab-panel-");
+                const panel = document.getElementById(panelId);
+
+                const autocopy = panel?.querySelector("[data-autocopy]");
+                if (autocopy instanceof HTMLButtonElement) {
+                  copypaste(autocopy);
+                }
+
+                return original.apply(this, args);
+              })(StarlightTabsPrototype.switchTab);
+          }
+        });
+
+        function copypaste(target: Element) {
+          if (target.classList.contains("copypaste")) {
+            event.stopImmediatePropagation();
+            const code = target
+              .getAttribute("data-code")
+              ?.replace(/\u007f/g, "\n");
+
+            const copyFrom = target.getAttribute("data-copy") ?? [null];
+            const clear = (target.getAttribute("data-clear") ?? "")
+              .split(",")
+              .filter(Boolean);
+
+            if (!copyFrom) {
+              return;
+            }
+
+            const context = target.closest(`.copypaste-context`);
+            const pasteTarget = context
+              ?.querySelector(`[data-pardon-${copyFrom}]`)
+              ?.pardonPlayground?.update(code, { clear });
+          }
+        }
       }),
     ],
     baseStyles: (context) => `
@@ -73,16 +99,25 @@ export function copypastePlugin() {
         const encode = (code ?? "").replace(/\n/g, "\u007f");
 
         const copy = context.codeBlock.metaOptions.getString("copy");
+        const clear = context.codeBlock.metaOptions.getString("clear");
+        const autocopy =
+          context.codeBlock.metaOptions.getBoolean("autocopy") ?? false;
         if (copy) {
           context.renderData.blockAst.children[0].children.push(
             <button
               class="copypaste p-1.5!"
               data-code={encode}
               data-copy={copy}
+              data-clear={clear}
+              data-autocopy={autocopy}
             >
               Try it!
             </button>,
           );
+
+          if (autocopy) {
+            context.renderData.blockAst.properties.class = "!hidden";
+          }
         }
       },
     },

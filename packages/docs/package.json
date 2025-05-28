@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@codemirror/lang-javascript": "^6.2.2",
+    "@corvu/accordion": "^0.2.5",
     "@rollup/plugin-alias": "^5.1.0",
     "@tailwindcss/typography": "^0.5.13",
     "@typescript-eslint/eslint-plugin": "^8.4.0",

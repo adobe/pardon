@@ -1,3 +1,2 @@
-
 >>>
 DELETE https://todo.example.com/todos/{{todo}}

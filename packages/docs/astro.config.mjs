@@ -104,6 +104,8 @@ export default defineConfig({
       components: {
         PageFrame: "@components/starlight/PageFrame.astro",
         Footer: "@components/starlight/Footer.astro",
+        PageSidebar: "@components/starlight/PageSidebar.astro",
+        //TwoColumnContent: "@components/starlight/TwoColumnContent.astro",
       },
       expressiveCode: {
         frames: false,

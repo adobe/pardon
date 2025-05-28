@@ -53,7 +53,7 @@ export default function Flower(props: {
                     {(interaction) => (
                       <Accordion.Item>
                         <Accordion.Trigger class="flex flex-1 flex-row place-content-between rounded-none bg-amber-300 p-1 text-left text-sm italic dark:bg-amber-900">
-                          <div class="min-w-0 overflow-hidden overflow-ellipsis text-nowrap">
+                          <div class="min-w-0 overflow-hidden text-nowrap overflow-ellipsis">
                             {interaction.type === "exchange"
                               ? interaction.request?.source.split("\n")[1]
                               : "script"}
@@ -86,7 +86,7 @@ export default function Flower(props: {
       </Resizable.Panel>
       <Resizable.Handle />
       <Resizable.Panel>
-        <div class="absolute bottom-0 right-0">
+        <div class="absolute right-0 bottom-0">
           <Show when={flowResource.state === "ready"}>
             <pre>Done: {KV.stringify(flowResource(), "\n", 2)}</pre>
           </Show>

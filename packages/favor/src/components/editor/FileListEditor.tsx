@@ -105,7 +105,7 @@ export function FileEditor(props: {
       />
       <div class="flex flex-row gap-2">
         <button
-          class="flex-1 bg-amber-400 py-0.5 disabled:text-opacity-50 dark:bg-amber-700"
+          class="disabled:text-opacity-50 flex-1 bg-amber-400 py-0.5 dark:bg-amber-700"
           onClick={() => {
             const toSave = (props.onSave ?? ((arg) => arg))({
               path: props.path,

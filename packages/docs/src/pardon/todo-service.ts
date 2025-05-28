@@ -10,19 +10,12 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { tap } from "./_tap.ts";
+import { service } from "./helper.ts";
 
-const todoService = tap(
-  import.meta.glob("./todo-example/collection/**/*", {
+export default service(
+  import.meta.glob("./todo-service/collection/**/*", {
     query: "?raw",
     eager: true,
     import: "default",
   }),
-);
-
-console.log(Object.keys(todoService).join("\n"));
-
-export default {
-  layers: ["collection/"],
-  config: { ...todoService },
-} as const;
+).layers("./todo-service/collection/");

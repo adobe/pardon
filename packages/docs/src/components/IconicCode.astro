@@ -45,7 +45,7 @@ const { name, titled, ...props } = Astro.props;
 
 <style>
   .icon {
-    @apply absolute right-[9px] top-[-9.5px] rounded-full border-2 border-dotted scale-75;
+    @apply absolute top-[-9.5px] right-[9px] scale-75 rounded-full border-2 border-dotted;
   }
 
   .icon > * {
@@ -71,6 +71,6 @@ const { name, titled, ...props } = Astro.props;
     .icon,
   .iconic:has(.expressive-code .frame .copy .feedback.show):not(:has(.no-copy))
     > .icon {
-    @apply opacity-30 -translate-x-8;
+    @apply -translate-x-8 opacity-30;
   }
 </style>

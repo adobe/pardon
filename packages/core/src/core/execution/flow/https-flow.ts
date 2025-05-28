@@ -619,7 +619,7 @@ error = ${error?.stack ?? error}
     throw error;
   }
 
-  const { outbound, inbound } = await execution.result;
+  const { outbound, inbound, output } = await execution.result;
 
   console.log(`<<<
 ${HTTP.responseObject.stringify(inbound.redacted)}`);
@@ -671,9 +671,7 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
   const outcome = parseOutcome(outcomeText);
 
   const flowResponseValues =
-    responseTemplates.length === 0
-      ? inbound.evaluationScope.resolvedValues({ flow: true })
-      : valuesFromScope(scope);
+    responseTemplates.length === 0 ? output : valuesFromScope(scope);
 
   // makes unit tests better for now.
   if (outcome) {

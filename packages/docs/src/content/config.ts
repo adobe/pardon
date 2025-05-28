@@ -18,7 +18,7 @@ export const collections = {
   docs: defineCollection({
     schema: docsSchema({
       extend: z.object({
-        server: z.enum(["products"]).optional(),
+        server: z.enum(["products", "todo"]).optional(),
         // category: z.enum(["intro", "quickstart", "guide", "reference"]).optional(),
       }),
     }),

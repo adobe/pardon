@@ -98,15 +98,15 @@ export type PardonExecutionInbound = ResponseObject;
 
 export type PardonExecutionResult = {
   endpoint: string;
+  output: Record<string, any>;
   outbound: PardonExecutionOutbound;
   inbound: {
-    object: ResponseObject;
+    actual: ResponseObject;
     response: ResponseObject;
     redacted: ResponseObject;
     outcome?: string;
     values: Record<string, any>;
     secrets: Record<string, any>;
-    evaluationScope: EvaluationScope;
   };
 };
 
@@ -578,7 +578,7 @@ export const PardonFetchExecution = pardonExecution({
 
     const [uncensored, redacted] = await Promise.all(
       [{ secrets: true }, { secrets: false }].map(async ({ secrets }) => {
-        const { output, context } = await postrenderSchema(
+        const { output: response, context } = await postrenderSchema(
           matchedSchema,
           createEndpointEnvironment({
             endpoint: {
@@ -602,7 +602,7 @@ export const PardonFetchExecution = pardonExecution({
         );
 
         return {
-          output,
+          response,
           evaluationScope: context.evaluationScope,
           values: cleanResponseValues(
             getContextualValues(context, { secrets }),
@@ -611,19 +611,21 @@ export const PardonFetchExecution = pardonExecution({
       }),
     );
 
+    const output = redacted.evaluationScope.resolvedValues({ flow: true });
+
     return {
       endpoint: endpoint.configuration.path,
       outbound,
       inbound: {
-        object: inbound,
+        actual: inbound,
         outcome: matchedOutcome,
         evaluationScope: uncensored.evaluationScope,
-        response: uncensored.output,
+        response: uncensored.response,
         secrets: uncensored.values,
-        redacted: redacted.output,
+        redacted: redacted.response,
         values: redacted.values,
-        flow: redacted.evaluationScope.resolvedValues({ flow: true }),
       },
+      output,
     };
   },
   error() {},
@@ -649,7 +651,7 @@ function cleanResponseValues(response: Record<string, unknown>) {
 
 function reducedValues(
   schema: Schema<RequestObject>,
-  output: RequestObject,
+  request: RequestObject,
   endpoint: LayeredEndpoint,
   compiler: PardonCompiler,
   values: Record<string, any>,
@@ -669,7 +671,7 @@ function reducedValues(
     const matching = mergeSchema(
       { mode: "match", phase: "build" },
       schema,
-      output,
+      request,
       matchingEnv,
     );
 

@@ -19,5 +19,5 @@ governing permissions and limitations under the License.
 }
 
 .info-drawer-overlay {
-  @apply fixed inset-0 z-40 corvu-transitioning:transition-colors corvu-transitioning:duration-200 corvu-transitioning:ease-out;
+  @apply corvu-transitioning:transition-colors corvu-transitioning:duration-200 corvu-transitioning:ease-out fixed inset-0 z-40;
 }

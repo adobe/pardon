@@ -13,13 +13,7 @@ governing permissions and limitations under the License.
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./src/**/*.{astro,html,js,jsx,md,mdx,ts,tsx,css}"],
-  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {},
   },
-  plugins: [
-    ({ addVariant }) => {
-      addVariant("light", "@media (prefers-color-scheme: light)");
-    },
-  ],
 };

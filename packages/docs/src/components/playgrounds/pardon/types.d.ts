@@ -10,12 +10,26 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-export function tap(imports: Record<string, string>) {
-  return Object.entries(imports).reduce(
-    (tapped, [k, v]) =>
-      Object.assign(tapped, {
-        [k.replace(/^[.][/][^/]*[/]/, "")]: v,
-      }),
-    {},
-  );
-}
+type PardonExecutionSource = {
+  http: string;
+  values: Record<string, unknown>; // actual values, usually the combined value
+};
+
+type PardonExecutionRender = {
+  context: {
+    trace: number;
+    ask: string;
+    durations: PardonHttpExecutionContext["durations"];
+  };
+  outbound: {
+    request: RequestJSON;
+    values?: Record<string, unknown>;
+  };
+  secure: {
+    outbound: {
+      request: RequestJSON;
+      values?: Record<string, unknown>;
+    };
+  };
+  error?: any;
+};

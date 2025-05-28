@@ -107,7 +107,7 @@ export default function RecallSystem(props: {
         }}
       ></ValuesInput>
       <Suspense fallback={<LoadingSplash />}>
-        <div class="fade-to-clear flex flex-col overflow-auto text-nowrap text-xs [--clear-start-opacity:0]">
+        <div class="fade-to-clear flex flex-col overflow-auto text-xs text-nowrap [--clear-start-opacity:0]">
           <For each={memory()}>
             {({ http, req, res, ask, values, inbound, created_at }) => {
               const request = HTTP.parse(req);

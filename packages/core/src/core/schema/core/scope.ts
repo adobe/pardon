@@ -362,7 +362,7 @@ export class Scope implements EvaluationScope, ScopeData {
       const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
 
       if (!isOptional({ hint })) {
-        throw diagnostic(context, `undefined:${identifier}`);
+        throw diagnostic(context, `undefined: ${identifier}`);
       }
     }
 
