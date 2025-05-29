@@ -49,7 +49,7 @@ export function hiddenTemplate<T = any>(template?: Template<T>): Template<T> {
     expand(context) {
       const schema = template ? context.expand(template) : stubSchema();
 
-      return defineHiddenSchema(schema);
+      return schema && defineHiddenSchema(schema);
     },
   });
 }

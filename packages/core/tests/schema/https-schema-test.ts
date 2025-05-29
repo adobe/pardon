@@ -570,8 +570,8 @@ describe("https-schema-tests", () => {
     .symbols("b");
 
   transforms("parens-with-redact-modifier")
-    .from("b.$redact = ('hello')")
-    .to(`b.$redact.$of("{{ = $$expr(\\"'hello'\\") }}")`)
+    .from("b.$redacted = ('hello')")
+    .to(`b.$redacted.$of("{{ = $$expr(\\"'hello'\\") }}")`)
     .symbols("b");
 
   transforms("plus-as-flow").from("+x").to(`$flow(x)`).symbols("x", "$flow");

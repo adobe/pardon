@@ -477,6 +477,8 @@ function asTypes(node: ts.TypeNode): string[] {
         case "secret":
         case "redacted":
           return ["$redacted"];
+        case "hidden":
+          return ["$hidden"];
         case "internal":
           return ["$noexport"];
         case "bool":
@@ -507,6 +509,7 @@ const referenceHints = {
   $optional: "?",
   $required: "!",
   $redacted: "@",
+  $hidden: "-",
   $flow: "+",
   $meld: "~",
 };
@@ -598,21 +601,19 @@ function binaryExpression(
         );
         const refValue = ts.isParenthesizedExpression(rhs.expression)
           ? factory.createStringLiteral(
-              `{{ ${identifierOf(ref, factory)} = $$expr(${JSON.stringify(text)}) }}`,
+              `{{ = $$expr(${JSON.stringify(text)}) }}`,
             )
           : rhs.expression;
 
         return factory.createCallExpression(
-          factory.createPropertyAccessExpression(lhs, "$of"),
+          factory.createPropertyAccessExpression(ref, "$of"),
           undefined,
           [refValue],
         );
       } else if (ts.isParenthesizedExpression(rhs)) {
-        const text = (
-          ts.isParenthesizedExpression(rhs) ? rhs.expression : rhs
-        ).getText();
+        const text = rhs.expression.getText();
 
-        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
+        const pattern = `{{ = $$expr(${JSON.stringify(text)}) }}`;
 
         return factory.createCallExpression(
           factory.createPropertyAccessExpression(lhs, "$of"),
