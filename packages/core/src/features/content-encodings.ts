@@ -15,7 +15,12 @@ import {
   PardonFetchExecution,
 } from "../core/pardon/pardon.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
-import { brotliDecompressSync } from "node:zlib";
+import {
+  brotliDecompressSync,
+  zstdDecompressSync,
+  gunzipSync,
+  inflateSync,
+} from "node:zlib";
 
 export default function contentEncodings(
   execution: typeof PardonFetchExecution,
@@ -26,11 +31,31 @@ export default function contentEncodings(
       async fetch(request, next) {
         const response = await next(request);
 
-        if (response.headers.get("content-encoding") == "br") {
-          response.body = response.rawBody
-            ? brotliDecompressSync(response.rawBody).toString("utf-8")
-            : "";
+        if (response.rawBody) {
+          for (const contentEncoding of (
+            response.headers.get("content-encoding") ?? ""
+          )
+            .split(/,\s+/)
+            .filter(Boolean)
+            .reverse()) {
+            switch (contentEncoding) {
+              case "br":
+                response.rawBody = brotliDecompressSync(response.rawBody);
+                break;
+              case "gzip":
+                response.rawBody = gunzipSync(response.rawBody);
+                break;
+              case "deflate":
+                response.rawBody = inflateSync(response.rawBody);
+                break;
+              case "zstd":
+                response.rawBody = zstdDecompressSync(response.rawBody);
+                break;
+            }
+          }
         }
+
+        response.body = response.rawBody?.toString("utf-8") ?? "";
 
         return response;
       },
