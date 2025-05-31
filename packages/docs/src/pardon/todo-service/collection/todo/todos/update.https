@@ -4,5 +4,5 @@ Content-Type: application/json
 
 {
   task: "{{?task}}",
-  done: "{{?done}}" as boolean
+  done: "{{?done}}" as bool
 }

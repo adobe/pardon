@@ -19,4 +19,5 @@ governing permissions and limitations under the License.
 @import "./corvu-support.css";
 @import "./components/InfoDrawer.css";
 
+@custom-variant dark (@media (prefers-color-scheme: dark));
 @custom-variant light (@media (prefers-color-scheme: light));

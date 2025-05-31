@@ -40,6 +40,28 @@ export function copypastePlugin() {
           { capture: true },
         );
 
+        window.addEventListener("click", (event) => {
+          const { target } = event;
+          let element = target as HTMLElement;
+
+          console.log("click");
+
+          element = element.closest?.("[data-pardon-paste-target]");
+
+          if (element.hasAttribute?.("data-pardon-paste-target")) {
+            const targetid = element.getAttribute("data-pardon-paste-target");
+            const into = element.getAttribute("data-pardon-paste-to");
+            const code = element.getAttribute("data-pardon-paste-code");
+            const clear =
+              element.getAttribute("data-pardon-paste-clear")?.split(",") ?? [];
+            pasteinto(document.getElementById(targetid), into, code, {
+              clear,
+            });
+          }
+
+          copypaste(target);
+        });
+
         document.addEventListener("DOMContentLoaded", () => {
           const StarlightTabsPrototype =
             customElements.get("starlight-tabs")?.prototype;
@@ -61,6 +83,20 @@ export function copypastePlugin() {
           }
         });
 
+        function pasteinto(
+          context: Element,
+          copyTo: string,
+          code: string,
+          options: { clear: string[] },
+        ) {
+          const pasteTarget =
+            (context?.matches(`[data-pardon-${copyTo}]`)
+              ? context
+              : undefined) ?? context?.querySelector(`[data-pardon-${copyTo}]`);
+
+          pasteTarget?.pardonPlayground?.update(code, options);
+        }
+
         function copypaste(target: Element) {
           if (target.classList.contains("copypaste")) {
             event.stopImmediatePropagation();
@@ -68,19 +104,16 @@ export function copypastePlugin() {
               .getAttribute("data-code")
               ?.replace(/\u007f/g, "\n");
 
-            const copyFrom = target.getAttribute("data-copy") ?? [null];
             const clear = (target.getAttribute("data-clear") ?? "")
               .split(",")
               .filter(Boolean);
 
-            if (!copyFrom) {
-              return;
+            const copyTo = target.getAttribute("data-copy");
+            if (copyTo) {
+              pasteinto(target.closest(`.copypaste-context`), copyTo, code, {
+                clear,
+              });
             }
-
-            const context = target.closest(`.copypaste-context`);
-            const pasteTarget = context
-              ?.querySelector(`[data-pardon-${copyFrom}]`)
-              ?.pardonPlayground?.update(code, { clear });
           }
         }
       }),

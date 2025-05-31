@@ -32,36 +32,27 @@ import {
 import pingExample from '@pardon/ping-example.ts'
 import todoService from '@pardon/todo-service.ts'
 
-# Overview
+Pardon is a composable dynamic templating language powering an http framework.
+Templates are used to both match requests and extend them, as well as for processing responses.
+ 
+Traditional HTTP template systems render `input` (environment value) + `"{{input}}"` template, and
+Pardon supports this.  Pardon also supports `"{{input = expression}}"` (evaluating a script),
+`"{{?input}}"` (for optional inputs), and `{{@input}}` for handling secrets.
 
-Pardon is, at its core, a composable dynamic templating language powering
-an http framework.  Template composition is used to both match requests and extend them,
-as well as control how they are rendered.
+## Example
 
-Pardon simplifies the description and use of HTTP APIs by providing a consistent design
-language combined with composition to separate concerns. One concern might be the
-environment: production or test, or the local machine.
-Another concern might be the authorization token. By representing these concerns
-separately, they become easier to manage and maintain.
+To demonstrate Pardon's core features, we'll describe a simple multi-user TODO REST service:
 
-## Tutorial
+- This service is theoretically hosted at `https://todo.example.com/`.
+- It has endpoints to manage users, supports exchanging password-based authentication for
+a bearer token.
+- Logged in users can edit their todo list (create, read, update, delete, and list). 
+- Todo objects have a task (text description) and a "done" flag.
 
-Let's consider a simple multi-user TODO REST service, hosted at `https://todo.example.com/`,
-with the following REST API:
+Please familiarize yourself with the following 8 requests to manage users, create and list todos,
+and update those todos.
 
 <div class="code-tabs"><Tabs>
-  <TabItem label="misc">
-    <div class="tab-subtitle">Miscelleous Requests</div>
-    <Tabs>
-      <TabItem label="/health-check">
-        Check if the service is up.
-
-        ```http
-        GET https://todo.example.com/health-check
-        ```
-      </TabItem>
-    </Tabs>
-  </TabItem>
   <TabItem label="/users">
     <div class="tab-subtitle">Requests for managing users</div>
     <Tabs>
@@ -133,7 +124,7 @@ with the following REST API:
     <div class="tab-subtitle">Requests for managing a todo</div>
     <Tabs>
       <TabItem label="GET">
-        Gets the state of a todo
+        Gets the state of a single todo
 
         ```http
         PUT https://todo.example.com/todos/{{todo}}
@@ -166,24 +157,25 @@ with the following REST API:
   </TabItem>
 </Tabs></div>
 
-Pardon's templates are designed to be both human and machine readable, but note that
-the `?` in `"{{?task}}"` means that the value is optional, and the `@` in `{{@auth-token}}`
-indicates a secret which will be redacted in logs (and generally hidden by default).
+A pardon collection would contain the above templates in `.https` files,
+or "HTTP-schema" files.
+{/* Yes, I'm quite proud of myself for that name, thanks for asking */}
+Schema files have a little more syntax:
 
-A pardon collection would have the above templates in `.https` files, or "HTTP-schema" files.
-An http schema file represents one (or more) ways to make a request
-(prefixed by `>>>` for an outbound request),
+A schema file has one (or more) variants for making a request
+prefixed by `>>>` for each outbound request,
 and optionally, templates to match and process the response
-(prefixed by `<<<` for an inbound response).
+prefixed by `<<<` for each inbound response.
 
-For example, the user login schema can specify a value placeholder in the response,
-demonstrated below with `{{@token}}`. This placeholder both tells Pardon to treat
-this as secret data (not for long term storage), and to to parse the value from the response.
+Response templates can extract and redact values in a response,
+for example, the user login HTTP schema can specifies a value
+placeholder in the response, `{{@token}}`.
 
 ```http
 >>>
 PUT https://todo.example.com/users
 Content-Type: application/json
+Authorization: User {{@user-token}}
 
 {
   "username": "{{username}}",
@@ -198,8 +190,8 @@ Content-Type: application/json
 }
 ```
 
-By parsing the value, a script can reference the data directly when using `pardon()`'s internal API
-to access the authorization call.
+A script can use the extracted value when using `pardon()`'s
+Javascript API to access the authorization call.  An example of such a script is
 
 ```ts
 import { pardon } from "pardon";
@@ -226,88 +218,77 @@ export async function authorizeUser(username: string) {
 }
 ```
 
-With the above helper, we can use `Authorization: User {{@user-token = authorizeUser(username)}}`
-to automatically specify the credentials for calls that need authorization,
-and Pardon will take care of generating the token.
-
-Pardon's templating is more than text processing, it is a data processing language
- - Templates both render out and process input.
- - Templates provide a _skeleton_ of a request, but they do not _constrain_ the request to that skeleton.
+We can import this function and define the header
+`Authorization: User {{@user-token = authorizeUser(username)}}`
+to "automatically" render the authorization token. (Pardon provides both in-memory, and persisted
+caching options as well.)
 
 ## Demo
 
-To get a feel for how pardon templates work, let's exercise this todo API.
+To get a feel for how Pardon works, let's exercise this todo API.
 We will go through some basic flows.
- - make a request.
  - create a user.
  - create a todo item.
  - mark the todo as completed.
 
-<PardonPlayground secrets response example={`
-https://todo.example.com/health-check
+Navigating between the tabs will update the request.
+
+<PardonPlayground secrets response id="todo-playground" example={`
+username=developer
+password=pw
+POST https://todo.example.com/users
 `} {...todoService}>
 
  <Tabs>
-   <TabItem label="health-check">
-   First, we can check if the server is up.
-   Click the button and see the "server" response below.
-   (this is all running in your browser).
-
-  ```http copy=playground autocopy clear=password
-  GET https://todo.example.com/health-check
-  ```
+   <TabItem label="1. register">
+    Register a new user, with a password.
+    ```http copy=playground clear=todo autocopy
+    password=pw
+    POST https://todo.example.com/users
+    ```
    </TabItem>
-   <TabItem label="register">
-   Registers a new user, with a password.
-   
-   You can try the same request, with `PUT` instead of `POST`, to create an
-   "auth token" for that user.
-   
-   This is run automatically for the following requests.  The padlock can toggle
-   display of secrets here.
-  ```http copy=playground clear=todo autocopy
-  username=developer
-  password=pw
-  POST https://todo.example.com/users
-  ```
-   </TabItem>
-   <TabItem label="create todo">
-   You can use the POST API to create a todo for your user.
+   <TabItem label="2. create todo">
+    Now you can use the POST API to create a todo for your user.
 
-   Notice how we removed the password, (in this demo, the correct password will be automatically sent).
-   On the right (provided your window is large enough), you will be able to browse the TODO list.
+    _The created TODO's ID will be copied into the request "environment" for use in
+    step 3._
 
-  ```http copy=playground clear=password,todo autocopy
-  POST https://todo.example.com/todos
+    ```http copy=playground clear=password,todo autocopy
+    POST https://todo.example.com/todos
 
-  {
-    "task": "learn pardon"
-  }
-  ```
+    {
+      "task": "learn pardon"
+    }
+    ```
   </TabItem>
-  <TabItem label="complete todo">
-  Now we can mark a TODO done via the update API, you can also
-  update the "task", if you want.  Note that you can replace `{{todo}}`
-  directly in the URL, or you can just use the named parameter
-  (that was added in the last step).
+  <TabItem label="3. mark todo completed">
+    Now we can mark a TODO done via the update API, you can also
+    update the "task" value.
 
-  ```http copy=playground clear=password  autocopy
-  PUT https://todo.example.com/todos/{{todo}}
+    ```http copy=playground clear=password  autocopy
+    PUT https://todo.example.com/todos/{{todo}}
 
-  {
-    "done": true
-  }
-  ```
+    {
+      "done": true
+    }
+    ```
   </TabItem>
 </Tabs>
 </PardonPlayground>
 
 Feel free to explore the other rest calls, listing todos, deleting todos and/or users.
 
+Some experiments
 ```http
 PUT https://todo.example.com/users
    
 { username: "developer" }
+```
+
+
+```http
+done=true
+PUT https://todo.example.com/todos/T1001
 ```
 
 {/*

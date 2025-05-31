@@ -17,6 +17,7 @@ export default function PardonPlaygroundLoader(
     example?: string;
     config: Record<string, string>;
     layers?: string[];
+    id?: string;
   }>,
 ) {
   const [configProps, otherProps] = splitProps(props, ["config", "children"]);
@@ -37,6 +38,7 @@ export default function PardonPlaygroundLoader(
       default: (passedProps: typeof otherProps) => {
         const [componentProps, applicationProps] = splitProps(passedProps, [
           "options",
+          "id",
         ]);
 
         return (

@@ -29,6 +29,7 @@ import { mapObject } from "pardon/utils";
 export default function PardonPlayground(
   props: ParentProps<{
     options: PlaygroundOptions;
+    id?: string;
   }>,
 ) {
   const context = usePardonApplicationContext()!;
@@ -135,6 +136,7 @@ export default function PardonPlayground(
     <SecretsSignalContext secrets={secrets ? secrets === "shown" : undefined}>
       <ResponseSignalContext>
         <div
+          id={props.id}
           class="not-content pp-app grid gap-2"
           data-pardon-playground
           ref={(element) => {

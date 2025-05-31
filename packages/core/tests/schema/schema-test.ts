@@ -960,6 +960,17 @@ intent("aggregate-array-of-map")`
 }
 `();
 
+intent("mixed-styles")`
+flag=true
+{
+  flag: "{{?flag}}" as bool
+}
+---
+{
+  flag: true
+}
+`();
+
 intent("render-sum")`
 {
   items: [items.$value]

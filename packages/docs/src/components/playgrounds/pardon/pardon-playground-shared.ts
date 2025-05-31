@@ -30,6 +30,7 @@ export type PlaygroundOptions = {
   data?: boolean;
   response?: boolean;
   server?: "products" | "todo";
+  id?: string;
 };
 
 export function createExecutionMemo({

@@ -1,6 +1,5 @@
 /** @type {import("tailwindcss").Config} */
 export default {
-  darkMode: "media",
   content: ["./src/**/*.{html,jsx,tsx,css}"],
   theme: {
     fontFamily: {

@@ -31,6 +31,7 @@ type Props = {
   config: Record<string, string>;
   layers?: string[];
   example?: string;
+  id?: string;
 } & Omit<PlaygroundOptions, "server">;
 
 const { secrets, editor, values, data, response, ...props } = Astro.props;

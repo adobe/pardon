@@ -39,14 +39,14 @@ import {
   scalarFuzzyTypeOf,
   ScalarType,
 } from "../scalar.js";
-import { datumTemplate } from "../datum.js";
+import { datums, datumTemplate } from "../datum.js";
 import {
   diagnostic,
   isAbstractContext,
   rescope,
 } from "../../core/context-util.js";
 import { isMergingContext } from "../../core/schema.js";
-import { patternize } from "../../core/pattern.js";
+import { isPatternSimple, patternize } from "../../core/pattern.js";
 
 type ReferenceSchema<T> = {
   refs: Set<string>;
@@ -69,7 +69,7 @@ type ReferenceTemplate<T> = {
 };
 
 export type ReferenceSchematic<T> = Schematic<T> & {
-  $of<T>(template: Template<T>): ReferenceSchematic<T>;
+  $of<T>(template: Template<T> | string): ReferenceSchematic<T>;
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
   readonly $noexport: ReferenceSchematic<T>;
@@ -229,10 +229,28 @@ export function referenceTemplate<T = unknown>(
               });
             },
           }),
-          $of(template: Template<T>) {
+          $of(template: Template<T> | string) {
+            if (typeof template === "string") {
+              const pattern = patternize(template);
+
+              if (isPatternSimple(pattern)) {
+                const { param, hint, expression } = pattern.vars[0];
+
+                return referenceTemplate({
+                  hint: hint ?? "",
+                  ref: param,
+                  template: expression
+                    ? datums.datum(
+                        `{{ = $$expr(${JSON.stringify(expression)}) }}`,
+                      )
+                    : undefined,
+                });
+              }
+            }
+
             return referenceTemplate({
               ...reference,
-              template,
+              template: template as Template<T>,
             });
           },
           get $string() {

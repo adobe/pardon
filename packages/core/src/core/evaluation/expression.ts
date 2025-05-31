@@ -343,7 +343,12 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     const types = asTypes(currentNode.type);
 
     return types.reduce<ts.Expression>(
-      (node, type) => factory.createPropertyAccessExpression(node, type),
+      (node, type) =>
+        factory.createCallExpression(
+          factory.createIdentifier(type),
+          undefined,
+          [node],
+        ),
       currentNode.expression,
     );
   }

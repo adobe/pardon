@@ -9,7 +9,7 @@ export default function TodoView(props: ParentProps<{}>) {
       {props.children}
       <Show when={Object.keys(users()).length}>
         <div class="border-2 border-x-0 border-gray-500">TODO Server State</div>
-        <div class="accordion-container flex flex-col overflow-scroll">
+        <div class="accordion-container no-scrollbar flex flex-col overflow-scroll">
           <Accordion
             collapseBehavior="hide"
             multiple
@@ -40,7 +40,12 @@ export default function TodoView(props: ParentProps<{}>) {
                       <For each={Object.entries(todos()[user] ?? {})}>
                         {([id, { task, done }]) => {
                           return (
-                            <li class="col-span-3 grid grid-cols-subgrid place-items-baseline">
+                            <li
+                              class="col-span-3 grid grid-cols-subgrid place-items-baseline"
+                              data-pardon-paste-target="todo-playground"
+                              data-pardon-paste-to="playground"
+                              data-pardon-paste-code={`todo=${id}`}
+                            >
                               <span class="font-mono text-sm">{id}</span>
                               <input
                                 class="relative top-0.5"

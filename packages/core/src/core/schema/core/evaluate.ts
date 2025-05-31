@@ -95,7 +95,7 @@ function synthesizeExpressionDeclaration(
     source:
       expression === undefined
         ? `{{}}`
-        : `{{= $$expr(${JSON.stringify(expression)}) }}`,
+        : `{{ = $$expr(${JSON.stringify(expression)}) }}`,
   };
 }
 

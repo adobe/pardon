@@ -100,7 +100,7 @@ function buildDefinitionSchema(definitions: Record<string, any>) {
         return `{{?${key}}}`;
       }
 
-      return `{{?${key} = $$expr(${JSON.stringify(value)})}}`;
+      return `{{ ?${key} = $$expr(${JSON.stringify(value)}) }}`;
     },
     filter(_key, defined) {
       return Boolean(defined);

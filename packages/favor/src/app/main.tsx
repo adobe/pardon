@@ -1215,7 +1215,7 @@ export default function Main(
                                     <div class="flex flex-row place-content-start gap-2 font-mono">
                                       <span>{requestInfo()?.method}</span>
                                       <span class="my-1 w-[1px] bg-current"></span>
-                                      <span class="overflow-scroll whitespace-nowrap">
+                                      <span class="no-scrollbar overflow-scroll whitespace-nowrap">
                                         {requestInfo()?.url}
                                       </span>
                                       <Show
