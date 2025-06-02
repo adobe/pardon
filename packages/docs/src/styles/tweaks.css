@@ -105,3 +105,9 @@ starlight-tabs {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+@layer starlight.core {
+  .hero {
+    padding-block: 1rem !important;
+  }
+}

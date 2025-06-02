@@ -78,9 +78,9 @@
       // Files to exclude from debugger (e.g. call stack)
       "skipFiles": [
         // Node.js internal core modules
-        "<node_internals>/**",
+        "<node_internals>/**"
         // Ignore all dependencies (optional)
-        "${workspaceFolder}/packages/core/node_modules/**"
+        //"${workspaceFolder}/packages/core/node_modules/**"
       ]
     },
     {

@@ -183,7 +183,8 @@ export default function PardonPlaygroundResponseView(
       />
       <div class="flex flex-row gap-2">
         <button
-          class="light:border-purple-800 flex-1 rounded-xl border-2 p-2 pl-4 text-left !font-mono text-xl !font-extrabold shadow-md active:shadow-sm enabled:cursor-pointer dark:border-white dark:shadow-amber-200/25"
+          class="light:border-purple-800 flex-1 rounded-xl border-2 p-2 pl-4 text-left !font-mono text-xl !font-extrabold shadow-md active:shadow-sm enabled:cursor-pointer disabled:opacity-50 dark:border-white dark:shadow-amber-200/25"
+          disabled={inflight() !== "pending"}
           classList={{
             "light:bg-teal-400 dark:bg-teal-800": ![
               "POST",

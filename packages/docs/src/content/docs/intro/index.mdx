@@ -191,7 +191,8 @@ Authorization: User {{@user-token}}
 ```
 
 A script can use the extracted value when using `pardon()`'s
-Javascript API to access the authorization call.  An example of such a script is
+Javascript API to access the authorization call.
+Here's an example of a script that makes another request.
 
 ```ts
 import { pardon } from "pardon";
@@ -231,7 +232,7 @@ We will go through some basic flows.
  - create a todo item.
  - mark the todo as completed.
 
-Navigating between the tabs will update the request.
+(Changing tabs updates the request.)
 
 <PardonPlayground secrets response id="todo-playground" example={`
 username=developer
@@ -262,7 +263,7 @@ POST https://todo.example.com/users
     ```
   </TabItem>
   <TabItem label="3. mark todo completed">
-    Now we can mark a TODO done via the update API, you can also
+    Finally we can mark a TODO done via the update API, you can also
     update the "task" value.
 
     ```http copy=playground clear=password  autocopy
@@ -276,144 +277,41 @@ POST https://todo.example.com/users
 </Tabs>
 </PardonPlayground>
 
-Feel free to explore the other rest calls, listing todos, deleting todos and/or users.
+Feel free to explore the other rest calls, listing todos,
+deleting todos and/or users.
 
-Some experiments
-```http
-PUT https://todo.example.com/users
-   
-{ username: "developer" }
-```
-
-
-```http
-done=true
-PUT https://todo.example.com/todos/T1001
-```
-
-{/*
-  * TODO: discuss pardon's ability to use input data and/or match on request data to 
-  * fill in, e.g, the password for
-  * 
-  *   username=developer
-  *   PUT https://todo.example.com/users
-  *
-  * or
-  *   PUT https://todo.example.com/users
-  *   
-  *   { username: "developer" }
-  */}
-
-### Ease of use
-
+Here are some ideas for exploration.
 <Tabs>
-  <TabItem label="production">
-Pardon can execute a simple request, like curl, but using templates reduces the noise.
-```bash title="https://example.com/ping"
-% pardon https://example.com/ping
-pong # from prod
-```
-  </TabItem>
-  <TabItem label="staging">
-Pinging stage is just as easy.
-```bash frame="terminal" title="https://stage.example.com/ping"
-% pardon https://stage.example.com/ping
-pong # from stage
-```
-  </TabItem>
-  <TabItem label="staging / http">
-`pardon` can emit the http request (without making the call), just add `--http`:
-```bash frame="terminal" title="https://stage.example.com/ping --http"
-% pardon https://stage.example.com/ping --http
-GET https://stage.example.com/ping
-accept: text/plain
-api-key: staging
-```
-  </TabItem>
-  <TabItem label="env=stage">
-By adding `env=stage` we can rewrite the request to use stage!
+  <TabItem label="auth">
+    Try the authorization request.
+    
+    - Notice how Pardon adds
+      the password (use the lock to show the value).
+    - Try overriding it in the request.
 
-Here we see the output of pardon's "`--curl`" output.
-```bash frame="terminal" title="https://example.com/ping --curl env=stage"
-% pardon https://example.com/ping env=stage --curl
-curl "https://stage.example.com/ping" \
-  --header "accept: text/plain" \
-  --header "api-key: staging"
-```
+    ```http
+    PUT https://todo.example.com/users
+      
+    { username: "developer" }
+    ```
+  </TabItem>
+  <TabItem label="alternate styles">
+    Try the following alternate form
+    ```http copyable
+    username=developer
+    done=true
+    PUT https://todo.example.com/todos/T1001
+    ```
+  </TabItem>
+  <TabItem label="additional data">
+    Try adding query params, headers, or more fields
+    to the request body.  Notice how pardon incorporates these
+    additions.
+
+    You can even add `"parameterized": "{{value}}"` fields
+    and then specify `value=...` above the request.
   </TabItem>
 </Tabs>
-
-Let's explore this further, in a playground environment:
-
-<PardonPlayground example="https://example.com/ping" config={pingExample}>
-  <Exercises>
-    <ExerciseItem label='↔'
-      prompt="change the request to the stage server">
-      Change the host here, watch how pardon updates the request. (keep an eye on the `api-key` header)
-```http ins="stage." copy=playground
-https://stage.example.com/ping
-```
-    </ExerciseItem>
-    <ExerciseItem label='?'
-      prompt='add a query to the input request'>
-      Pardon integrates additional query parameters to be included with requests, without
-      any changes to the template.
-```http ins="?hello=world" copy=playground
-https://example.com/ping?hello=world
-```
-    </ExerciseItem>
-    <ExerciseItem label='+'
-      prompt='add a header to the input request'>
-      Pardon also integrates additional headers to be included in requests, without
-      any changes to the templates.
-```http ins={2} copy=playground
-https://example.com/ping?hello=world
-User-Agent: pardon
-```
-    </ExerciseItem>
-    <ExerciseItem label="!"
-      prompt='override the request with configuration'>
-Any KV (key-value) data can go above the HTTP request to configure it.
-```http ins="env=stage" copy=playground
-env=stage
-https://example.com/ping
-```
-Notice how this changes the request.
-    </ExerciseItem>
-  </Exercises>
-</PardonPlayground>
-
-{/* ---
-
-<Tabs>
-<TabItem label="service.yaml">
-```yaml
-config:
-  origin:
-    env:
-      prod: https://example.com
-      stage: https://stage.example.com
-```
-</TabItem>
-<TabItem label="ping.https">
-```http
-mixin:
-  - ./apikey.mix.https
->>>
-GET https://example.com/ping
-Accept: text/plain
-```
-</TabItem>
-<TabItem label="apikey.mix.https">
-```http
->>>
-ANY //
-api-key: {{ apikey = (env === "prod" ? "system" : "staging") }}
-```
-</TabItem>
-</Tabs>
-
---- */}
 
 ## Next Steps
 

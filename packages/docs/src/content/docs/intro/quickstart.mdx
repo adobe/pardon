@@ -68,24 +68,12 @@ $ cd packages/core
 $ npm link . # remove with: npm uninstall -g pardon
 ```
 
-## Setup the example-todo service
+## Optional - Example todo service
 
-In another folder clone the `example/todo` branch.
-
-```bash
-$ git clone  https://github.com/adobe/pardon.git -b example/todo example-todo
-$ cd example-todo
-$ npm start # runs a local server
-```
-
-This runs a simple in-memory "TODO list" application as a local service.
-We can use pardon to run basic CRUD operations (create, read, update, delete)
-to explore how pardon works.
-
-The repository contains a simple server:
+The pardon source contains a simple server:
 <FileTree>
 - package.json     support for `npm start` to run the server
-- server/
+- todo/server/
   - mini-server.js  minimal server framework
   - index.js        basic TODO app frontend/backend logic
 </FileTree>
@@ -93,7 +81,7 @@ The repository contains a simple server:
 ... and a Pardon project / collection for interacting with that server:
 <FileTree>
 - package.json      includes `"pardon": {}` configuration
-- collection/todo/
+- todo/collection/todo/
   - service.yaml    configuration for our todo environments
   - ping.https      ping the service
   - list.https      list the todos
