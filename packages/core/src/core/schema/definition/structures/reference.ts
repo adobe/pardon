@@ -73,10 +73,11 @@ export type ReferenceSchematic<T> = Schematic<T> & {
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
   readonly $noexport: ReferenceSchematic<T>;
-  readonly $redacted: ReferenceSchematic<T>;
+  readonly $secret: ReferenceSchematic<T>;
   readonly $optional: ReferenceSchematic<T>;
   readonly $flow: ReferenceSchematic<T>;
   readonly $redact: ReferenceSchematic<T>;
+  readonly $redacted: ReferenceSchematic<T>;
   readonly $meld: ReferenceSchematic<T>;
   readonly $string: ReferenceSchematic<string>;
   readonly $bool: ReferenceSchematic<boolean>;
@@ -95,6 +96,24 @@ export function isReferenceSchematic<T>(
     Boolean(exposeSchematic<ReferenceSchematicOps<T>>(s).reference)
   );
 }
+
+const types = {
+  $string: { encoding: "string" },
+  $number: { encoding: "number" },
+  $bigint: { encoding: "bigint" },
+  $bool: { encoding: "boolean" },
+  $boolean: { encoding: "boolean" },
+  $null: { anull: true },
+};
+
+const hints = {
+  $noexport: "-",
+  $secret: "@",
+  $optional: "?",
+  $required: "!",
+  $meld: "~",
+  $flow: "+",
+};
 
 export function referenceTemplate<T = unknown>(
   reference: ReferenceTemplate<T>,
@@ -170,121 +189,68 @@ export function referenceTemplate<T = unknown>(
         });
       }
 
-      return (
-        target[property] ??
-        {
-          get $noexport() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}:`,
-            });
-          },
-          get $redacted() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}@`,
-            });
-          },
-          get $optional() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}?`,
-            });
-          },
-          get $required() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}!`,
-            });
-          },
-          get $meld() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}~`,
-            });
-          },
-          get $flow() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}+`,
-            });
-          },
-          get $redact() {
-            return referenceTemplate({
-              ...reference,
-              hint: `${reference.hint ?? ""}@`,
-            });
-          },
-          ...(reference.ref && {
-            get $value() {
-              return referenceTemplate({
-                ...reference,
-                ref: `${reference.ref}.@value`,
-              });
-            },
-            get $key() {
-              return referenceTemplate({
-                ...reference,
-                ref: `${reference.ref}.@key`,
-              });
-            },
-          }),
-          $of(template: Template<T> | string) {
-            if (typeof template === "string") {
-              const pattern = patternize(template);
+      if (property === "$of") {
+        return (template: Template<T> | string) => {
+          if (typeof template === "string") {
+            const pattern = patternize(template);
 
-              if (isPatternSimple(pattern)) {
-                const { param, hint, expression } = pattern.vars[0];
+            if (isPatternSimple(pattern)) {
+              const { param, hint, expression } = pattern.vars[0];
 
-                return referenceTemplate({
-                  hint: hint ?? "",
-                  ref: param,
-                  template: expression
-                    ? datums.datum(
-                        `{{ = $$expr(${JSON.stringify(expression)}) }}`,
-                      )
-                    : undefined,
-                });
-              }
+              const composedHint = `${reference.hint ?? ""}${hint ?? ""}`;
+
+              return referenceTemplate({
+                hint: composedHint,
+                ref: param,
+                template: expression
+                  ? datums.datum(
+                      `{{ ${composedHint} = $$expr(${JSON.stringify(expression)}) }}`,
+                    )
+                  : undefined,
+              });
             }
+          }
 
-            return referenceTemplate({
-              ...reference,
-              template: template as Template<T>,
-            });
-          },
-          get $string() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "string",
-            });
-          },
-          get $number() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "number",
-            });
-          },
-          get $bigint() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "bigint",
-            });
-          },
-          get $bool() {
-            return referenceTemplate({
-              ...reference,
-              encoding: "boolean",
-            });
-          },
-          get $null() {
-            return referenceTemplate({
-              ...reference,
-              anull: true,
-            });
-          },
-        }[property]
-      );
+          return referenceTemplate({
+            ...reference,
+            template: template as Template<T>,
+          });
+        };
+      }
+
+      if (reference.ref && property == "$value") {
+        return referenceTemplate({
+          ...reference,
+          ref: `${reference.ref}.@value`,
+        });
+      }
+
+      if (reference.ref && property == "$key") {
+        return referenceTemplate({
+          ...reference,
+          ref: `${reference.ref}.@key`,
+        });
+      }
+
+      if (property in hints) {
+        return referenceTemplate({
+          ...reference,
+          hint: `${reference.hint ?? ""}${hints[property]}`,
+        });
+      }
+
+      if (property in types) {
+        return referenceTemplate({
+          ...reference,
+          ...types[property],
+        });
+      }
+
+      if (property in target) {
+        return target[property];
+      }
+
+      throw new Error(`unknown reference modifier: ${String(property)}`);
     },
   });
 }
@@ -555,14 +521,14 @@ export function defineReference<T = unknown>(
       "{{redacted}}" === defined
     ) {
       // the value came back as "{{redacted}}" but we have a better name to give it.
-      return `{{ @${[...refs][0]} }}`;
+      return `{{ @${[...refs].filter(Boolean)[0] ?? ""} }}`;
     }
 
     if (isSecret(referenceSchema)) {
       const redacted = await context.environment.redact({
         value: defined,
         context,
-        patterns: [patternize(`{{ @${[...refs][0]} }}`)],
+        patterns: [patternize(`{{ @${[...refs].filter(Boolean)[0] ?? ""} }}`)],
       });
 
       return redacted;

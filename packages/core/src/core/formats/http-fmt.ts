@@ -157,7 +157,9 @@ function parse(
   file: string,
   options: { acceptcurl?: boolean } = {},
 ): Partial<RequestObject> {
-  const { [KV.unparsed]: rest, ...values } = KV.parse(file, "stream");
+  const { [KV.unparsed]: rest, ...values } = KV.parse(file, "stream", {
+    allowExpressions: true,
+  });
   const lines = (rest ?? "").split("\n");
 
   if (options.acceptcurl && /^curl\s/.test(lines[0].trim())) {

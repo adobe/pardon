@@ -28,6 +28,7 @@ import { JSON } from "../raw-json.js";
 
 import MIME from "whatwg-mimetype";
 import { createHeaders } from "../request/header-object.js";
+import { mapObject } from "../../util/mapping.js";
 
 export type HttpsResponseStep = {
   type: "response";
@@ -120,9 +121,11 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
   try {
     while (lines.length) {
       scanComments(lines, { allowBlank: true });
+
       if (/^\s*(?:>>>|<<<|!!!)/.test(lines[0])) {
         break;
       }
+
       if (lines.length) {
         inlineConfiguration.push(lines.shift()!);
       }
@@ -169,25 +172,47 @@ function scanRequestComputations(file: string) {
   const values: Record<string, any> = {};
 
   for (;;) {
+    // deprecated
     if (file.trim().startsWith(":")) {
-      const [, expression, rest] = /\s*(:[^\n]*)\n(.*)/s.exec(file)!;
-      const parsed = parseVariable(expression);
+      const [, expression, rest] = /\s*:([^\n]*)\n(.*)/s.exec(file)!;
+      const parsed = parseVariable(`${expression}`);
       if (!parsed) break;
-      computations[parsed.param] = `{{${parsed.variable.source}}}`;
+      computations[parsed.param] = `{{-${parsed.variable.source}}}`;
       file = rest;
-    } else {
-      const {
-        [KV.unparsed]: rest,
-        [KV.eoi]: _eoi,
-        [KV.upto]: _upto,
-        ...data
-      } = KV.parse(file, "stream");
-      if (Object.keys(data).length === 0) {
-        break;
-      }
-      Object.assign(values, data);
-      file = rest ?? "";
+
+      console.warn(
+        ":value = expression syntax replaced with value=(expression) syntax",
+        parsed.variable.source,
+      );
+      continue;
     }
+
+    const {
+      [KV.unparsed]: rest,
+      [KV.eoi]: _eoi,
+      [KV.upto]: _upto,
+      ...data
+    } = KV.parse(file, "stream", { allowExpressions: true });
+    if (Object.keys(data).length === 0) {
+      break;
+    }
+
+    Object.assign(
+      values,
+      mapObject(data, {
+        select(value, key) {
+          if (KV.isExprValue(value)) {
+            computations[key as string] =
+              `{{ -${key as string} = $$expr(${JSON.stringify(KV.loadExprValue(value))}) }}`;
+            return false;
+          }
+
+          return true;
+        },
+      }),
+    );
+
+    file = rest ?? "";
   }
 
   return { computations, values, rest: file };

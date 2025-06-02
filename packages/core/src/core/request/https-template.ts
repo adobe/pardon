@@ -49,7 +49,7 @@ export type HttpsRequestObject = FetchObject & {
 export function bodyReference(template: Template<string>): Schematic<string> {
   return referenceTemplate({
     ref: "body",
-    hint: ":?",
+    hint: "-?",
   }).$of(template);
 }
 
@@ -58,7 +58,7 @@ export function searchReference(
 ): Schematic<URLSearchParams> {
   return referenceTemplate({
     ref: "search",
-    hint: ":?",
+    hint: "-?",
   }).$of(template);
 }
 

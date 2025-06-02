@@ -25,27 +25,124 @@ contain non identifier characters (a-z0-9$_)).
 //  whitespace
 //  a single-quoted string
 //  a double-quoted string
-//  a backtick-quoted string. (with out ${...} interpolations)
-//  syntax characters, any of these: {}[]:,=
+//  a backtick-quoted string. (without ${...} interpolations)
+//  syntax characters, any of these: {}[]():,=
 //  a word token, which can contain letters, digits, underscores, $, @, +, - (as a minus or hyphen), and can contain :
 //  comment (starting with # till end of line)
 const tokenizer =
-  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\],]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
+  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\](),]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
 const kevsplitter = /^((?!['"])[^:=]+)([:=])(.*)$/im;
 const evsplitter = /^([:=])(.*)$/im;
 
-function tokenize(data: string) {
+type ExpressionParseState = {
+  stack: string[];
+};
+
+function makeExpressionParseState(): ExpressionParseState {
+  return { stack: ["("] };
+}
+
+function addToExpression(expr: string, { stack }: ExpressionParseState) {
+  for (let i = 0; i < expr.length; i++) {
+    if (stack.length === 0) {
+      return false;
+    }
+
+    const c = expr[i];
+    const state = stack[stack.length - 1];
+
+    switch (state) {
+      case "(":
+      case "[":
+      case "{": {
+        const expected = ")]}".indexOf(c);
+
+        if (expected !== -1) {
+          if (state === "([{"[expected]) {
+            stack.pop();
+          } else {
+            return `expected ${c}`;
+          }
+        } else if ("([{'\"`".includes(c)) stack.push(c);
+        continue;
+      }
+      case "'":
+        if (c === "\\") i++;
+        else if (c === "'") stack.pop();
+        break;
+      case '"':
+        if (c === "\\") i++;
+        else if (c === '"') stack.pop();
+        break;
+      case "`":
+        if (c === "\\") i++;
+        else if (c === "$" && expr[i + 1] === "{") {
+          stack.push("{");
+          i++;
+        } else if (c === "`") stack.pop();
+        break;
+    }
+  }
+
+  return stack.length === 1 && stack[0] === "(";
+}
+
+function tokenize(data: string, options?: { allowExpressions?: boolean }) {
   // returns strings that alternate between values that match the tokenizer and the
   // values in between (which should be empty strings until the end of the kv data).
   //
   // we use a two-pass tokenization to allow values with `=` and `:` in them.
   // first pass tokenizes without splitting on `=` and `:`, second pass splits them
   // unless the preceeding token was an `=` or `:`, in which case we don't (as we're in a value).
-  return data.split(tokenizer).reduce<{ retokenized: string[]; ctx: string[] }>(
-    (state, tokenOrSplit, index) => {
+  return data.split(tokenizer).reduce<{
+    retokenized: string[];
+    ctx: string[];
+    expression?: ExpressionParseState;
+  }>(
+    (state, tokenOrSplit, index, tokens) => {
+      // if we're in expression state, keep it going...
+      if (state.expression) {
+        let exprToken = state.retokenized[state.retokenized.length - 1];
+        exprToken += tokenOrSplit;
+        state.retokenized[state.retokenized.length - 1] = exprToken;
+
+        const result = addToExpression(tokenOrSplit, state.expression);
+
+        if (result === false) {
+          return state;
+        }
+
+        state.expression = undefined;
+
+        if (result === true) {
+          return state;
+        }
+
+        // on parse failure, move whole expression token to unmatched location.
+        if (typeof result === "string") {
+          state.retokenized[state.retokenized.length - 2] = exprToken;
+          state.retokenized[state.retokenized.length - 1] = "";
+        }
+
+        return state;
+      }
+
       if (!(index & 1)) {
         state.retokenized.push(tokenOrSplit);
         return state;
+      }
+
+      // allow entry into expression syntax when a value starts with a paren.
+      if (
+        options?.allowExpressions &&
+        tokens[index] === "(" &&
+        !inValue(tokens, previousNonBlankIndex(tokens, index - 2)) &&
+        /[:=]$/.test(previousNonBlankToken(tokens, index) ?? "")
+      ) {
+        state.retokenized.push("(");
+        const expression = makeExpressionParseState();
+        addToExpression("(", expression);
+        return { ...state, expression };
       }
 
       if (
@@ -106,12 +203,28 @@ export type KeyValueStringifyOptions = {
   quote?: "single" | "double" | "auto";
 };
 
+const ExpressionTag = Symbol("kv-expr");
+export type ExpressionValue = (() => `(${string})`) & { [ExpressionTag]: true };
+
+function makeExprValue(token: `(${string})`): ExpressionValue {
+  return Object.assign(() => token, { [ExpressionTag]: true as const });
+}
+
+function loadExprValue(expr: ExpressionValue) {
+  return expr();
+}
+
+function isExprValue(expr: any): expr is ExpressionValue {
+  return typeof expr === "function" && expr[ExpressionTag];
+}
+
 export const KV: {
   parse(data: string, mode: "value"): unknown;
   parse(data: string, mode: "object"): Record<string, unknown>;
   parse(
     data: string,
     mode: "stream",
+    options?: { allowExpressions?: boolean },
   ): Record<string, unknown> & {
     [unparsed]?: string;
     [eoi]?: string;
@@ -124,11 +237,18 @@ export const KV: {
   tokenize(
     data: string,
   ): { token: string; key?: string; value?: unknown; span?: number }[];
+  isExprValue(value: any): value is ExpressionValue;
+  loadExprValue(value: ExpressionValue): string;
+  makeExprValue(value: string): ExpressionValue;
   unparsed: typeof unparsed;
   eoi: typeof eoi;
   upto: typeof upto;
 } = {
-  parse(data: string, parseMode?: ParseMode): any {
+  parse(
+    data: string,
+    parseMode?: ParseMode,
+    { allowExpressions }: { allowExpressions?: boolean } = {},
+  ): any {
     const result: Record<string, unknown> & {
       [unparsed]?: string;
       [eoi]?: string;
@@ -139,7 +259,7 @@ export const KV: {
       data = "value=" + data;
     }
 
-    const tokens = tokenize(data ?? "");
+    const tokens = tokenize(data ?? "", { allowExpressions });
     const stack: { (token: string): void; [eoi]?(): void | boolean }[] = [];
     let parsed = 0;
 
@@ -156,6 +276,8 @@ export const KV: {
           return JSON.parse(
             `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
           );
+        case allowExpressions && /^[(].*[)]$/.test(token):
+          return makeExprValue(token as `(${string})`);
         default:
           if (token === "null") {
             return null;
@@ -269,7 +391,7 @@ export const KV: {
                       return;
                     }
 
-                    token = token.replace(/^@/, "");
+                    //token = token.replace(/^@/, "");
                     result[decode(token)] = value;
                     stack.push(key);
                   }),
@@ -548,6 +670,10 @@ export const KV: {
   isSimpleKey(key: string) {
     return key ? simpleKey.test(key) : false;
   },
+
+  isExprValue,
+  loadExprValue,
+  makeExprValue,
 
   unparsed,
   eoi,
@@ -967,9 +1093,9 @@ function wrappedStringify(
 
 function inValue(tokens: string[], i = tokens.length) {
   while (tokens[--i] === "") {
-    const next = tokens[--i];
+    const prev = tokens[--i];
 
-    if (next?.trim()) {
+    if (prev?.trim()) {
       if (["=", ":"].includes(tokens[i])) {
         return !inValue(tokens, i);
       }
@@ -991,6 +1117,22 @@ function nextNonBlankToken(tokens: string[], i: number) {
   }
 
   return null;
+}
+
+function previousNonBlankIndex(tokens: string[], i: number) {
+  while (i >= 2 && tokens[--i] === "") {
+    const prev = tokens[--i];
+
+    if (prev?.trim()) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function previousNonBlankToken(tokens: string[], i: number) {
+  return tokens[previousNonBlankIndex(tokens, i)] ?? null;
 }
 
 function dequoteJson(

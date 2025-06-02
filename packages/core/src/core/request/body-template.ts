@@ -125,7 +125,7 @@ export const bodyGlobals: Record<string, any> = {
   $number: <T>(x: Template<T>) => referenceTemplate<number>({}).$of(x).$number,
   $bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).$of(x).$bool,
   $noexport: <T>(x: Template<T>) => referenceTemplate<T>({}).$of(x).$noexport,
-  $redact: redact,
+  $secret: redact,
   $mux: muxTemplate,
   $mix: mixTemplate,
   $match: matchTemplate,

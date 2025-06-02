@@ -16,7 +16,7 @@ import {
 } from "../config/collection-types.js";
 import {
   Pattern,
-  isPatternLiteral,
+  PatternRegex,
   isPatternRegex,
   isPatternSimple,
   patternRender,
@@ -107,10 +107,6 @@ export function createEndpointEnvironment({
           return value;
         }
 
-        if (isPatternLiteral(pattern)) {
-          return pattern.source;
-        }
-
         if (!isScalar(value) && !isPatternSimple(pattern)) {
           return "{{redacted}}";
         }
@@ -152,7 +148,7 @@ export function createEndpointEnvironment({
                 return maybeRedactor(part, variable.param, value);
               }
 
-              return `{{ @${param} }}`;
+              return `{{ @${param ?? ""} }}`;
             }
 
             return part;
@@ -284,7 +280,7 @@ function findImport(
   return null;
 }
 
-function isPatternRedacted(pattern: Pattern) {
+function isPatternRedacted(pattern: Pattern): pattern is PatternRegex {
   return isPatternRegex(pattern) && pattern.vars.some(isSecret);
 }
 

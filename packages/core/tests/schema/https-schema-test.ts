@@ -24,11 +24,9 @@ import {
 } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { Schema } from "../../src/core/schema/core/types.js";
-import {
-  applyTsMorph,
-  jsonSchemaTransform,
-} from "../../src/core/evaluation/expression.js";
+import { applyTsMorph } from "../../src/core/evaluation/expression.js";
 import { httpsRequestSchema } from "../../src/core/request/https-template.js";
+import { jsonSchemaTransform } from "../../src/core/request/eval-template.js";
 
 describe("https-schema-tests", () => {
   it("should abc", async () => {
@@ -551,28 +549,30 @@ describe("https-schema-tests", () => {
 
   transforms("parens-as-assignments")
     .from("b = ('hello')")
-    .to(`b.$of("{{ = $$expr(\\"'hello'\\") }}")`)
-    .symbols("b");
+    .to(`"{{ b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("parens-with-noexport-modifier")
     .from("b = ('hello') as internal")
-    .to(`b.$noexport.$of("{{ = $$expr(\\"('hello')\\") }}")`)
-    .symbols("b");
+    .to(`"{{ -b = $$expr(\\"('hello')\\") }}"`);
 
   transforms("no-parens") //
     .from("b = 'hello'")
     .to(`b.$of('hello')`)
     .symbols("b");
 
+  transforms("as-secret") //
+    .from("{ data: data as secret }")
+    .to(`{ data: data.$secret }`)
+    .symbols("data");
+
   transforms("no-parens-with-modifier")
     .from("b = 'hello' as secret")
-    .to(`b.$redacted.$of('hello')`)
+    .to(`b.$secret.$of('hello')`)
     .symbols("b");
 
   transforms("parens-with-redact-modifier")
-    .from("b.$redacted = ('hello')")
-    .to(`b.$redacted.$of("{{ = $$expr(\\"'hello'\\") }}")`)
-    .symbols("b");
+    .from("b.$secret = ('hello')")
+    .to(`"{{ @b = $$expr(\\"'hello'\\") }}"`);
 
   transforms("plus-as-flow").from("+x").to(`$flow(x)`).symbols("x", "$flow");
 
@@ -591,8 +591,8 @@ describe("https-schema-tests", () => {
   //        and("{{ a }}", "{{ b = c }}")
   transforms("reference-reference")
     .from("a = b = (c)")
-    .to(`a.$of(b.$of("{{ = $$expr(\\"c\\") }}"))`)
-    .symbols("a", "b");
+    .to(`a.$of("{{ b = $$expr(\\"c\\") }}")`)
+    .symbols("a");
 
   transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`).symbols();
 

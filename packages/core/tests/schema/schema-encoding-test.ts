@@ -34,7 +34,7 @@ describe("schema json tests", () => {
         b: "{{= 10 + a}}",
         a: "{{a = 10}}",
       }),
-    );
+    )!;
 
     const result = await executeOp(s, "render", renderCtx(s));
     assert.equal(typeof result, "string");
@@ -53,7 +53,7 @@ describe("schema json tests", () => {
           a: "{{a}}",
         }),
       ),
-    );
+    )!;
 
     const sample = Buffer.from(JSON.stringify({ a: "abc", x: "xyz" })).toString(
       "base64",
@@ -67,7 +67,7 @@ describe("schema json tests", () => {
   });
 
   it("should parse and match a form", async () => {
-    const singleValueFormEncoding = mixing(encodings.$form({}));
+    const singleValueFormEncoding = mixing(encodings.$form({}))!;
 
     const s = merge(
       singleValueFormEncoding,
@@ -105,7 +105,7 @@ describe("schema json tests", () => {
   });
 
   it("should support multivalue forms", async () => {
-    const u = mixing(encodings.$form());
+    const u = mixing(encodings.$form())!;
 
     const m = mergeSchema(
       { mode: "mux", phase: "build" },
@@ -130,7 +130,7 @@ describe("schema json tests", () => {
   });
 
   it("should support missing bodies", async () => {
-    const u = mixing(encodings.$form());
+    const u = mixing(encodings.$form())!;
     const s = mergeSchema(
       { mode: "mix", phase: "build" },
       u,
@@ -148,7 +148,7 @@ describe("schema json tests", () => {
   it("should support multivalue handling 2", async () => {
     const s = mergeSchema(
       { mode: "mix", phase: "build" },
-      mixing(encodings.$form()),
+      mixing(encodings.$form())!,
       "a={{x}}&a={{?y}}&a={{?z}}",
       new ScriptEnvironment(),
     )!.schema!;
