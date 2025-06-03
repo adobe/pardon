@@ -46,14 +46,14 @@ export default function PardonPlaygroundResponseView(
   const inflight = createMemo(() => progressSignal()().inflight);
   const gate = createMemo(() => progressSignal()().gate);
 
-  const [outbound] = createResource(
+  const [egress] = createResource(
     () => ({ executionHandle: props.executionHandle() }),
     async ({ executionHandle: { execution, error } }) => {
       try {
-        if (error) return { error } as unknown as Awaited<typeof outbound>;
-        const outbound = await execution?.outbound;
+        if (error) return { error } as unknown as Awaited<typeof egress>;
+        const egress = await execution?.egress;
 
-        return outbound;
+        return egress;
       } catch (error) {
         return { error } as any;
       }
@@ -85,7 +85,7 @@ export default function PardonPlaygroundResponseView(
 
       const { execution } = executionHandle;
       try {
-        await execution.outbound;
+        await execution.egress;
       } catch (error) {
         return { error };
       }
@@ -158,8 +158,8 @@ export default function PardonPlaygroundResponseView(
     return (
       result &&
       (secretsEnabled && secrets()
-        ? HTTP.responseObject.stringify(result.inbound.response)
-        : HTTP.responseObject.stringify(result.inbound.redacted))
+        ? HTTP.responseObject.stringify(result.ingress.response)
+        : HTTP.responseObject.stringify(result.ingress.redacted))
     );
   });
 
@@ -168,9 +168,7 @@ export default function PardonPlaygroundResponseView(
   });
 
   const currentMethod = createMemo(() =>
-    outbound.latest?.error
-      ? "error"
-      : (outbound.latest?.redacted?.method ?? "GET"),
+    egress.latest?.error ? "error" : (egress.latest?.redacted?.method ?? "GET"),
   );
 
   return (
@@ -200,12 +198,12 @@ export default function PardonPlaygroundResponseView(
           }}
           on:click={() => untrack(gate)?.resolution.resolve()}
         >
-          {outbound.latest?.error ? (
+          {egress.latest?.error ? (
             <>...</>
           ) : (
             <>
-              {outbound.latest?.redacted?.method}{" "}
-              {String(intoURL(outbound.latest?.redacted ?? "none"))}
+              {egress.latest?.redacted?.method}{" "}
+              {String(intoURL(egress.latest?.redacted ?? "none"))}
             </>
           )}
         </button>

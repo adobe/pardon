@@ -32,10 +32,7 @@ export default function undici(
   return hookExecution<PardonExecutionContext, typeof PardonFetchExecution>(
     execution,
     {
-      async fetch({
-        context: { timestamps },
-        outbound: { request, redacted },
-      }) {
+      async fetch({ context: { timestamps }, egress: { request, redacted } }) {
         timestamps.request = Date.now();
 
         const [url, init] = intoFetchParams(request);

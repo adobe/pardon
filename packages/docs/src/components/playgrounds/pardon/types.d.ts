@@ -21,12 +21,12 @@ type PardonExecutionRender = {
     ask: string;
     durations: PardonHttpExecutionContext["durations"];
   };
-  outbound: {
+  egress: {
     request: RequestJSON;
     values?: Record<string, unknown>;
   };
   secure: {
-    outbound: {
+    egress: {
       request: RequestJSON;
       values?: Record<string, unknown>;
     };

@@ -199,7 +199,7 @@ import { pardon } from 'pardon';
 
 export async function price({ product, env }: { product: string, env: string }) {
   const {
-    inbound: {
+    ingress: {
       values: { price }
     }
   } = await pardon({ product, env })`https://example.com/products/{{product}}`();

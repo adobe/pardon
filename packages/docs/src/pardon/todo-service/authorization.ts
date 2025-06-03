@@ -19,7 +19,7 @@ export async function getPassword(username: string) {
 
 export async function authorizeUser(username: string) {
   const {
-    inbound: {
+    ingress: {
       values: { "auth-token": token },
       response: res,
     },

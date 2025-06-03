@@ -71,7 +71,7 @@ const tracingHooks = {
   },
   onRenderComplete({
     context: { trace, awaited, timestamps, durations },
-    outbound: { request, redacted, reduced },
+    egress: { request, redacted, reduced },
   }) {
     const payload: TracingHookPayloads["onRenderComplete"] = {
       trace,
@@ -80,12 +80,12 @@ const tracingHooks = {
         requests: awaited.requests.map(({ context: { trace } }) => trace),
         results: awaited.results.map(({ context: { trace } }) => trace),
       },
-      outbound: {
+      egress: {
         request: HTTP.requestObject.json({ ...redacted, values: reduced }),
         values: redacted.values,
       },
       secure: {
-        outbound: {
+        egress: {
           request: HTTP.requestObject.json({ ...request, values: {} }),
           values: request.values,
         },
@@ -107,7 +107,7 @@ const tracingHooks = {
   },
   onResult({
     context: { awaited, trace, timestamps, durations },
-    inbound: { response, redacted, values, flow, secrets, outcome },
+    ingress: { response, redacted, values, flow, secrets, outcome },
   }) {
     const payload: TracingHookPayloads["onResult"] = {
       trace,
@@ -116,14 +116,14 @@ const tracingHooks = {
         requests: awaited.requests.map(({ context: { trace } }) => trace),
         results: awaited.results.map(({ context: { trace } }) => trace),
       },
-      inbound: {
+      ingress: {
         response: HTTP.responseObject.json(redacted),
         outcome,
         values,
         flow,
       },
       secure: {
-        inbound: {
+        ingress: {
           response: HTTP.responseObject.json(response),
           values: secrets,
         },
@@ -416,7 +416,7 @@ const handlers = {
   async render(handle: string) {
     const { execution } = ongoing[handle];
 
-    const { request, redacted, reduced } = await execution.outbound;
+    const { request, redacted, reduced } = await execution.egress;
 
     const { trace, ask, durations } =
       (await execution.context) as PardonHttpExecutionContext;
@@ -428,12 +428,12 @@ const handlers = {
         durations,
       },
       http: HTTP.stringify({ ...redacted, values: reduced }),
-      outbound: {
+      egress: {
         request: HTTP.requestObject.json({ ...redacted, values: reduced }),
         values: redacted.values,
       },
       secure: {
-        outbound: {
+        egress: {
           request: HTTP.requestObject.json(request),
           values: request.values,
         },
@@ -455,31 +455,31 @@ const handlers = {
       },
     } = ongoing[handle];
 
-    const { endpoint, outbound, inbound } = await execution.result;
+    const { endpoint, egress, ingress } = await execution.result;
 
     const secure = {
-      outbound: {
-        request: HTTP.requestObject.json(outbound.request),
+      egress: {
+        request: HTTP.requestObject.json(egress.request),
       },
-      inbound: {
-        response: HTTP.responseObject.json(inbound.response),
-        values: inbound.secrets,
+      ingress: {
+        response: HTTP.responseObject.json(ingress.response),
+        values: ingress.secrets,
       },
     };
 
     const result = {
       context: { ask, trace, durations },
       endpoint,
-      outcome: inbound.outcome,
-      outbound: {
+      outcome: ingress.outcome,
+      egress: {
         request: HTTP.requestObject.json({
-          ...outbound.redacted,
-          values: outbound.reduced,
+          ...egress.redacted,
+          values: egress.reduced,
         }),
       },
-      inbound: {
-        response: HTTP.responseObject.json(inbound.redacted),
-        values: inbound.values,
+      ingress: {
+        response: HTTP.responseObject.json(ingress.redacted),
+        values: ingress.values,
       },
       secure,
     };
@@ -540,7 +540,7 @@ const handlers = {
           req,
           res,
           values,
-          inbound: arrayIntoObject(
+          ingress: arrayIntoObject(
             getValuesByHttp({ http }),
             ({ name, value, scope, type }) =>
               scope === "" && type === "res" && { [name]: value },

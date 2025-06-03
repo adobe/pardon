@@ -216,12 +216,12 @@ import { pardon } from "pardon";
 type TodoOptions = { origin: string; todo: string; };
 
 export async function isDone({ origin, todo }: TodoOptions) {
-  const { inbound } = await pardon({
+  const { ingress } = await pardon({
     origin,
     todo,
   })`GET https://todo.example.com/todos/{{todo}}`();
 
-  return inbound.values.done;
+  return ingress.values.done;
 }
 ```
 

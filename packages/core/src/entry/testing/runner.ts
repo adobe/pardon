@@ -228,10 +228,10 @@ function formatTracedResult({
     trace,
     durations: { request },
   },
-  outbound: {
+  egress: {
     redacted: { method, origin, pathname },
   },
-  inbound: {
+  ingress: {
     redacted: { status },
     outcome,
   },
@@ -241,10 +241,10 @@ function formatTracedResult({
 
 function formatTracedStep({
   outcome: { name } = { name: "ok" },
-  outbound: {
+  egress: {
     redacted: { method, origin, pathname },
   },
-  inbound: {
+  ingress: {
     redacted: { status },
   },
 }: SequenceStepReport) {
@@ -264,7 +264,7 @@ function writeHttpRequestResponseFile(
     awaited,
   });
 
-  let values = operation.outbound.redacted.values;
+  let values = operation.egress.redacted.values;
   if (operation.context.ask) {
     const { values: askValues = {} } = HTTP.parse(operation.context.ask);
     values = mapObject(values, {
@@ -283,10 +283,10 @@ function writeHttpRequestResponseFile(
     ),
     `${info ? YAML.stringify(info, { lineWidth: Infinity, defaultStringType: "PLAIN", doubleQuotedMinMultiLineLength: Infinity }).trim() : ""}
 >>> ${fmtTraceId(traceId)} (${operation.endpoint.configuration.path})
-${HTTP.stringify({ ...operation.outbound.redacted, values }).trim()}
+${HTTP.stringify({ ...operation.egress.redacted, values }).trim()}
 
 <<<
-${HTTP.responseObject.stringify(operation.inbound.redacted)}`.trim(),
+${HTTP.responseObject.stringify(operation.ingress.redacted)}`.trim(),
   );
 }
 

@@ -119,7 +119,7 @@ export function createExecutionMemo({
         return {
           async authorizeUser(username: string) {
             const {
-              inbound: {
+              ingress: {
                 secrets: { token },
               },
             } = await pardon({
@@ -139,7 +139,7 @@ export function createExecutionMemo({
         return {
           async price({ product, env }: { product: string; env: string }) {
             const {
-              inbound: {
+              ingress: {
                 values: { price },
               },
             } = await pardon({

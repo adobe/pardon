@@ -44,7 +44,7 @@ export function clearProducts() {
 }
 
 export const ProductsServerExecution = hookExecution(PardonFetchExecution, {
-  async fetch({ outbound: { request } }, _next) {
+  async fetch({ egress: { request } }, _next) {
     const [url, init] = intoFetchParams(request);
 
     return intoResponseObject(await serve(url, init));

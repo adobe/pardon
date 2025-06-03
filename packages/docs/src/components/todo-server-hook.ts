@@ -45,7 +45,7 @@ function generateTodoId() {
 }
 
 export const TodoServerExecution = hookExecution(PardonFetchExecution, {
-  async fetch({ outbound: { request } }) {
+  async fetch({ egress: { request } }) {
     const [url, init] = intoFetchParams(request);
 
     try {

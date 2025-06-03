@@ -222,7 +222,7 @@ ${YAML.stringify({
     }
   } else {
     const {
-      inbound: { values, secrets, response, redacted },
+      ingress: { values, secrets, response, redacted },
     } = await rendering.result;
 
     const kv = options.secrets ? secrets : values;

@@ -56,7 +56,7 @@ export default function PardonPlaygroundRenderView(
       }
 
       try {
-        const render = await execution.outbound;
+        const render = await execution.egress;
 
         return {
           render: {

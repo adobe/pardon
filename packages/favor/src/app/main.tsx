@@ -81,7 +81,7 @@ export default function Main(
   );
 
   const [executionView, setExecutionView] = makePersisted(
-    createSignal<"preview" | "outbound" | "inbound">("preview"),
+    createSignal<"preview" | "egress" | "ingress">("preview"),
     { name: "execution-view" },
   );
   const [redacted, setRedacted] = createSignal(true);
@@ -187,13 +187,13 @@ export default function Main(
         trace: -1,
         ask: request,
       },
-      outbound: {
+      egress: {
         request: {
           ...HTTP.requestObject.json(HTTP.parse(request)),
           values: requestStep.values,
         },
       },
-      inbound: {
+      ingress: {
         response,
         values: {},
         flow: {},
@@ -364,7 +364,7 @@ export default function Main(
 
   function executionClipboardContent() {
     switch (executionView()) {
-      case "inbound":
+      case "ingress":
         return "";
     }
 
@@ -377,24 +377,24 @@ export default function Main(
       return "";
     }
 
-    const previewOutbound = HTTP.requestObject.json(
+    const previewEgress = HTTP.requestObject.json(
       HTTP.parse(preview.value.http),
     );
 
-    const { outbound, error } =
-      executionView() === "outbound"
+    const { egress, error } =
+      executionView() === "egress"
         ? latestRequest()
-        : { outbound: { request: previewOutbound } };
+        : { egress: { request: previewEgress } };
 
-    if (error || !outbound) {
+    if (error || !egress) {
       return;
     }
 
     const displayedValues = displayValues()
-      ? KV.stringify(outbound.values, { indent: 2, trailer: "\n\n" })
+      ? KV.stringify(egress.values, { indent: 2, trailer: "\n\n" })
       : "";
 
-    const requestJson = outbound?.request;
+    const requestJson = egress?.request;
 
     const requestObject = HTTP.requestObject.fromJSON(requestJson);
 
@@ -410,7 +410,7 @@ export default function Main(
     return displayedValues + HTTP.stringify(requestObject);
   }
 
-  const responseInbound = createMemo(() => {
+  const responseIngress = createMemo(() => {
     const historical = history();
 
     if (historical) {
@@ -443,18 +443,18 @@ export default function Main(
     values?: Record<string, unknown>;
     error?: any;
   }>(() => {
-    const currentInbound = responseInbound();
+    const currentIngress = responseIngress();
 
-    if (isErrorResponse(currentInbound)) {
-      return { error: currentInbound.error };
+    if (isErrorResponse(currentIngress)) {
+      return { error: currentIngress.error };
     }
 
-    const { inbound } = redacted()
-      ? currentInbound
-      : ((secureData()[currentInbound.context.trace] ??
-          currentInbound) as typeof currentInbound);
+    const { ingress } = redacted()
+      ? currentIngress
+      : ((secureData()[currentIngress.context.trace] ??
+          currentIngress) as typeof currentIngress);
 
-    const { response, values } = inbound;
+    const { response, values } = ingress;
 
     if (!response) {
       return { error: "no response" };
@@ -821,7 +821,7 @@ export default function Main(
                                   case "inflight":
                                   case "rendering":
                                   case "pending":
-                                    setExecutionView("outbound");
+                                    setExecutionView("egress");
                                     break;
                                 }
                                 setHistory();
@@ -882,19 +882,19 @@ export default function Main(
                           onChange={setExecutionView}
                           controls={{
                             preview: <IconTablerTemplate />,
-                            outbound: <IconTablerUpload />,
-                            inbound: <IconTablerDownload />,
+                            egress: <IconTablerUpload />,
+                            ingress: <IconTablerDownload />,
                           }}
                           disabled={{
                             preview: Boolean(history()),
-                            inbound:
+                            ingress:
                               !history() &&
                               (responseResource.state !== "ready" ||
                                 (responseResource.state === "ready" &&
                                   responseResource().status === "rejected" &&
                                   requestResource.state === "ready" &&
                                   requestResource().status === "rejected")),
-                            outbound:
+                            egress:
                               !history() &&
                               previewResource.state === "ready" &&
                               previewResource().status === "rejected",
@@ -903,11 +903,11 @@ export default function Main(
                             switch (currentExecution()?.progress) {
                               case "rendering":
                               case "pending":
-                                return ["outbound", "preview"] as const;
+                                return ["egress", "preview"] as const;
                               case "complete":
                                 return [
-                                  "inbound",
-                                  "outbound",
+                                  "ingress",
+                                  "egress",
                                   "preview",
                                 ] as const;
                               case "preview":
@@ -923,7 +923,7 @@ export default function Main(
                               on(
                                 [currentExecution, view, history],
                                 ([execution, view, history]) => {
-                                  if (!history && view === "outbound") {
+                                  if (!history && view === "egress") {
                                     execution.render();
                                   }
                                 },
@@ -933,7 +933,7 @@ export default function Main(
                             createEffect(
                               on([history], ([history]) => {
                                 if (history && view() === "preview") {
-                                  setView("outbound");
+                                  setView("egress");
                                 }
                               }),
                             );
@@ -1015,7 +1015,7 @@ export default function Main(
                                 const currentHistory = history();
                                 if (currentHistory) {
                                   const { method, url } =
-                                    currentHistory.outbound.request;
+                                    currentHistory.egress.request;
                                   return { method, url };
                                 }
 
@@ -1081,8 +1081,8 @@ export default function Main(
                               values?: Record<string, unknown>;
                               error?: any;
                             }>((previous = {}) => {
-                              if (history()?.outbound) {
-                                const { request, values } = history().outbound!;
+                              if (history()?.egress) {
+                                const { request, values } = history().egress!;
 
                                 return {
                                   request: HTTP.stringify(
@@ -1095,14 +1095,14 @@ export default function Main(
                                 };
                               }
 
-                              const { outbound, context, error } =
+                              const { egress, context, error } =
                                 latestRequest() ?? {};
 
                               if (error) {
                                 return { error };
                               }
 
-                              if (!outbound) {
+                              if (!egress) {
                                 if (
                                   requestResource.state === "refreshing" ||
                                   requestResource.state === "pending"
@@ -1119,9 +1119,9 @@ export default function Main(
                               const { values: _, ...requestObject } =
                                 HTTP.requestObject.fromJSON(
                                   (redacted()
-                                    ? outbound
-                                    : (secureData()[context.trace]?.outbound ??
-                                      outbound)
+                                    ? egress
+                                    : (secureData()[context.trace]?.egress ??
+                                      egress)
                                   )?.request ?? {},
                                 );
 
@@ -1130,7 +1130,7 @@ export default function Main(
                                   request: CURL.stringify(requestObject, {
                                     include: includeHeaders(),
                                   }),
-                                  values: outbound.values,
+                                  values: egress.values,
                                 };
                               }
 
@@ -1139,7 +1139,7 @@ export default function Main(
                                   limit: 80,
                                   indent: 2,
                                 }),
-                                values: outbound.values,
+                                values: egress.values,
                               };
                             });
 
@@ -1152,13 +1152,13 @@ export default function Main(
                               if (
                                 !history() &&
                                 currentExecution().progress === "errored" &&
-                                ["inbound"].includes(view())
+                                ["ingress"].includes(view())
                               ) {
                                 if (
                                   requestResource.state === "ready" &&
                                   requestResource().status === "rejected"
                                 ) {
-                                  setView("outbound");
+                                  setView("egress");
                                 }
                               }
                             });
@@ -1206,8 +1206,8 @@ export default function Main(
 
                                       currentExecution()?.send();
                                       setView((tab) =>
-                                        ["outbound", "preview"].includes(tab)
-                                          ? "inbound"
+                                        ["egress", "preview"].includes(tab)
+                                          ? "ingress"
                                           : tab,
                                       );
                                     }}
@@ -1231,7 +1231,7 @@ export default function Main(
                                             "fulfilled"
                                             ? String(
                                                 responseResource.latest.value
-                                                  .inbound.response.status,
+                                                  .ingress.response.status,
                                               )
                                             : "???"}
                                         </span>
@@ -1257,7 +1257,7 @@ export default function Main(
                                         });
                                       } else {
                                         refreshRequest();
-                                        setView("outbound");
+                                        setView("egress");
                                       }
                                     }}
                                   >
@@ -1326,7 +1326,7 @@ export default function Main(
                                       </Resizable>
                                     </Show>
                                   </Match>
-                                  <Match when={view() === "outbound"}>
+                                  <Match when={view() === "egress"}>
                                     <Show
                                       fallback={
                                         <CodeMirror
@@ -1367,7 +1367,7 @@ export default function Main(
                                       </Resizable>
                                     </Show>
                                   </Match>
-                                  <Match when={view() === "inbound"}>
+                                  <Match when={view() === "ingress"}>
                                     <Show
                                       fallback={
                                         <CodeMirror
@@ -1452,7 +1452,7 @@ export default function Main(
                               executionView() === "preview"
                                 ? previewResource.loading ||
                                   previewResource().status !== "fulfilled"
-                                : executionView() === "outbound"
+                                : executionView() === "egress"
                                   ? requestResource.latest?.status !==
                                     "fulfilled"
                                   : true,

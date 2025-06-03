@@ -22,8 +22,8 @@ import {
 } from "./request-history.ts";
 
 export const RequestSummaryInfo = createContext<{
-  outbound(trace: Trace): void;
-  inbound(trace: Trace): void;
+  egress(trace: Trace): void;
+  ingress(trace: Trace): void;
 }>();
 
 export default function RequestHistory(props: {

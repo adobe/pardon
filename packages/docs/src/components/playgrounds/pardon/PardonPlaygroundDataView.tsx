@@ -56,7 +56,7 @@ export default function PardonPlaygroundDataView(
 
       if (response?.result) {
         const {
-          inbound: { values, secrets },
+          ingress: { values, secrets },
         } = response.result;
         return {
           data: { values, secrets },
@@ -69,7 +69,7 @@ export default function PardonPlaygroundDataView(
         const {
           request: { values: secrets },
           redacted: { values },
-        } = await execution.outbound;
+        } = await execution.egress;
 
         return {
           data: { values, secrets },

@@ -43,12 +43,12 @@ declare global {
       ask: string;
       durations: PardonHttpExecutionContext["durations"];
     };
-    outbound: {
+    egress: {
       request: RequestJSON;
       values?: Record<string, unknown>;
     };
     secure: {
-      outbound: {
+      egress: {
         request: RequestJSON;
         values?: Record<string, unknown>;
       };
@@ -61,11 +61,11 @@ declare global {
       trace: number;
       ask: string;
     };
-    outbound: {
+    egress: {
       request: RequestJSON;
       values?: Record<string, unknown>;
     };
-    inbound: {
+    ingress: {
       outcome?: string;
       response: ResponseJSON;
       values: Record<string, unknown>;
@@ -89,12 +89,12 @@ declare global {
         requests: number[];
         results: number[];
       };
-      outbound: {
+      egress: {
         request: RequestJSON;
         values: Record<string, unknown>;
       };
       secure?: {
-        outbound: {
+        egress: {
           request: RequestJSON;
           values: Record<string, unknown>;
         };
@@ -112,14 +112,14 @@ declare global {
       trace: number;
       context: unknown;
       awaited: { requests: number[]; results: number[] };
-      inbound: {
+      ingress: {
         outcome?: string;
         response: ResponseJSON;
         values: Record<string, unknown>;
         flow: Record<string, unknown>;
       };
       secure?: {
-        inbound: {
+        ingress: {
           response: ResponseJSON;
           values: Record<string, unknown>;
         };

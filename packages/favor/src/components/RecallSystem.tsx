@@ -109,7 +109,7 @@ export default function RecallSystem(props: {
       <Suspense fallback={<LoadingSplash />}>
         <div class="fade-to-clear flex flex-col overflow-auto text-xs text-nowrap [--clear-start-opacity:0]">
           <For each={memory()}>
-            {({ http, req, res, ask, values, inbound, created_at }) => {
+            {({ http, req, res, ask, values, ingress, created_at }) => {
               const request = HTTP.parse(req);
 
               const sortedValues = Object.entries(values).sort(numericKeySort);
@@ -145,7 +145,7 @@ export default function RecallSystem(props: {
                         trace,
                         context: { durations, timestamps },
                         awaited: { requests: [], results: [] },
-                        outbound: {
+                        egress: {
                           request: HTTP.requestObject.json(request),
                         },
                       },
@@ -153,9 +153,9 @@ export default function RecallSystem(props: {
                         trace,
                         context: { timestamps, durations },
                         awaited: { requests: [], results: [] },
-                        inbound: {
+                        ingress: {
                           response,
-                          values: inbound,
+                          values: ingress,
                           outcome: undefined,
                           flow: {},
                         },

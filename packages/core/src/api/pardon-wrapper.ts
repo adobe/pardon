@@ -94,10 +94,10 @@ export function pardonExecutionHandle({
           return initiate().preview;
         },
         render() {
-          return initiate().outbound;
+          return initiate().egress;
         },
         async request() {
-          return (await initiate().outbound).request;
+          return (await initiate().egress).request;
         },
       },
     );

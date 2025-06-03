@@ -129,8 +129,8 @@ So this flow specifies the following steps.
 
 ```ts
 const { env, port } = environment;
-const { inbound } = pardon({ env, port })`https://example.com/ping`();
-... match inbound against the responses and assert at least one matches ...
+const { ingress } = pardon({ env, port })`https://example.com/ping`();
+... match ingress against the responses and assert at least one matches ...
 ```
 
 Additionally we can name responses...

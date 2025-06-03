@@ -619,14 +619,14 @@ error = ${error?.stack ?? error}
     throw error;
   }
 
-  const { outbound, inbound, output } = await execution.result;
+  const { egress, ingress, output } = await execution.result;
 
   console.log(`<<<
-${HTTP.responseObject.stringify(inbound.redacted)}`);
+${HTTP.responseObject.stringify(ingress.redacted)}`);
 
   const matching =
     responseTemplates.length === 0
-      ? ({ result: "matched", preview: inbound.redacted } as Awaited<
+      ? ({ result: "matched", preview: ingress.redacted } as Awaited<
           ReturnType<typeof matchResponseToOutcome>
         >)
       : await matchResponseToOutcome(
@@ -637,7 +637,7 @@ ${HTTP.responseObject.stringify(inbound.redacted)}`);
             values: executionValues,
           },
           responseTemplates,
-          inbound.response,
+          ingress.response,
         );
 
   if (matching.result === "unmatched") {
@@ -679,16 +679,16 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
   }
 
   //  console.log(
-  //    `${outbound.request.method} ${intoURL(outbound.request)} (${inbound.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
+  //    `${egress.request.method} ${intoURL(egress.request)} (${ingress.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
   //  );
 
   return {
-    outbound: withoutEvaluationScope(outbound),
-    inbound: withoutEvaluationScope(inbound),
+    egress: withoutEvaluationScope(egress),
+    ingress: withoutEvaluationScope(ingress),
     outcome,
     values: {
-      send: removeHttpValues(outbound.request.values),
-      recv: inbound.values,
+      send: removeHttpValues(egress.request.values),
+      recv: ingress.values,
       flow: flowResponseValues,
     },
     context: flowContext.mergeEnvironment(flowResponseValues),

@@ -30,7 +30,7 @@ export default function PardonPlaygroundMood(
       await new Promise((resolve) => requestAnimationFrame(resolve));
 
       try {
-        await execution.outbound;
+        await execution.egress;
       } catch (error) {
         return "error";
       }

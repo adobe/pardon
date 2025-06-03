@@ -44,7 +44,7 @@ export default function remember(
         const {
           context,
           match,
-          outbound: { redacted, evaluationScope: scope },
+          egress: { redacted, evaluationScope: scope },
         } = info;
         const { app, ask } = context;
         const { database } = app();
@@ -155,7 +155,7 @@ export default function remember(
 
         return next(info);
       },
-      async result({ context: { http, app }, result: { inbound } }) {
+      async result({ context: { http, app }, result: { ingress } }) {
         const { database } = app();
         if (!database) {
           return;
@@ -166,14 +166,14 @@ export default function remember(
 
         database.sqlite
           .transaction(() => {
-            if (inbound.redacted) {
+            if (ingress.redacted) {
               updateWithResponse({
                 http,
-                res: HTTP.responseObject.stringify(inbound.redacted),
+                res: HTTP.responseObject.stringify(ingress.redacted),
               });
             }
 
-            const responseValues = inbound.evaluationScope.resolvedValues({
+            const responseValues = ingress.evaluationScope.resolvedValues({
               secrets: false,
             });
 
@@ -188,7 +188,7 @@ export default function remember(
             }
 
             for (const { name: name, scope, value } of unredactedScalarValues(
-              inbound.evaluationScope,
+              ingress.evaluationScope,
             )) {
               if (scope === "" && name in responseValues) {
                 continue;

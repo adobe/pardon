@@ -87,20 +87,20 @@ export type PardonExecutionInit = {
   app(): PardonAppContext;
 };
 
-export type PardonExecutionOutbound = {
+export type PardonExecutionEgress = {
   request: RequestObject;
   redacted: RequestObject;
   reduced: Record<string, any>;
   evaluationScope: EvaluationScope;
 };
 
-export type PardonExecutionInbound = ResponseObject;
+export type PardonExecutionIngress = ResponseObject;
 
 export type PardonExecutionResult = {
   endpoint: string;
   output: Record<string, any>;
-  outbound: PardonExecutionOutbound;
-  inbound: {
+  egress: PardonExecutionEgress;
+  ingress: {
     actual: ResponseObject;
     response: ResponseObject;
     redacted: ResponseObject;
@@ -484,7 +484,7 @@ export const PardonFetchExecution = pardonExecution({
       evaluationScope: rendered.context.evaluationScope,
     };
   },
-  async fetch({ context: { timestamps }, outbound: { request, redacted } }) {
+  async fetch({ context: { timestamps }, egress: { request, redacted } }) {
     if (timestamps) {
       timestamps.request = Date.now();
     }
@@ -507,15 +507,15 @@ export const PardonFetchExecution = pardonExecution({
       timestamps.response = Date.now();
     }
   },
-  async process({ context, outbound, inbound, match }) {
+  async process({ context, egress, ingress, match }) {
     const { compiler } = context.app();
     const { layers, endpoint } = match;
 
     const now = Date.now();
 
     const encoding =
-      inbound.meta?.body ??
-      guessContentType(inbound.body ?? "", inbound.headers) ??
+      ingress.meta?.body ??
+      guessContentType(ingress.body ?? "", ingress.headers) ??
       "raw";
 
     let matchedSchema: Schema<ResponseObject> | undefined;
@@ -525,8 +525,8 @@ export const PardonFetchExecution = pardonExecution({
       schema: httpsResponseSchema(),
       match: true,
       object: {
-        ...inbound,
-        statusText: inbound.statusText?.trim() || undefined,
+        ...ingress,
+        statusText: ingress.statusText?.trim() || undefined,
       },
       values: {},
     });
@@ -566,7 +566,7 @@ export const PardonFetchExecution = pardonExecution({
       const merged = mergeSchema(
         { mode: "match", phase: "build", body: encoding },
         responseSchema,
-        inbound,
+        ingress,
         new ScriptEnvironment(),
       );
 
@@ -615,9 +615,9 @@ export const PardonFetchExecution = pardonExecution({
 
     return {
       endpoint: endpoint.configuration.path,
-      outbound,
-      inbound: {
-        actual: inbound,
+      egress,
+      ingress: {
+        actual: ingress,
         outcome: matchedOutcome,
         evaluationScope: uncensored.evaluationScope,
         response: uncensored.response,

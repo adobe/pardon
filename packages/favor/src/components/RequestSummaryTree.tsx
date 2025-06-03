@@ -62,7 +62,7 @@ export function RequestSummaryTree(props: {
       auto={!props.traces[props.trace]?.tlr}
     >
       <KeyValueCopier
-        values={trace().result?.inbound?.flow}
+        values={trace().result?.ingress?.flow}
         readonly
         class="pl-4"
       />
@@ -120,9 +120,9 @@ export function RequestSummary(
     "relation",
   ]);
   const request = createMemo(() =>
-    displayHttp(props.trace?.render?.outbound?.request),
+    displayHttp(props.trace?.render?.egress?.request),
   );
-  const response = createMemo(() => props.trace?.result?.inbound.response);
+  const response = createMemo(() => props.trace?.result?.ingress.response);
 
   return (
     <div class="relative flex flex-1 flex-row gap-1 px-1 py-0.5 [&:hover>.faded]:opacity-75">
@@ -139,7 +139,7 @@ export function RequestSummary(
           const {
             trace: {
               trace,
-              render: { outbound },
+              render: { egress },
               result,
               start: {
                 context: { ask },
@@ -154,8 +154,8 @@ export function RequestSummary(
               trace,
               ask,
             },
-            outbound,
-            inbound: result?.inbound,
+            egress,
+            ingress: result?.ingress,
             error,
           });
         }}
@@ -198,20 +198,20 @@ export function RequestSummary(
         <button
           class="m-0 bg-neutral-300 p-1 dark:bg-neutral-400"
           onClick={() => {
-            const outbound = props.trace?.render?.outbound;
+            const egress = props.trace?.render?.egress;
             const askValues = HTTP.parse(props.trace.start.context.ask).values;
-            const request = { ...outbound?.request, values: { ...askValues } };
-            const inbound = props.trace?.result?.inbound;
+            const request = { ...egress?.request, values: { ...askValues } };
+            const ingress = props.trace?.result?.ingress;
             navigator.clipboard.writeText(
               `
 >>>
 ${HTTP.stringify(HTTP.requestObject.fromJSON(request))}
 ${
-  !inbound
+  !ingress
     ? ""
     : `
 <<<
-${HTTP.responseObject.stringify(HTTP.responseObject.fromJSON(inbound.response))}`
+${HTTP.responseObject.stringify(HTTP.responseObject.fromJSON(ingress.response))}`
 }`.trim(),
             );
           }}
