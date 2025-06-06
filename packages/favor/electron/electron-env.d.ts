@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 
 import { RequestJSON, ResponseJSON } from "pardon/formats";
 import type { PardonElectronApi } from "./preload.js";
-import { PardonHttpExecutionContext } from "pardon/features/remember";
+import { PardonHttpExecutionContext } from "pardon/features/persist";
 
 // Used in Renderer process, expose in `preload.ts`
 declare global {
@@ -116,7 +116,6 @@ declare global {
         outcome?: string;
         response: ResponseJSON;
         values: Record<string, unknown>;
-        flow: Record<string, unknown>;
       };
       secure?: {
         ingress: {
@@ -124,6 +123,7 @@ declare global {
           values: Record<string, unknown>;
         };
       };
+      output: Record<string, unknown>;
     };
   };
 }

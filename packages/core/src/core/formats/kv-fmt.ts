@@ -19,6 +19,11 @@ KV format is key=value where value can be in lenient JSON
 (quoting strings is optional... only need to quote strings for
 true, false, null, "", strings that look like numbers or
 contain non identifier characters (a-z0-9$_)).
+
+`=` can (and should) be used in place of `:` in objects.
+
+As an extension, javascript expressions can either be parenthesized
+or follow := assignments at the top level.
 */
 
 // a kv token is:
@@ -29,42 +34,59 @@ contain non identifier characters (a-z0-9$_)).
 //  syntax characters, any of these: {}[]():,=
 //  a word token, which can contain letters, digits, underscores, $, @, +, - (as a minus or hyphen), and can contain :
 //  comment (starting with # till end of line)
+//
+// text following := or starting with "(" is retokenized as a javascript expression.
+// only (), {}, [], and `` nesting is assured, and that the sequence does not
+// end with something that can continue an expression.
 const tokenizer =
   /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\](),]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
-const kevsplitter = /^((?!['"])[^:=]+)([:=])(.*)$/im;
-const evsplitter = /^([:=])(.*)$/im;
+const kevsplitter = /^((?!['"])[^:=]+)(:=|:(?!=)|=)(.*)$/im;
+const evsplitter = /^(:=|:(?!=)|=)(.*)$/im;
 
 type ExpressionParseState = {
   stack: string[];
+  token: string;
+  strict: boolean;
 };
 
-function makeExpressionParseState(): ExpressionParseState {
-  return { stack: ["("] };
+function makeExpressionParseState(strict: boolean): ExpressionParseState {
+  return { stack: [], token: "", strict: strict };
 }
 
-function addToExpression(expr: string, { stack }: ExpressionParseState) {
-  for (let i = 0; i < expr.length; i++) {
-    if (stack.length === 0) {
-      return false;
-    }
+const EXPR_ONGOING = false;
+const EXPR_END = true;
 
-    const c = expr[i];
-    const state = stack[stack.length - 1];
+// understands just enough javascript to keep syntax together.
+function addToExpression(
+  tokens: string[],
+  tokensAt: number,
+  state: ExpressionParseState,
+  followingToken?: string | null,
+): typeof EXPR_ONGOING | typeof EXPR_END | (string & {}) {
+  const { stack } = state;
 
-    switch (state) {
+  const token = tokens[tokensAt++];
+  state.token += token;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    const top = stack[stack.length - 1] ?? ".";
+
+    switch (top) {
+      case ".":
       case "(":
       case "[":
       case "{": {
         const expected = ")]}".indexOf(c);
 
         if (expected !== -1) {
-          if (state === "([{"[expected]) {
+          if (top === "([{"[expected]) {
             stack.pop();
           } else {
             return `expected ${c}`;
           }
-        } else if ("([{'\"`".includes(c)) stack.push(c);
-        continue;
+        }
+        if ("([{'\"`".includes(c)) stack.push(c);
+        break;
       }
       case "'":
         if (c === "\\") i++;
@@ -76,7 +98,7 @@ function addToExpression(expr: string, { stack }: ExpressionParseState) {
         break;
       case "`":
         if (c === "\\") i++;
-        else if (c === "$" && expr[i + 1] === "{") {
+        else if (c === "$" && token[i + 1] === "{") {
           stack.push("{");
           i++;
         } else if (c === "`") stack.pop();
@@ -84,8 +106,34 @@ function addToExpression(expr: string, { stack }: ExpressionParseState) {
     }
   }
 
-  return stack.length === 1 && stack[0] === "(";
+  while (tokensAt < tokens.length && !tokens[tokensAt]?.trim()) {
+    tokensAt++;
+  }
+
+  if (stack.length === 0) {
+    if (state.strict) {
+      return EXPR_END;
+    }
+
+    const nextToken = tokens[tokensAt] ?? "";
+    const lookahead = `${state.token.trim().slice(-1)[0] ?? " "}${nextToken[0]?.trim() || followingToken?.trim() || " "}`;
+
+    // check for possible continuations of expressions here, using the
+    // last character of the previous token and the first of the next.
+    if (!/^(?:[-+*/.!?^|&<>=%:]|.[-+*/.!?^|&<>=%:`([])/.test(lookahead)) {
+      return EXPR_END;
+    }
+  }
+
+  return EXPR_ONGOING;
 }
+
+type TokenizationState = {
+  retokenized: string[];
+  ctx: string[];
+  expression?: ExpressionParseState;
+  exit?: boolean;
+};
 
 function tokenize(data: string, options?: { allowExpressions?: boolean }) {
   // returns strings that alternate between values that match the tokenizer and the
@@ -94,55 +142,87 @@ function tokenize(data: string, options?: { allowExpressions?: boolean }) {
   // we use a two-pass tokenization to allow values with `=` and `:` in them.
   // first pass tokenizes without splitting on `=` and `:`, second pass splits them
   // unless the preceeding token was an `=` or `:`, in which case we don't (as we're in a value).
-  return data.split(tokenizer).reduce<{
-    retokenized: string[];
-    ctx: string[];
-    expression?: ExpressionParseState;
-  }>(
+
+  return data.split(tokenizer).reduce<TokenizationState>(
     (state, tokenOrSplit, index, tokens) => {
       // if we're in expression state, keep it going...
       if (state.expression) {
-        let exprToken = state.retokenized[state.retokenized.length - 1];
-        exprToken += tokenOrSplit;
-        state.retokenized[state.retokenized.length - 1] = exprToken;
+        const result = addToExpression(tokens, index, state.expression);
 
-        const result = addToExpression(tokenOrSplit, state.expression);
-
-        if (result === false) {
+        // we can keep going.
+        if (result === EXPR_ONGOING) {
           return state;
         }
 
+        // if the result is not false, we've hit the end, either successfully completing
+        // the expression or failing to.
+        const { token } = state.expression;
         state.expression = undefined;
 
-        if (result === true) {
+        if (result === EXPR_END) {
+          state.retokenized[state.retokenized.length - 1] = token;
+
           return state;
         }
 
         // on parse failure, move whole expression token to unmatched location.
-        if (typeof result === "string") {
-          state.retokenized[state.retokenized.length - 2] = exprToken;
-          state.retokenized[state.retokenized.length - 1] = "";
+        state.retokenized[state.retokenized.length - 2] += token;
+        state.retokenized[state.retokenized.length - 1] = "";
+
+        return state;
+      }
+
+      if (!(index & 1) || state.exit) {
+        state.retokenized.push(tokenOrSplit);
+        state.exit ||= Boolean(tokenOrSplit);
+        return state;
+      }
+
+      if (options?.allowExpressions) {
+        const reindex = state.retokenized.length - 2;
+        const prevNonBlankTokenIndex = previousNonBlankIndex(
+          state.retokenized,
+          reindex - 2,
+        );
+        const prevNonBlankToken = previousNonBlankToken(
+          state.retokenized,
+          reindex,
+        );
+
+        if (
+          prevNonBlankToken == ":=" &&
+          !inValue(tokens, prevNonBlankTokenIndex)
+        ) {
+          const retokenizedColonEq = previousNonBlankToken(
+            state.retokenized,
+            state.retokenized.length - 2,
+          );
+
+          if (retokenizedColonEq === ":=") {
+            const expression = makeExpressionParseState(false);
+            if (addToExpression(tokens, index, expression) === true) {
+              state.retokenized.push(expression.token);
+              return state;
+            } else {
+              state.retokenized.push(tokens[index]);
+              return { ...state, expression };
+            }
+          }
         }
 
-        return state;
-      }
-
-      if (!(index & 1)) {
-        state.retokenized.push(tokenOrSplit);
-        return state;
-      }
-
-      // allow entry into expression syntax when a value starts with a paren.
-      if (
-        options?.allowExpressions &&
-        tokens[index] === "(" &&
-        !inValue(tokens, previousNonBlankIndex(tokens, index - 2)) &&
-        /[:=]$/.test(previousNonBlankToken(tokens, index) ?? "")
-      ) {
-        state.retokenized.push("(");
-        const expression = makeExpressionParseState();
-        addToExpression("(", expression);
-        return { ...state, expression };
+        if (
+          tokens[index] === "(" &&
+          !inValue(state.retokenized, previousNonBlankIndex(tokens, index))
+        ) {
+          const expression = makeExpressionParseState(true);
+          if (addToExpression(tokens, index, expression) === true) {
+            state.retokenized.push(expression.token);
+            return state;
+          } else {
+            state.retokenized.push("");
+            return { ...state, expression };
+          }
+        }
       }
 
       if (
@@ -153,6 +233,11 @@ function tokenize(data: string, options?: { allowExpressions?: boolean }) {
         if (ke) {
           const [, key, eq, value] = ke;
           state.retokenized.push(key, "", eq, "", value);
+
+          if (options?.allowExpressions && eq === ":=" && value.trim()) {
+            return startRetokenizedExpression(tokens, index, state);
+          }
+
           return state;
         }
 
@@ -160,6 +245,9 @@ function tokenize(data: string, options?: { allowExpressions?: boolean }) {
         if (ev) {
           const [, eq, value] = ev;
           state.retokenized.push(eq, "", value);
+          if (options?.allowExpressions && eq === ":=" && value.trim()) {
+            return startRetokenizedExpression(tokens, index, state);
+          }
           return state;
         }
       }
@@ -180,6 +268,27 @@ function tokenize(data: string, options?: { allowExpressions?: boolean }) {
     },
     { retokenized: [], ctx: [] },
   ).retokenized;
+}
+
+function startRetokenizedExpression(
+  tokens: string[],
+  index: number,
+  state: TokenizationState,
+) {
+  const expression = makeExpressionParseState(false);
+  const expressionResult = addToExpression(
+    state.retokenized,
+    state.retokenized.length - 1,
+    expression,
+    nextNonBlankToken(tokens, index),
+  );
+  if (expressionResult === true) {
+    state.retokenized[state.retokenized.length - 1] = expression.token;
+    return state;
+  } else {
+    state.retokenized[state.retokenized.length - 1] = "";
+    return { ...state, expression };
+  }
 }
 
 // simple token should allow somewhat complex values like e.g., email addresses and paths without quotes
@@ -204,9 +313,9 @@ export type KeyValueStringifyOptions = {
 };
 
 const ExpressionTag = Symbol("kv-expr");
-export type ExpressionValue = (() => `(${string})`) & { [ExpressionTag]: true };
+export type ExpressionValue = (() => string) & { [ExpressionTag]: true };
 
-function makeExprValue(token: `(${string})`): ExpressionValue {
+function makeExprValue(token: string): ExpressionValue {
   return Object.assign(() => token, { [ExpressionTag]: true as const });
 }
 
@@ -277,7 +386,7 @@ export const KV: {
             `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
           );
         case allowExpressions && /^[(].*[)]$/.test(token):
-          return makeExprValue(token as `(${string})`);
+          return makeExprValue(token);
         default:
           if (token === "null") {
             return null;
@@ -298,7 +407,7 @@ export const KV: {
         if (
           typeof expected === "string"
             ? expected === token
-            : expected.test(token)
+            : expected.exec(token)?.[0] === token
         ) {
           return next(token);
         }
@@ -376,6 +485,19 @@ export const KV: {
         },
       );
 
+    const expr = (consumer: (token: string | typeof eoi) => void | boolean) =>
+      Object.assign(
+        (token: string) => {
+          switch (true) {
+            default:
+              return consumer(token);
+          }
+        },
+        {
+          [eoi]: () => consumer(eoi),
+        },
+      );
+
     const key = Object.assign(
       (token: string) => {
         switch (true) {
@@ -383,18 +505,27 @@ export const KV: {
             throw new Error(`unexpected ${token}: expected key for key=value`);
           default:
             stack.push(
-              expect("=", () =>
+              expect(/=|:=/, (assignment) =>
                 stack.push(
-                  value((value: unknown) => {
-                    if (value === eoi) {
-                      result[eoi] = decode(token);
-                      return;
-                    }
+                  assignment === "="
+                    ? value((value: unknown) => {
+                        if (value === eoi) {
+                          result[eoi] = decode(token);
+                          return;
+                        }
 
-                    //token = token.replace(/^@/, "");
-                    result[decode(token)] = value;
-                    stack.push(key);
-                  }),
+                        //token = token.replace(/^@/, "");
+                        result[decode(token)] = value;
+                        stack.push(key);
+                      })
+                    : expr((value) => {
+                        if (value === eoi) {
+                          result[eoi] = decode(token);
+                          return;
+                        }
+                        result[decode(token)] = makeExprValue(value);
+                        stack.push(key);
+                      }),
                 ),
               ),
             );
@@ -500,7 +631,7 @@ export const KV: {
         if (
           stack.length === 1 &&
           stack[0] === key &&
-          !/^=$/.test(nextNonBlankToken(tokens, i + 1)!)
+          !/^(?:=|:=)$/.test(nextNonBlankToken(tokens, i + 1)!)
         ) {
           result[unparsed] = tokens.slice(i).join("");
           return result;
@@ -572,7 +703,7 @@ export const KV: {
             tokens.push(token);
             break;
           case inValue(tokens) &&
-            ![":", "="].includes(tokens[tokens.length - 2]):
+            ![":", "=", ":="].includes(tokens[tokens.length - 2]):
             tokens[tokens.length - 2] += token;
             break;
           default:
@@ -700,7 +831,10 @@ function isJsonUnit(
 
 type KeyValueEncodingRules = {
   key(key: string, options: KeyValueStringifyOptions | undefined): string;
-  value(value: unknown, options: KeyValueStringifyOptions | undefined): string;
+  value(
+    value: unknown,
+    options: KeyValueStringifyOptions | undefined,
+  ): string | undefined;
   objects: {
     wrapped: { entrysep: string };
     inline: {
@@ -718,13 +852,17 @@ type KeyValueEncodingRules = {
   };
 };
 
-function toRawJson(value: any): JSON.RawJSON {
+function toRawJson(value: any): JSON.RawJSON | undefined {
   if (typeof value?.toJSON === "function") {
     value = value.toJSON();
   }
 
   if (typeof value === "bigint") {
     return JSON.rawJSON(String(value));
+  }
+
+  if (typeof value === "function") {
+    return undefined;
   }
 
   return JSON.isRawJSON(value) ? value : JSON.rawJSON(JSON.stringify(value));
@@ -786,7 +924,7 @@ const KeyValueEncodingCompact: KeyValueEncodingRules = {
 
 const JSONEncoding: KeyValueEncodingRules = {
   key: (key) => JSON.stringify(key),
-  value: (value) => toRawJson(value).rawJSON,
+  value: (value) => toRawJson(value)?.rawJSON,
   arrays: {
     inline: { start: "[ ", end: " ]" },
     itemsep: ", ",
@@ -808,7 +946,7 @@ const JSONEncoding: KeyValueEncodingRules = {
 
 const JSONEncodingCompact: KeyValueEncodingRules = {
   key: (key) => JSON.stringify(key),
-  value: (value) => toRawJson(value).rawJSON,
+  value: (value) => toRawJson(value)?.rawJSON,
   arrays: {
     inline: { start: "[", end: "]" },
     itemsep: ",",
@@ -1048,6 +1186,7 @@ function wrappedStringify(
           dent = depth;
 
           const text = Object.entries(value as Record<string, Preformatted>)
+            .filter(([, value]) => value !== undefined)
             .map(([key, value], index) => {
               const { text, dent: next } = doFormat(value, {
                 dent: depth + key.length + objectindent,
@@ -1096,7 +1235,7 @@ function inValue(tokens: string[], i = tokens.length) {
     const prev = tokens[--i];
 
     if (prev?.trim()) {
-      if (["=", ":"].includes(tokens[i])) {
+      if (["=", ":", ":="].includes(tokens[i])) {
         return !inValue(tokens, i);
       }
 

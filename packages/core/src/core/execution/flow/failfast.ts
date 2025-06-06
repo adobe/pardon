@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { AsyncLocalStorage } from "async_hooks";
-import { PardonHttpExecutionContext } from "../../../features/remember.js";
+import { PardonHttpExecutionContext } from "../../../features/persist.js";
 import { hookExecution } from "../execution-hook.js";
 import { PardonFetchExecution } from "../../pardon/pardon.js";
 import { PardonError } from "../../error.js";

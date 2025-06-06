@@ -17,6 +17,7 @@ import {
   hookExecution,
   intoFetchParams,
 } from "pardon/playground";
+import { makeTodoServiceRouter } from "../../../../examples/todo/server/todo-service.js";
 
 const [, nextTodoId] = makePersisted(createSignal(1000), { name: "todo-id" });
 
@@ -69,206 +70,21 @@ export const TodoServerExecution = hookExecution(PardonFetchExecution, {
   },
 });
 
-function parseToken(token?: string | null) {
-  if (!token) return;
-  const [header, payload] = token.split(".");
-  if (!/^User\s+jwt/i.test(header.trimStart())) {
-    throw new Error("invalid header");
-  }
-  return JSON.parse(atob(payload));
-}
-
-type RouteMap = Record<
-  string,
-  (info: {
-    url: URL;
-    req: RequestInit;
-    slug: Record<string, string>;
-  }) => Response | Promise<Response>
->;
-
-function server(routemap: RouteMap) {
-  function route(path: string, action: RouteMap[string]) {
-    const re = new RegExp(
-      `^${path
-        .replaceAll(/::([a-z]*)/g, `(?<$1>.+)`)
-        .replaceAll(/:([a-z]*)/g, `(?<$1>[^/]+)`)}/?$`,
-    );
-
-    return { re, action };
-  }
-
-  return async (url: URL, req: RequestInit) => {
-    const routes = Object.entries(routemap).map(([path, action]) =>
-      route(path, action),
-    );
-
-    try {
-      for (const route of routes) {
-        const match = route.re.exec(`${req.method} ${url.pathname}`);
-
-        if (match) {
-          return await route.action({ url, req, slug: match.groups ?? {} });
-        }
-      }
-    } catch (error) {
-      return new Response(String(error), { status: 500 });
-    }
-  };
-}
-
-function json(
-  json: any,
-  {
-    status = 200,
-    headers = {},
-  }: {
-    status?: number;
-    headers?: Record<string, string>;
-  } = {},
-) {
-  return new Response(JSON.stringify(json), {
-    status,
-    headers: { "Content-Type": "application/json", ...headers },
-  });
-}
-
-const TODOServer = server({
-  "GET /health-check"() {
-    return new Response("ok");
-  },
-  "PUT /users"({ req: { body } }) {
-    const { username, password } = JSON.parse(String(body));
-    if (users()[username] === password) {
-      return json({
-        token: `jwt.${btoa(JSON.stringify({ username }))}`,
-      });
-    }
-
-    return new Response("no", { status: 401 });
-  },
-  "PUT /todos/:todo"({ req, slug: { todo: id } }) {
-    const { username } = parseToken(
-      new Headers(req.headers).get("authorization"),
-    );
-
-    let todo = JSON.parse(String(req.body));
-
-    setTodos(({ [username]: todos, ...others }) => {
-      if (!todos[id]) {
-        throw new Error("todo not found");
-      }
-
-      todo = { ...todos[id], ...todo };
-      return {
-        [username]: {
-          ...todos,
-          [id]: todo,
-        },
-        ...others,
-      };
-    });
-
-    return json({
-      id,
-      ...todo,
-    });
-  },
-  "POST /users"({ req }) {
-    const { username, password } = JSON.parse(String(req.body));
-    const authority = parseToken(
-      new Headers(req.headers).get("authorization"),
-    )?.username;
-
-    setUsers(({ [username]: current, ...users }) => {
-      if (current && authority !== username) {
-        throw new Error("cannot update existing user");
-      }
-
-      return { ...users, [username]: password };
-    });
-
-    return new Response("ok");
-  },
-  "POST /todos"({ req }) {
-    const { username } = parseToken(
-      new Headers(req.headers).get("authorization"),
-    );
-
-    const id = generateTodoId();
-    const todo = { done: false, ...JSON.parse(String(req.body)) };
-    setTodos(({ [username]: todos, ...others }) => {
-      return {
-        [username]: {
-          ...todos,
-          [id]: todo,
-        },
-        ...others,
-      };
-    });
-
-    return json({
-      id,
-      ...todo,
-    });
-  },
-  "GET /todos"({ req }) {
-    const { username } = parseToken(
-      new Headers(req.headers).get("authorization"),
-    );
-
-    return json(
-      Object.entries(todos()[username] ?? {}).map(([id, todo]) => ({
-        id,
-        ...todo,
-      })),
-    );
-  },
-  "DELETE /users"({ req }) {
-    const { username } = parseToken(
-      new Headers(req.headers).get("authorization"),
-    );
-
-    if (!username) {
-      return new Response("no", { status: 401 });
-    }
-
-    if (!users()[username]) {
-      return new Response("not found", { status: 404 });
-    }
-
-    setUsers(({ [username]: _, ...users }) => users);
-    setTodos(({ [username]: _, ...todos }) => todos);
-
-    return new Response(null, { status: 204 });
-  },
-  "DELETE /todos/:todo"({ req, slug: { todo: id } }) {
-    const { username } = parseToken(
-      new Headers(req.headers).get("authorization"),
-    );
-
-    if (!todos()[username]?.[id]) {
-      return new Response(null, { status: 404 });
-    }
-
-    let todo: any;
-
-    setTodos(({ [username]: todos, ...others }) => {
-      if (!todos[id]) {
-        throw new Error("todo not found");
-      }
-
-      ({ [id]: todo, ...todos } = todos);
-      return {
-        [username]: todos,
-        ...others,
-      };
-    });
-
-    return json({ id, ...todo });
-  },
+const TODOServer = makeTodoServiceRouter({
+  users,
+  setUsers,
+  todos,
+  setTodos,
+  generateTodoId,
 });
 
 async function serve(url: URL, init: RequestInit): Promise<Response> {
-  return (await TODOServer(url, init)) ?? new Response(null, { status: 404 });
+  const result = await TODOServer({
+    url: url.pathname + url.search,
+    method: init.method ?? "GET",
+    body: init.body as string,
+    headers: new Headers(init.headers),
+  });
+
+  return result ?? new Response(null, { status: 404 });
 }

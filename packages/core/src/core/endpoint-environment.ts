@@ -32,6 +32,8 @@ import { PardonError } from "./error.js";
 import { SchemaContext, SchemaMergingContext } from "./schema/core/types.js";
 import { isSecret } from "./schema/definition/hinting.js";
 import { isScalar } from "./schema/definition/scalar.js";
+import { secretOps } from "../db/entities/secrets-entity.js";
+import { PardonAppContext } from "./pardon/pardon.js";
 
 function simpleValues(values: Record<string, any>): Record<string, string> {
   return mapObject(values, {
@@ -45,17 +47,17 @@ function simpleValues(values: Record<string, any>): Record<string, string> {
 export function createEndpointEnvironment({
   endpoint,
   values = {},
+  secrets = {},
   runtime = {},
-  compiler,
-  secrets,
+  app,
   options,
   context,
 }: {
   endpoint: LayeredEndpoint;
   values?: Record<string, unknown>;
+  secrets?: Record<string, unknown>;
   runtime?: Record<string, unknown>;
-  compiler: PardonCompiler;
-  secrets?: boolean;
+  app: PardonAppContext;
   options?: Record<string, boolean>;
   context?: SchemaMergingContext<HttpsRequestObject>;
 }) {
@@ -91,12 +93,44 @@ export function createEndpointEnvironment({
       return resolvedDefaults(context, endpoint?.configuration?.defaults);
     },
     evaluate(name, context) {
+      if (name in secrets) {
+        return secrets[name];
+      }
+
+      if (name === "remember" && app.database) {
+        const {
+          service,
+          action,
+          configuration: { name },
+        } = endpoint;
+
+        return secretOps(app.database).rememberSecrets(
+          mapObject(
+            {
+              service,
+              action,
+              endpoint: name,
+              ...values,
+              ...context.environment.implied(),
+            },
+            {
+              select: (value) => isScalar(value),
+              values: (value) => String(value),
+            },
+          ),
+        );
+      }
+
       context.evaluationScope.imported(name, context);
 
-      return importFromConfiguration(name, endpoint.configuration, compiler);
+      return importFromConfiguration(
+        name,
+        endpoint.configuration,
+        app.compiler,
+      );
     },
     async redact(value, patterns) {
-      if (secrets) {
+      if (options?.secrets) {
         return value;
       }
 
@@ -131,7 +165,7 @@ export function createEndpointEnvironment({
                   (await importFromConfiguration(
                     redactor,
                     endpoint.configuration,
-                    compiler,
+                    app.compiler,
                   )) ?? runtime[redactor];
 
                 return redactorFunction(part, variable.param, value);
@@ -141,7 +175,7 @@ export function createEndpointEnvironment({
                 (await importFromConfiguration(
                   `redact$${param}`,
                   endpoint.configuration,
-                  compiler,
+                  app.compiler,
                 )) ?? runtime[`redact$${param}`];
 
               if (typeof maybeRedactor === "function") {

@@ -27,7 +27,7 @@ export function valueId(value: unknown): string {
     case "bigint":
       return value + "n";
     case "function":
-      throw new Error("unexpected function in cache key: " + value);
+      throw new Error("unexpected function in valueId: " + value);
     case "object":
       if (!value) {
         return String(value);

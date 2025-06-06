@@ -42,7 +42,7 @@ import { encodingTemplate } from "../schema/definition/encodings/encoding.js";
 import { guessContentType } from "../formats/https-fmt.js";
 
 export type HttpsRequestObject = FetchObject & {
-  computations?: Record<string, unknown>;
+  computations?: Record<string, string>;
   values?: Record<string, unknown>;
 };
 
@@ -229,7 +229,7 @@ export function httpsRequestSchema(): Schema<HttpsRequestObject> {
     ),
     headers: headersTemplate(),
     body: bodyReference(bodyTemplate()),
-    computations: hiddenTemplate<Record<string, unknown>>(),
+    computations: hiddenTemplate<Record<string, string>>(),
   })!;
 }
 

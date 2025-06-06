@@ -26,7 +26,7 @@ import {
   writeResultSummary,
 } from "../runner.js";
 import { extractKVs } from "../../../util/kv-options.js";
-import remember from "../../../features/remember.js";
+import persist from "../../../features/persist.js";
 import failfast, {
   executeWithFastFail,
 } from "../../../core/execution/flow/failfast.js";
@@ -98,7 +98,7 @@ async function main() {
     ff && failfast,
     contentEncodings,
     trace,
-    remember,
+    persist,
   ]);
 
   const resolvedTest = resolve(context.config.root, "pardon.test.ts");

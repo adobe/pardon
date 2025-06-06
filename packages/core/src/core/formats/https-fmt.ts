@@ -52,9 +52,19 @@ export type HttpsScriptStep = {
   source?: string;
 };
 
-export type HttpsSteps<Mode extends string> = Mode extends "flow"
-  ? (HttpsRequestStep | HttpsResponseStep | HttpsScriptStep)[]
-  : (HttpsRequestStep | HttpsResponseStep)[];
+export function isHttpRequestStep(step: HttpsStep): step is HttpsRequestStep {
+  return step.type === "request";
+}
+
+export function isHttpResponseStep(step: HttpsStep): step is HttpsResponseStep {
+  return step.type === "response";
+}
+
+export function isHttpScriptStep(step: HttpsStep): step is HttpsScriptStep {
+  return step.type === "script";
+}
+
+export type HttpsStep = HttpsRequestStep | HttpsResponseStep | HttpsScriptStep;
 
 export type HttpsMode = "mix" | "mux" | "flow" | "log";
 
@@ -84,7 +94,7 @@ export type UseFlow = {
 export type HttpsSchemeType<Mode extends string, Configuration> = {
   mode: Mode;
   configuration: Configuration;
-  steps: HttpsSteps<Mode>;
+  steps: HttpsStep[];
 };
 
 export type HttpsScheme<Phase extends ResourceProcessingPhase> =
@@ -115,7 +125,7 @@ export const HTTPS = { parse };
 
 function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
   const lines = file.split("\n");
-  const steps: HttpsSteps<typeof mode> = [];
+  const steps: HttpsStep[] = [];
   const inlineConfiguration: string[] = [];
 
   try {
@@ -143,11 +153,9 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
         continue;
       }
 
-      if (mode === "flow") {
-        if (/^\s*!!!/.test(lines[0])) {
-          (steps as HttpsSteps<"flow">).push(scanScript(lines, lines.shift()!));
-          continue;
-        }
+      if (/^\s*!!!/.test(lines[0])) {
+        (steps as HttpsStep[]).push(scanScript(lines, lines.shift()!));
+        continue;
       }
 
       throw new PardonError("invalid HTTPS flow start: " + lines[0]);
@@ -156,6 +164,10 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
     console.warn("parse error on: " + lines[0], error);
 
     throw error;
+  }
+
+  if (mode !== "flow" && steps[0]?.type === "script") {
+    throw new Error("only flow schemas can start with scripts");
   }
 
   return {

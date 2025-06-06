@@ -225,7 +225,7 @@ export async function executeHttpsSequence(
 
 const flowScriptTransform: (unbound: {
   symbols: Set<string>;
-  literals: Set<string>; // TODO
+  literals: Set<string>;
 }) => TsMorphTransform =
   (unbound) =>
   ({ factory, visitChildren }) => {
@@ -246,6 +246,18 @@ const flowScriptTransform: (unbound: {
           node.right,
         );
       }
+    }
+
+    if (
+      ts.isTaggedTemplateExpression(node) &&
+      ts.isIdentifier(node.tag) &&
+      node.tag.text === "$" &&
+      ts.isNoSubstitutionTemplateLiteral(node.template)
+    ) {
+      return factory.createPropertyAccessExpression(
+        factory.createIdentifier("environment"),
+        node.template.text,
+      );
     }
 
     return node;
@@ -276,31 +288,13 @@ async function executeHttpsFlowSequence(
     }
 
     if (next.type === "script") {
-      const scriptValues = {};
-
-      const script = `(() => { ${next.script.script} ;;; })()`;
-
-      const { morphed, unbound } = applyTsMorph(script);
-      void morphed;
-
-      await evaluation(
-        script,
-        {
-          binding(key) {
-            if (key === "environment") {
-              return scriptValues;
-            }
-
-            return resultValues[key];
-          },
-        },
-        flowScriptTransform(unbound),
-      );
+      const scriptValues = await runFlowScript(next, resultValues);
 
       flowValues = { ...flowValues, ...scriptValues };
       resultValues = { ...resultValues, ...scriptValues };
       flowContext.mergeEnvironment(scriptValues);
       index++;
+
       continue;
     }
 
@@ -850,4 +844,31 @@ function usageNeeded(
   contextAsFlowParams(provides, defined);
 
   return Object.keys(defined).some((key) => options[key] === undefined);
+}
+
+async function runFlowScript(
+  next: HttpScriptInterraction,
+  resultValues: Record<string, any>,
+) {
+  const scriptValues = {};
+
+  const script = `(() => { ${next.script.script} ;;; })()`;
+
+  const { unbound } = applyTsMorph(script);
+
+  await evaluation(
+    script,
+    {
+      binding(key) {
+        if (key === "environment") {
+          return scriptValues;
+        }
+
+        return resultValues[key];
+      },
+    },
+    flowScriptTransform(unbound),
+  );
+
+  return scriptValues;
 }

@@ -104,10 +104,33 @@ export default function Main(
     { name: "scratch", ...persistJson },
   );
 
-  const [history, setHistory] = makePersisted(
+  const [rawHistory, setHistory] = makePersisted(
     createSignal<ExecutionHistory>(),
     { name: "active-history", ...persistJson },
   );
+
+  const history = createMemo(() => {
+    const history = rawHistory();
+    if (!history) {
+      return undefined;
+    }
+
+    if (history?.ingress && history?.ingress) {
+      return history;
+    }
+
+    const { inbound, outbound, ...rest } = history as any;
+
+    if (inbound && outbound) {
+      return {
+        egress: outbound,
+        ingress: inbound,
+        ...rest,
+      } as typeof history;
+    }
+
+    return undefined;
+  });
 
   const [currentExecutionSource, setCurrentExecutionSource] =
     createSignal<PardonExecutionSource>({

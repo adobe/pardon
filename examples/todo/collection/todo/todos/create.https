@@ -1,0 +1,15 @@
+>>>
+POST https://todo.example.com/todos
+Content-Type: application/json
+
+{
+  task: "{{task}}",
+  done: "{{?done}}" as boolean
+}
+
+<<<
+200 OK
+
+{
+  id: "{{+todo}}"
+}

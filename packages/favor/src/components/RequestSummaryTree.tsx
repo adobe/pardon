@@ -62,7 +62,7 @@ export function RequestSummaryTree(props: {
       auto={!props.traces[props.trace]?.tlr}
     >
       <KeyValueCopier
-        values={trace().result?.ingress?.flow}
+        values={trace()?.result?.ingress?.flow}
         readonly
         class="pl-4"
       />
@@ -122,7 +122,8 @@ export function RequestSummary(
   const request = createMemo(() =>
     displayHttp(props.trace?.render?.egress?.request),
   );
-  const response = createMemo(() => props.trace?.result?.ingress.response);
+
+  const response = createMemo(() => props.trace?.result?.ingress?.response);
 
   return (
     <div class="relative flex flex-1 flex-row gap-1 px-1 py-0.5 [&:hover>.faded]:opacity-75">

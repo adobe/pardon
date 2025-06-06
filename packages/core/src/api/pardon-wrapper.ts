@@ -109,7 +109,10 @@ export function pardonExecutionHandle({
     return {
       ...extra,
       url: url?.toString(),
-      init,
+      init: {
+        ...init,
+        headers: new Headers(init?.headers),
+      },
       values: Object.assign({}, context.values ?? {}),
       options: {
         ...context?.options,

@@ -64,6 +64,12 @@ export type PatternVar = {
 const paramPattern =
   /^([.?!@#:~*/+-]+)?((?:[a-z$_][a-z0-9_$-]*)(?:[.][@a-z$_][a-z0-9_$]*)*)?\s*(?:=\s*((?:[^%]|%\s*[^/\s])*)?)?(?:@\s*([a-z_][a-z0-9_$]*)\s*)?(?:%\s*([/].*))?$/i;
 
+const hintPattern = /^([.?!@#:~*/+-]+)?(.*)/;
+export function parseHints(hinted: string) {
+  const [, hint, param] = hintPattern.exec(hinted)!;
+  return { hint, param };
+}
+
 const literal = /(?:[^{]|[{][^{])+/;
 const squote = /['](?:(?:[^'\\]|[\\].)*)[']/;
 const dquote = /["](?:(?:[^"\\]|[\\].)*)["]/;

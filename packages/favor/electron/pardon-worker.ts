@@ -35,7 +35,7 @@ import { httpOps, valueOps } from "pardon/database";
 import { traced } from "pardon/features/trace";
 import undici from "pardon/features/undici";
 import encodings from "pardon/features/content-encodings";
-import remember, { PardonHttpExecutionContext } from "pardon/features/remember";
+import persist, { PardonHttpExecutionContext } from "pardon/features/persist";
 import {
   cleanObject,
   HttpsRequestStep,
@@ -107,7 +107,8 @@ const tracingHooks = {
   },
   onResult({
     context: { awaited, trace, timestamps, durations },
-    ingress: { response, redacted, values, flow, secrets, outcome },
+    ingress: { response, redacted, values, secrets, outcome },
+    output,
   }) {
     const payload: TracingHookPayloads["onResult"] = {
       trace,
@@ -120,7 +121,6 @@ const tracingHooks = {
         response: HTTP.responseObject.json(redacted),
         outcome,
         values,
-        flow,
       },
       secure: {
         ingress: {
@@ -128,6 +128,7 @@ const tracingHooks = {
           values: secrets,
         },
       },
+      output,
     };
 
     return {
@@ -160,7 +161,7 @@ async function initializePardonAndLoadSamples(
       }) as typeof tracingHooks,
       Date.now(), // should make trace ids unique per run?
     ),
-    remember,
+    persist,
   ]);
 
   const samples = loadSamples(app.samples || []);
@@ -334,7 +335,10 @@ const handlers = {
           } else {
             return {
               ...interaction,
-              headers: [...interaction.headers],
+              headers:
+                interaction.type !== "script"
+                  ? [...interaction.headers]
+                  : undefined,
             } as Omit<HttpsResponseStep, "headers"> & {
               headers: [string, string][];
             };

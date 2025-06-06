@@ -147,6 +147,7 @@ export default function RecallSystem(props: {
                         awaited: { requests: [], results: [] },
                         egress: {
                           request: HTTP.requestObject.json(request),
+                          values: {},
                         },
                       },
                       result: {
@@ -157,8 +158,8 @@ export default function RecallSystem(props: {
                           response,
                           values: ingress,
                           outcome: undefined,
-                          flow: {},
                         },
+                        output: {},
                       },
                     }}
                     onRestore={props.onRestore}

@@ -48,7 +48,7 @@ export function copypastePlugin() {
 
           element = element.closest?.("[data-pardon-paste-target]");
 
-          if (element.hasAttribute?.("data-pardon-paste-target")) {
+          if (element?.hasAttribute?.("data-pardon-paste-target")) {
             const targetid = element.getAttribute("data-pardon-paste-target");
             const into = element.getAttribute("data-pardon-paste-to");
             const code = element.getAttribute("data-pardon-paste-code");

@@ -1,0 +1,8 @@
+config:
+  auth-type: user
+import:
+  ./authorization.ts:
+    - authorizeUser
+>>>
+ANY //
+Authorization: User {{@token = authorizeUser({ username, origin })}}

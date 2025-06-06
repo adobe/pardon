@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { HttpsFlowConfig, type HttpsSteps } from "../core/formats/https-fmt.js";
+import { HttpsFlowConfig, type HttpsStep } from "../core/formats/https-fmt.js";
 import { EncodingTypes } from "../core/request/body-template.js";
 import {
   DefaultsMap,
@@ -62,13 +62,13 @@ export type Endpoint = {
   service: string;
   action: string;
   asset: string;
-  steps: HttpsSteps<"mix" | "mux">;
+  steps: HttpsStep[];
   configuration: EndpointConfiguration;
 };
 
 export type EndpointStepsLayer = {
   path: string;
-  steps: HttpsSteps<"mix" | "mux">;
+  steps: HttpsStep[];
   mode?: "mix" | "mux";
 };
 

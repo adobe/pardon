@@ -22,9 +22,11 @@ import { CURL } from "./curl-fmt.js";
 import { type KeyValueStringifyOptions, KV } from "./kv-fmt.js";
 import { encodeSearchComponent } from "../request/search-object.js";
 import { createHeaders } from "../request/header-object.js";
+import { mapObject } from "../../util/mapping.js";
 
 export type RequestObject = FetchObject & {
   values?: Record<string, unknown>;
+  computations?: Record<string, string>;
 };
 
 export type HttpFormatOptions = {
@@ -157,14 +159,30 @@ function parse(
   file: string,
   options: { acceptcurl?: boolean } = {},
 ): Partial<RequestObject> {
-  const { [KV.unparsed]: rest, ...values } = KV.parse(file, "stream", {
+  const { [KV.unparsed]: rest, ...data } = KV.parse(file, "stream", {
     allowExpressions: true,
   });
   const lines = (rest ?? "").split("\n");
 
+  const computations: Record<string, string> = {};
+  const values = Object.assign(
+    {},
+    mapObject(data, {
+      select(value, key) {
+        if (KV.isExprValue(value)) {
+          computations[key as string] =
+            `{{ -${key as string} = $$expr(${JSON.stringify(KV.loadExprValue(value))}) }}`;
+          return false;
+        }
+
+        return true;
+      },
+    }),
+  );
+
   if (options.acceptcurl && /^curl\s/.test(lines[0].trim())) {
     const {
-      request: { values, ...request },
+      request: { values: curlValues, ...request },
     } = CURL.parse(lines.join("\n"))!;
     const [url, { headers, ...init }] = intoFetchParams(request);
 
@@ -172,7 +190,7 @@ function parse(
       ...parseURL(url),
       headers: createHeaders(headers),
       ...init,
-      values,
+      values: { ...curlValues, ...values },
     };
   }
 
@@ -213,6 +231,7 @@ function parse(
     headers: createHeaders(headers),
     ...(body && { body }),
     values,
+    computations,
   };
 }
 

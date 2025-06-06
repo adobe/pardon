@@ -34,7 +34,7 @@ function onceFilter(seen?: string[]) {
   };
 }
 
-export default function remember(
+export default function persist(
   execution: typeof PardonFetchExecution,
 ): typeof PardonFetchExecution {
   return hookExecution<PardonHttpExecutionContext, typeof PardonFetchExecution>(

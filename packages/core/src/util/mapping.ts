@@ -54,14 +54,14 @@ type ObjectMapper<T, S> = {
   values(value: T, key: string): S;
   select(value: T, key: string | symbol): boolean;
   keys(key: string, value: T, mapped: S): string;
-  filter: { (key: string, mapped: S): boolean } | RegExp;
+  filter: { (key: string, mapped: S): boolean | undefined | void } | RegExp;
 };
 
 export function definedObject<M extends Record<string, unknown>>(
   map: M,
 ): { [k in keyof Partial<M>]: Exclude<M[k], undefined> } {
   return mapObject(map, {
-    filter(_key, value) {
+    select(value) {
       return value !== undefined;
     },
   }) as { [k in keyof Partial<M>]: Exclude<M[k], undefined> };

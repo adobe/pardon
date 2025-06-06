@@ -26,7 +26,6 @@ export type ResponseMeta = Record<string, string> & {
 export type SimpleRequestInit = Omit<RequestInit, "body"> & {
   meta?: RequestMeta;
   body?: string;
-  encoding?: EncodingTypes;
 };
 
 export type FetchObject = {

@@ -176,7 +176,7 @@ Content-Type: application/json
 
 {
   "username": "{{username}}",
-  "password": "{{@password}}"
+  "password": "{{@password = getPassword(username)}}"
 }
 
 <<<
@@ -197,11 +197,9 @@ Here's an example of a script that makes another request.
 import { pardon } from "pardon";
 
 export async function authorizeUser(username: string) {
-  const password = await getPassword(username);
-
   const {
     ingress: { response: res, secrets: { token } },
-  } = await pardon({ username, password })`
+  } = await pardon({ username })`
     PUT https://todo.example.com/users
   `();
 
@@ -212,6 +210,10 @@ export async function authorizeUser(username: string) {
   }
 
   return token;
+}
+
+export async function getPassword(username: string) {
+  return ...password for user...;
 }
 ```
 

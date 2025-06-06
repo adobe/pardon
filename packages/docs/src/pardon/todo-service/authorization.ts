@@ -25,7 +25,6 @@ export async function authorizeUser(username: string) {
     },
   } = await pardon({
     username,
-    password: getPassword(username),
   })`PUT https://todo.example.com/users`();
 
   if (!token) {

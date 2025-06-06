@@ -40,7 +40,7 @@ const input = {
   // built-in features
   "features/undici": "src/features/undici.ts",
   "features/trace": "src/features/trace.ts",
-  "features/remember": "src/features/remember.ts",
+  "features/persist": "src/features/persist.ts",
   "features/content-encodings": "src/features/content-encodings.ts",
 };
 
