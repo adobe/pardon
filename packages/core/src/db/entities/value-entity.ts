@@ -169,6 +169,7 @@ WHERE "http" = :http
   function getRelatedValues(
     lookup: string[] | undefined,
     values: Record<string, string>,
+    sql?: `WHERE ${string}` | `LIMIT ${string}`,
   ): { [http: string]: { [scope: string]: Record<string, unknown> } } {
     const queryvalues = [...Object.entries(values)];
 
@@ -231,7 +232,7 @@ WITH
         AND "expanded"."scope" = "scopes"."scope"
     )
   )
-SELECT * FROM "matches"
+SELECT * FROM "matches" ${sql ?? ""}
 `);
 
     const query = statement.all(...queryvalues.flat(1), ...(lookup ?? [])) as {

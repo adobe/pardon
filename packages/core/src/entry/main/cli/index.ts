@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --stack-trace-limit=69
+#!/usr/bin/env -S node --enable-source-maps --stack-trace-limit=69 --trace-warnings
 /*
 Copyright 2025 Adobe. All rights reserved.
 This file is licensed to you under the Apache License, Version 2.0 (the "License");
@@ -100,7 +100,9 @@ usage
   }
 
   if (options.recall) {
-    recall(context, options.recall.split(","), scalars(values));
+    await recall(context, options.recall.split(","), scalars(values), {
+      args,
+    });
 
     return 0;
   }

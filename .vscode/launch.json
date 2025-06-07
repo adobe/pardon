@@ -24,7 +24,9 @@
         "tsx/esm",
         "--stack-trace-limit=100",
         "src/entry/main/cli/index.ts",
-        "test.http"
+        "--recall=req",
+        "endpoint=eco/v3/customer",
+        "./test.filter.https"
       ],
       "env": {
         "NODE_ENV": "development"
