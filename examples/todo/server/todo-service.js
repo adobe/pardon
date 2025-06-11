@@ -19,7 +19,7 @@ export const makeTodoServiceRouter = ({
         });
       }
 
-      return new Response("no", { status: 401 });
+      return new Response("wrong username or password", { status: 401 });
     },
     "PUT /todos/:todo"({ req, slug: { todo: id } }) {
       const { username } = validateAuth(req);
@@ -98,7 +98,7 @@ export const makeTodoServiceRouter = ({
       const { username } = validateAuth(req);
 
       if (!username) {
-        return new Response("no", { status: 401 });
+        return new Response("unauthorized", { status: 401 });
       }
 
       if (!users()[username]) {

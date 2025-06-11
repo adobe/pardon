@@ -13,17 +13,26 @@ import { PardonDatabase, Id, cachedOps } from "../sqlite.js";
 import { JSON } from "../../core/raw-json.js";
 import { valueOps } from "./value-entity.js";
 
-type SecretEntity = {
-  http: Id;
+//
+// TODO: seperate database and/or encryption at rest.
+//
+
+type SecretContextEntity = {
+  id: Id;
+  created_at: string;
+};
+
+type SecretValueEntity = {
+  context: Id;
   secret: string;
   value: string;
   typeof: string;
 };
 
 type SecretCriteriaEntity = {
-  http: Id;
-  secret: string;
+  context: Id;
   name: string;
+  value: string;
 };
 
 export const secretOps = cachedOps(secretOps_);
@@ -34,36 +43,57 @@ function secretOps_(db: PardonDatabase) {
   valueOps(db);
 
   sqlite.exec(`
+CREATE TABLE IF NOT EXISTS "secret-contexts"
+(
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+    "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`);
+
+  sqlite.exec(`
 CREATE TABLE IF NOT EXISTS "secrets"
 (
-    "http" INTEGER NOT NULL,
+    "context" INTEGER,
     "secret" TEXT NOT NULL,
     "value" TEXT NOT NULL,
     "typeof" TEXT DEFAULT ('raw'),
-    PRIMARY KEY ("http", "secret"),
-    FOREIGN KEY ("http") REFERENCES "http" ("id")
+    PRIMARY KEY ("context", "secret"),
+    FOREIGN KEY ("context") REFERENCES "secret-contexts" ("id")
 ) WITHOUT ROWID;
 `);
 
   sqlite.exec(`
-CREATE TABLE IF NOT EXISTS "secrets-criteria"
+CREATE TABLE IF NOT EXISTS "secret-criteria"
 (
-    "http" INTEGER NOT NULL,
-    "secret" TEXT NOT NULL,
+    "context" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
-    PRIMARY KEY ("http", "name", "secret"),
-    FOREIGN KEY ("http", "secret") REFERENCES "secrets" ("http", "secret")
+    "value" TEXT NOT NULL,
+    PRIMARY KEY ("name", "context"),
+    FOREIGN KEY ("context") REFERENCES "secret-contexts" ("id")
 ) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS "secret-criteria-by-name-and-value" on "secret-criteria" ("context", "name", "value");
+-- CREATE INDEX IF NOT EXISTS "secret-criteria-by-name" on "secret-criteria" ("context", "name");
 `);
 
-  const insertSecret = sqlite.prepare<SecretEntity>(`
-INSERT INTO "secrets" ("http", "secret", "value", "typeof")
-VALUES (:http, :secret, :value, :typeof)
-`);
+  const createContext = sqlite
+    .prepare<Omit<SecretContextEntity, "id" | "created_at">>(
+      `
+INSERT INTO "secret-contexts"
+DEFAULT VALUES
+RETURNING "id"
+`,
+    )
+    .pluck();
 
   const insertSecretCriteria = sqlite.prepare<SecretCriteriaEntity>(`
-INSERT INTO "secrets-criteria" ("http", "secret", "name")
-VALUES (:http, :secret, :name)
+INSERT INTO "secret-criteria" ("context", "name", "value")
+VALUES (:context, :name, :value)
+`);
+
+  const insertSecretValue = sqlite.prepare<SecretValueEntity>(`
+INSERT INTO "secrets" ("context", "secret", "value")
+VALUES (:context, :secret, :value)
 `);
 
   return {
@@ -125,17 +155,25 @@ VALUES (:http, :secret, :name)
     }
   }
 
-  function memorizeSecret(http: Id) {
-    return (secrets: Record<string, unknown>, ...criteria: string[]) => {
-      return sqlite.transaction(() => {
-        for (const [secret, value] of Object.entries(secrets)) {
-          insertSecret.run({ http, secret, ...serialize(value) });
-          for (const name of criteria) {
-            insertSecretCriteria.run({ http, secret, name });
-          }
-        }
-      })();
-    };
+  function memorizeSecret(
+    criteria: Record<string, string | number | boolean>,
+    secrets: Record<string, unknown>,
+  ) {
+    return sqlite.transaction(() => {
+      const id = createContext.get({}) as Id;
+
+      for (const [name, value] of Object.entries(criteria)) {
+        insertSecretCriteria.run({
+          context: id,
+          name,
+          value: String(value),
+        });
+      }
+
+      for (const [secret, value] of Object.entries(secrets)) {
+        insertSecretValue.run({ context: id, secret, ...serialize(value) });
+      }
+    })();
   }
 
   function rememberSecrets(
@@ -162,26 +200,17 @@ VALUES (:http, :secret, :name)
             `)}`
                 : `SELECT 1 WHERE 1=0`
             }
-        ),
-        "relevant-value"("http", "name", "value") AS (
-          SELECT "http", "name", "value"
-          FROM "value" INNER JOIN "context" USING ("name", "value")
-          WHERE "scope" = ''
-        ),
-        "matched"("http", "secret", "value", "typeof") AS (
-          SELECT "http", "secret", "value", "typeof"
-          FROM "secrets" AS "s" INNER JOIN "secret-names" USING ("secret")
-          WHERE (
-            SELECT COUNT(*) FROM "secrets-criteria" JOIN "relevant-value" USING ("http", "name")
-            WHERE "s"."http" = "secrets-criteria"."http"
-          ) = (
-            SELECT COUNT(*) FROM "secrets-criteria" JOIN "secrets" USING ("http", "secret")
-            WHERE "s"."http" = "secrets-criteria"."http"
-          )
         )
-      SELECT "secret", "value", "typeof" FROM "matched" JOIN "http" ON "matched"."http" = "http"."id"
-        GROUP BY "secret" HAVING "http" = MAX("http")
-      `);
+
+      SELECT *
+      FROM "secrets" INNER JOIN "secret-names" USING ("secret")
+      WHERE NOT EXISTS (
+        SELECT * FROM "secret-criteria" LEFT JOIN "context" USING ("name")
+        WHERE "secrets"."context" = "secret-criteria"."context"
+          AND "secret-criteria"."value" <> "context"."value"
+      )
+      GROUP BY "secret"
+      HAVING "context" = MAX("context")`);
 
       const query = statement.all(
         ...contextvalues.flat(1),
@@ -194,7 +223,7 @@ VALUES (:http, :secret, :name)
       }[];
 
       if (names.length == 1) {
-        return deserialize(query[0]);
+        return query.length ? deserialize(query[0]) : undefined;
       }
 
       const result = {};

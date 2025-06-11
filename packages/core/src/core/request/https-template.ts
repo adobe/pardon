@@ -188,9 +188,6 @@ const originTemplate = (base: string) =>
   datums.pattern<string>(base, {
     re: ({ hint }) => {
       switch (true) {
-        // origin is defined as `"{{?:origin}}"`
-        case hint?.includes("?:"):
-          return /.*/;
         // we also allow `"{{...}}"` components to have dots.
         case hint?.includes("..."):
           return /.*/;
@@ -222,7 +219,7 @@ const pathnameTemplate = (base: string) =>
 export function httpsRequestSchema(): Schema<HttpsRequestObject> {
   return mixing<HttpsRequestObject>({
     method: "{{method = 'GET'}}",
-    origin: originTemplate("{{?:origin}}"),
+    origin: originTemplate("{{-?...origin}}"),
     pathname: pathnameTemplate("{{...pathname}}"),
     searchParams: searchReference(
       encodingTemplate(queryEncodingType, mvKeyedTuples),

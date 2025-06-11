@@ -25,9 +25,10 @@
   - [x] unit test runner
     - [ ] add unit-centric reports (which tests were involved with each unit)
     - [ ] load from reports/ directory. (in `favor`)
-  - [ ] kv objects-in-arrays could omit the `{}`s and `,`s.
+  - [x] kv objects-in-arrays could omit the `{}`s and `,`s.
   - [ ] recall available in requests scripts (make a request based on data in a
         prior request or response)
+  - [ ] enforce structured data to root without no-export tagging.
 
 - Fidelity
 

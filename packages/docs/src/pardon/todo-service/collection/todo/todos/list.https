@@ -1,3 +1,0 @@
->>>
-GET https://todo.example.com/todos
-Content-Type: application/json

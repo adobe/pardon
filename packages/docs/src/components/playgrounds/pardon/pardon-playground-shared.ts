@@ -107,6 +107,7 @@ export function createExecutionMemo({
         );
       }
 
+      console.log(ctx.server, resolved);
       // hack for intro
       if (
         ctx.server === "todo" &&
@@ -117,12 +118,19 @@ export function createExecutionMemo({
         }
 
         return {
-          async authorizeUser(username: string) {
+          async authorizeUser({
+            origin,
+            username,
+          }: {
+            origin: string;
+            username: string;
+          }) {
             const {
               ingress: {
                 secrets: { token },
               },
             } = await pardon({
+              origin,
               username,
             })`PUT https://todo.example.com/users`();
 

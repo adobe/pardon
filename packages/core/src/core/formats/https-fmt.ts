@@ -41,7 +41,7 @@ export type HttpsRequestStep = {
   request: FetchObject;
   computations: Record<string, string>;
   values: Record<string, any>;
-  name?: string;
+  variant?: string;
   source?: string;
 };
 
@@ -123,7 +123,10 @@ export type HttpsTemplateScheme<
 
 export const HTTPS = { parse };
 
-function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
+function parse(
+  file: string,
+  mode: HttpsMode = "mix",
+): HttpsScheme<HttpsMode extends "flow" ? "flow" : "source"> {
   const lines = file.split("\n");
   const steps: HttpsStep[] = [];
   const inlineConfiguration: string[] = [];
@@ -164,10 +167,6 @@ function parse(file: string, mode: HttpsMode = "mix"): HttpsScheme<"source"> {
     console.warn("parse error on: " + lines[0], error);
 
     throw error;
-  }
-
-  if (mode !== "flow" && steps[0]?.type === "script") {
-    throw new Error("only flow schemas can start with scripts");
   }
 
   return {
@@ -233,7 +232,7 @@ function scanRequestComputations(file: string) {
 function scanRequest(lines: string[], first: string): HttpsRequestStep {
   const linesCopy = lines.slice();
 
-  const [, name] = /^>>>\s*(.*?)\s*$/.exec(first) ?? [];
+  const [, variant] = /^>>>\s*(.*?)\s*$/.exec(first) ?? [];
 
   // Horribly inefficient code here, but it only runs on load so...
   const { computations, values, rest } = scanRequestComputations(
@@ -254,7 +253,7 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
       }),
       computations,
       values,
-      name,
+      variant,
       source: [first, ...linesCopy.slice(0, -lines.length)].join("\n"),
     };
   }
@@ -302,7 +301,7 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
     request: { ...request, meta },
     computations,
     values,
-    name,
+    variant: variant,
     source: [first, ...linesCopy.slice(0, -lines.length)].join("\n"),
   };
 }

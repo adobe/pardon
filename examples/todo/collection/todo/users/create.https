@@ -13,4 +13,4 @@ Content-Type: application/json
 200
 
 !!!
-memorize({ password }, 'service', 'env', 'username')
+secrets({ service, env, username }).password = password

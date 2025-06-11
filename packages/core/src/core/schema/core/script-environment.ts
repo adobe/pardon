@@ -22,6 +22,7 @@ import {
   Identifier,
 } from "./types.js";
 import { loc } from "./context-util.js";
+import { PardonAppContext } from "../../pardon/pardon.js";
 
 export type ScriptDataResolver = (
   name: string,
@@ -62,6 +63,7 @@ export type ScriptDefaultsResolver = (
 export type ScriptOptions = (key: string) => unknown;
 
 export class ScriptEnvironment implements SchemaScriptEnvironment {
+  app: Pick<PardonAppContext, "database">;
   name: () => string | undefined;
   input: Record<string, unknown>;
   space: ConfigSpace;
@@ -72,7 +74,10 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   expression?: ScriptExpressionRenderer;
   options?: ScriptOptions;
 
+  extendedContextValues?: Record<string, any>;
+
   constructor({
+    app = {},
     name,
     config,
     defaults,
@@ -84,7 +89,9 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     express,
     options,
     resolvedDefaults,
+    context,
   }: {
+    app?: Pick<PardonAppContext, "database">;
     name?: string;
     config?: Record<string, string>[];
     defaults?: DefaultsMap;
@@ -96,7 +103,9 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     redact?: RenderRedactor;
     express?: ScriptExpressionRenderer;
     options?: ScriptOptions;
+    context?: Record<string, any>;
   } = {}) {
+    this.app = app;
     this.name = () => name;
     this.input = input ?? {};
     this.space = new ConfigSpace(config ?? [{}], defaults);
@@ -104,9 +113,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 
     this.resolver = (identifier, context) => {
       return resolveAccess(
-        this.input[identifier.root] ??
-          runtime?.[identifier.root] ??
-          resolve?.(identifier.root, context),
+        this.input[identifier.root] ?? resolve?.(identifier.root, context),
         identifier,
         context,
       );
@@ -114,11 +121,12 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.resolvedDefaults = resolvedDefaults;
 
     this.evaluator = (identifier, context) =>
-      evaluate?.(identifier.root, context);
+      runtime?.[identifier.root] ?? evaluate?.(identifier.root, context);
 
     this.redactor = redact;
     this.expression = express;
     this.options = options;
+    this.extendedContextValues = context;
   }
 
   resolve({
@@ -190,6 +198,10 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     }
 
     return values;
+  }
+
+  get contextValues() {
+    return { ...this.extendedContextValues, ...this.implied(), ...this.input };
   }
 
   init({ context }: { context: SchemaContext }) {

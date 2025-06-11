@@ -205,6 +205,80 @@ intent("render-primitives")`
 {"string":"s","number":1,"boolean":true,"false":false,"nil":null}
 `();
 
+intent("match-object-with-reference")`
+a
+---
+{ x: "y" }
+---
+a={ x=y }
+`();
+
+intent("chained-evaluation")`
+{
+  "world": "planet earth",
+  "planet": "PLANET {{planet}}"
+}
+---
+{
+  "world": "{{-globe}}",
+  "hi": "{{-world = globe.toUpperCase()}}",
+  "planet": "{{-world}}",
+  "hello": "{{planet}}"
+}
+---
+planet=EARTH
+`();
+
+// this should behave the same as above, is used to fail here.
+intent("inverse-chained-evaluation")`
+{
+  "world": "{{-globe}}",
+  "hi": "{{-world = globe.toUpperCase()}}",
+  "planet": "{{-world}}",
+  "hello": "{{planet}}"
+}
+---
+{
+  "world": "planet earth",
+  "planet": "PLANET {{planet}}"
+}
+---
+planet=EARTH
+`();
+
+intent.todo("match-simple-pattern-as-reference")`
+"{{a}}"
+---
+{ x: "y" }
+---
+a={ x=y }
+`();
+
+intent("match-string-number")`
+"{{x}}4{{y}}" as number
+---
+1234567
+---
+x="123"
+y="567"
+`();
+
+intent.fails("match string number")`
+"{{x}} {{y}}"
+---
+"a {{z}}"
+`();
+
+intent.todo("x-y-merge")`
+"{{x}} {{y}}"
+---
+"a {{y}}"
+---
+"{{x}} b"
+---
+"a b"
+`();
+
 intent("match-primitives")`
 {
   string: "s",
@@ -984,5 +1058,62 @@ intent("render-sum")`
 {
   items: [1,2,3,4,5],
   total: 15
+}
+`();
+
+intent("merge-operator")`
+{
+  x: a || b || "hello"
+}
+---
+a=hello b=hello
+{
+  "x": "hello"
+}
+`();
+
+intent("merge-operator-value-first")`
+{
+  x: "hello" || b || a
+}
+---
+a=hello b=hello
+{
+  "x": "hello"
+}
+`();
+
+intent("merge-operator-value-middle")`
+{
+  x: b || "hello" || a
+}
+---
+a=hello b=hello
+{
+  "x": "hello"
+}
+`();
+
+intent("merge-operator-array-archetype-and-array")`
+{
+  x: [{ p: xs.p, q: xs.q = (1) }] || ++[{ p: "hello" }, { p: "world", q: 7 }] 
+}
+---
+xs=[{ p=hello, q=1 }, { p=world, q=7 }]
+{
+  "x": [{ "p": "hello", "q": 1 }, { "p": "world", "q": 7 }]
+}
+`();
+
+// not sure if we _should_ support adding array archetypes post-hoc
+// marking as todo for now.
+intent.todo("merge-operator-array-and-array-archetype")`
+{
+  x: ++[{ p: "hello" }] || --[{ p: xs.p, q: xs.q = (1) }]
+}
+---
+xs=[{ p=hello, q=1 }]
+{
+  "x": [{ "p": "hello", q: 1 }]
 }
 `();

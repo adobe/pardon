@@ -253,7 +253,7 @@ export function pardonExecution<
       function render() {
         return (egress ??= mixin(
           Promise.all([initializing, matching]).then(([context, match]) =>
-            executeStep("render", { context, match: match }),
+            executeStep("render", { context, match }),
           ),
           {
             context: initializing,

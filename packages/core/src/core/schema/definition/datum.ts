@@ -236,13 +236,13 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
           isPatternSimple(pattern) &&
           pattern != exprPattern
         ) {
-          const { param } = pattern.vars[0];
+          const { param, source = null, hint = null } = pattern.vars[0];
 
           scope.declare(param, {
             context,
             expression: null,
-            source: pattern.vars[0].source ?? null,
-            hint: pattern.vars[0].hint ?? null,
+            source,
+            hint,
             rendered: renderedTrigger(param, pattern),
             resolved(context) {
               return resolveAndLookup(
@@ -309,7 +309,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         }
 
         // don't give up yet?
-        return defineScalar(mergedSelf);
+        return defineScalar<T>(mergedSelf);
       }
 
       const resolved = patterns
@@ -386,7 +386,9 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
                 return false;
               }
 
-              if (!variable.param) {
+              const { param } = variable;
+
+              if (!param) {
                 return true;
               }
 
@@ -394,15 +396,15 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
                 resolveAndLookup(
                   context,
                   self /* or mergedSelf, configuredSelf? */,
-                  variable.param,
+                  param,
                 ) !== undefined
               ) {
                 return false;
               }
 
-              const declaration = context.evaluationScope.lookup(
-                variable.param,
-              ) as ExpressionDeclaration | undefined;
+              const declaration = context.evaluationScope.lookup(param) as
+                | ExpressionDeclaration
+                | undefined;
 
               if (
                 declaration?.expression ||
@@ -637,15 +639,15 @@ function defineMatchesInScope<T extends Scalar>(
       isPatternSimple(pattern) &&
       matchToPattern(pattern, String(value))
     ) {
-      const key = pattern.vars[0].param;
+      const { param } = pattern.vars[0];
 
-      if (key) {
+      if (param) {
         scope.define(
           context,
-          key,
+          param,
           unboxed ? unboxObject(value as T | null) : (value as T | null),
         );
-        scope.declare(key, {
+        scope.declare(param, {
           context,
           expression: null,
           source: pattern.vars[0].source ?? null,
@@ -755,12 +757,7 @@ async function evaluateScalar(
     );
   }
 
-  pattern ??= patterns[0] as PatternRegex;
-
-  if (pattern) {
-    return evaluatePattern(context, pattern);
-  }
-
+  // try all patterns for resolving this value.
   for (const pattern of patterns) {
     const result = await evaluatePattern(context, pattern);
     if (result === undefined) {
@@ -775,11 +772,9 @@ async function evaluateScalar(
 
 async function evaluatePattern(context: SchemaRenderContext, pattern: Pattern) {
   if (isPatternSimple(pattern)) {
-    return await resolveOrEvaluate(
-      context,
-      pattern.vars[0].param,
-      pattern.vars[0].expression,
-    );
+    const { param, expression } = pattern.vars[0];
+
+    return await resolveOrEvaluate(context, param, expression);
   } else {
     if (isPatternTrivial(pattern)) {
       return patternRender(pattern, []);
@@ -937,7 +932,7 @@ export function datumTemplate<T extends Scalar>(
         },
       );
 
-      return rep && (defineScalar(rep) as Schema<T>);
+      return rep && defineScalar<T>(rep);
     },
   });
 }

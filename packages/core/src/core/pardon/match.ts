@@ -264,7 +264,12 @@ class PardonEndpointMatcher {
       while (steps.length) {
         const behavior = steps.shift()!;
 
-        if (!isHttpRequestStep(behavior)) {
+        if (
+          !isHttpRequestStep(behavior) ||
+          (implied.variant &&
+            behavior.variant &&
+            implied.variant != behavior.variant)
+        ) {
           continue;
         }
 
@@ -282,6 +287,10 @@ class PardonEndpointMatcher {
         );
 
         if (result?.matching.schema) {
+          if (behavior.variant) {
+            implied.variant ??= behavior.variant;
+          }
+
           matcher = result.progress!;
           requestSchema = result.matching.schema;
           requestContext = result.matching.context;

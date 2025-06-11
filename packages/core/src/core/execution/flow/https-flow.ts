@@ -506,8 +506,8 @@ function parseHttpsSequenceScheme({
       }),
     );
 
-    if (flowItem.name) {
-      const { name, retries } = parseIncome(flowItem.name)! ?? {};
+    if (flowItem.variant) {
+      const { name, retries } = parseIncome(flowItem.variant)! ?? {};
 
       if (retries) {
         tries[interactions.length - 1] = retries;

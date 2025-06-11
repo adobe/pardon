@@ -11,13 +11,20 @@ governing permissions and limitations under the License.
 */
 import { valueId } from "../../../../util/value-id.js";
 import { diagnostic } from "../../core/context-util.js";
-import { defineSchema } from "../../core/schema-ops.js";
+import { defineSchema, isSchematic } from "../../core/schema-ops.js";
+import { expandTemplate } from "../../template.js";
 
 export function valueSchema<T>(value: T) {
   return defineSchema<T>({
     scope() {},
     merge(context) {
-      if (valueId(context.template) === valueId(value)) {
+      const { template } = context;
+
+      if (isSchematic(template)) {
+        return expandTemplate(template, { ...context, template: value });
+      }
+
+      if (valueId(template) === valueId(value)) {
         return valueSchema(value);
       }
 

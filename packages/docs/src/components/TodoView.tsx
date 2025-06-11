@@ -1,7 +1,6 @@
 import { For, Show, type ParentProps } from "solid-js";
 import { TbShredder } from "solid-icons/tb";
 import { reset, todos, users } from "./todo-server-hook.ts";
-import Accordion from "@corvu/accordion";
 
 export default function TodoView(props: ParentProps<{}>) {
   return (
@@ -9,61 +8,60 @@ export default function TodoView(props: ParentProps<{}>) {
       {props.children}
       <Show when={Object.keys(users()).length}>
         <div class="border-2 border-x-0 border-gray-500">TODO Server State</div>
-        <div class="accordion-container no-scrollbar flex flex-col overflow-scroll">
-          <Accordion
-            collapseBehavior="hide"
-            multiple
-            collapsible={false}
-            initialValue={Object.keys(users())[0] ?? ""}
-          >
-            <For each={Object.keys(users())}>
-              {(user) => (
-                <Accordion.Item value={user}>
-                  <Accordion.Trigger class="grid grid-cols-2 px-10">
-                    <span>{user}</span>
-                    <Show
-                      when={Object.keys(todos()[user] ?? {}).length}
-                      fallback={<span class="col-span-3" />}
-                    >
-                      <span class="text-right font-mono">
-                        {
-                          Object.values(todos()[user]).filter(
-                            ({ done }) => done,
-                          ).length
-                        }
-                        /{Object.keys(todos()[user]).length}
-                      </span>
-                    </Show>
-                  </Accordion.Trigger>
-                  <Accordion.Content>
-                    <ul class="grid grid-cols-[fit-content(100%)_fit-content(100%)_1fr] gap-2">
-                      <For each={Object.entries(todos()[user] ?? {})}>
-                        {([id, { task, done }]) => {
-                          return (
-                            <li
-                              class="col-span-3 grid grid-cols-subgrid place-items-baseline"
-                              data-pardon-paste-target="todo-playground"
-                              data-pardon-paste-to="playground"
-                              data-pardon-paste-code={`todo=${id}`}
-                            >
-                              <span class="font-mono text-sm">{id}</span>
-                              <input
-                                class="relative top-0.5"
-                                type="checkbox"
-                                checked={done}
-                                disabled
-                              ></input>
-                              <span>{task}</span>
-                            </li>
-                          );
-                        }}
-                      </For>
-                    </ul>
-                  </Accordion.Content>
-                </Accordion.Item>
-              )}
-            </For>
-          </Accordion>
+        <div class="accordion-container no-scrollbar flex flex-col gap-3 overflow-scroll">
+          <For each={Object.keys(users())}>
+            {(user) => (
+              <div>
+                <div
+                  class="light:bg-blue-100 grid grid-cols-2 rounded-lg border-2 px-3 py-1 dark:border-white dark:bg-amber-800"
+                  data-pardon-paste-target="todo-playground"
+                  data-pardon-paste-to="playground"
+                  data-pardon-paste-code={`username=${user}`}
+                >
+                  <span class="font-mono">username={user}</span>
+                  <Show
+                    when={Object.keys(todos()[user] ?? {}).length}
+                    fallback={<span class="col-span-3" />}
+                  >
+                    <span class="text-right font-mono">
+                      {
+                        Object.values(todos()[user]).filter(({ done }) => done)
+                          .length
+                      }
+                      /{Object.keys(todos()[user]).length}
+                    </span>
+                  </Show>
+                </div>
+                <div>
+                  <ul class="grid grid-cols-[fit-content(100%)_fit-content(100%)_1fr] gap-1 overflow-hidden pt-1">
+                    <For each={Object.entries(todos()[user] ?? {})}>
+                      {([id, { task, done }]) => {
+                        return (
+                          <li
+                            class="col-span-3 grid grid-cols-subgrid place-items-baseline"
+                            data-pardon-paste-target="todo-playground"
+                            data-pardon-paste-to="playground"
+                            data-pardon-paste-code={`todo=${id}`}
+                          >
+                            <span class="font-mono text-sm">{id}</span>
+                            <input
+                              class="relative top-0.5"
+                              type="checkbox"
+                              checked={done}
+                              disabled
+                            ></input>
+                            <span class="overflow-scroll whitespace-nowrap">
+                              {task}
+                            </span>
+                          </li>
+                        );
+                      }}
+                    </For>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </For>
         </div>
         <div class="flex flex-1 flex-col place-content-end">
           <button

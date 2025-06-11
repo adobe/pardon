@@ -6,7 +6,7 @@ Content-Type: application/json
 
 {
   username: "{{username}}",
-  password: "{{@password = remember('password')}}"
+  password: "{{@password = secrets.password}}"
 }
 
 <<<
@@ -15,3 +15,6 @@ Content-Type: application/json
 {
   "token": "{{@token}}"
 }
+
+!!!
+secrets({ username, env }).password ??= password

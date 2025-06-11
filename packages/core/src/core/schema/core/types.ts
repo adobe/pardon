@@ -10,6 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { PardonAppContext } from "../../pardon/pardon.js";
 import { Pattern } from "./pattern.js";
 
 /**
@@ -232,6 +233,8 @@ export type EvaluationScope = {
 } & ScopeData;
 
 export interface SchemaScriptEnvironment {
+  readonly app?: Pick<PardonAppContext, "database">;
+
   name?(): string | undefined;
 
   evaluating<T>(info: {
@@ -277,6 +280,8 @@ export interface SchemaScriptEnvironment {
   reset(): void;
 
   option(key: string): unknown;
+
+  readonly contextValues: Record<string, any>;
 }
 
 export type Identifier = {

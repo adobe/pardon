@@ -79,7 +79,7 @@ export async function loadFlows({
             },
             request: { headers: new Headers() },
             computations: {},
-            name: "",
+            variant: "",
             source: `
 >>> inline ${endpoint.configuration.name}
 ${HTTP.stringify((endpoint.layers[0].steps[0] as HttpsRequestStep).request)}

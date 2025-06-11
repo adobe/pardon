@@ -115,6 +115,17 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   currentNode = visitChildren();
 
+  if (
+    ts.isBinaryExpression(currentNode) &&
+    currentNode.operatorToken.kind === SyntaxKind.BarBarToken
+  ) {
+    return factory.createCallExpression(
+      factory.createIdentifier("$merged"),
+      undefined,
+      [currentNode.left, currentNode.right],
+    );
+  }
+
   if (ts.isAsExpression(currentNode)) {
     const types = asTypes(currentNode.type);
 
@@ -155,18 +166,36 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   if (ts.isPrefixUnaryExpression(currentNode)) {
     switch (currentNode.operator) {
-      case SyntaxKind.PlusPlusToken:
+      case SyntaxKind.PlusPlusToken: // ++(...) -> mux mode
         return factory.createCallExpression(
           factory.createIdentifier("$mux"),
           undefined,
           [currentNode.operand],
         );
-      case SyntaxKind.MinusMinusToken:
+      case SyntaxKind.MinusMinusToken: // --(...) -> mix mode
         return factory.createCallExpression(
           factory.createIdentifier("$mix"),
           undefined,
           [currentNode.operand],
         );
+      case SyntaxKind.TildeToken: // ~~(...) -> match mode
+        if (
+          ts.isPrefixUnaryExpression(currentNode.operand) &&
+          currentNode.operand.operator === SyntaxKind.TildeToken
+        ) {
+          return factory.createCallExpression(
+            factory.createIdentifier("$match"),
+            undefined,
+            [currentNode.operand.operand],
+          );
+        }
+
+        return factory.createCallExpression(
+          factory.createIdentifier("$meld"),
+          undefined,
+          [currentNode.operand],
+        );
+        break;
       case SyntaxKind.MinusToken:
         return factory.createCallExpression(
           factory.createIdentifier("$hidden"),

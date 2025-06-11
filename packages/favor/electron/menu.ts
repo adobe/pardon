@@ -48,7 +48,7 @@ export function createMainMenu() {
           isMac ? { role: "close" } : { role: "quit" },
           { type: "separator" },
           {
-            label: "Set Pardon Context",
+            label: "Set Pardon Workspace",
             accelerator: "CommandOrControl+;",
             async click(_menuItem, browserWindow) {
               try {
@@ -63,14 +63,14 @@ export function createMainMenu() {
                   return;
                 }
 
-                const configDir = filePaths[0];
-                if (!configDir) {
+                const workspaceDirectory = filePaths[0];
+                if (!workspaceDirectory) {
                   throw new Error("no directory selected!");
                 }
 
                 await recreatePardonWorker(
                   (browserWindow as BrowserWindow).webContents,
-                  configDir,
+                  workspaceDirectory,
                 );
               } catch (error) {
                 console.error("error opening directory", error);

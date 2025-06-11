@@ -120,8 +120,10 @@ export function referenceTemplate<T = unknown>(
 ): ReferenceSchematic<T> {
   const referenceSchematic = defineSchematic<ReferenceSchematicOps<T>>({
     expand(context) {
+      const { ref } = reference;
+
       const schema = defineReference({
-        refs: new Set([reference.ref].filter(Boolean)),
+        refs: new Set([ref].filter(Boolean)),
         hint: reference.hint ?? "",
         schema:
           reference.template !== undefined
@@ -131,8 +133,8 @@ export function referenceTemplate<T = unknown>(
         anull: reference.anull,
       });
 
-      const value = reference.ref
-        ? context.evaluationScope.resolve(context, reference.ref)
+      const value = ref
+        ? context.evaluationScope.resolve(context, ref)
         : undefined;
 
       if (value?.value !== undefined) {
@@ -143,6 +145,7 @@ export function referenceTemplate<T = unknown>(
     },
     blend(context, next) {
       let { template } = reference;
+      const { ref } = reference;
       const hint = new Set([...(reference.hint ?? "")]);
 
       while (isSchematic(template)) {
@@ -168,7 +171,7 @@ export function referenceTemplate<T = unknown>(
       }
 
       return defineReference({
-        refs: new Set([reference.ref].filter(Boolean)),
+        refs: new Set([ref].filter(Boolean)),
         hint: [...hint].join(""),
         schema,
         encoding: reference.encoding,

@@ -92,7 +92,7 @@ export function expandInContext<T>(
     );
 
     if (ops.expand && !ops.render) {
-      return ops.expand(context);
+      return ops.expand({ ...context, template });
     }
   } else if (typeof template === "function") {
     // this shouldn't happen

@@ -39,20 +39,21 @@ http requests and the responses.
 Templates are written in a dialect of the "HTTP format".
 
 Templates supply the "etiquette" that is easy to forget.
-"Did you remember your content-type header?".  Yeah, of course you did,
-you were focused on the data.
+"Did you remember your content-type header?".  Of course you did,
+you were focused on the data.  Pardon takes care of the syntax part
+of the request so you can focus on the semantics.
 
 Authorization tokens? Request signing? Switching environments?
-All easily done in Pardon, and yet nothing is built-in.
+All easily done in Pardon,... and yet nothing is built-in.
 
-## Let's dig in
+## Interactive Demo
 
-To demonstrate, we'll need a context, a multi-user CRUD TODO app.
+Let's consider the requests for the backend of a simple multi-user todo-style application.
 
-- This API manages users and todos.
+- The API manages users and todos.
 - The login API exchanges password-based authentication for a bearer token.
 - Logged in users can edit their todo list (create, read, update, delete, and list). 
-- Todo objects have a task (text description) and a "done" flag.
+- Todo objects have a "task" (description) and a "done" flag.
 
 Please familiarize yourself with the following 8 requests to manage users and todos.
 
@@ -161,7 +162,7 @@ Please familiarize yourself with the following 8 requests to manage users and to
   </TabItem>
 </Tabs></div>
 
-A pardon collection would contain the above templates in `.https` files,
+A pardon collection would contain the above templates inside `.https` files,
 or "HTTP-schema" files of request and response templates.
 {/* Yes, I'm quite proud of myself for that name, thanks for asking  */}
 
@@ -176,7 +177,7 @@ Content-Type: application/json
 
 {
   "username": "{{username}}",
-  "password": "{{@password = getPassword(username)}}"
+  "password": "{{@password = secrets.password}}"
 }
 
 <<<
@@ -187,16 +188,16 @@ Content-Type: application/json
 }
 ```
 
-The `{{@token}}` is important for two reasons, primarily it identifies the
+The `{{@token}}` here is important for two reasons, primarily it identifies the
 field as a secret which masks it in logs, but also a script can use the
 extracted value when using `pardon()`'s Javascript API to access the authorization call.
 
-Here's an example of a script that makes another request.
+Here's what that script might look like.
 
 ```ts
 import { pardon } from "pardon";
 
-export async function authorizeUser(username: string) {
+export async function authorizeUser(username) {
   const {
     ingress: { response: res, secrets: { token } },
   } = await pardon({ username })`
@@ -211,29 +212,23 @@ export async function authorizeUser(username: string) {
 
   return token;
 }
-
-export async function getPassword(username: string) {
-  return ...password for user...;
-}
 ```
-
-How this is used is shown after the demo.
 
 ### Demo
 
-Now that we have our todo API, it's time to get a feel for how Pardon works.
+Using our todo API, we can get a feel for Pardon works.
 
 We will go through some basic flows.
  - create a user.
  - create a todo item.
  - mark the todo as completed.
 
-In this tutorial, changing tabs updates the request, so please
-select each tab and run each request in sequence.
+In this tutorial, changing tabs updates the request: you will need
+to run each request before the following one.
 
 <PardonPlayground secrets response id="todo-playground" example={`
 username=test
-password=pw
+@password=pw
 POST https://todo.example.com/users
 `} {...todoService}>
 
@@ -242,25 +237,25 @@ POST https://todo.example.com/users
     Register a new user, with a password.
 
     ```http copy=playground clear=todo autocopy
-    password=pw
+    @password=pw
     POST https://todo.example.com/users
     ```
    </TabItem>
    <TabItem label="2. create todo">
     Create a todo for your user.
 
-    ```http copy=playground clear=password,todo autocopy
+    ```http copy=playground clear=password,@password,todo autocopy
     POST https://todo.example.com/todos
 
     {
-      "task": "learn pardon"
+      "task": "learn to use pardon"
     }
     ```
   </TabItem>
   <TabItem label="3. mark todo completed">
-    Mark it done.
+    Mark your todo item, done.
 
-    ```http copy=playground clear=password  autocopy
+    ```http copy=playground clear=password,@password autocopy
     PUT https://todo.example.com/todos/{{todo}}
 
     {
@@ -271,14 +266,16 @@ POST https://todo.example.com/users
 </Tabs>
 </PardonPlayground>
 
-Was that fun?  Well, now we need to go over what we just did.
+Let's go over what we just did.
 
 First we created a user with name "test" using input values.
+The `@password` is a secret input, Pardon won't save this directly
+in the request history.
 
 <FlexyCodeGrid>
 ```http {1,2} del="·" title="input"
 username=test
-password=pw
+@password=pw
 POST https://todo.example.com/users
 ```
 ```http '"test"' '"pw"' title="request"
@@ -292,12 +289,39 @@ content-type: application/json
 ```
 </FlexyCodeGrid>
 
-You can see pardon also supplies the necessary but forgettable `content-type` header.
+See pardon also supplies the necessary but forgettable `content-type` header here.
 It's not a guess, nor is it based on the request body: it's in the template.  
 
-After sending this out, the server-emulator in this page "registered" the test user.
+After sending this out, the server-emulator in this page registered the test user.
 
-Next we created a todo: if you go back to that second request and unlock the
+The full https schema for the create user endpoint includes a response matcher
+and a post request script.  The response matcher assures that the script is only
+run if the call was successful. What it does is register the `password` for the user
+in the context of the value of `{ username }`.
+
+Assigning secrets allows the `secrets.password` expression
+in the `login` script to retrieve the password.
+
+```http
+>>>
+POST https://todo.example.com/users
+Content-Type: application/json
+
+{
+  username: "{{username}}",
+  password: "{{@password}}"
+}
+
+<<<
+200
+
+!!!
+secrets({ username }).password = password
+```
+
+Now that the user is created and the password is stored, we moved on to creating a todo.
+
+If you navigate back to that second request and unlock the
 secrets for viewing, you will see
 
 ```http ins={2}
@@ -309,10 +333,10 @@ content-type: application/json
   "task": "learn pardon"
 }
 ```
-(while this authorization token is just `{"username":"test"}` in base64, it is being
-generated from a simulated login call.)
+while this authorization token is just `{"username":"test"}` in base64, it is being
+generated from the login call.
 
-The https (schema) for this request could look like this
+The todo create call has the following schema,
 
 ```http {1-3} /[{]{2}@.*[}]{2}/
 import:
@@ -336,18 +360,24 @@ Authorization: User {{@token = authorizeUser(username)}}
 }
 ```
 
-At the top, we see a yaml-format configuration section.  This config section
-provides "rendertime" values, along with defaults and other configuration for the request.
+At the top, we see a yaml-format configuration section.  Configuration can provide defaults,
+runtime (or "render-time") values for the templates, imports from scripts, and environment configuration.
 
-Here the config imports the method used in the template, `{{@token = authorizeUser(username)}}`.
+Here the configuration is importing the method used in the template, `{{@token = authorizeUser({ username, origin })}}`,
+when we render this request, the result of running `authorizeUser({ username, origin })` is interpolated here.
+Since the collection is in control of this script, practically any authorization mechanism can be supported
+(read from a file, execute a local process, etc...).
 
-Looking at the request and response, we can see that some of the variables have "hints", 
-the plain `{{task}}` is mandatory input.  However, the `{{?done}}` is marked optional
-by the `?`-mark.  In the response, the `+` in `{{+todo}}` marks a dataflow output,
-and it's why the `todo=T1001` was added automatically for the next request.
+Looking at the request and response, we can see that some of the variables have "hints":
+The plain `{{task}}` is mandatory input, and the request will not render without it.
+However, the `{{?done}}` is marked optional by the `?`-mark, if the value is not supplied
+pardon can omimt the entire field.
+
+In the response, the `+` in `{{+todo}}` marks a dataflow output,
+this is why the `todo=T1001` was added automatically for the next request.
 
 Feel free to explore the other rest calls, listing todos,
-deleting todos and/or users.
+deleting todos and/or users, by editing the request input.
 
 Here are some ideas for exploration.
 <Tabs>
@@ -362,8 +392,8 @@ Here are some ideas for exploration.
   <TabItem label="auth">
     Try the authorization request.
     
-    - Notice how in this demo, Pardon adds
-      the password (use the lock to show the value).
+    - Notice how Pardon adds
+      the password (use the lock to toggle showing the value).
     - Try overriding it in the request and seeing how that works for you.
       (Then try overriding it the _other_ way.)
 
@@ -383,14 +413,19 @@ Here are some ideas for exploration.
   </TabItem>
 </Tabs>
 
+(Note that the saved passwords which are supplied by `secrets.password`
+will be lost if the page is reloaded, you can resupply them with the login command,
+just change the create user call from `POST` to `PUT`, or reset the server state).
+
 ## Next Steps
 
-For better or worse, the above only scratches the surface of Pardon's capabilities.
+For better or worse, this tutorial only scratches the surface of Pardon's capabilities.
 
-For hands-on experience running pardon.
+For more hands-on experience running pardon, where we will run the desktop
+application against the same server we have in this page.
 
 <CollectionLinkCard href="/intro/quickstart" />
 
-For a deeper dive into the template runtime.
+For a deeper dive into the template runtime, and the programming model.
 
 <CollectionLinkCard href="/intro/templates" />

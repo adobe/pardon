@@ -13,9 +13,9 @@ governing permissions and limitations under the License.
 import { service } from "./helper.ts";
 
 export default service(
-  import.meta.glob("./todo-service/collection/**/*", {
+  import.meta.glob("../../../../examples/todo/collection/**/*", {
     query: "?raw",
     eager: true,
     import: "default",
   }),
-).layers("./todo-service/collection/");
+).layers("../../../../examples/todo/collection/");

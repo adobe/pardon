@@ -1,3 +1,0 @@
->>>
-GET https://todo.example.com/todos/{{todo}}
-Content-Type: application/json

@@ -28,6 +28,7 @@ import {
   parseForm,
 } from "../schema/definition/encodings/url-encoded.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
+import { mergedSchematic } from "../schema/definition/structures/merge.js";
 import { redact } from "../schema/definition/structures/redact.js";
 import {
   ReferenceSchematic,
@@ -43,6 +44,7 @@ import {
   matchTemplate,
   mvKeyedTuples,
   blendEncoding,
+  meldTemplate,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
@@ -129,7 +131,9 @@ export const bodyGlobals: Record<string, any> = {
   $mux: muxTemplate,
   $mix: mixTemplate,
   $match: matchTemplate,
+  $meld: meldTemplate,
   $hidden: hiddenTemplate,
+  $merged: mergedSchematic,
   $keyed: makeKeyed,
   $keyed$mv: makeKeyed.mv,
   $tuple: tuple,

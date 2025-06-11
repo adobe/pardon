@@ -188,8 +188,8 @@ export class Scope implements EvaluationScope, ScopeData {
     identifier: string,
     declaration: Omit<ExpressionDeclaration, "identifier" | "path" | "name">,
   ) {
-    const { name, path } = parseScopedIdentifier(identifier);
     const { context } = declaration;
+    const { name, path } = parseScopedIdentifier(identifier);
 
     let declared = this.declarations[name];
 
@@ -362,6 +362,7 @@ export class Scope implements EvaluationScope, ScopeData {
       const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
 
       if (!isOptional({ hint })) {
+        this.lookupDeclaration(identifier);
         throw diagnostic(context, `undefined: ${identifier}`);
       }
     }
@@ -527,6 +528,14 @@ export class Scope implements EvaluationScope, ScopeData {
 
     const value = await action();
 
+    if (typeof value === "function") {
+      return value;
+    }
+
+    if (value === undefined) {
+      return value!;
+    }
+
     const result = name !== "" ? this.define(context, name, value) : value;
 
     if (result === undefined && context.mode !== "prerender") {
@@ -555,6 +564,7 @@ function findDefinition(identifier: string, inScope: EvaluationScope) {
   let firstRenderedDeclaration: ExpressionDeclaration | undefined;
   let firstExpressionDeclaration: ExpressionDeclaration | undefined;
   let firstAggregateDeclaration: ExpressionDeclaration | undefined;
+  let firstDeclaration: ExpressionDeclaration | undefined;
 
   for (const scope of scopeChain(inScope)) {
     if (identifier in scope.declarations) {
@@ -569,13 +579,15 @@ function findDefinition(identifier: string, inScope: EvaluationScope) {
       if (declaration.aggregates) {
         firstAggregateDeclaration ??= declaration;
       }
+      firstDeclaration ??= declaration;
     }
   }
 
   return (
     firstRenderedDeclaration ??
     firstExpressionDeclaration ??
-    firstAggregateDeclaration
+    firstAggregateDeclaration ??
+    firstDeclaration
   );
 }
 

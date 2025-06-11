@@ -53,6 +53,7 @@ import {
   EvaluationScope,
   Schema,
   SchemaMergingContext,
+  SchemaRenderContext,
 } from "../schema/core/types.js";
 import { getContextualValues } from "../schema/core/context.js";
 import { definedObject, mapObject } from "../../util/mapping.js";
@@ -64,8 +65,7 @@ import { parseHints, patternize } from "../schema/core/pattern.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { evaluation } from "../evaluation/expression.js";
 import { isSecret } from "../schema/definition/hinting.js";
-import { Id } from "../../db/sqlite.js";
-import { secretOps } from "../../db/entities/secrets-entity.js";
+import { makeSecretsProxy } from "../../runtime/secrets.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
@@ -497,24 +497,12 @@ export const PardonFetchExecution = pardonExecution({
       while (steps.length && isHttpScriptStep(steps[0])) {
         const script = steps.shift() as HttpsScriptStep;
 
-        const allRenderedValues =
-          rendered.context.evaluationScope.resolvedValues({
-            secrets: true,
-          });
-
-        const {
-          service,
-          action,
-          configuration: { name },
-        } = endpoint;
-
         await executePreRequestScriptStep(context, script, {
           values: {
-            service,
-            action,
-            endpoint: name,
-            ...rendered.context.environment.implied(),
-            ...allRenderedValues,
+            ...rendered.context.environment.contextValues,
+            ...rendered.context.evaluationScope.resolvedValues({
+              secrets: true,
+            }),
             egress: rendered.output,
           },
         });
@@ -527,6 +515,7 @@ export const PardonFetchExecution = pardonExecution({
     const redactingEnv = createEndpointEnvironment({
       endpoint,
       values: { ...values, ...renderedValues },
+      secrets,
       app,
       runtime: {},
       options: { "pretty-print": options?.pretty ?? true, secrets: false },
@@ -707,6 +696,7 @@ export const PardonFetchExecution = pardonExecution({
         return {
           response,
           evaluationScope: context.evaluationScope,
+          context,
           values: cleanResponseValues(
             getContextualValues(context, { secrets }),
           ),
@@ -727,7 +717,7 @@ export const PardonFetchExecution = pardonExecution({
           configuration: { name },
         } = endpoint;
 
-        await executePostRequestScriptStep(context, script, {
+        await executePostRequestScriptStep(uncensored.context, script, {
           values: {
             service,
             action,
@@ -841,13 +831,11 @@ async function executePreRequestScriptStep(
 }
 
 async function executePostRequestScriptStep(
-  context: PardonExecutionContext,
+  context: SchemaRenderContext,
   step: HttpsScriptStep,
   { values }: { values: Record<string, unknown> },
 ) {
   const script = `(() => { ${step.script} ;;; })()`;
-  const http: Id | undefined = (context as any).http;
-  const db = context.app().database;
 
   await evaluation(script, {
     binding(key) {
@@ -855,10 +843,9 @@ async function executePostRequestScriptStep(
         values[key] ??
         globalThis[key] ??
         {
-          ...(http &&
-            db && {
-              memorize: secretOps(db)?.memorizeSecret(http),
-            }),
+          get secrets() {
+            return makeSecretsProxy(context);
+          },
         }[key]
       );
     },

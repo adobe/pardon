@@ -32,8 +32,8 @@ import { PardonError } from "./error.js";
 import { SchemaContext, SchemaMergingContext } from "./schema/core/types.js";
 import { isSecret } from "./schema/definition/hinting.js";
 import { isScalar } from "./schema/definition/scalar.js";
-import { secretOps } from "../db/entities/secrets-entity.js";
 import { PardonAppContext } from "./pardon/pardon.js";
+import { makeSecretsProxy } from "../runtime/secrets.js";
 
 function simpleValues(values: Record<string, any>): Record<string, string> {
   return mapObject(values, {
@@ -45,23 +45,24 @@ function simpleValues(values: Record<string, any>): Record<string, string> {
 }
 
 export function createEndpointEnvironment({
+  app,
   endpoint,
   values = {},
   secrets = {},
   runtime = {},
-  app,
   options,
   context,
 }: {
+  app: ScriptEnvironment["app"] & Pick<PardonAppContext, "compiler">;
   endpoint: LayeredEndpoint;
   values?: Record<string, unknown>;
   secrets?: Record<string, unknown>;
   runtime?: Record<string, unknown>;
-  app: PardonAppContext;
   options?: Record<string, boolean>;
   context?: SchemaMergingContext<HttpsRequestObject>;
 }) {
   const environment = new ScriptEnvironment({
+    app,
     name: endpoint.configuration.name,
     config: endpoint.configuration.config,
     defaults: endpoint.configuration.defaults,
@@ -85,7 +86,8 @@ export function createEndpointEnvironment({
     },
     resolve(name, context) {
       return (
-        values[name] ||
+        values[name] ??
+        secrets[name] ??
         resolveDefaults(name, endpoint?.configuration?.defaults, context)
       );
     },
@@ -93,32 +95,8 @@ export function createEndpointEnvironment({
       return resolvedDefaults(context, endpoint?.configuration?.defaults);
     },
     evaluate(name, context) {
-      if (name in secrets) {
-        return secrets[name];
-      }
-
-      if (name === "remember" && app.database) {
-        const {
-          service,
-          action,
-          configuration: { name },
-        } = endpoint;
-
-        return secretOps(app.database).rememberSecrets(
-          mapObject(
-            {
-              service,
-              action,
-              endpoint: name,
-              ...values,
-              ...context.environment.implied(),
-            },
-            {
-              select: (value) => isScalar(value),
-              values: (value) => String(value),
-            },
-          ),
-        );
+      if (name === "secrets") {
+        return makeSecretsProxy(context);
       }
 
       context.evaluationScope.imported(name, context);
@@ -206,6 +184,19 @@ export function createEndpointEnvironment({
     },
     options(key) {
       return options?.[key];
+    },
+    get context() {
+      const {
+        service,
+        action,
+        configuration: { name },
+      } = endpoint;
+
+      return {
+        service,
+        action,
+        endpoint: name,
+      };
     },
   });
 
