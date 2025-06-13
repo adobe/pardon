@@ -323,7 +323,7 @@ export function defineReference<T = unknown>(
 
       if (context.mode === "match") {
         if (context.template !== undefined) {
-          // commitResolution({ resolved: context.template as T }, context);
+          commitResolution({ resolved: context.template as T }, context);
         }
       }
 

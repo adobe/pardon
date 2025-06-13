@@ -100,6 +100,13 @@ export function applyTsMorph(
     targetSourceFile: exprSourceFile,
   });
 
+  if (!result.getFiles()[0] && result.getDiagnostics()?.length) {
+    const [diagnostic] = result.getDiagnostics();
+
+    const message = `${diagnostic.getSourceFile()?.getFilePath()}:${diagnostic.getLineNumber()}: ${diagnostic.getMessageText()}`;
+    throw new PardonError("failed to transform script: " + message);
+  }
+
   const compiledExpr = result
     .getFiles()[0]
     .text.replace(/^export default [(]/, "")

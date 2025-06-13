@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --stack-trace-limit=69 --trace-warnings
+#!/usr/bin/env -S node --enable-source-maps --stack-trace-limit=69 --no-warnings=ExperimentalWarning
 /*
 Copyright 2025 Adobe. All rights reserved.
 This file is licensed to you under the Apache License, Version 2.0 (the "License");

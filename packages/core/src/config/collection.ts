@@ -256,7 +256,7 @@ export function buildCollection(
         addFlow({ collection, id });
         break;
       case "unknown":
-        console.warn(`unknown asset: ${id}`);
+        // console.warn(`unknown asset: ${id}`);
         break;
       default:
         break;

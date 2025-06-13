@@ -153,7 +153,7 @@ async function acceptResult(
       );
     } else if (isHttpScriptStep(step)) {
       let filtered = true;
-      await evaluation(`(() => { ${step.script} ;;; })()`, {
+      await evaluation(`(async () => { ${step.script} ;;; })()`, {
         binding(key) {
           return (
             values[key] ??
@@ -161,6 +161,7 @@ async function acceptResult(
               get $filter() {
                 return (condition: any) => (filtered &&= condition);
               },
+              FILE,
             }[key] ??
             globalThis[key]
           );

@@ -27,7 +27,7 @@ export function extractKVs(args: string[], permissive?: boolean) {
     try {
       // try to parse json K=V arguments if possible
       const data =
-        /^@?[a-z0-9_]+=/i.test(args[i]) && KV.parse(args[i], "object");
+        /^@?[a-z0-9_-]+=/i.test(args[i]) && KV.parse(args[i], "object");
 
       if (data) {
         args.splice(i--, 1);

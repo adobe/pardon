@@ -254,9 +254,9 @@ const flowScriptTransform: (unbound: {
       node.tag.text === "$" &&
       ts.isNoSubstitutionTemplateLiteral(node.template)
     ) {
-      return factory.createPropertyAccessExpression(
+      return factory.createElementAccessExpression(
         factory.createIdentifier("environment"),
-        node.template.text,
+        factory.createStringLiteral(node.template.text),
       );
     }
 
@@ -274,6 +274,8 @@ async function executeHttpsFlowSequence(
 
   const retries = { ...sequence.tries };
 
+  let contextual: Record<string, any> = {};
+
   while (index < sequence.interactions.length) {
     const next = sequence.interactions[index];
 
@@ -288,20 +290,31 @@ async function executeHttpsFlowSequence(
     }
 
     if (next.type === "script") {
-      const scriptValues = await runFlowScript(next, resultValues);
+      const { values: scriptValues, target } = await runFlowScript(next, {
+        ...contextual,
+        ...resultValues,
+      });
 
       flowValues = { ...flowValues, ...scriptValues };
       resultValues = { ...resultValues, ...scriptValues };
       flowContext.mergeEnvironment(scriptValues);
       index++;
 
+      if (target) {
+        index = sequence.interactionMap[target] ?? sequence.interactions.length;
+      }
+
       continue;
     }
 
+    contextual = {};
+
     const {
       outcome,
-      values: { send, recv, flow },
+      values: { send, recv, flow, data },
       context: stepResultContext,
+      ingress,
+      egress,
     } = await executeHttpsSequenceStep({
       sequenceInteraction: next,
       sequenceScheme: sequence.scheme,
@@ -311,13 +324,19 @@ async function executeHttpsFlowSequence(
       context: flowContext,
     });
 
+    contextual = {
+      ingress: ingress.redacted,
+      egress: egress.redacted,
+      ...send,
+      ...data,
+      ...recv,
+    };
+
     flowContext = stepResultContext;
 
     // return value from flow has lots of data
     resultValues = {
       ...resultValues,
-      ...send,
-      ...recv,
       ...flow,
     };
 
@@ -359,7 +378,10 @@ async function executeHttpsFlowSequence(
         ...resultValues,
       };
 
-  return { result, context: flowContext };
+  return {
+    result,
+    context: flowContext,
+  };
 }
 
 async function evaluateDependentFlows(
@@ -665,7 +687,7 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
   const outcome = parseOutcome(outcomeText);
 
   const flowResponseValues =
-    responseTemplates.length === 0 ? output : valuesFromScope(scope);
+    responseTemplates.length === 0 ? output : flowValuesFromScope(scope);
 
   // makes unit tests better for now.
   if (outcome) {
@@ -681,8 +703,9 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
     ingress: withoutEvaluationScope(ingress),
     outcome,
     values: {
-      send: removeHttpValues(egress.request.values),
+      send: removeHttpValues(egress.redacted.values),
       recv: ingress.values,
+      data: scope?.resolvedValues() ?? {},
       flow: flowResponseValues,
     },
     context: flowContext.mergeEnvironment(flowResponseValues),
@@ -794,12 +817,12 @@ async function matchResponseToOutcome(
   return { result: "unmatched", templates };
 }
 
-function valuesFromScope(scope?: EvaluationScope): Record<string, unknown> {
+function flowValuesFromScope(scope?: EvaluationScope): Record<string, unknown> {
   if (!scope) {
     return {};
   }
 
-  return scope.resolvedValues({ secrets: false });
+  return scope.resolvedValues({ secrets: false, flow: true });
 }
 
 function parseOutcome(outcome?: string) {
@@ -846,29 +869,50 @@ function usageNeeded(
   return Object.keys(defined).some((key) => options[key] === undefined);
 }
 
+class Goto extends Error {
+  target: string;
+  constructor(target: string) {
+    super("goto: " + target);
+    this.target = target;
+  }
+}
+
 async function runFlowScript(
   next: HttpScriptInterraction,
   resultValues: Record<string, any>,
-) {
+): Promise<{ values: Record<string, any>; target?: string }> {
   const scriptValues = {};
 
   const script = `(() => { ${next.script.script} ;;; })()`;
 
   const { unbound } = applyTsMorph(script);
 
-  await evaluation(
-    script,
-    {
-      binding(key) {
-        if (key === "environment") {
-          return scriptValues;
-        }
+  try {
+    await evaluation(
+      script,
+      {
+        binding(key) {
+          if (key === "environment") {
+            return scriptValues;
+          }
 
-        return resultValues[key];
+          if (key === "goto") {
+            return (next: string) => {
+              throw new Goto(next);
+            };
+          }
+
+          return resultValues[key];
+        },
       },
-    },
-    flowScriptTransform(unbound),
-  );
+      flowScriptTransform(unbound),
+    );
+  } catch (error) {
+    if (error instanceof Goto) {
+      return { values: scriptValues, target: error.target };
+    }
+    throw error;
+  }
 
-  return scriptValues;
+  return { values: scriptValues };
 }
