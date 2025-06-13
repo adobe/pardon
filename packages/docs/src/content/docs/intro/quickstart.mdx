@@ -24,8 +24,7 @@ import { SolidIcon, CollectionLinkCard } from '@components';
 These docs assume a NodeJS installation and basic experience with 
 `git`, `node`, and `npm`.
 
-The quickstart here is intended to quickly showcase Pardon's features
-without going into the details of how it works.
+This should get you up and running.
 :::
 
 The `example/todo` directory in the pardon sources contains a sample server and Pardon collection.
@@ -62,7 +61,7 @@ $ npm run package
 </Aside>
 
 The Pardon application is built into `./packages/favor/out/...`
-(path depends on your plaform, have not tested any linux flavors yet.)
+(the path depends on your plaform, we have not tested any linux flavors yet.)
 
 Optionally, you can link the built application as a command-line tool as well.
 ```bash title="optional"
@@ -70,13 +69,12 @@ $ cd packages/core
 $ npm link . # remove with: npm uninstall -g pardon
 ```
 
-As a commmand-line program, `pardon` is like a dumbed-down yet easier-to-use-curl
+As a commmand-line program, `pardon` is like a simple but easier-to-use curl
 that is enhanced with collections and can run `.http` files.
 
 ## Example todo service
 
 The pardon source contains a simple server, and a pardon collection.
-
 
 <FileTree>
 - examples/todo
@@ -119,7 +117,7 @@ in `examples/todo/package.json`.
 When running the command line app, please run it from within this
 folder.
 
-Now enter this into the top input.
+Now enter this into the top input:
 
 ```http
 env=local
@@ -145,11 +143,9 @@ A `pardon.db` file is created in the workspace folder, this stores
 every request and response pardon makes, but stripped of any secrets or derived secrets.
 (Any secrets explicitly saved with the `secrets` mechanism are in their own tables.).
 
-This history can be searched in various ways.
-
 ## Next Steps
 
-Now that we've gotten started, we can explore its inner workings,
-starting with the template/schema engine.
+Now that we've running, we can explore Pardon's inner workings,
+starting with the template engine.
 
 <CollectionLinkCard href="/intro/templates" />
