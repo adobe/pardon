@@ -48,7 +48,6 @@ export class Scope implements EvaluationScope, ScopeData {
   values: Record<string, ValueDefinition> = {};
   subscopes: Record<string, Scope> = {};
   evaluations: Record<string, undefined | Promise<unknown>> = {};
-  resolutionStarted: Record<string, boolean> = {};
 
   constructor(parent?: Scope, path: string[] = [], index?: ScopeIndex) {
     this.parent = parent;
@@ -224,21 +223,7 @@ export class Scope implements EvaluationScope, ScopeData {
         return;
       }
 
-      if (expression && declared.expression) {
-        // TODO: revisit why we need to compare declared.expression == expression
-        // and fix the double declaration upstream?
-        // TODO: revisit if we even want to do this, maybe overriding is good?
-        if (expression !== declared.expression) {
-          throw diagnostic(
-            context,
-            `redeclared ${identifier} = (${expression}): previously defined @${loc(
-              declared.context,
-            )} as (${declared.expression})`,
-          );
-        }
-      }
-
-      declared.expression ??= expression;
+      declared.expression = expression ?? declared.expression;
       declared.source = source;
       declared.hint ??= hint || null;
       declared.context = context;
@@ -308,7 +293,23 @@ export class Scope implements EvaluationScope, ScopeData {
     identifier: string,
     value: T,
   ): T | undefined {
-    const { name, path } = parseScopedIdentifier(identifier);
+    const { name, path, root } = parseScopedIdentifier(identifier);
+
+    if (
+      context.mode === "render" ||
+      context.mode === "prerender" ||
+      context.mode === "preview"
+    ) {
+      const resolved = context.environment.resolve({
+        context,
+        identifier: { name, path, root },
+        scoped: true,
+      });
+
+      if (resolved !== undefined && !fuzzyMatch(resolved, value)) {
+        throw diagnostic(context, `conflicting definition of ${name}`);
+      }
+    }
 
     const current = this.values[name];
 
@@ -316,13 +317,7 @@ export class Scope implements EvaluationScope, ScopeData {
 
     // extra fuzzy match because null values might resolve to string "null" + type null, etc...
     if (current) {
-      if (
-        current.value === value ||
-        (isScalar(current.value) &&
-          isScalar(value) &&
-          String(current.value) === String(value)) ||
-        valueId(value) === valueId(current.value)
-      ) {
+      if (fuzzyMatch(value, current.value)) {
         // upgrade the type to the value if we used to have a string.
         if (typeof current.value === "string") {
           current.value = value;
@@ -367,6 +362,7 @@ export class Scope implements EvaluationScope, ScopeData {
       }
     }
 
+    // todo: remove "this.values[identifier] ="
     this.values[name] = this.values[identifier] = {
       identifier,
       value,
@@ -388,8 +384,8 @@ export class Scope implements EvaluationScope, ScopeData {
 
     if (value) {
       if (
-        !declaration ||
-        value.context.evaluationScope === declaration?.context.evaluationScope
+        !declaration?.context ||
+        value.context.evaluationScope === declaration.context?.evaluationScope
       ) {
         return value;
       }
@@ -406,7 +402,7 @@ export class Scope implements EvaluationScope, ScopeData {
     let lookup = this.lookup(name);
 
     if (isLookupExpr(lookup) && lookup.resolved) {
-      this.resolving(context, name, lookup.resolved);
+      this.resolving(context, name, lookup);
       lookup = this.lookup(name);
     }
 
@@ -416,17 +412,17 @@ export class Scope implements EvaluationScope, ScopeData {
 
     const identifier = parseScopedIdentifier(name);
 
-    const value = context.environment.resolve({
+    const resolved = context.environment.resolve({
       context,
       identifier,
     });
 
-    if (value !== undefined) {
-      if (this.define(context, name, value) === undefined) {
+    if (resolved !== undefined) {
+      if (this.define(context, name, resolved) === undefined) {
         return undefined;
       }
 
-      return this.values[identifier.name];
+      return this.values[name];
     }
   }
 
@@ -475,24 +471,29 @@ export class Scope implements EvaluationScope, ScopeData {
   resolving<T>(
     context: SchemaContext,
     name: string,
-    action: (context: SchemaContext) => T,
+    declaration: ExpressionDeclaration,
   ) {
-    const identifier = parseScopedIdentifier(name);
+    if (declaration.resolved === undefined) {
+      return;
+    }
 
-    if (this.resolutionStarted[identifier.name]) {
-      // or error on recursive resolution?
+    if (declaration.resolving) {
       return undefined;
     }
 
-    this.resolutionStarted[identifier.name] = true;
+    declaration.resolving = true;
 
-    const value = action(context);
+    try {
+      const value = declaration.resolved!(context) as T;
 
-    if (value === undefined) {
-      return undefined;
+      if (value === undefined) {
+        return undefined;
+      }
+
+      return this.define(context, name, value);
+    } finally {
+      declaration.resolving = false;
     }
-
-    return this.define(context, name, action(context));
   }
 
   cached<T>(
@@ -715,4 +716,12 @@ export function indexChain(scope: EvaluationScope | undefined) {
   }
 
   return chain;
+}
+
+function fuzzyMatch(value: any, other: any) {
+  return (
+    other === value ||
+    (isScalar(other) && isScalar(value) && String(other) === String(value)) ||
+    valueId(value) === valueId(other)
+  );
 }

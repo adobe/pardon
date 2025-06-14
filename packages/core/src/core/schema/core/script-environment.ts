@@ -25,8 +25,8 @@ import { loc } from "./context-util.js";
 import { PardonAppContext } from "../../pardon/pardon.js";
 
 export type ScriptDataResolver = (
-  name: string,
   context: SchemaContext,
+  options: { name: string; scoped?: boolean },
 ) => unknown | undefined;
 
 export type ScriptDataEvaluator = (
@@ -35,8 +35,8 @@ export type ScriptDataEvaluator = (
 ) => unknown | undefined | Promise<unknown | undefined>;
 
 export type ScriptResolver = (
-  name: Identifier,
   context: SchemaContext,
+  info: { identifier: Identifier; scoped?: boolean },
 ) => unknown | undefined;
 
 export type ScriptEvaluator = (
@@ -111,12 +111,14 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.space = new ConfigSpace(config ?? [{}], defaults);
     this.space.choose(input ?? {});
 
-    this.resolver = (identifier, context) => {
-      return resolveAccess(
-        this.input[identifier.root] ?? resolve?.(identifier.root, context),
+    this.resolver = (context, { identifier: identifier, scoped }) => {
+      return resolveAccess(context, {
+        value:
+          this.input[identifier.root] ??
+          resolve?.(context, { name: identifier.root, scoped }),
         identifier,
-        context,
-      );
+        scoped,
+      });
     };
     this.resolvedDefaults = resolvedDefaults;
 
@@ -132,11 +134,13 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   resolve({
     identifier,
     context,
+    scoped,
   }: {
-    identifier: Identifier;
     context: SchemaContext<unknown>;
+    identifier: Identifier;
+    scoped?: boolean;
   }): unknown {
-    return this.resolver?.(identifier, context);
+    return this.resolver?.(context, { identifier, scoped });
   }
 
   evaluate({
@@ -147,7 +151,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     context: SchemaRenderContext;
   }): unknown | undefined | Promise<unknown | undefined> {
     return (
-      this.resolver?.(identifier, context) ??
+      this.resolver?.(context, { identifier, scoped: false }) ??
       this.evaluator?.(identifier, context)
     );
   }
@@ -275,19 +279,30 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 }
 
 export function resolveAccess(
-  value: unknown,
-  identifier: Identifier,
   context: SchemaContext,
+  {
+    identifier,
+    value,
+    scoped,
+  }: { identifier: Identifier; value: unknown; scoped?: boolean },
 ) {
-  if (identifier.path.length == 0) {
-    return value;
-  }
-
   const indices = indexChain(context.evaluationScope);
 
-  if (identifier.name.endsWith(".@key")) {
-    const keyIndex = indices.length - identifier.path.length;
-    return indices[keyIndex]?.key;
+  // scoped resoltion is only for detecting conflicts with
+  // existing definitions.
+  if (!scoped) {
+    if (identifier.path.length === 0) {
+      return value;
+    }
+
+    if (identifier.name.endsWith(".@key")) {
+      const keyIndex = indices.length - identifier.path.length;
+      return indices[keyIndex]?.key;
+    }
+  } else {
+    if (identifier.path.length === 0 && indices.length === 0) {
+      return value;
+    }
   }
 
   const resolved = identifier.path.reduce<unknown>(

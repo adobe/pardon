@@ -71,7 +71,7 @@ async function compose(
       if (merge.schema) {
         return merge.schema;
       }
-      throw merge.error || merge.context.diagnostics?.[0] || merge;
+      throw merge.error || merge.context!.diagnostics?.[0] || merge;
     },
     mixing(jsonEncoding(undefined))!,
   );
@@ -1115,5 +1115,67 @@ intent.todo("merge-operator-array-and-array-archetype")`
 xs=[{ p=hello, q=1 }]
 {
   "x": [{ "p": "hello", q: 1 }]
+}
+`();
+
+intent.fails("incompatible-regex-via-reference")`
+{
+  x: x = /a/,
+  y: x,
+}
+---
+{
+  y: 'b'
+}
+---
+{
+  x: 'b',
+  y: 'b'
+}
+`();
+
+intent("expr-and-resolution-ref-conflict")`
+{
+  x: x = (10),
+  y: x || 30,
+}
+---
+{
+  x: 30,
+  y: 30
+}
+`();
+
+intent("array-reference-and-expansion")`
+x = [1]
+{
+  x
+}
+---
+{
+  items: [x.$value]
+}
+---
+{
+  x: [1],
+  items: [1]
+}
+`();
+
+// we can't yet "resolve" x.$value into the internal representation
+// that expands back into { items: [x.$value] }
+intent.todo("resolved-references")`
+{
+  x: [x.$value]
+}
+---
+{
+  x: [1,2,3,4],
+  items: [x.$value]
+}
+---
+{
+  x: [1,2,3,4],
+  items: [1,2,3,4]
 }
 `();

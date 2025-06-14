@@ -31,7 +31,34 @@ import { isScalar } from "../schema/definition/scalar.js";
 function selectEndpoints(
   endpoints: Record<string, LayeredEndpoint>,
   values: Record<string, unknown>,
-) {
+): LayeredEndpoint[] {
+  if (values.endpoint === "-/-") {
+    return [
+      {
+        action: "-",
+        service: "-",
+        configuration: {
+          name: "-",
+          config: [{}],
+          path: "-",
+        },
+        layers: [
+          {
+            path: "-",
+            steps: [
+              {
+                type: "request",
+                computations: {},
+                values: {},
+                request: { headers: new Headers() },
+              },
+            ],
+          },
+        ],
+      },
+    ];
+  }
+
   return Object.values(endpoints)
     .filter(({ configuration: { name: endpoint }, service }) =>
       values.endpoint

@@ -52,11 +52,15 @@ export function mergeSchema<T>(
   schema: Schema<T>,
   template: Template<T>,
   environment?: SchemaScriptEnvironment,
-) {
-  return applySchema(
-    createMergingContext(how, schema, template, environment),
-    schema,
-  );
+): { context?: SchemaMergingContext<T>; schema?: Schema<T>; error?: any } {
+  try {
+    return applySchema(
+      createMergingContext(how, schema, template, environment),
+      schema,
+    );
+  } catch (error) {
+    return { error };
+  }
 }
 
 export async function renderSchema<T>(

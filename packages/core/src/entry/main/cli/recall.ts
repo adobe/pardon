@@ -149,7 +149,7 @@ async function acceptResult(
       }
       Object.assign(
         values,
-        merged.context.evaluationScope.resolvedValues({ secrets: true }),
+        merged.context!.evaluationScope.resolvedValues({ secrets: true }),
       );
     } else if (isHttpScriptStep(step)) {
       let filtered = true;

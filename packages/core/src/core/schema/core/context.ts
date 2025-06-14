@@ -78,7 +78,7 @@ export function createPrerenderContext<T>(
 }
 
 export function createPostrenderContext<T>(
-  scheme: Schema<T>,
+  schema: Schema<T>,
   environment: SchemaScriptEnvironment = new ScriptEnvironment(),
 ): SchemaRenderContext {
   const ctx = {
@@ -90,7 +90,7 @@ export function createPostrenderContext<T>(
     evaluationScope: Scope.createRootScope(),
   } satisfies SchemaRenderContext;
 
-  executeOp(scheme, "scope", ctx);
+  executeOp(schema, "scope", ctx);
 
   return ctx;
 }

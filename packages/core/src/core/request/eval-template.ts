@@ -113,6 +113,47 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     return factory.createStringLiteral(pattern);
   }
 
+  // handles `[...x.y.z]` as `$mix([x.y.z.$value])`
+  // and `[...other]` and `$mix[other]`.
+  // supporting rest in general might need a rethink across the board.
+  if (
+    ts.isArrayLiteralExpression(currentNode) &&
+    currentNode.elements.length === 1 &&
+    ts.isSpreadElement(currentNode.elements[0])
+  ) {
+    if (
+      ts.isIdentifier(currentNode.elements[0].expression) ||
+      ts.isPropertyAccessExpression(currentNode.elements[0].expression)
+    ) {
+      return factory.createCallExpression(
+        factory.createIdentifier("$mix"),
+        undefined,
+        [
+          factory.createArrayLiteralExpression(
+            [
+              factory.createPropertyAccessExpression(
+                currentNode.elements[0].expression,
+                "$value",
+              ),
+            ],
+            false,
+          ),
+        ],
+      );
+    }
+
+    return factory.createCallExpression(
+      factory.createIdentifier("$mix"),
+      undefined,
+      [
+        factory.createArrayLiteralExpression(
+          [currentNode.elements[0].expression],
+          false,
+        ),
+      ],
+    );
+  }
+
   currentNode = visitChildren();
 
   if (

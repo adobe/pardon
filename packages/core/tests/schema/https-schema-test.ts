@@ -160,7 +160,7 @@ describe("https-schema-tests", () => {
     console.log(rendered);
 
     assert.equal(
-      context.evaluationScope.subscopes["body.x.0"].values["hello"].value,
+      context!.evaluationScope.subscopes["body.x.0"].values["hello"].value,
       "world",
     );
   });

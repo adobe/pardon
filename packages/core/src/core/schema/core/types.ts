@@ -203,7 +203,7 @@ export type EvaluationScope = {
   resolving<T>(
     context: SchemaContext,
     name: string,
-    action: () => T,
+    declaration: ExpressionDeclaration,
   ): T | undefined;
 
   evaluating(name: string): boolean;
@@ -270,6 +270,7 @@ export interface SchemaScriptEnvironment {
   resolve(info: {
     context: SchemaContext<unknown>;
     identifier: Identifier;
+    scoped?: boolean;
   }): unknown;
 
   evaluate(info: {
@@ -311,6 +312,7 @@ export type ExpressionDeclaration = ValueDeclaration & {
   resolved?(context: SchemaContext<unknown>): unknown;
   rendered?(context: SchemaRenderContext): Promise<unknown>;
   aggregates?: Record<string, AggregateDeclaration>;
+  resolving?: boolean;
 };
 
 export type AggregateDeclaration = {

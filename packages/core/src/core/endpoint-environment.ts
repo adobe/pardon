@@ -84,7 +84,9 @@ export function createEndpointEnvironment({
       Boolean,
       ...runtime,
     },
-    resolve(name, context) {
+    resolve(context, { name, scoped }) {
+      // todo - revisit use of scoped here
+      void scoped;
       return (
         values[name] ??
         secrets[name] ??

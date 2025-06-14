@@ -17,17 +17,22 @@ export function verify(subject: unknown) {
     matches(pattern: unknown) {
       const schema = muxing(pattern);
 
-      const matchResult = mergeSchema(
-        { mode: "match", phase: "validate" },
-        schema,
-        subject,
-      );
+      const matchResult =
+        schema &&
+        mergeSchema({ mode: "match", phase: "validate" }, schema, subject);
 
       if (!matchResult) {
         throw new Error("verification failed");
       }
 
-      return matchResult.context.evaluationScope.resolvedValues();
+      if (!matchResult.schema) {
+        throw new Error(
+          "verification failed: " +
+            (matchResult.error ?? matchResult.context?.diagnostics[0]),
+        );
+      }
+
+      return matchResult.context?.evaluationScope.resolvedValues();
     },
   };
 }

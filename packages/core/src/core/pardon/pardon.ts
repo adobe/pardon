@@ -293,7 +293,7 @@ export const PardonFetchExecution = pardonExecution({
         values,
         schema: schema!,
         layers: [],
-        context: mergeContext,
+        context: mergeContext!,
       };
     }
 
@@ -350,8 +350,8 @@ export const PardonFetchExecution = pardonExecution({
       }
 
       return {
-        schema: muxed.schema,
-        context: muxed.context,
+        schema: muxed.schema!,
+        context: muxed.context!,
         endpoint,
         values,
         layers: [],
@@ -473,7 +473,8 @@ export const PardonFetchExecution = pardonExecution({
     if (!mergeComputations.schema) {
       throw new PardonError(
         "unexpected: failed to merge computations into matched schema: " +
-          (mergeComputations.error ?? mergeComputations.context.diagnostics[0]),
+          (mergeComputations.error ??
+            mergeComputations.context?.diagnostics[0]),
       );
     }
 
@@ -530,7 +531,10 @@ export const PardonFetchExecution = pardonExecution({
     )!;
 
     if (!redacting.schema) {
-      console.error("failed to redact output: ", redacting.context.diagnostics);
+      console.error(
+        "failed to redact output: ",
+        redacting.error ?? redacting.context?.diagnostics[0],
+      );
     }
 
     const redacted = await postrenderSchema(redacting.schema!, redactingEnv);
@@ -793,7 +797,11 @@ function reducedValues(
       matchingEnv,
     );
 
-    const resolvedValues = getContextualValues(matching.context);
+    if (matching.error) {
+      throw matching.error;
+    }
+
+    const resolvedValues = getContextualValues(matching.context!);
 
     for (const [key, value] of Object.entries(resolvedValues)) {
       try {

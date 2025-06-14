@@ -499,7 +499,7 @@ describe("schema tests", () => {
       a: ["a", "b", "c", "d"],
     });
 
-    assert.deepEqual(result!.context.evaluationScope.resolvedValues(), {
+    assert.deepEqual(result.context!.evaluationScope.resolvedValues(), {
       list: ["a", "b", "c", "d"],
     });
   });
@@ -514,12 +514,12 @@ describe("schema tests", () => {
     });
 
     assert.deepEqual(
-      result!.context.evaluationScope.resolvedValues({ secrets: false }),
+      result.context!.evaluationScope.resolvedValues({ secrets: false }),
       {},
     );
 
     assert.deepEqual(
-      result!.context.evaluationScope.resolvedValues({ secrets: true }),
+      result.context!.evaluationScope.resolvedValues({ secrets: true }),
       {
         list: ["a", "b", "c", "d"],
       },
@@ -690,7 +690,7 @@ describe("schema tests", () => {
       ],
     });
 
-    assert.deepEqual(result!.context.evaluationScope.resolvedValues(), {
+    assert.deepEqual(result.context!.evaluationScope.resolvedValues(), {
       headers: {
         a: { value: "AAA" },
         b: { value: "BBB" },

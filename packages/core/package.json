@@ -71,9 +71,9 @@
       "import": "./dist/database.js",
       "types": "./dist/types/database.d.ts"
     },
-    "./internals": {
-      "import": "./dist/internals.js",
-      "types": "./dist/types/internals.d.ts"
+    "./templates": {
+      "import": "./dist/templates.js",
+      "types": "./dist/types/templates.d.ts"
     },
     "./loader": "./dist/loader.js"
   },

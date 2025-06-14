@@ -443,10 +443,8 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 function renderScalar<T>(
   context: SchemaRenderContext,
   self: DatumRepresentation,
-): Promise<T | undefined> | Exclude<T, undefined> {
+): Exclude<T, undefined> | Promise<T | undefined> {
   const { evaluationScope: scope } = context;
-
-  // TODO: resolve scalar here if possible (optimization)
 
   return scope.cached(context, () => doRenderScalar(context, self));
 }
@@ -456,7 +454,7 @@ function resolveScalar<T extends Scalar>(
   self: DatumRepresentation,
   forScope?: boolean,
 ): T | undefined {
-  const { patterns, unboxed } = self;
+  const { patterns, unboxed, type } = self;
 
   const configuredPatterns =
     context.mode === "render" ||
@@ -475,12 +473,11 @@ function resolveScalar<T extends Scalar>(
     throw diagnostic(context, `configuration exhausted`);
   }
 
-  const result: Scalar | undefined = resolveDefinedPattern(
-    context,
-    configuredPatterns,
-  );
+  let result = resolveDefinedPattern(context, configuredPatterns);
 
   if (result !== undefined) {
+    result = convertScalar(result, type, { unboxed }) as T;
+
     const issue = defineMatchesInScope(context, configuredPatterns, result, {
       unboxed,
     });
@@ -513,10 +510,23 @@ async function doRenderScalar<T>(
     throw diagnostic(context, "no valid configurations");
   }
 
+  const resolution = resolveScalar(context, self, false) as
+    | Exclude<T, undefined>
+    | undefined;
+
+  if (resolution !== undefined) {
+    return environment.redact({
+      value: resolution as T,
+      context,
+      patterns: configuredPatterns,
+    }) as Promise<T> | T;
+  }
+
   let result: unknown | undefined;
 
   // if there's a pattern which is already defined, we can evaluate it
   const definition = resolveDefinedPattern(context, configuredPatterns);
+
   if (definition !== undefined) {
     result = convertScalar(definition, type, { unboxed });
   }
@@ -634,11 +644,7 @@ function defineMatchesInScope<T extends Scalar>(
   const { evaluationScope: scope } = context;
 
   for (const pattern of patterns) {
-    if (
-      isPatternRegex(pattern) &&
-      isPatternSimple(pattern) &&
-      matchToPattern(pattern, String(value))
-    ) {
+    if (isPatternSimple(pattern) && matchToPattern(pattern, String(value))) {
       const { param } = pattern.vars[0];
 
       if (param) {
@@ -708,6 +714,7 @@ function findFullyDefinedPattern(context: SchemaContext, patterns: Pattern[]) {
 
 function resolveDefinedPattern(context: SchemaContext, patterns: Pattern[]) {
   const definition = findFullyDefinedPattern(context, patterns);
+
   if (definition) {
     const { params, pattern } = definition;
 

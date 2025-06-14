@@ -464,7 +464,12 @@ export function defineReference<T = unknown>(
   ) {
     for (const ref of refs) {
       if (ref !== resolution.ref) {
-        context.evaluationScope.define(context, ref, resolution.resolved);
+        if (
+          undefined ===
+          context.evaluationScope.define(context, ref, resolution.resolved)
+        ) {
+          throw new Error("conflicting resolution");
+        }
       }
     }
 

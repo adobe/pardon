@@ -19,7 +19,7 @@ import { patternize } from "./core/pattern.js";
 import { ScopedOptions, defineScoped } from "./definition/scoped.js";
 import { mapObject } from "../../util/mapping.js";
 import { PardonError } from "../error.js";
-import { loc } from "./core/context-util.js";
+import { diagnostic, loc } from "./core/context-util.js";
 import {
   defineSchematic,
   exposeSchematic,
@@ -114,6 +114,11 @@ function makeKeymapTemplate<T>(
   const { keyTemplate, valueTemplate } = template;
   const keySchema = muxing(keyTemplate);
 
+  if (!keySchema) {
+    diagnostic(context, "failed to build keymap key schema");
+    throw new PardonError("failed to create keymap key schema");
+  }
+
   const { values, archetype } = valueTemplate.reduce<{
     values: Record<string, Template<unknown>>;
     archetype?: Template<unknown>;
@@ -163,6 +168,10 @@ function makeMvKeymapTemplate<T>(
   const { keyTemplate, valueTemplate } = template;
 
   const keySchema = muxing(keyTemplate);
+  if (!keySchema) {
+    diagnostic(context, "failed to build keymap key schema");
+    throw new PardonError("failed to create mv keymap key schema");
+  }
 
   const { values, archetype } = valueTemplate.reduce<{
     values: Record<string, Template<unknown>[]>;
@@ -298,13 +307,18 @@ export function scoped<T>(
   ) {
     return templateSchematic<T>(
       (context) => {
-        return defineScoped<T>(
+        const keySchema =
           typeof keyTemplate == "string"
             ? keyTemplate
-            : context.expand(keyTemplate as Template<T>),
-          context.expand(template),
-          options,
-        );
+            : context.expand(keyTemplate as Template<T>);
+
+        const valueSchema = context.expand(template);
+
+        if (keySchema === undefined || valueSchema === undefined) {
+          return undefined;
+        }
+
+        return defineScoped<T>(keySchema, valueSchema, options);
       },
       { type: "scoped" },
     );
@@ -312,11 +326,15 @@ export function scoped<T>(
 
   return templateSchematic<T>(
     (context) => {
-      return defineScoped(
-        context.expand(keyTemplate) as Schema<T>,
-        context.expand(template),
-        options,
-      );
+      const keySchema = context.expand(keyTemplate) as Schema<T> | undefined;
+
+      const valueSchema = context.expand(template);
+
+      if (keySchema === undefined || valueSchema === undefined) {
+        return undefined;
+      }
+
+      return defineScoped(keySchema, valueSchema, options);
     },
     { type: "scoped" },
   );

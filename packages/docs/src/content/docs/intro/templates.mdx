@@ -25,25 +25,76 @@ import {
   FlexyCodeGrid,
   PardonPlayground,
   SolidIcon,
+  TemplatePlayground
 } from '@components';
 import {
   productsExample,
   productsExampleWithAuth,
 } from'@pardon/templates-collections'
 
-Pardon's template engine is the foundation of how Pardon understands and builds
-requests.  The engine's main operation is "merging": this mechanism implements both
-_conflict detection_ (matching requests) and _progressive enhancement_ (extending requests).
+Pardon's template engine is the foundation for how Pardon understands and builds
+requests.
 
 For the following discussion, basic understanding of programming terms is assumed.
 
-The present discussion covers the overall idea of Pardon's templates.
-The two phase approach: resolution and rendering,
-and how that provides some flexibility with how requests are expressed.
-
 ## Templates
 
-HTTP is parsed before being matched into a base template.
+Templates are composed of nodes that represent values, variables,
+structures (such as objects or arrays), or encodings.
+
+Nodes support two operations: merge and render.  Merging is used to match
+and extend requests, as well as to process responses.  Rendering is the more
+familiar expansion of the template into a concrete object.
+
+Variables can have associated expressions which get executed if no value is provided.
+These are executed during rendering.  Executions can be asynchronous: they can source data
+from other requests.
+
+Encoding nodes transform an external representation to an internal one.
+
+### A quick example
+
+Integrating all of the above, here's a template representing the 
+Pythagorean theorem:
+
+```js
+json({ a, b, c: c = ( Math.sqrt(a**2 + b**2) ) })
+```
+
+and we merge this with the JSON string value `'{ "a": 3, "b": 4 }'`.
+This would successfully merge, and then render to `'{"a":3,"b":4,"c":5}'`.
+
+If we defined our template with 3 expressions instead, it would solve for the third side
+of any right-triangle if two sides are specified.
+
+<TemplatePlayground>
+```
+{
+  a,
+  b,
+  c: c = ( Math.sqrt(a**2 + b**2) )
+}
+
+---
+
+{
+  "a": 3,
+  "b": 4
+}
+```
+</TemplatePlayground>
+
+```js title="pythagorean solver"
+json({ 
+  a: a = ( Math.sqrt(c**2 - b**2) ),
+  b: b = ( Math.sqrt(c**2 - a**2) ),
+  c: c = ( Math.sqrt(a**2 + b**2) )
+})
+```
+
+### HTTP Templates
+
+HTTP is parsed before being matched into a base http template.
 The template text on the left is parsed into an object for further processing.
 
 <FlexyCodeGrid>

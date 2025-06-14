@@ -35,7 +35,7 @@ export function templateSchematic<
   T,
   E extends Record<string, unknown> = Record<never, never>,
 >(
-  expand: (context: SchemaMergingContext<T>) => Schema<T>,
+  expand: (context: SchemaMergingContext<T>) => Schema<T> | undefined,
   extension: E,
 ): Schematic<T> {
   return defineSchematic({

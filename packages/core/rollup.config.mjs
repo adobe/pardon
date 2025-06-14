@@ -37,6 +37,8 @@ const input = {
   running: "src/modules/running.ts",
   // just format parsing (should be browser-compatible deps only)
   formats: "src/modules/formats.ts",
+  // APIs for template merging and rendering
+  templates: "src/modules/templates.ts",
   // built-in features
   "features/undici": "src/features/undici.ts",
   "features/trace": "src/features/trace.ts",
