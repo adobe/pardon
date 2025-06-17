@@ -309,8 +309,8 @@ export type ExpressionDeclaration = ValueDeclaration & {
   hint: string | null;
   source: string | null;
   context: SchemaContext<unknown>;
-  resolved?(context: SchemaContext<unknown>): unknown;
-  rendered?(context: SchemaRenderContext): Promise<unknown>;
+  resolved?(context: SchemaContext<unknown>): unknown | undefined;
+  rendered?(context: SchemaRenderContext): Promise<unknown | undefined>;
   aggregates?: Record<string, AggregateDeclaration>;
   resolving?: boolean;
 };

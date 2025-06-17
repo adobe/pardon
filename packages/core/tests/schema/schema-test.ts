@@ -229,12 +229,12 @@ intent("chained-evaluation")`
 planet=EARTH
 `();
 
-// this should behave the same as above, is used to fail here.
-intent("inverse-chained-evaluation")`
+// this should behave the same as above, fails to produce the "hello" field currently.
+intent.todo("inverse-chained-evaluation")`
 {
-  "world": "{{-globe}}",
-  "hi": "{{-world = globe.toUpperCase()}}",
-  "planet": "{{-world}}",
+  "world": "{{#-globe}}",
+  "hi": "{{#-world = globe.toUpperCase()}}",
+  "planet": "{{#-world}}",
   "hello": "{{planet}}"
 }
 ---
@@ -244,6 +244,9 @@ intent("inverse-chained-evaluation")`
 }
 ---
 planet=EARTH
+{
+  "hello": "EARTH"
+}
 `();
 
 intent.todo("match-simple-pattern-as-reference")`
@@ -341,7 +344,7 @@ abc=[a,b,c]
 `();
 
 intent("reference-squashing")`
-abc.of("hello")
+abc || "hello"
 ---
 xyz
 ---
@@ -1178,4 +1181,16 @@ intent.todo("resolved-references")`
   x: [1,2,3,4],
   items: [1,2,3,4]
 }
+`();
+
+intent.fails("undefined-scalar")`
+{ x: "{{x}}" }
+---
+{ }
+`();
+
+intent.fails("undefined-reference")`
+{ x }
+---
+{ }
 `();

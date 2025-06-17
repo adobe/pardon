@@ -321,9 +321,16 @@ class PardonEndpointMatcher {
           matcher = result.progress!;
           requestSchema = result.matching.schema;
           requestContext = result.matching.context;
-          const { context } = result.matching;
+          const { context, error } = result.matching;
 
-          Object.assign(implied, context.environment.implied(implied, context));
+          if (error) {
+            throw error;
+          }
+
+          Object.assign(
+            implied,
+            context!.environment.implied(implied, context),
+          );
 
           return true;
         }

@@ -32,6 +32,7 @@ import {
   isRequired,
   isSecret,
   isMelding,
+  isHidden,
 } from "./hinting.js";
 import {
   resolveIdentifier,
@@ -58,6 +59,7 @@ import {
 import {
   diagnostic,
   isAbstractContext,
+  loc,
   rescope,
 } from "../core/context-util.js";
 import {
@@ -312,12 +314,12 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         return defineScalar<T>(mergedSelf);
       }
 
-      const resolved = patterns
+      const resolvedPatterns = patterns
         .map((pattern) => renderTrivialPattern(pattern))
         .filter((resolved) => resolved !== undefined)
         .reduce(...uniqReducer(String));
 
-      if (resolved.length > 1) {
+      if (resolvedPatterns.length > 1) {
         diagnostic(
           context,
           `multiple values for patterns: ${patterns.map(({ source }) => source).join(", ")}`,
@@ -325,11 +327,11 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         return undefined;
       }
 
-      let appraised = resolved[0] ?? tryResolve(context, patterns);
+      let resolved = resolvedPatterns[0] ?? tryResolve(context, patterns);
 
       if (
         (context.mode === "match" || info?.literal) &&
-        appraised !== undefined &&
+        resolved !== undefined &&
         info?.template === undefined &&
         context.phase === "validate"
       ) {
@@ -340,18 +342,18 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
 
         diagnostic(
           context,
-          `expected value: ${redact ? "<redacted>" : appraised} = ${redact ? "<redacted>" : info?.template}`,
+          `expected value: ${redact ? "<redacted>" : resolved} = ${redact ? "<redacted>" : info?.template}`,
         );
 
         return undefined;
       }
 
-      if (appraised !== undefined) {
-        appraised = convertScalar(appraised, type, { unboxed }) as T;
+      if (resolved !== undefined) {
+        resolved = convertScalar(resolved, type, { unboxed }) as T;
       }
 
       if (
-        appraised === undefined &&
+        resolved === undefined &&
         (context.mode === "match" || info?.literal)
       ) {
         if (
@@ -366,8 +368,8 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         }
       }
 
-      if (appraised !== undefined) {
-        const issue = defineMatchesInScope(context, patterns, appraised, {
+      if (resolved !== undefined) {
+        const issue = defineMatchesInScope(context, patterns, resolved, {
           unboxed,
         });
 
@@ -377,7 +379,7 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
         }
       }
 
-      if (appraised === undefined && context.phase === "validate") {
+      if (resolved === undefined && context.phase === "validate") {
         const requiredPattern = patterns.find(
           (pattern) =>
             isPatternRegex(pattern) &&
@@ -491,7 +493,7 @@ function resolveScalar<T extends Scalar>(
       throw diagnostic(context, `define: ${issue}`);
     }
 
-    return convertScalar(result, self.type, { unboxed }) as T;
+    return result as T;
   }
 }
 
@@ -499,33 +501,39 @@ async function doRenderScalar<T>(
   context: SchemaRenderContext,
   self: DatumRepresentation,
 ): Promise<T | undefined> {
+  console.log(`${loc(context)}: ${self.patterns.map(({ source }) => source)}`);
   const { mode, environment } = context;
-  const { patterns, type, unboxed } = self;
+  const { type, unboxed } = self;
 
-  // remap patterns against config
-  const configuredPatterns = environment.config(context, patterns);
+  const patterns = environment.config(context, self.patterns);
 
   // if we have exhausted the configuration space, fail.
-  if (!configuredPatterns) {
+  if (!patterns) {
     throw diagnostic(context, "no valid configurations");
   }
+
+  const hidden = patterns
+    .filter(isPatternRegex)
+    .some(({ vars }) => vars.length && vars.every(isHidden));
 
   const resolution = resolveScalar(context, self, false) as
     | Exclude<T, undefined>
     | undefined;
 
   if (resolution !== undefined) {
+    if (hidden) return undefined;
+
     return environment.redact({
       value: resolution as T,
       context,
-      patterns: configuredPatterns,
+      patterns: patterns,
     }) as Promise<T> | T;
   }
 
   let result: unknown | undefined;
 
   // if there's a pattern which is already defined, we can evaluate it
-  const definition = resolveDefinedPattern(context, configuredPatterns);
+  const definition = resolveDefinedPattern(context, patterns);
 
   if (definition !== undefined) {
     result = convertScalar(definition, type, { unboxed });
@@ -534,10 +542,7 @@ async function doRenderScalar<T>(
   if (mode === "render" || mode === "prerender" || mode === "postrender") {
     if (result === undefined) {
       result = convertScalar(
-        (await evaluateScalar(
-          context,
-          configuredPatterns as PatternRegex[],
-        )) as Scalar,
+        (await evaluateScalar(context, patterns as PatternRegex[])) as Scalar,
         type,
         { unboxed },
       );
@@ -545,10 +550,9 @@ async function doRenderScalar<T>(
 
     if (result === undefined) {
       if (
-        mode === "render" ||
         mode === "prerender" ||
         mode === "postrender" ||
-        configuredPatterns.some(
+        patterns.some(
           (pattern) =>
             isPatternLiteral(pattern) || pattern.vars.every(isOptional),
         )
@@ -556,15 +560,15 @@ async function doRenderScalar<T>(
         return undefined;
       }
 
-      throw diagnostic(context, `unevaluated: type=${type}`);
+      throw diagnostic(context, `unevaluated: type=${type ?? "any"}`);
     }
   }
 
   if (mode === "preview" && result === undefined) {
     // TODO: this unfortunately discards any known type here.
-    return configuredPatterns[0]?.source as T;
+    return patterns[0]?.source as T;
   } else if (result !== undefined && isScalar(result)) {
-    const issue = defineMatchesInScope(context, configuredPatterns, result, {
+    const issue = defineMatchesInScope(context, patterns, result, {
       unboxed,
     });
 
@@ -577,10 +581,12 @@ async function doRenderScalar<T>(
     return result as T;
   }
 
+  if (hidden) return undefined;
+
   return environment.redact({
     value: result as T,
     context,
-    patterns: configuredPatterns,
+    patterns: patterns,
   }) as Promise<T> | T;
 }
 

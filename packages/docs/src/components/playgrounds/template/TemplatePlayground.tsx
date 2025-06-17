@@ -2,6 +2,7 @@ import {
   createMemo,
   createResource,
   createSignal,
+  For,
   type ParentProps,
 } from "solid-js";
 import CodeMirror from "@components/codemirror/CodeMirror.tsx";
@@ -16,7 +17,7 @@ import {
 import { KV } from "pardon/formats";
 
 export default function TemplatePlayground(props: ParentProps<{}>) {
-  const [firstTemplate = "{}", secondTemplate = "{}"] = [
+  const [firstTemplate, ...otherTemplates] = [
     ...(props.children as HTMLElement).querySelectorAll(".ec-line"),
   ]
     .map((line) => line.textContent)
@@ -68,7 +69,9 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
     return {};
   });
 
-  const [input, setInput] = createSignal(secondTemplate.trim());
+  const nextTemplateSignals = otherTemplates.map((initial) =>
+    createSignal(initial),
+  );
 
   const mergedTemplate = createMemo(() => {
     const { schema, ...info } = templateSchema();
@@ -77,7 +80,21 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
       return info as ReturnType<typeof merge<string>>;
     }
 
-    return merge({ mode: "mix", phase: "validate" }, schema, input());
+    return nextTemplateSignals.reduce<ReturnType<typeof templateSchema>>(
+      ({ schema, ...info }, [input], index, list) => {
+        return schema
+          ? merge(
+              {
+                mode: "mix",
+                phase: index === list.length - 1 ? "validate" : "build",
+              },
+              schema,
+              input(),
+            )
+          : info;
+      },
+      { schema },
+    );
   });
 
   const [renderResource] = createResource(
@@ -89,18 +106,16 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
         return `error: ${loc} ${err}`;
       }
 
-      return JSON.stringify(
-        JSON.parse(
-          (
-            await render(
-              schema,
-              createScriptEnvironment({ values: templateValues() }),
-            )
-          ).output,
-        ),
-        null,
-        2,
+      const result = await render(
+        schema,
+        createScriptEnvironment({ values: templateValues() }),
       );
+
+      if (result.context?.diagnostics.length) {
+        return String(result.context.diagnostics[0]);
+      }
+
+      return JSON.stringify(JSON.parse(result.output), null, 2);
     },
   );
 
@@ -118,10 +133,16 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
   return (
     <div>
       <CodeMirror value={template()} readwrite onValueChange={setTemplate} />
-      <div class="relative -my-2 grid w-full place-items-center overflow-hidden">
-        <span class="relative -top-0.5">+</span>
-      </div>
-      <CodeMirror value={input()} readwrite onValueChange={setInput} />
+      <For each={nextTemplateSignals}>
+        {([input, setInput]) => (
+          <>
+            <div class="relative -my-2 grid w-full place-items-center overflow-hidden">
+              <span class="relative -top-0.5">+</span>
+            </div>
+            <CodeMirror value={input()} readwrite onValueChange={setInput} />
+          </>
+        )}
+      </For>
       <div class="relative -my-10 grid w-full place-items-center overflow-hidden">
         <span class="relative -top-0.5">=</span>
       </div>

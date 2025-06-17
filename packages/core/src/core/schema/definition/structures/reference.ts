@@ -32,7 +32,7 @@ import {
 } from "../../core/types.js";
 import { stubSchema } from "./stub.js";
 import { RedactedOps } from "./redact.js";
-import { isSecret } from "../hinting.js";
+import { isOptional, isSecret } from "../hinting.js";
 import {
   convertScalar,
   Scalar,
@@ -402,12 +402,20 @@ export function defineReference<T = unknown>(
             : undefined
         ) as T | undefined;
 
-        defineRenderedReferenceValue(context, value);
+        if (value !== undefined) {
+          defineRenderedReferenceValue(context, value);
 
-        return convertScalar(value, encoding, { anull }) as T;
+          return convertScalar(value, encoding, { anull }) as T;
+        }
       }
 
-      return anull ? (null as T) : undefined!;
+      if (anull) return null as T;
+
+      if (isOptional({ hint })) {
+        return undefined;
+      }
+
+      throw diagnostic(context, `undefined reference: ${[...refs].join("=")}`);
     },
     scope(context) {
       for (const ref of refs) {

@@ -140,6 +140,7 @@ export default defineConfig({
     resolve: {
       alias: Object.entries({
         "node:async_hooks": "./src/polyfill/async_hooks.ts",
+        "node:buffer": "./src/polyfill/buffer.ts",
         events: "./node_modules/events",
         "node:events": "./node_modules/events",
         "fs/promises": "./src/polyfill/fs_promises.ts",

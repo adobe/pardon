@@ -9,6 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { executionAsyncId } from "node:async_hooks";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
 import { valueId } from "../../../util/value-id.js";
@@ -255,14 +256,8 @@ export class Scope implements EvaluationScope, ScopeData {
         };
       }
 
-      // expressions override the need to attempt render-match matches.
-      // we combine render and resolution triggers
-      // in the hopes that one of them will work.
-      declared.rendered = declared.expression
-        ? undefined
-        : combineAsync(rendered, declared.rendered);
-
       declared.resolved = combineSync(resolved, declared.resolved);
+      declared.rendered = combineAsync(rendered, declared.rendered);
     }
 
     if (path.length && this.index) {
@@ -436,7 +431,7 @@ export class Scope implements EvaluationScope, ScopeData {
       data?: any;
     };
     const location = loc(context);
-    const evaluating = `${location}: evaluating ${name}`;
+    const evaluating = `${location}: evaluating ${name} - undefined`;
     const chainError: RenderingChainError = DEBUG
       ? Object.assign(new Error(evaluating), {
           loc: location,
@@ -447,12 +442,18 @@ export class Scope implements EvaluationScope, ScopeData {
         };
 
     const identifier = parseScopedIdentifier(name);
+    console.log(
+      `${executionAsyncId()}: ${loc(context)}: ${identifier.name}: evaluation requested...`,
+    );
+
+    const key = `${loc(context)}:::${identifier.name}`;
 
     const evaluation =
       name === ""
         ? action()
-        : ((this.evaluations[identifier.name] ??= this._doEvaluate(
+        : ((this.evaluations[key] ??= this._doEvaluate(
             context,
+            key,
             name,
             action,
           )) as Promise<T>);
@@ -514,12 +515,17 @@ export class Scope implements EvaluationScope, ScopeData {
 
   async _doEvaluate<T>(
     context: SchemaRenderContext,
+    key: string,
     name: string,
     action: () => Promise<T>,
   ): Promise<T> {
+    console.log(
+      `${executionAsyncId()}: ${loc(context)}: evaluation started...`,
+    );
+
     const identifier = parseScopedIdentifier(name);
 
-    this.evaluations[identifier.name] = disarm(
+    this.evaluations[key] = disarm(
       Promise.reject(
         new PardonError(
           `${loc(context)} ${identifier.name}: circular definition`,
@@ -616,9 +622,9 @@ function combineAsync<F extends (...args: any) => Promise<unknown>>(
   if (!gn) return fn;
 
   return (async (...args: Parameters<F>) => {
-    return ((await fn(...(args as any))) ?? (await gn(...(args as any)))) as
-      | Awaited<ReturnType<F>>
-      | undefined;
+    const result = await fn(...args);
+    if (result !== undefined) return result;
+    return gn(...args);
   }) as F;
 }
 
@@ -630,7 +636,9 @@ function combineSync<F extends (...args: any) => unknown>(
   if (!gn) return fn;
 
   return ((...args: Parameters<F>) => {
-    return fn(...(args as any)) ?? gn(...(args as any));
+    const result = fn(...args);
+    if (result !== undefined) return result;
+    return gn(...args);
   }) as F;
 }
 

@@ -85,9 +85,9 @@ export function createPostrenderContext<T>(
     mode: "postrender",
     keys: [],
     evaluationScopePath: [],
-    diagnostics: [],
     environment,
     evaluationScope: Scope.createRootScope(),
+    diagnostics: [],
   } satisfies SchemaRenderContext;
 
   executeOp(schema, "scope", ctx);

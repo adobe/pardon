@@ -46,51 +46,35 @@ Nodes support two operations: merge and render.  Merging is used to match
 and extend requests, as well as to process responses.  Rendering is the more
 familiar expansion of the template into a concrete object.
 
-Variables can have associated expressions which get executed if no value is provided.
-These are executed during rendering.  Executions can be asynchronous: they can source data
-from other requests.
-
 Encoding nodes transform an external representation to an internal one.
 
-### A quick example
-
-Integrating all of the above, here's a template representing the 
-Pythagorean theorem:
-
-```js
-json({ a, b, c: c = ( Math.sqrt(a**2 + b**2) ) })
-```
-
-and we merge this with the JSON string value `'{ "a": 3, "b": 4 }'`.
-This would successfully merge, and then render to `'{"a":3,"b":4,"c":5}'`.
-
-If we defined our template with 3 expressions instead, it would solve for the third side
-of any right-triangle if two sides are specified.
+### Some examples
 
 <TemplatePlayground>
 ```
-{
-  a,
-  b,
-  c: c = ( Math.sqrt(a**2 + b**2) )
-}
-
+{ a, b: "{{b}}" }
 ---
+{ a: 11 }
+```
+</TemplatePlayground>
 
+
+<TemplatePlayground>
+```
+a=3
 {
-  "a": 3,
-  "b": 4
+  sides: json({ a, b }),
+  pythagorean: `${a}^2 + ${b}^2 = ${c = (Math.sqrt(a**2 + b**2))}^2`
+}
+---
+{
+  sides: '{ "b": 4 }',
+  abc: { a, b, c }
 }
 ```
 </TemplatePlayground>
 
-```js title="pythagorean solver"
-json({ 
-  a: a = ( Math.sqrt(c**2 - b**2) ),
-  b: b = ( Math.sqrt(c**2 - a**2) ),
-  c: c = ( Math.sqrt(a**2 + b**2) )
-})
-```
+
 
 ### HTTP Templates
 
