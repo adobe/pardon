@@ -14,7 +14,7 @@ import {
   render,
   seed,
 } from "pardon/templates";
-import { KV } from "pardon/formats";
+import { JSON, KV } from "pardon/formats";
 
 export default function TemplatePlayground(props: ParentProps<{}>) {
   const [firstTemplate, ...otherTemplates] = [
@@ -115,7 +115,11 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
         return String(result.context.diagnostics[0]);
       }
 
-      return JSON.stringify(JSON.parse(result.output), null, 2);
+      return KV.stringify(JSON.parse(result.output), {
+        limit: 50,
+        indent: 2,
+        mode: "json",
+      });
     },
   );
 

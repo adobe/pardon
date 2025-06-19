@@ -1221,3 +1221,21 @@ intent("cyclic-undefined")`
 ---
 { x: 6, y: 6, z: 6, c: 6 }
 `();
+
+intent(`evaluate-input-aggregate`)`
+x=[1,2,3,4]
+{ x: [x.$value], z: (x) }
+---
+*
+{ x: [1,2,3,4], z: [1,2,3,4] }
+`();
+
+// not sure if this is something we ever want to support
+intent.fails(`match-eval-aggregate`)`
+{ x: [y.$value] }
+---
+{ x: ([1,2,3,4]) }
+---
+*
+{ x: [1,2,3,4] }
+`();

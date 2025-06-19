@@ -249,9 +249,8 @@ export function resolveIdentifier(context: SchemaContext, identifier: string) {
     const declaration = scope.lookupDeclaration(identifier);
 
     if (
-      declaration &&
-      resolution.context.evaluationScope !==
-        declaration?.context.evaluationScope
+      declaration?.context &&
+      resolution.context.evaluationScope !== declaration.context.evaluationScope
     ) {
       return;
     }

@@ -62,7 +62,12 @@ const { centered, column, initial, right, class: class_ } = Astro.props;
       @apply flex! min-h-full! flex-col;
     }
     pre {
-      @apply grow!;
+      @apply grow! overflow-auto;
+    }
+    figcaption.header {
+      @apply grid place-items-center border-b-2 border-gray-500/50;
+      & > span.title {
+      }
     }
   }
   .flexy-code-grid-centered {

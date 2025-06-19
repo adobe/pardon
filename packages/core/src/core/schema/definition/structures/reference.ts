@@ -190,7 +190,11 @@ export function referenceTemplate<T = unknown>(
 
   return new Proxy<any>(referenceSchematic, {
     get(target, property) {
-      if (typeof property !== "symbol" && !property.startsWith("$")) {
+      if (typeof property === "symbol") {
+        return target[property];
+      }
+
+      if (!property.startsWith("$")) {
         return referenceTemplate({
           ...reference,
           ref: `${reference.ref}.${property}`,

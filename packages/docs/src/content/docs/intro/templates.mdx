@@ -50,14 +50,12 @@ Encoding nodes transform an external representation to an internal one.
 
 ### Some examples
 
-<TemplatePlayground>
-```
-{ a, b: "{{b}}" }
----
-{ a: 11 }
-```
-</TemplatePlayground>
+Here's some examples of templates and how they compose.
 
+:::note
+These docs from here on out are rough, working on fininshing some decisions and rewriting
+them
+:::
 
 <TemplatePlayground>
 ```
@@ -74,7 +72,28 @@ a=3
 ```
 </TemplatePlayground>
 
+<TemplatePlayground>
+```
+map={a=1 b=2 c=3}
+{
+  mappedlist: [key,_] * [[map.$key, map.$value]]
+}
+```
+</TemplatePlayground>
 
+
+<TemplatePlayground>
+```
+{
+  mappedlist: [key,_] * [[map.$key, map.$value]]
+}
+---
+{
+  mappedlist: [['a', 1], ['b', 2], ['c', 3]],
+  map
+}
+```
+</TemplatePlayground>
 
 ### HTTP Templates
 
@@ -93,8 +112,10 @@ content
   method: "POST",
   origin: "http://origin",
   pathname: "/path",
-  searchParams: new URLSearchParams("?x=y"),
-  headers: new Headers({ "header": "value" }),
+  searchParams:
+    new URLSearchParams("?x=y"),
+  headers:
+    new Headers({ "header": "value" }),
   body: 'content'
 }
 ```
@@ -108,8 +129,10 @@ This data is merged with a template for http requessts.
   method: "POST",
   origin: "http://service",
   pathname: "/path",
-  searchParams: new URLSearchParams("?x=y"),
-  headers: new Headers({ "header": "value" }),
+  searchParams:
+    new URLSearchParams("?x=y"),
+  headers:
+    new Headers({ "header": "value" }),
   body: 'content'
 }
 ```
@@ -119,14 +142,16 @@ This data is merged with a template for http requessts.
     origin: "{{origin}}",
     pathname: "{{...pathname}}",
     searchParams: search = ...,
+
     headers: headers = ...,
+
     body: body = ...
 }
 ```
 </FlexyCodeGrid>
 
-As might be expected, merging objects merges their fields:
-`POST` is merged with `{{method}}`, `http://service` with `{{origin}}`, etc...
+As might be expected, merging objects merges their field values,
+i.e., the value `"POST"` is merged with `{{method}}`, `"http://service"` with `{{origin}}`, etc...
 
 Some templates transform what they match to an internal representation, and render that to an external one.
 
@@ -152,8 +177,7 @@ For example, the parsed HTTP request is an object.
 Templates cannot merge if their values are incompatible, e.g., the value `"a"` cannot directly merge with `"b"`.
 Also arrays and objects can't merge with each other, nor with scalar values.
 
-As we saw above, objects merge field-by-field, while arrays are trickier.
-
+There are two interesting problems in this space: handling individual values and handling overall structures (arrays in particular).
 
 ### Template Scopes and Arrays
 
@@ -166,6 +190,11 @@ a `product` and defaults the quantity to 1 if not specified.
 
 In objects with arrays, if the template has a single item,
 each item is templated in a separate scope.
+{/*
+todo: maybe template these as { items: [...{ product, quantity }] }
+and remove this single-item case, ... we might be able to collapse
+mix and mux mode as well.
+*/}
 
 For instance, the template
 ```json

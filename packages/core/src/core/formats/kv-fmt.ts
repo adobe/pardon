@@ -663,10 +663,10 @@ export const KV: {
     const text = wrappedStringify(
       values,
       options?.mode === "json"
-        ? options.indent
+        ? (options?.compact === undefined ? options?.indent : !options?.compact)
           ? JSONEncoding
           : JSONEncodingCompact
-        : options?.indent || options?.compact === false
+        : (options?.compact === undefined ? options?.indent : !options?.compact)
           ? KeyValueEncoding
           : KeyValueEncodingCompact,
       {
@@ -926,7 +926,7 @@ const JSONEncoding: KeyValueEncodingRules = {
   key: (key) => JSON.stringify(key),
   value: (value) => toRawJson(value)?.rawJSON,
   arrays: {
-    inline: { start: "[ ", end: " ]" },
+    inline: { start: "[", end: "]" },
     itemsep: ", ",
     empty: "[]",
   },
