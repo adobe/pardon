@@ -60,7 +60,7 @@ export async function recall(
   for (const [http, scope] of Object.entries(related)) {
     const { req, res, ask, created_at } = getHttpEntity({ http });
 
-    if (!(await acceptResult({ req, res }, filterexecution))) {
+    if (!(await acceptResult({ req, res }, values, filterexecution))) {
       continue;
     }
 
@@ -102,6 +102,7 @@ export async function recall(
  */
 async function acceptResult(
   { res }: { req?: string; res?: string },
+  { ...values }: Record<string, any>,
   filterexecution?: HttpsScheme<"source">,
 ) {
   if (!filterexecution) {
@@ -113,7 +114,6 @@ async function acceptResult(
   }
 
   const steps = filterexecution.steps.slice();
-  const values = {};
 
   while (steps.length) {
     const step = steps.shift()!;
