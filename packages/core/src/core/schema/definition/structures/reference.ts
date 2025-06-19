@@ -424,7 +424,12 @@ export function defineReference<T = unknown>(
         return undefined;
       }
 
-      throw diagnostic(context, `undefined reference: ${[...refs].join("=")}`);
+      if (context.mode === "render") {
+        throw diagnostic(
+          context,
+          `undefined reference: ${[...refs].join("=")}`,
+        );
+      }
     },
     scope(context) {
       for (const ref of refs) {
