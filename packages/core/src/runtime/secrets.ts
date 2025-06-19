@@ -89,7 +89,6 @@ export function makeSecretsProxy(context: SchemaRenderContext) {
       }
 
       if (typeof secret !== "string") {
-        console.log("loading secret", secret);
         return target[secret];
       }
 

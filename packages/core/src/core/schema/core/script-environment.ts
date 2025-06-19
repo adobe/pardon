@@ -111,7 +111,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.space = new ConfigSpace(config ?? [{}], defaults);
     this.space.choose(input ?? {});
 
-    this.resolver = (context, { identifier: identifier, scoped }) => {
+    this.resolver = (context, { identifier, scoped }) => {
       return resolveAccess(context, {
         value:
           this.input[identifier.root] ??

@@ -556,7 +556,7 @@ async function doRenderScalar<T>(
         return undefined;
       }
 
-      throw diagnostic(context, `unevaluated: ${patterns[0].source}`);
+      throw diagnostic(context, `unevaluated: ${patterns[0]?.source}`);
     }
   }
 

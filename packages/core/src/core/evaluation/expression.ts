@@ -112,7 +112,7 @@ export function applyTsMorph(
     .text.replace(/^export default [(]/, "")
     .replace(/[)];\s+$/m, "");
 
-  exprSourceFile.replaceWithText(compiledExpr);
+  exprSourceFile.replaceWithText(`(${compiledExpr})`);
 
   const symbols = new Set<string>();
   const literals = new Set<string>();
@@ -134,6 +134,14 @@ export function applyTsMorph(
       ident.getParentIfKind(ts.SyntaxKind.LabeledStatement)?.getLabel() ===
       ident
     ) {
+      continue;
+    }
+
+    const propertyAssignment = ident.getParentIfKind(
+      ts.SyntaxKind.PropertyAssignment,
+    );
+
+    if (propertyAssignment && ident !== propertyAssignment.getInitializer()) {
       continue;
     }
 

@@ -136,7 +136,6 @@ usage
     environment = values;
 
     try {
-      console.log("loading", resolve(process.cwd(), script));
       const { default: defaultExport, main } = await import(
         resolve(process.cwd(), script)
       );

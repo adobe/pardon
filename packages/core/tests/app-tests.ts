@@ -13,7 +13,6 @@ import { unregisterPardonLoader } from "../src/runtime/loader/modern/register.js
 import { initializePardon } from "../src/runtime/initialize.js";
 
 export default async () => {
-  console.log("initializing test pardon");
   await initializePardon({ cwd: "./tests/config" });
 
   return () => {

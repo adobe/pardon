@@ -68,7 +68,7 @@ async function compose(
         template,
         new ScriptEnvironment({ name: `${testname}/${index}`, input }),
       );
-      if (merge.schema) {
+      if (merge.schema && merge.context!.diagnostics.length === 0) {
         return merge.schema;
       }
       throw merge.error || merge.context!.diagnostics?.[0] || merge;
@@ -1193,4 +1193,31 @@ intent.fails("undefined-reference")`
 { x }
 ---
 { }
+`();
+
+intent("merged-references")`
+{
+  x: hidden(a = (10)),
+  a: b || c || a
+}
+---
+{
+}
+---
+*
+{
+  a: 10
+}
+`();
+
+intent.todo("cyclic-undefined/broken")`
+{ c, y: a = (1 + 2 + 3), x: a || b, z: c || b }
+---
+{ x: 6, y: 6, z: 6, c: 6 }
+`();
+
+intent("cyclic-undefined")`
+{ c, y: a = (1 + 2 + 3), x: b || a, z: c || b }
+---
+{ x: 6, y: 6, z: 6, c: 6 }
 `();

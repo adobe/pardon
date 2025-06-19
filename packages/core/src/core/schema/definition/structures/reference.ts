@@ -146,7 +146,7 @@ export function referenceTemplate<T = unknown>(
     blend(context, next) {
       let { template } = reference;
       const { ref } = reference;
-      const hint = new Set([...(reference.hint ?? "")]);
+      let hint = reference.hint ?? "";
 
       while (isSchematic(template)) {
         const ops = exposeSchematic<RedactedOps<T>>(template);
@@ -155,28 +155,33 @@ export function referenceTemplate<T = unknown>(
           break;
         }
 
-        hint.add("@");
+        if (!hint.includes("@")) hint += "@";
         template = ops.template;
       }
 
       let schema = next({ ...context, template });
-      if (schema && context.template !== undefined) {
-        if (!isSchematic(context.template)) {
-          schema = merge(schema, context);
-        }
+
+      if (template !== undefined && !schema) {
+        return;
+      }
+
+      if (schema && !isSchematic(context.template)) {
+        schema = merge(schema, context);
       }
 
       if (template !== undefined && !schema) {
         return;
       }
 
-      return defineReference({
+      schema = defineReference({
         refs: new Set([ref].filter(Boolean)),
-        hint: [...hint].join(""),
+        hint,
         schema,
         encoding: reference.encoding,
         anull: reference.anull,
       });
+
+      return schema;
     },
     reference() {
       return reference;
@@ -346,7 +351,7 @@ export function defineReference<T = unknown>(
           template: datumTemplate(
             context.mode === "match"
               ? (context.template as T & Scalar)
-              : undefined,
+              : `{{${hint}}}`,
             {
               type: encoding,
             },

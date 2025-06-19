@@ -15,7 +15,7 @@ import {
   isSchematic,
   merge,
 } from "../../core/schema-ops.js";
-import { Schema, SchematicOps, Template } from "../../core/types.js";
+import { SchematicOps, Template } from "../../core/types.js";
 import { expandTemplate } from "../../template.js";
 
 type MergedSchematicOps<T> = SchematicOps<T> & {
@@ -30,38 +30,34 @@ export function mergedSchematic<T = any>(
     templates: [lhs, rhs],
     expand(context) {
       const lhsSchema = expandTemplate(lhs, context);
-      if (!lhsSchema) {
-        return undefined;
-      }
-
-      return merge(lhsSchema, { ...context, template: rhs });
+      return lhsSchema && merge(lhsSchema, { ...context, template: rhs });
     },
     blend(context, next) {
-      let blended: Schema<T> | undefined = undefined;
+      const lhss = isSchematic(lhs) && exposeSchematic<SchematicOps<T>>(lhs);
 
-      if (isSchematic(lhs)) {
-        const lhss = exposeSchematic<SchematicOps<T>>(lhs);
-        if (lhss.blend) {
-          blended = lhss.blend(context, next);
-          if (blended) {
-            return merge(blended, { ...context, template: rhs });
-          } else {
-            return undefined;
-          }
-        }
+      if (lhss && lhss.blend) {
+        return lhss.blend(context, (context) => {
+          const merged = next(context);
+          return merged && merge(merged, { ...context, template: rhs });
+        });
       }
 
-      const expanded = next({ ...context, template: lhs });
-      if (expanded) {
-        if (isSchematic(rhs)) {
-          const rhss = exposeSchematic<SchematicOps<T>>(rhs);
-          if (rhss.blend) {
-            return rhss.blend(context, (context) => merge(expanded, context));
-          }
-        }
-
-        return merge(expanded, { ...context, template: rhs });
-      }
+      const merged = next({ ...context, template: lhs });
+      return merged && merge(merged, { ...context, template: rhs });
     },
   });
 }
+
+/*    blend(context, next) {
+      const lhss = isSchematic(lhs) && exposeSchematic<SchematicOps<T>>(lhs);
+
+      if (lhss && lhss.blend) {
+        return lhss.blend({ ...context, template: undefined }, (context) => {
+          const merged = next(context);
+          return merged && merge(merged, { ...context, template: rhs });
+        });
+      }
+
+      const merged = next({ ...context, template: lhs });
+      return merged && merge(merged, { ...context, template: rhs });
+    }, */
