@@ -141,6 +141,7 @@ export type SchemaRenderContext = SchemaContextBase & {
   mode: "render" | "prerender" | "postrender" | "preview";
   evaluationScope: EvaluationScope;
   environment: SchemaScriptEnvironment;
+  cycles: Set<string>;
 };
 
 /**
@@ -188,17 +189,11 @@ export type EvaluationScope = {
 
   define<T>(context: SchemaContext<T>, key: string, value: T): T | undefined;
 
-  cached<T>(
-    context: SchemaRenderContext,
-    action: () => Promise<T> | T,
-    ...keys: string[]
-  ): Promise<T> | Exclude<T, undefined>;
-
   rendering<T>(
     context: Pick<SchemaRenderContext, "evaluationScope">,
     name: string,
-    action: () => Promise<T>,
-  ): Promise<T>;
+    action: (context: SchemaRenderContext) => Promise<T>,
+  ): Promise<T> | undefined;
 
   resolving<T>(
     context: SchemaContext,

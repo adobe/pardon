@@ -59,7 +59,6 @@ import {
 import {
   diagnostic,
   isAbstractContext,
-  loc,
   rescope,
 } from "../core/context-util.js";
 import {
@@ -446,9 +445,7 @@ function renderScalar<T>(
   context: SchemaRenderContext,
   self: DatumRepresentation,
 ): Exclude<T, undefined> | Promise<T | undefined> {
-  const { evaluationScope: scope } = context;
-
-  return scope.cached(context, () => doRenderScalar(context, self));
+  return doRenderScalar(context, self);
 }
 
 function resolveScalar<T extends Scalar>(
@@ -501,7 +498,6 @@ async function doRenderScalar<T>(
   context: SchemaRenderContext,
   self: DatumRepresentation,
 ): Promise<T | undefined> {
-  console.log(`${loc(context)}: ${self.patterns.map(({ source }) => source)}`);
   const { mode, environment } = context;
   const { type, unboxed } = self;
 
@@ -560,7 +556,7 @@ async function doRenderScalar<T>(
         return undefined;
       }
 
-      throw diagnostic(context, `unevaluated: type=${type ?? "any"}`);
+      throw diagnostic(context, `unevaluated: ${patterns[0].source}`);
     }
   }
 

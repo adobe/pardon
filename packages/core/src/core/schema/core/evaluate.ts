@@ -83,6 +83,9 @@ function synthesizeExpressionDeclaration(
       return {
         ...lookup,
         expression: expression ?? lookup.expression,
+        context: lookup.context
+          ? { ...lookup.context, cycles: context.cycles }
+          : null,
       } as typeof lookup & { context: SchemaRenderContext };
     }
   }
@@ -116,7 +119,7 @@ async function renderIdentifierInExpression(
     );
   }
 
-  return context.evaluationScope.rendering(context, name, async () => {
+  return context.evaluationScope.rendering(context, name, async (context) => {
     const identifier = parseScopedIdentifier(name);
 
     if (expression) {

@@ -9,12 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { executionAsyncId } from "node:async_hooks";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { disarm } from "../../../util/promise.js";
 import { valueId } from "../../../util/value-id.js";
 import { PardonError } from "../../error.js";
-import { shared } from "../../tracking.js";
 import {
   isFlowExport,
   isNoExport,
@@ -424,7 +422,7 @@ export class Scope implements EvaluationScope, ScopeData {
   rendering<T>(
     context: SchemaRenderContext,
     name: string,
-    action: () => Promise<T>,
+    action: (context: SchemaRenderContext) => Promise<T>,
   ) {
     type RenderingChainError = (Error | { message: string; cause?: Error }) & {
       loc: string;
@@ -442,15 +440,15 @@ export class Scope implements EvaluationScope, ScopeData {
         };
 
     const identifier = parseScopedIdentifier(name);
-    console.log(
-      `${executionAsyncId()}: ${loc(context)}: ${identifier.name}: evaluation requested...`,
-    );
+    const key = identifier.name;
 
-    const key = `${loc(context)}:::${identifier.name}`;
+    if (context.cycles.has(name)) {
+      return undefined;
+    }
 
     const evaluation =
       name === ""
-        ? action()
+        ? action(context)
         : ((this.evaluations[key] ??= this._doEvaluate(
             context,
             key,
@@ -497,18 +495,6 @@ export class Scope implements EvaluationScope, ScopeData {
     }
   }
 
-  cached<T>(
-    context: SchemaRenderContext,
-    action: () => Promise<T> | T,
-    ...keys: string[]
-  ): Promise<T> | Exclude<T, undefined> {
-    const key = [...context.keys, ...keys].join(".");
-
-    return (this.cache[key] ??= disarm(
-      shared(async () => action()),
-    )) as Promise<T>;
-  }
-
   evaluating(name: string) {
     return Boolean(this.evaluations[name]);
   }
@@ -517,12 +503,8 @@ export class Scope implements EvaluationScope, ScopeData {
     context: SchemaRenderContext,
     key: string,
     name: string,
-    action: () => Promise<T>,
+    action: (context: SchemaRenderContext) => Promise<T>,
   ): Promise<T> {
-    console.log(
-      `${executionAsyncId()}: ${loc(context)}: evaluation started...`,
-    );
-
     const identifier = parseScopedIdentifier(name);
 
     this.evaluations[key] = disarm(
@@ -533,7 +515,10 @@ export class Scope implements EvaluationScope, ScopeData {
       ),
     );
 
-    const value = await action();
+    const value = await action({
+      ...context,
+      cycles: new Set(context.cycles).add(key),
+    });
 
     if (typeof value === "function") {
       return value;
