@@ -456,7 +456,7 @@ key along with the array. e.g., for the `example/products/list` endpoint
 we could specify a `keyed` interpretation.
 
 ```http ins=/keyed.*, / ins=/(?<=}])[)]/
-{ id: "{{key}}" } * [{
+{ id: "{{key}}" } * [...{
   id: "{{product}}",
   name: "{{name}}",
   price: "{{price}}"

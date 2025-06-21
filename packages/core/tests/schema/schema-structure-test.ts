@@ -24,11 +24,11 @@ import {
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
-import { mixing } from "../../src/core/schema/core/contexts.js";
+import { merging } from "../../src/core/schema/core/contexts.js";
 
 describe("schema structure", () => {
   it("should render captures / references", async () => {
-    const s = mixing({
+    const s = merging({
       computed: "{{= body.toLowerCase()}}",
       json: referenceTemplate<string[]>({ ref: "json" }),
       body: referenceTemplate({ ref: "body" }).$of(
@@ -52,7 +52,7 @@ describe("schema structure", () => {
   });
 
   it("should capture key-values", async () => {
-    const s = mixing(
+    const s = merging(
       keyed(
         { name: evalBodyTemplate("key") as Schematic<string> },
         {
@@ -78,10 +78,10 @@ describe("schema structure", () => {
   });
 
   it("should capture key-values structure", async () => {
-    const s = mixing(
+    const s = merging(
       evalBodyTemplate(`
       { name: key } * [
-       { value: named.value }
+       ...{ value: named.value }
       ]
     `),
     )!;

@@ -34,7 +34,7 @@ import {
 } from "../request/https-template.js";
 import { ScriptEnvironment } from "../schema/core/script-environment.js";
 import {
-  EndpointConfiguration,
+  Configuration,
   EndpointStepsLayer,
   LayeredEndpoint,
 } from "../../config/collection-types.js";
@@ -77,7 +77,7 @@ export type PardonExecutionMatch = {
   context: SchemaMergingContext<HttpsRequestObject>;
   endpoint: LayeredEndpoint;
   layers: (EndpointStepsLayer & {
-    configuration: Partial<EndpointConfiguration>;
+    configuration: Partial<Configuration>;
   })[];
   values: Record<string, any>;
 };
@@ -89,7 +89,7 @@ export type PardonExecutionInit = {
   options?: PardonOptions;
   values: Record<string, any>;
   runtime?: Record<string, unknown>;
-  configuration?: EndpointConfiguration;
+  configuration?: Configuration;
   select?: PardonSelectOne;
   app(): PardonAppContext;
 };
@@ -278,7 +278,7 @@ export const PardonFetchExecution = pardonExecution({
         configuration,
       };
       const { schema, context: mergeContext } = mergeSchema(
-        { mode: "mux", phase: "build" },
+        { mode: "merge", phase: "build" },
         httpsRequestSchema(),
         request as HttpsRequestObject,
         createEndpointEnvironment({
@@ -335,7 +335,7 @@ export const PardonFetchExecution = pardonExecution({
       const archetype = httpsRequestSchema();
 
       const muxed = mergeSchema(
-        { mode: "mux", phase: "build" },
+        { mode: "merge", phase: "build" },
         archetype,
         request as HttpsRequestObject,
         createEndpointEnvironment({
@@ -463,7 +463,7 @@ export const PardonFetchExecution = pardonExecution({
     const app = context.app();
 
     const mergeComputations = mergeSchema(
-      { mode: "mux", phase: "build" },
+      { mode: "merge", phase: "build" },
       schema,
       {
         computations: hiddenTemplate(computations),
@@ -613,7 +613,7 @@ export const PardonFetchExecution = pardonExecution({
       values: {},
     });
 
-    layers: for (const { steps, configuration } of layers) {
+    layers: for (const { steps } of layers) {
       while (steps.length) {
         if (!steps.some(isHttpResponseStep)) {
           continue layers;
@@ -634,7 +634,7 @@ export const PardonFetchExecution = pardonExecution({
             meta,
             ...(body && { body }),
           },
-          { mode: configuration.mode, environment: new ScriptEnvironment() },
+          { environment: new ScriptEnvironment() },
         );
 
         if (result?.progress) {

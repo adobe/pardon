@@ -37,7 +37,7 @@ export type SchemaWarnings = {
  * hopefully of type T.
  */
 export type SchemaMergingContext<T> = SchemaContextBase & {
-  mode: "match" | "mix" | "mux" | "meld";
+  mode: "match" | "merge" | "meld";
   phase: "validate" | "build";
   evaluationScope: EvaluationScope;
   environment: SchemaScriptEnvironment;

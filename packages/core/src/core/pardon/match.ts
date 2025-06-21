@@ -11,8 +11,8 @@ governing permissions and limitations under the License.
 */
 import {
   LayeredEndpoint,
-  EndpointConfiguration,
   EndpointStepsLayer,
+  Configuration,
 } from "../../config/collection-types.js";
 import { PardonExecutionContext } from "./pardon.js";
 import { mapObject } from "../../util/mapping.js";
@@ -89,7 +89,7 @@ function selectDefaultEndpoints(
 }
 
 type MixinMatch = {
-  configuration: Partial<EndpointConfiguration>;
+  configuration: Partial<Configuration>;
   layers: LayeredEndpoint["layers"];
   specifier: string;
 };
@@ -100,7 +100,7 @@ class PardonEndpointMatcher {
   endpoint: LayeredEndpoint;
 
   readonly responseLayers: (EndpointStepsLayer & {
-    configuration: Partial<EndpointConfiguration>;
+    configuration: Partial<Configuration>;
   })[] = [];
 
   readonly acceptedMixins: string[] = [];
@@ -283,7 +283,7 @@ class PardonEndpointMatcher {
 
     layers = cloneLayers(layers);
 
-    const matches = layers.every(({ steps, mode }) => {
+    const matches = layers.every(({ steps }) => {
       if (!steps.some(isHttpRequestStep)) {
         return true;
       }
@@ -310,7 +310,7 @@ class PardonEndpointMatcher {
 
         const result = matcher.extend(
           { ...behavior.request, computations: behavior.computations },
-          { mode, environment, values: behavior.values },
+          { environment, values: behavior.values },
         );
 
         if (result?.matching.schema) {

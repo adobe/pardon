@@ -16,7 +16,6 @@ import * as YAML from "yaml";
 import {
   AssetParseError,
   Configuration,
-  EndpointConfiguration,
   LayeredEndpoint,
   LayeredMixin,
 } from "./collection-types.js";
@@ -520,8 +519,8 @@ function addEndpoint({
         () => HTTPS.parse(content) as HttpsTemplateScheme<"source">,
         errors,
         () => ({
+          mode: "merge" as const,
           configuration: {} as any,
-          mode: "mix" as const,
           steps: [],
         }),
       );
@@ -592,27 +591,27 @@ function addMixin({
 }) {
   const { name, sources } = assets[id];
 
-  const [, mode] = /[.](mix|mux)[.]https$/.exec(name)!;
+  const [, mode] = /[.]mix(?:in)?[.]https$/.exec(name)!;
 
   mixins[id] = sources.reduce<LayeredMixin>(
     (mixin, { content, path }) => {
       const { steps, configuration } = parseAsset(
         path,
-        () => HTTPS.parse(content, mode as "mix" | "mux"),
+        () => HTTPS.parse(content, mode as "merge"),
         errors,
         () => ({
           configuration: {} as any,
-          mode: mode as "mix" | "mux",
+          mode: mode as "merge",
           steps: [],
         }),
-      ) as HttpsSchemeType<"mix" | "mix", Configuration>;
+      ) as HttpsSchemeType<"merge", Configuration>;
 
       mixin.configuration = mergeConfigurations({
         name,
         configurations: [mixin.configuration, configuration].filter(Boolean),
       });
 
-      mixin.layers.push({ path, steps, mode: mode as "mix" | "mux" });
+      mixin.layers.push({ path, steps });
 
       return mixin;
     },
@@ -700,7 +699,7 @@ export function mergeConfigurations({
     .filter(Boolean)
     .reduce<
       Pick<
-        Configuration & EndpointConfiguration,
+        Configuration<"runtime">,
         "config" | "defaults" | "import" | "export" | "mixin" | "type" | "flow"
       >
     >(

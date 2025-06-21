@@ -9,11 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import {
-  Configuration,
-  EndpointConfiguration,
-  LayeredEndpoint,
-} from "../config/collection-types.js";
+import { Configuration, LayeredEndpoint } from "../config/collection-types.js";
 import {
   Pattern,
   PatternRegex,
@@ -252,7 +248,7 @@ export function resolveDefaults(
 
 function importFromConfiguration(
   name: string,
-  configuration: EndpointConfiguration,
+  configuration: Configuration,
   compiler: PardonCompiler,
 ) {
   return resolveImport(

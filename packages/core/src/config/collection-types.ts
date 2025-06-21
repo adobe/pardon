@@ -49,10 +49,6 @@ export type Configuration<
       config: Record<string, string>[];
     });
 
-export type EndpointConfiguration = Omit<Configuration, "export"> & {
-  mode?: "mix" | "mux";
-};
-
 // TODO
 //  refactor endpoints/mixins to
 //  a sequence of layers of { dirname, steps, configuration }.
@@ -63,23 +59,22 @@ export type Endpoint = {
   action: string;
   asset: string;
   steps: HttpsStep[];
-  configuration: EndpointConfiguration;
+  configuration: Configuration;
 };
 
 export type EndpointStepsLayer = {
   path: string;
   steps: HttpsStep[];
-  mode?: "mix" | "mux";
 };
 
 export type LayeredEndpoint = {
   service: string;
   action: string;
-  configuration: EndpointConfiguration;
+  configuration: Configuration;
   layers: EndpointStepsLayer[];
 };
 
 export type LayeredMixin = {
-  configuration: EndpointConfiguration;
+  configuration: Configuration;
   layers: EndpointStepsLayer[];
 };

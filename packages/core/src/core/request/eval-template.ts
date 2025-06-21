@@ -113,7 +113,20 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     return factory.createStringLiteral(pattern);
   }
 
-  // handles `[...x.y.z]` as `$mix([x.y.z.$value])`
+  if (
+    ts.isPrefixUnaryExpression(currentNode) &&
+    currentNode.operator === SyntaxKind.ExclamationToken &&
+    ts.isArrayLiteralExpression(currentNode.operand) &&
+    ts.isSpreadElement(currentNode.operand.elements[0])
+  ) {
+    return factory.createCallExpression(
+      factory.createIdentifier("$elements"),
+      undefined,
+      [currentNode.operand.elements[0].expression, factory.createTrue()],
+    );
+  }
+
+  // handles `[...x.y.z]` as `$elements([x.y.z.$value])`
   if (
     ts.isArrayLiteralExpression(currentNode) &&
     ts.isSpreadElement(currentNode.elements[0])
@@ -147,6 +160,18 @@ export const jsonSchemaTransform: TsMorphTransform = ({
       factory.createIdentifier("$elements"),
       undefined,
       [currentNode.elements[0].expression, ...currentNode.elements.slice(1)],
+    );
+  }
+
+  if (
+    ts.isPrefixUnaryExpression(currentNode) &&
+    currentNode.operator === SyntaxKind.ExclamationToken &&
+    ts.isArrayLiteralExpression(currentNode.operand)
+  ) {
+    return factory.createCallExpression(
+      factory.createIdentifier("$itemOrArray"),
+      undefined,
+      currentNode.operand.elements,
     );
   }
 
@@ -201,18 +226,6 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   if (ts.isPrefixUnaryExpression(currentNode)) {
     switch (currentNode.operator) {
-      case SyntaxKind.PlusPlusToken: // ++(...) -> mux mode
-        return factory.createCallExpression(
-          factory.createIdentifier("$mux"),
-          undefined,
-          [currentNode.operand],
-        );
-      case SyntaxKind.MinusMinusToken: // --(...) -> mix mode
-        return factory.createCallExpression(
-          factory.createIdentifier("$mix"),
-          undefined,
-          [currentNode.operand],
-        );
       case SyntaxKind.TildeToken: // ~~(...) -> match mode
         if (
           ts.isPrefixUnaryExpression(currentNode.operand) &&

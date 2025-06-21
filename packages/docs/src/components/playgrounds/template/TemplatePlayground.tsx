@@ -27,7 +27,7 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
 
   const [template, setTemplate] = createSignal(firstTemplate.trim());
   const jsonSchema = merge(
-    { mode: "mix", phase: "build" },
+    { mode: "merge", phase: "build" },
     seed(),
     json(),
   ).schema!;
@@ -41,13 +41,13 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
       } = KV.parse(template(), "stream");
 
       if (rest?.trim()) {
-        return merge({ mode: "mix", phase: "build" }, jsonSchema!, rest);
+        return merge({ mode: "merge", phase: "build" }, jsonSchema!, rest);
       }
     } catch (error) {
       void error;
     }
 
-    return merge({ mode: "mix", phase: "build" }, jsonSchema!, template());
+    return merge({ mode: "merge", phase: "build" }, jsonSchema!, template());
   });
 
   const templateValues = createMemo(() => {
@@ -85,7 +85,7 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
         return schema
           ? merge(
               {
-                mode: "mix",
+                mode: "merge",
                 phase: index === list.length - 1 ? "validate" : "build",
               },
               schema,

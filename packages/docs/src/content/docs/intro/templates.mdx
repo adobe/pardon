@@ -76,7 +76,7 @@ a=3
 ```
 map={a=1 b=2 c=3}
 {
-  mappedlist: [key,_] * [[map.$key, map.$value]]
+  mappedlist: [key,_] * [...[map.$key, map.$value]]
 }
 ```
 </TemplatePlayground>
@@ -85,7 +85,7 @@ map={a=1 b=2 c=3}
 <TemplatePlayground>
 ```
 {
-  mappedlist: [key,_] * [[map.$key, map.$value]]
+  mappedlist: [key,_] * [...[map.$key, map.$value]]
 }
 ---
 {

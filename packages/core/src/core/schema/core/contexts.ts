@@ -14,12 +14,12 @@ import { stubSchema } from "../definition/structures/stub.js";
 import { createMergingContext } from "./context.js";
 import { Schema, Template } from "./types.js";
 
-export function mixing<T>(
+export function merging<T>(
   template: Template<T>,
   meta?: Record<string, string>,
 ): Schema<T> | undefined {
   return createMergingContext(
-    { ...meta, mode: "mix", phase: "build" },
+    { ...meta, mode: "merge", phase: "build" },
     stubSchema(),
     undefined,
   ).expand(template);
@@ -31,17 +31,6 @@ export function matching<T>(
 ): Schema<T> | undefined {
   return createMergingContext(
     { ...meta, mode: "match", phase: "build" },
-    stubSchema(),
-    undefined,
-  ).expand(template);
-}
-
-export function muxing<T>(
-  template: Template<T>,
-  meta?: Record<string, string>,
-): Schema<T> | undefined {
-  return createMergingContext(
-    { ...meta, mode: "mux", phase: "build" },
     stubSchema(),
     undefined,
   ).expand(template);

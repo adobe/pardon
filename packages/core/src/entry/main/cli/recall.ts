@@ -54,7 +54,7 @@ export async function recall(
   const [filter] = args?.filter((name) => name.endsWith(".filter.https")) ?? [];
 
   const filterexecution = filter
-    ? HTTPS.parse(await FILE.text(filter), "filter" as "mix")
+    ? HTTPS.parse(await FILE.text(filter), "filter" as "merge")
     : undefined;
 
   for (const [http, scope] of Object.entries(related)) {
@@ -125,7 +125,7 @@ async function acceptResult(
         body: step.body,
       };
       const { schema } = mergeSchema(
-        { mode: "mix", phase: "build" },
+        { mode: "merge", phase: "build" },
         httpsResponseSchema(),
         responseObject,
       );

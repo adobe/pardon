@@ -17,7 +17,6 @@ export type {
   AssetParseError,
   Configuration,
   Endpoint,
-  EndpointConfiguration,
   LayeredMixin,
 } from "../config/collection-types.js";
 

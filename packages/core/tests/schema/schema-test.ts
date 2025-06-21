@@ -21,7 +21,7 @@ import { ScriptEnvironment } from "../../src/core/schema/core/script-environment
 import { Schema } from "../../src/core/schema/core/types.js";
 import { KV } from "../../src/core/formats/kv-fmt.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
-import { mixing } from "../../src/core/schema/core/contexts.js";
+import { merging } from "../../src/core/schema/core/contexts.js";
 
 async function compose(
   testname: string,
@@ -61,7 +61,7 @@ async function compose(
     (schema, template, index) => {
       const merge = mergeSchema(
         {
-          mode: "mix",
+          mode: "merge",
           phase: index === templates.length - 1 ? "validate" : "build",
         },
         schema,
@@ -73,7 +73,7 @@ async function compose(
       }
       throw merge.error || merge.context!.diagnostics?.[0] || merge;
     },
-    mixing(jsonEncoding(undefined))!,
+    merging(jsonEncoding(undefined))!,
   );
 
   const {
@@ -609,9 +609,9 @@ a=foo
 b=bar
 c=baz
 {
-  "a": unwrapSingle("{{a}}"),
-  "b": mux(unwrapSingle("{{b}}")),
-  "c": unwrapSingle("{{c}}")
+  "a": ![ "{{a}}" ],
+  "b": ![ "{{b}}" ],
+  "c": ![ "{{c}}" ]
 }
 ---
 {
@@ -623,7 +623,7 @@ c=baz
 intent("lenient-array-behavior-expanded-by-value")`
 a=[foo]
 {
-  "a": unwrapSingle("{{a.@value}}")
+  "a": ![ "{{a.@value}}" ]
 }
 ---
 a=[foo]
@@ -634,11 +634,11 @@ a=[foo]
 
 intent("lenient-array-behavior-valued-match-to-array")`
 {
-  "b": unwrapSingle("{{b.@value}}")
+  "b": ![ "{{b.@value}}" ]
 }
 ---
 {
-  "b": mux(["bar"])
+  "b": ["bar"]
 }
 ---
 b=[bar]
@@ -649,7 +649,7 @@ b=[bar]
 
 intent("lenient-array-behavior-valued-match-to-value")`
 {
-  "b": unwrapSingle("{{b.@value}}")
+  "b": ![ "{{b.@value}}" ]
 }
 ---
 {
@@ -664,8 +664,26 @@ b=[bar]
 
 intent("lenient-array-behavior-non-unit-case")`
 {
-  "a": unwrapSingle("{{a.@value}}"),
-  "b": unwrapSingle("{{b.@value}}")
+  "a": ![..."{{a.@value}}"],
+  "b": ![..."{{b.@value}}"]
+}
+---
+{
+  "a": [1, 2],
+  "b": []
+}
+---
+a=[1,2]
+{
+  "a": [1,2],
+  "b": []
+}
+`();
+
+intent("lenient-array-behavior-non-unit-case-explicit")`
+{
+  "a": elements("{{a.@value}}"),
+  "b": elements("{{b.@value}}")
 }
 ---
 {
@@ -682,10 +700,10 @@ a=[1,2]
 
 intent("keyed-list-value-rendering")`
 map={ x=1, y=2 }
-keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}", // should this be implied from the match archetype?
   "a": "{{map.@value}}"
-}])
+}))
 ---
 *
 [{ "id": "x", "a": 1 }, { "id": "y", "a": 2 }]
@@ -693,14 +711,14 @@ keyed({ id: "{{key}}" }, [{
 
 intent("keyed-list-merging-and-value-rendering")`
 map={ x={ a=1, b=2 }, y={ a=3, b=4 }}
-keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}", // should this be implied from the match archetype?
   "a": "{{map.a}}"
-}])
+}))
 ---
-keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, elements({
   "b": "{{map.b}}"
-}])
+}))
 ---
 *
 [{ "id": "x", "a": 1, "b": 2 }, { "id": "y", "a": 3, "b": 4 }]
@@ -708,14 +726,14 @@ keyed({ id: "{{key}}" }, [{
 
 intent("keyed-list-merging-and-value-rendering-reuse-value")`
 map={ x=xx, y=yy }
-keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}",
   "a": "{{map.@value}}"
-}])
+}))
 ---
-keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, elements({
   "b": "{{map.@value}}"
-}])
+}))
 ---
 *
 [{ "id": "x", "a": "xx", "b": "xx" },
@@ -723,10 +741,10 @@ keyed({ id: "{{key}}" }, [{
 `();
 
 intent("mv-keyed-list-matching")`
-keyed$mv({ id: "{{key}}" }, [{
+keyed$mv({ id: "{{key}}" }, elements({
   "id": "{{map.a.@key}}", // should this be implied from the match archetype?
   "a": "{{map.a.@value}}"
-}])
+}))
 ---
 [{ "id": "x", "a": "xx" },
  { "id": "x", "a": "xy" },
@@ -742,10 +760,10 @@ map={x={a=[xx,xy]},y={a=[yy,yz]}}
 
 intent("mv-keyed-list-rendering-by-value")`
 map={x={a=[xx,xy]},y={a=[yy,yz]}}
-keyed$mv({ id: "{{key}}" }, [{
+keyed$mv({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}",
   "a": "{{map.a.@value}}"
-}])
+}))
 ---
 *
 [{ "id": "x", "a": "xx" },
@@ -756,7 +774,7 @@ keyed$mv({ id: "{{key}}" }, [{
 
 intent("keyed-tuple-list-mapping")`
 keyed(["{{key}}", undefined],
-[["{{headers.@key}}", "{{headers.value}}"]])
+elements(["{{headers.@key}}", "{{headers.value}}"]))
 ---
 [["a", "AAA"],
  ["b", "BBB"]]
@@ -769,7 +787,7 @@ headers={a={value=AAA}, b={value=BBB}}
 intent("keyed-tuple-list-value-rendering")`
 headers={a={value=AAA}, b={value=BBB}}
 keyed(["{{key}}", undefined],
-[["{{headers.@key}}", "{{headers.value}}"]])
+elements(["{{headers.@key}}", "{{headers.value}}"]))
 ---
 *
 [["a", "AAA"],
@@ -788,7 +806,7 @@ array=[a,b]
 intent("keyed-new-syntax")`
 headers={a={value=AAA}, b={value=BBB}}
 [key, undefined] * [
-  [headers.$key, headers.value]
+  ...[headers.$key, headers.value]
 ]
 ---
 *
@@ -798,12 +816,12 @@ headers={a={value=AAA}, b={value=BBB}}
 
 intent("keyed-merging-new-syntax")`
 map={ x=xx, y=yy }
-{ id: key } * [{
+{ id: key } * [...{
   "id": map.$key,
   "a": map.$value
 }]
 ---
-{ id: key } * [{
+{ id: key } * [...{
   "b": map.$value
 }]
 ---
@@ -814,7 +832,7 @@ map={ x=xx, y=yy }
 
 intent("keyed-merging-new-syntax-expression")`
 map={ x={value=xx}, y={value=yy} }
-{ id: $key } * [{
+{ id: $key } * [...{
   id: map.$key,
   a: map.value,
   a1: ( value + 1 )
@@ -826,13 +844,13 @@ map={ x={value=xx}, y={value=yy} }
 `();
 
 intent("nested-kv-export")`
-keyed({ id: "{{key}}" }, [{
+keyed({ id: "{{key}}" }, elements({
   id: "{{map.@key}}",
-  nested: keyed({ id: "{{key}}" }, [{
+  nested: keyed({ id: "{{key}}" }, elements({
     id: "{{map.nested.@key}}",
     value: "{{map.nested.@value}}"
-  }])
-}])
+  }))
+}))
 ---
 [{ id: 'hello', nested: [{ id: 'x', value: 'y' }, { id: 'p', value: 'q' }] }]
 ---
@@ -845,13 +863,13 @@ map={ hello={ nested={ x=y, p=q } } }
 
 intent("nested-kv-import")`
 map={ hello={ nested={ x=y, p=q } } }
-keyed({ id: key }, [{
+keyed({ id: key }, elements({
   id: map.$key,
-  nested: keyed({ id: key }, [{
+  nested: keyed({ id: key },elements({
     id: map.nested.$key,
     value: map.nested.$value
-  }])
-}])
+  }))
+}))
 ---
 *
 [{ "id": "hello", "nested": [
@@ -988,7 +1006,7 @@ intent("aggregate-complex-elements")`
 
 intent("aggregate-value-fields")`
 {
-  items: { key } * [{ key, value: items.$value }]
+  items: { key } * [...{ key, value: items.$value }]
 }
 ---
 {
@@ -1004,7 +1022,7 @@ intent("aggregate-value-fields")`
 
 intent("aggregate-complex-fields")`
 {
-  items: { key } * [{ key, value: items.field }]
+  items: { key } * [...{ key, value: items.field }]
 }
 ---
 {
@@ -1020,7 +1038,7 @@ intent("aggregate-complex-fields")`
 
 intent("aggregate-array-of-map")`
 {
-  items: { key } * [{ key, value: [...items.each], which: (each.join("")) }]
+  items: { key } * [...{ key, value: [...items.each], which: (each.join("")) }]
 }
 ---
 {

@@ -125,7 +125,7 @@ describe("https-schema-tests", () => {
     console.log("extended", rendered);
   });
 
-  it("should match unwrapped single elements", async () => {
+  it("should match single elements", async () => {
     const jsonBaseSchema = httpsRequestSchema();
 
     const hctx = mixContext(
@@ -134,7 +134,7 @@ describe("https-schema-tests", () => {
         origin: "https://www.example.com",
         pathname: "/test",
         body: `{
-        "x": unwrapSingle("{{hello}}")
+        "x": ![ "{{hello}}" ]
       }`,
       },
       "json",
@@ -176,7 +176,7 @@ describe("https-schema-tests", () => {
           origin: "https://www.example.com",
           pathname: "/test",
           body: `{
-          "x": unwrapSingle("{{hello}}")
+          "x": ![ "{{hello}}" ]
         }`,
         },
         "json",
@@ -248,7 +248,7 @@ describe("https-schema-tests", () => {
           origin: "https://www.example.com",
           pathname: "/test",
           body: `{
-          "x": unwrapSingle("{{hello}}")
+          "x": ![ "{{hello}}" ]
         }`,
         },
         "json",
@@ -257,7 +257,7 @@ describe("https-schema-tests", () => {
 
     const { schema } = mergeSchema(
       {
-        mode: "mux",
+        mode: "merge",
         phase: "build",
       },
       httpsPattern,
@@ -291,7 +291,7 @@ describe("https-schema-tests", () => {
 
     const { schema } = mergeSchema(
       {
-        mode: "mux",
+        mode: "merge",
         phase: "build",
       },
       httpsPattern,
@@ -458,7 +458,7 @@ describe("https-schema-tests", () => {
     encoding?: string,
   ) {
     return createMergingContext(
-      { mode: "mix", phase: "build", encoding: encoding! },
+      { mode: "merge", phase: "build", encoding: encoding! },
       s,
       template,
       new ScriptEnvironment({
@@ -576,16 +576,6 @@ describe("https-schema-tests", () => {
 
   transforms("plus-as-flow").from("+x").to(`$flow(x)`).symbols("x", "$flow");
 
-  transforms("plusplus-as-mux")
-    .from("++['hello']")
-    .to(`$mux(['hello'])`)
-    .symbols("$mux");
-
-  transforms("minusminus-as-mix")
-    .from("--{ d: 'world' }")
-    .to(`$mix({ d: 'world' })`)
-    .symbols("$mix");
-
   // todo: create a template that can merge two templates,
   // maybe
   //        and("{{ a }}", "{{ b = c }}")
@@ -610,9 +600,9 @@ describe("https-schema-tests", () => {
     .to(`"<<{{ abc }}::{{ xyz.pqr = $$expr(\\"100+5\\") }}>>"`);
 
   transforms("kv-expression")
-    .from(`[key, undefined] * [ [headers.$key, headers.$value] ]`)
-    .to("$keyed([key, undefined], [[headers.$key, headers.$value]])")
-    .symbols("$keyed", "key", "undefined", "headers");
+    .from(`[key, undefined] * [ ...[headers.$key, headers.$value] ]`)
+    .to("$keyed([key, undefined], $elements([headers.$key, headers.$value]))")
+    .symbols("$keyed", "$elements", "key", "undefined", "headers");
 
   transforms("multi-kv-expression")
     .from(`{ id: key } ** { id: map.$key, value: map.$value }`)
@@ -627,7 +617,7 @@ describe("https-schema-tests", () => {
   transforms("kv-with-computed-properties")
     .from(
       `
-{ id: key } * [{
+{ id: key } * [...{
   id: map.$key,
   a: "{{map.value}}",
   a1: ( value + 1 )
@@ -635,14 +625,14 @@ describe("https-schema-tests", () => {
     )
     .to(
       `
-$keyed({ id: key }, [{
-        id: map.$key,
-        a: "{{map.value}}",
-        a1: "{{ = $$expr(\\"value + 1\\") }}"
-    }])
+$keyed({ id: key }, $elements({
+    id: map.$key,
+    a: "{{map.value}}",
+    a1: "{{ = $$expr(\\"value + 1\\") }}"
+}))
 `,
     )
-    .symbols("$keyed", "key", "map");
+    .symbols("$keyed", "$elements", "key", "map");
 
   transforms("function-calls")
     .from("form({ x: a = 10 })")
@@ -660,6 +650,6 @@ $keyed({ id: key }, [{
       `
 {
     x: $merged($elements({ p: xs.p, q: "{{ xs.q = $$expr(\\"1\\") }}" }), [{ p: "hello" }, { p: "world", q: $$number("7") }])
-}`.trim(),
+}`,
     );
 });

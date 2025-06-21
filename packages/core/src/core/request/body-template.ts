@@ -37,11 +37,9 @@ import {
   referenceTemplate,
 } from "../schema/definition/structures/reference.js";
 import {
-  muxTemplate,
   tuple,
-  unwrapSingle,
+  itemOrArray,
   makeKeyed,
-  mixTemplate,
   matchTemplate,
   mvKeyedTuples,
   blendEncoding,
@@ -128,12 +126,10 @@ export const bodyGlobals: Record<string, any> = {
   $number: <T>(x: Template<T>) => referenceTemplate<number>({}).$of(x).$number,
   $bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).$of(x).$bool,
   $noexport: <T>(x: Template<T>) => referenceTemplate<T>({}).$of(x).$noexport,
-  $elements<T>(item: Template<T>, ...values: Template<T>[]) {
-    return arrays.singlevalue(item, values.length ? values : undefined);
+  $elements<T>(item: Template<T>, lenient?: boolean) {
+    return arrays.archetype(item, lenient);
   },
   $secret: redact,
-  $mux: muxTemplate,
-  $mix: mixTemplate,
   $match: matchTemplate,
   $meld: meldTemplate,
   $hidden: hiddenTemplate,
@@ -141,7 +137,7 @@ export const bodyGlobals: Record<string, any> = {
   $keyed: makeKeyed,
   $keyed$mv: makeKeyed.mv,
   $tuple: tuple,
-  $unwrapSingle: unwrapSingle,
+  $itemOrArray: itemOrArray,
   $$number(source: string) {
     return createNumber(source);
   },

@@ -37,7 +37,7 @@ import {
 } from "../schema/core/schema-ops.js";
 import { encodings, EncodingTypes } from "./body-template.js";
 import { JSON } from "../raw-json.js";
-import { mixing } from "../schema/core/contexts.js";
+import { merging } from "../schema/core/contexts.js";
 import { encodingTemplate } from "../schema/definition/encodings/encoding.js";
 import { guessContentType } from "../formats/https-fmt.js";
 
@@ -217,7 +217,7 @@ const pathnameTemplate = (base: string) =>
   });
 
 export function httpsRequestSchema(): Schema<HttpsRequestObject> {
-  return mixing<HttpsRequestObject>({
+  return merging<HttpsRequestObject>({
     method: "{{method = 'GET'}}",
     origin: originTemplate("{{-?...origin}}"),
     pathname: pathnameTemplate("{{...pathname}}"),
@@ -231,7 +231,7 @@ export function httpsRequestSchema(): Schema<HttpsRequestObject> {
 }
 
 export function httpsResponseSchema(): Schema<ResponseObject> {
-  return mixing<ResponseObject>({
+  return merging<ResponseObject>({
     ...scopedFields("res", {
       status: datums.pattern<string>("{{status}}", {
         re: ({ hint }) => (hint === "?" ? /\d/ : /\d+/),

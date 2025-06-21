@@ -43,7 +43,7 @@ type ArrayRepresentation<T> = {
   scoped: boolean;
 };
 
-type ArraySchematic<T> = {
+export type ArraySchematic<T> = {
   array?: Template<T>[];
   mux?: boolean;
   item?: Template<T>;
@@ -53,7 +53,7 @@ type ArraySchematic<T> = {
   scoped?: boolean;
 };
 
-type ArraySchematicOps<T> = SchematicOps<T | T[]> & {
+export type ArraySchematicOps<T> = SchematicOps<T | T[]> & {
   array(context: SchemaMergingContext<T | T[]>): ArraySchematic<T>;
 };
 
@@ -236,16 +236,12 @@ function mvMergeElements<T>(
 
   const scoped = Boolean(rep.scoped || info.scoped);
 
-  if (!scoped) {
-    context = { ...context, mode: "mux" };
-  }
-
-  if (context.mode === "mix" && info.array?.length === 1) {
+  if (info.item) {
     const mergedItem = merge(rep.item ?? stubSchema(), {
       ...(tempContext(
         itemContext(context, scoped, -1),
       ) as SchemaMergingContext<T>),
-      template: info.array[0],
+      template: info.item,
     });
 
     if (!mergedItem) {
@@ -493,48 +489,19 @@ function defineArraySchematic<T>(
 }
 
 export const arrays = {
-  auto: <T>(template: Template<T>[]) =>
-    defineArraySchematic<T>(
+  tuple: <A extends unknown[]>(template: Template<A>) =>
+    defineArraySchematic<A>(
       () => ({
         item: stubSchema(),
         multivalue: false,
-        scoped: template?.length === 1,
-      }),
-      ({ mode }) =>
-        mode === "mix" && template?.length == 1
-          ? {
-              item: template[0],
-            }
-          : {
-              array: template,
-            },
-    ) as Schematic<T[]>,
-
-  singlevalue: <T>(item: Template<T>, template?: Template<T>[]) =>
-    defineArraySchematic<T>(
-      () => ({
-        item: stubSchema(),
-        multivalue: false,
-        scoped: true,
+        scoped: false,
       }),
       () => ({
-        item,
-        array: template,
-      }),
-    ) as Schematic<T[]>,
-
-  scoped: <T>(template: Template<T>[]) =>
-    defineArraySchematic<T>(
-      () => ({
-        item: stubSchema(),
-        multivalue: false,
-        scoped: true,
-      }),
-      () => ({
-        array: template,
+        array: template as Template<A>[],
+        scoped: false,
         mux: true,
       }),
-    ) as Schematic<T[]>,
+    ) as Schematic<A>,
 
   // Jackson UNWRAP_SINGLE_VALUE_ARRAYS
   lenient: <T>(template: Template<T> | Template<T>[]) =>
@@ -554,19 +521,18 @@ export const arrays = {
       }),
     ) as Schematic<T | T[]>,
 
-  tuple: <A extends unknown[]>(template: Template<A>) =>
-    defineArraySchematic<A>(
+  archetype: <T>(item: Template<T>, lenient?: boolean) =>
+    defineArraySchematic<T>(
       () => ({
         item: stubSchema(),
         multivalue: false,
-        scoped: false,
+        scoped: true,
+        lenient,
       }),
       () => ({
-        array: template as Template<A>[],
-        scoped: false,
-        mux: true,
+        item,
       }),
-    ) as Schematic<A>,
+    ) as Schematic<T[]>,
 
   multivalue: <T>(template: Template<T>[], item?: Template<T>) =>
     defineArraySchematic<T>(
@@ -583,7 +549,7 @@ export const arrays = {
       }),
     ) as Schematic<T[]>,
 
-  multiscope: <T>(template: Template<T>[], item?: Template<T>) =>
+  multiscope: <T>(item: Template<T>) =>
     defineArraySchematic<T>(
       () => ({
         item: stubSchema(),
@@ -591,7 +557,6 @@ export const arrays = {
         scoped: true,
       }),
       () => ({
-        array: template,
         item,
         multivalue: true,
         scoped: true,

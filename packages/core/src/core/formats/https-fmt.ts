@@ -66,7 +66,7 @@ export function isHttpScriptStep(step: HttpsStep): step is HttpsScriptStep {
 
 export type HttpsStep = HttpsRequestStep | HttpsResponseStep | HttpsScriptStep;
 
-export type HttpsMode = "mix" | "mux" | "flow" | "log";
+export type HttpsMode = "merge" | "flow" | "log";
 
 export type FlowName = `${string}.flow`;
 
@@ -91,7 +91,7 @@ export type UseFlow = {
   provides?: string | ValueMapping;
 };
 
-export type HttpsSchemeType<Mode extends string, Configuration> = {
+export type HttpsSchemeType<Mode extends HttpsMode, Configuration> = {
   mode: Mode;
   configuration: Configuration;
   steps: HttpsStep[];
@@ -119,13 +119,13 @@ export type HttpsFlowScheme = HttpsSchemeType<"flow", HttpsFlowConfig>;
 
 export type HttpsTemplateScheme<
   Phase extends ResourceProcessingPhase = "runtime",
-> = HttpsSchemeType<"mix" | "mux", HttpsTemplateConfiguration<Phase>>;
+> = HttpsSchemeType<"merge", HttpsTemplateConfiguration<Phase>>;
 
 export const HTTPS = { parse };
 
 function parse(
   file: string,
-  mode: HttpsMode = "mix",
+  mode: HttpsMode = "merge",
 ): HttpsScheme<HttpsMode extends "flow" ? "flow" : "source"> {
   const lines = file.split("\n");
   const steps: HttpsStep[] = [];

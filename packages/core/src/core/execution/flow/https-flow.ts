@@ -108,7 +108,7 @@ function buildDefinitionSchema(definitions: Record<string, any>) {
   }) as Record<string, unknown>;
 
   return mergeSchema(
-    { mode: "mux", phase: "build" },
+    { mode: "merge", phase: "build" },
     stubSchema(),
     definitionSchemaTemplate,
   ).schema!;
@@ -753,7 +753,7 @@ async function matchResponseToOutcome(
       responseTemplate as HttpsResponseStep;
 
     let merged = mergeSchema(
-      { mode: "mux", phase: "build" },
+      { mode: "merge", phase: "build" },
       responseSchema,
       {
         status,
@@ -774,15 +774,19 @@ async function matchResponseToOutcome(
       const preview = await prerenderSchema(merged.schema, previewEnv);
 
       merged = mergeSchema(
-        { mode: "mux", phase: "build" },
+        { mode: "merge", phase: "build" },
         merged.schema,
         preview.output,
       );
 
+      if (merged.error) {
+        throw merged.error;
+      }
+
       templates.push({
         outcome,
         preview: preview.output,
-        diagnostics: merged.context.diagnostics.map(({ loc }) => loc),
+        diagnostics: merged.context!.diagnostics.map(({ loc }) => loc),
       });
     }
 
@@ -806,10 +810,14 @@ async function matchResponseToOutcome(
         preview: templates.slice(-1)[0].preview,
       } satisfies MatchedResponseOutcome;
     } else if (match) {
+      if (match.error) {
+        throw match.error;
+      }
+
       templates
         .slice(-1)[0]
         .diagnostics.push(
-          ...(match?.context.diagnostics.map(({ loc }) => loc) || []),
+          ...(match?.context!.diagnostics.map(({ loc }) => loc) || []),
         );
     }
   }
