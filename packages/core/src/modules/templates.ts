@@ -12,6 +12,7 @@ governing permissions and limitations under the License.
 
 import { ScriptEnvironment } from "../core/schema/core/script-environment.js";
 
+export type { Schema, Template } from "../core/schema/core/types.js";
 export { jsonEncoding as json } from "../core/request/body-template.js";
 export { scalars } from "../core/schema/definition/index.js";
 export { expandTemplate } from "../core/schema/template.js";

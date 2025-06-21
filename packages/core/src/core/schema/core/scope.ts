@@ -443,7 +443,7 @@ export class Scope implements EvaluationScope, ScopeData {
     const key = identifier.name;
 
     if (context.cycles.has(name)) {
-      //return undefined;
+      return undefined;
     }
 
     const evaluation =

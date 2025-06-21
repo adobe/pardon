@@ -405,9 +405,19 @@ export function defineReference<T = unknown>(
       }
 
       for (const ref of refs) {
+        if (context.cycles.has(`ref:::${ref}`)) {
+          continue;
+        }
+
         const value = (
           context.mode === "render"
-            ? await evaluateIdentifierWithExpression(context, ref)
+            ? await evaluateIdentifierWithExpression(
+                {
+                  ...context,
+                  cycles: new Set(context.cycles).add(`ref:::${ref}`),
+                },
+                ref,
+              )
             : undefined
         ) as T | undefined;
 

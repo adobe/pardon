@@ -1224,18 +1224,20 @@ intent.fails("undefined-reference")`
 { }
 `();
 
-intent("merged-references")`
+intent.only("merged-references")`
 {
   x: hidden(a = (10)),
-  a: b || c || a
+  y: b || c || a
 }
 ---
 {
 }
 ---
-*
+b=10
+c=10
+a=10
 {
-  a: 10
+  y: 10
 }
 `();
 
@@ -1267,4 +1269,13 @@ intent.fails(`match-eval-aggregate`)`
 ---
 *
 { x: [1,2,3,4] }
+`();
+
+intent.fails(`recursive-spread-evaluation`)`
+a=[1,2,3,4]
+{ a: [...a.x!] }
+---
+{ a }
+---
+{}
 `();

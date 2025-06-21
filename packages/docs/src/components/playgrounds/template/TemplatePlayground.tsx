@@ -5,7 +5,6 @@ import {
   For,
   type ParentProps,
 } from "solid-js";
-import CodeMirror from "@components/codemirror/CodeMirror.tsx";
 
 import {
   createScriptEnvironment,
@@ -13,8 +12,10 @@ import {
   merge,
   render,
   seed,
+  type Schema,
 } from "pardon/templates";
 import { JSON, KV } from "pardon/formats";
+import CodeMirror from "@components/codemirror/CodeMirror.tsx";
 
 export default function TemplatePlayground(props: ParentProps<{}>) {
   const [firstTemplate, ...otherTemplates] = [
@@ -32,41 +33,37 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
     json(),
   ).schema!;
 
-  const templateSchema = createMemo(() => {
-    try {
-      const {
-        [KV.eoi]: _eoi,
-        [KV.upto]: _upto,
-        [KV.unparsed]: rest,
-      } = KV.parse(template(), "stream");
-
-      if (rest?.trim()) {
-        return merge({ mode: "merge", phase: "build" }, jsonSchema!, rest);
-      }
-    } catch (error) {
-      void error;
-    }
-
-    return merge({ mode: "merge", phase: "build" }, jsonSchema!, template());
-  });
-
-  const templateValues = createMemo(() => {
+  function parseAndMerge(
+    template: string,
+    schema: Schema<string>,
+    phase: "validate" | "build" = "build",
+  ) {
     try {
       const {
         [KV.eoi]: _eoi,
         [KV.upto]: _upto,
         [KV.unparsed]: rest,
         ...values
-      } = KV.parse(template(), "stream");
+      } = KV.parse(template, "stream");
 
       if (rest?.trim()) {
-        return values;
+        return {
+          values,
+          result: merge({ mode: "merge", phase }, schema, rest),
+        };
       }
     } catch (error) {
       void error;
     }
 
-    return {};
+    return {
+      values: {},
+      result: merge({ mode: "merge", phase: "build" }, schema, template),
+    };
+  }
+
+  const templateSchema = createMemo(() => {
+    return parseAndMerge(template(), jsonSchema!);
   });
 
   const nextTemplateSignals = otherTemplates.map((initial) =>
@@ -74,42 +71,46 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
   );
 
   const mergedTemplate = createMemo(() => {
-    const { schema, ...info } = templateSchema();
+    const {
+      values,
+      result: { schema, ...info },
+    } = templateSchema();
 
     if (!schema) {
-      return info as ReturnType<typeof merge<string>>;
+      return { values, result: { ...info } };
     }
 
-    return nextTemplateSignals.reduce<ReturnType<typeof templateSchema>>(
-      ({ schema, ...info }, [input], index, list) => {
-        return schema
-          ? merge(
-              {
-                mode: "merge",
-                phase: index === list.length - 1 ? "validate" : "build",
-              },
-              schema,
-              input(),
-            )
-          : info;
+    return nextTemplateSignals.reduce<ReturnType<typeof parseAndMerge>>(
+      ({ values, result: { schema, ...info } }, [input], index, list) => {
+        if (!schema) {
+          return { values, result: { ...info } };
+        }
+
+        const merged = parseAndMerge(
+          input(),
+          schema,
+          index === list.length - 1 ? "validate" : "build",
+        );
+
+        return {
+          values: { ...values, ...merged.values },
+          result: merged.result,
+        };
       },
-      { schema },
+      { values, result: { schema } },
     );
   });
 
   const [renderResource] = createResource(
     mergedTemplate,
-    async ({ context, schema, error }) => {
+    async ({ values, result: { context, schema, error } }) => {
       if (!schema) {
         if (error) return String(error);
         const { loc, err } = context!.diagnostics[0] ?? {};
         return `error: ${loc} ${err}`;
       }
 
-      const result = await render(
-        schema,
-        createScriptEnvironment({ values: templateValues() }),
-      );
+      const result = await render(schema, createScriptEnvironment({ values }));
 
       if (result.context?.diagnostics.length) {
         return String(result.context.diagnostics[0]);
