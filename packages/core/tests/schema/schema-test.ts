@@ -426,7 +426,7 @@ intent("json-object-order")`
 `();
 
 intent("export-ascope-array-value")`
-{ x: [a.$value] }
+{ x: [...a] }
 ---
 { x: [1,2,3,"hello"] }
 ---
@@ -434,7 +434,7 @@ a=[1,2,3,hello]
 `();
 
 intent("export-ascope-array-reference")`
-{ x: [a.item] }
+{ x: [...a.item!] }
 ---
 { x: [1,2,3,"hello"] }
 ---
@@ -442,7 +442,7 @@ a=[{item=1},{item=2},{item=3},{item=hello}]
 `();
 
 intent("export-ascope-array-pattern")`
-{ x: ["{{a.item}}"] }
+{ x: [..."{{a.item}}"] }
 ---
 { x: [1,2,3,"hello"] }
 ---
@@ -451,7 +451,7 @@ a=[{item=1},{item=2},{item=3},{item=hello}]
 
 intent("import-ascope-array-pattern")`
 a=[{item=1},{item=2},{item=3},{item=hello}]
-{ x: ["{{a.item}}"] }
+{ x: [..."{{a.item}}"] }
 ---
 *
 { "x": [1,2,3,"hello"] }
@@ -459,17 +459,28 @@ a=[{item=1},{item=2},{item=3},{item=hello}]
 
 intent("import-ascope-array-pattern-computation")`
 a=[{item=1},{item=2},{item=3}]
-{ x: [["{{a.item}}","{{=item*2}}"]] }
+{ x: [...["{{a.item}}","{{=item*2}}"]] }
 ---
 *
 { "x": [[1,2],[2,4],[3,6]] }
 `();
 
+intent("import-ascope-array-pattern-computation-and-bind-value")`
+a=[{item=1},{item=2},{item=3}]
+{ x: [...["{{a.item}}","{{=item*2}}"]] }
+---
+{ x: [...each] } /* compare with next test */
+---
+a=[{item=1}, {item=2}, {item=3}]
+each=[[1,2], [2,4], [3,6]]
+{ "x": [[1,2],[2,4],[3,6]] }
+`();
+
 intent("import-ascope-array-pattern-computation-and-bind-each-element")`
 a=[{item=1},{item=2},{item=3}]
-{ x: [["{{a.item}}","{{=item*2}}"]] }
+{ x: [...["{{a.item}}","{{=item*2}}"]] }
 ---
-{ x: [each.value] }
+{ x: [...each.value!] } /* compare with previous test */
 ---
 a=[{item=1}, {item=2}, {item=3}]
 each=[{value=[1,2]}, {value=[2,4]}, {value=[3,6]}]
@@ -491,9 +502,9 @@ outer2=eyJhIjoxMCwiYiI6MjB9
 `();
 
 intent("mix-mux-array")`
-["{{x}}"]
+[..."{{x}}"]
 ---
-mux(["x"])
+["x"]
 ---
 ["x"]
 `();
@@ -502,39 +513,39 @@ mux(["x"])
 // x=y is global scope.
 intent("mix-mux-array-with-conflicting-value")`
 x=y
-["{{x}}"]
+[..."{{x}}"]
 ---
-mux(["x"])
+["x"]
 ---
 ["x"]
 `();
 
 intent.fails("mux-mux-array-with-conflicting-value")`
 x=y
-mux(["{{x}}"])
+["{{x}}"]
 ---
-["x"]
+[..."x"]
 ---
 ["xyz"]
 `();
 
 intent("mix-array-input-but-no-strut")`
 x=x
-{ a: ["{{x}}"] }
+{ a: [..."{{x}}"] }
 ---
 {}
 `();
 
 intent.fails("mux-array-no-value")`
-mux(["{{x}}"])
+["{{x}}"]
 ---
 []
 `();
 
 intent("mux-array-with-value")`
-mux(["{{x}}"])
+["{{x}}"]
 ---
-["x"]
+[..."x"]
 ---
 x=x
 ["x"]
@@ -542,18 +553,18 @@ x=x
 
 intent("mux-array-with-input")`
 x=x
-mux(["{{x}}"])
+["{{x}}"]
 ---
-["x"]
+[..."x"]
 ---
 x=x
 ["x"]
 `();
 
 intent("mux-pattern-with-mix-value")`
-["x"]
+[..."x"]
 ---
-mux(["{{item.x}}"])
+["{{item.x}}"]
 ---
 item=[{x=x}]
 ["x"]
@@ -569,7 +580,7 @@ intent("referential-consistency")`
   "b": "{{b = 2}}",
   // hidden further prevents the render from triggering in the current scope
   "ab": hidden("{{ab = a + b}}"),
-  "v": [{
+  "v": [...{
     "a": "{{a = 10}}",
     "b": "{{b = 20}}",
     "ab_here": "{{= a + b}}",
@@ -577,7 +588,7 @@ intent("referential-consistency")`
   }]
 }
 ---
-{ v: mux([{}]) }
+{ v: [{}] }
 ---
 *
 {
@@ -766,7 +777,7 @@ keyed(["{{key}}", undefined],
 `();
 
 intent("mix-match")`
-mix(["{{array.@value}}"])
+[..."{{array.@value}}"]
 ---
 ["a","b"]
 ---
@@ -920,8 +931,8 @@ items=[
   { a-b = 20 }
 ]
 {
-  a: --[
-    $\`items.a-b\`
+  a: [
+    ...$\`items.a-b\`
   ]
 }
 ---
@@ -945,7 +956,7 @@ a-b=c
 
 intent("aggregate-value-elements")`
 {
-  items: [items.$value]
+  items: [...items]
 }
 ---
 {
@@ -961,7 +972,7 @@ intent("aggregate-value-elements")`
 
 intent("aggregate-complex-elements")`
 {
-  items: [[items.x, items.y]]
+  items: [...[items.x, items.y]]
 }
 ---
 {
@@ -1009,11 +1020,11 @@ intent("aggregate-complex-fields")`
 
 intent("aggregate-array-of-map")`
 {
-  items: { key } * [{ key, value: [items.each.$value], which: (each.join("")) }]
+  items: { key } * [{ key, value: [...items.each], which: (each.join("")) }]
 }
 ---
 {
-  items: [{ key: "a", value: ++["A"]}, { key: "b", value: ["B","C"] }, {key: "c", value: ["D","E","F"] }],
+  items: [{ key: "a", value: ["A"]}, { key: "b", value: ["B","C"] }, {key: "c", value: ["D","E","F"] }],
   z: items
 }
 ---
@@ -1050,7 +1061,7 @@ flag=true
 
 intent("render-sum")`
 {
-  items: [items.$value]
+  items: [...items]
 }
 ---
 {
@@ -1099,7 +1110,7 @@ a=hello b=hello
 
 intent("merge-operator-array-archetype-and-array")`
 {
-  x: [{ p: xs.p, q: xs.q = (1) }] || ++[{ p: "hello" }, { p: "world", q: 7 }] 
+  x: [...{ p: xs.p, q: xs.q = (1) }] || [{ p: "hello" }, { p: "world", q: 7 }] 
 }
 ---
 xs=[{ p=hello, q=1 }, { p=world, q=7 }]
@@ -1156,7 +1167,7 @@ x = [1]
 }
 ---
 {
-  items: [x.$value]
+  items: [...x]
 }
 ---
 {
@@ -1169,12 +1180,12 @@ x = [1]
 // that expands back into { items: [x.$value] }
 intent.todo("resolved-references")`
 {
-  x: [x.$value]
+  x: [...x]
 }
 ---
 {
   x: [1,2,3,4],
-  items: [x.$value]
+  items: [...x]
 }
 ---
 {
@@ -1224,7 +1235,7 @@ intent("cyclic-undefined")`
 
 intent(`evaluate-input-aggregate`)`
 x=[1,2,3,4]
-{ x: [x.$value], z: (x) }
+{ x: [...x], z: (x) }
 ---
 *
 { x: [1,2,3,4], z: [1,2,3,4] }
@@ -1232,7 +1243,7 @@ x=[1,2,3,4]
 
 // not sure if this is something we ever want to support
 intent.fails(`match-eval-aggregate`)`
-{ x: [y.$value] }
+{ x: [...y] }
 ---
 { x: ([1,2,3,4]) }
 ---

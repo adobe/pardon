@@ -168,12 +168,10 @@ describe("schema tests", () => {
 
   it("should capture values in arrays", () => {
     const s = mixing({
-      list: [
-        {
-          a: "{{a}}" as string | number,
-          b: "{{b}}" as string | number,
-        },
-      ],
+      list: arrays.singlevalue({
+        a: "{{a}}" as string | number,
+        b: "{{b}}" as string | number,
+      }),
     })!;
 
     merge(
@@ -193,14 +191,12 @@ describe("schema tests", () => {
       a: "{{a = 1}}",
       b: "{{b = 1}}",
       ab: "{{?ab = a + b}}",
-      list: [
-        {
-          a: "{{a}}" as string | number,
-          b: "{{b}}" as string | number,
-          c: "{{c = Number(g) + a + b}}" as string | number,
-          ab: "{{ab}}" as string | number,
-        },
-      ],
+      list: arrays.singlevalue({
+        a: "{{a}}" as string | number,
+        b: "{{b}}" as string | number,
+        c: "{{c = Number(g) + a + b}}" as string | number,
+        ab: "{{ab}}" as string | number,
+      }),
     })!;
 
     const merged = merge(
@@ -340,7 +336,7 @@ describe("schema tests", () => {
 
   it("should bind to structural values", async () => {
     const schema = mixing({
-      a: ["{{a.item}}"],
+      a: arrays.singlevalue("{{a.item}}"),
     })!;
 
     const matchCtx = createMergingContext(
@@ -361,7 +357,7 @@ describe("schema tests", () => {
 
   it("should bind to structural values 2", async () => {
     const schema = mixing({
-      a: [{ item: "{{list.item}}" }],
+      a: arrays.singlevalue({ item: "{{list.item}}" }),
     })!;
 
     const matchCtx = createMergingContext(
@@ -382,7 +378,7 @@ describe("schema tests", () => {
 
   it("should bind to structural values simple", async () => {
     const schema = mixing({
-      a: ["{{q.@value}}"],
+      a: arrays.singlevalue("{{q.@value}}"),
     })!;
 
     const matchCtx = createMergingContext(
@@ -412,7 +408,7 @@ describe("schema tests", () => {
 
   it("should bind to structural values 3", async () => {
     const schema = mixing({
-      a: [["{{q.sublist.item}}"]],
+      a: arrays.singlevalue(arrays.singlevalue("{{q.sublist.item}}")),
     })!;
 
     const matchCtx = createMergingContext(
@@ -438,7 +434,7 @@ describe("schema tests", () => {
 
   it("should render with structural values", async () => {
     const schema = mixing({
-      a: [{ item: "{{list.item}}" }],
+      a: arrays.singlevalue({ item: "{{list.item}}" }),
     })!;
 
     const { schema: mux } = mergeSchema(
@@ -469,7 +465,7 @@ describe("schema tests", () => {
 
   it("should render with structural values", async () => {
     const schema = mixing({
-      a: ["{{list.@value}}"],
+      a: arrays.singlevalue("{{list.@value}}"),
     })!;
 
     const result = await executeOp(
@@ -492,7 +488,7 @@ describe("schema tests", () => {
 
   it("should export structural values", async () => {
     const schema = mixing({
-      a: ["{{list.@value}}"],
+      a: arrays.singlevalue("{{list.@value}}"),
     })!;
 
     const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
@@ -506,7 +502,7 @@ describe("schema tests", () => {
 
   it("should not export secret structural values", async () => {
     const schema = mixing({
-      a: ["{{@list.@value}}"],
+      a: arrays.singlevalue("{{@list.@value}}"),
     })!;
 
     const result = mergeSchema({ mode: "match", phase: "validate" }, schema, {
@@ -528,7 +524,10 @@ describe("schema tests", () => {
 
   it("should infer structural values length", async () => {
     const schema = mixing({
-      a: [{ item: "{{a.v}}", ITEM: "{{ = v.toUpperCase() }}" }],
+      a: arrays.singlevalue({
+        item: "{{a.v}}",
+        ITEM: "{{ = v.toUpperCase() }}",
+      }),
     })!;
 
     const result = await executeOp(
@@ -554,7 +553,7 @@ describe("schema tests", () => {
 
   it("should infer deep structural values length", async () => {
     const schema = mixing({
-      a: [["{{q.sublist.item}}"]],
+      a: arrays.singlevalue(arrays.singlevalue("{{q.sublist.item}}")),
     })!;
 
     const matchCtx = createMergingContext(
@@ -584,7 +583,7 @@ describe("schema tests", () => {
 
   it("should render complex values", async () => {
     const schema = mixing({
-      a: [["{{q.sublist.item}}"]],
+      a: arrays.singlevalue(arrays.singlevalue("{{q.sublist.item}}")),
     })!;
 
     const result = await executeOp(

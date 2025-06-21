@@ -137,14 +137,8 @@ function mergeRepresentation<T>(
     rep = mergeArchtype(context, rep, info.item);
   }
 
-  if (
-    context.mode === "mix" &&
-    info.array?.length === 1 &&
-    !info.mux &&
-    !rep.multivalue &&
-    !info.single
-  ) {
-    return mergeArchtype(context, rep, info.array[0]);
+  if (info.item && !info.mux && !rep.multivalue && !info.single) {
+    return mergeArchtype(context, rep, info.item);
   }
 
   return rep.multivalue
@@ -516,6 +510,19 @@ export const arrays = {
             },
     ) as Schematic<T[]>,
 
+  singlevalue: <T>(item: Template<T>, template?: Template<T>[]) =>
+    defineArraySchematic<T>(
+      () => ({
+        item: stubSchema(),
+        multivalue: false,
+        scoped: true,
+      }),
+      () => ({
+        item,
+        array: template,
+      }),
+    ) as Schematic<T[]>,
+
   scoped: <T>(template: Template<T>[]) =>
     defineArraySchematic<T>(
       () => ({
@@ -595,17 +602,10 @@ export const arrays = {
 export function expandArray<T>(
   context: SchemaMergingContext<T[]>,
 ): Schema<T | T[]> | undefined {
-  const { mode, template } = context;
+  const { template } = context;
 
   if (!Array.isArray(template)) {
     throw diagnostic(context, "unexpected array value");
-  }
-
-  if (mode === "mix") {
-    // auto arrays of length == 1 are
-    // treated as rules to apply to all
-    // elements.
-    return arrays.auto(template)().expand(context);
   }
 
   // otherwise treat them as a tuple

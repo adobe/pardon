@@ -15,6 +15,7 @@ import { createNumber, JSON } from "../raw-json.js";
 import { isPatternSimple, patternize } from "../schema/core/pattern.js";
 import { exposeSchematic, isSchematic } from "../schema/core/schema-ops.js";
 import { Schematic, Template } from "../schema/core/types.js";
+import { arrays } from "../schema/definition/arrays.js";
 import { datums } from "../schema/definition/datum.js";
 import { base64Encoding } from "../schema/definition/encodings/base64-encoding.js";
 import {
@@ -127,6 +128,9 @@ export const bodyGlobals: Record<string, any> = {
   $number: <T>(x: Template<T>) => referenceTemplate<number>({}).$of(x).$number,
   $bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).$of(x).$bool,
   $noexport: <T>(x: Template<T>) => referenceTemplate<T>({}).$of(x).$noexport,
+  $elements<T>(item: Template<T>, ...values: Template<T>[]) {
+    return arrays.singlevalue(item, values.length ? values : undefined);
+  },
   $secret: redact,
   $mux: muxTemplate,
   $mix: mixTemplate,

@@ -648,4 +648,18 @@ $keyed({ id: key }, [{
     .from("form({ x: a = 10 })")
     .to('$form({ x: a.$of($$number("10")) })')
     .symbols("$form", "a", "$$number");
+
+  transforms("merge-operator-array-archetype-and-array")
+    .from(
+      `
+      {
+        x: [...{ p: xs.p, q: xs.q = (1) }] || [{ p: "hello" }, { p: "world", q: 7 }] 
+      }`,
+    )
+    .to(
+      `
+{
+    x: $merged($elements({ p: xs.p, q: "{{ xs.q = $$expr(\\"1\\") }}" }), [{ p: "hello" }, { p: "world", q: $$number("7") }])
+}`.trim(),
+    );
 });

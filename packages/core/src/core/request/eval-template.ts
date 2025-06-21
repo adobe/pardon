@@ -114,11 +114,8 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   }
 
   // handles `[...x.y.z]` as `$mix([x.y.z.$value])`
-  // and `[...other]` and `$mix[other]`.
-  // supporting rest in general might need a rethink across the board.
   if (
     ts.isArrayLiteralExpression(currentNode) &&
-    currentNode.elements.length === 1 &&
     ts.isSpreadElement(currentNode.elements[0])
   ) {
     if (
@@ -126,35 +123,32 @@ export const jsonSchemaTransform: TsMorphTransform = ({
       ts.isPropertyAccessExpression(currentNode.elements[0].expression)
     ) {
       return factory.createCallExpression(
-        factory.createIdentifier("$mix"),
+        factory.createIdentifier("$elements"),
         undefined,
         [
-          factory.createArrayLiteralExpression(
-            [
-              factory.createPropertyAccessExpression(
-                currentNode.elements[0].expression,
-                "$value",
-              ),
-            ],
-            false,
+          factory.createPropertyAccessExpression(
+            currentNode.elements[0].expression,
+            "$value",
           ),
+          ...currentNode.elements.slice(1),
         ],
       );
     }
-
-    return factory.createCallExpression(
-      factory.createIdentifier("$mix"),
-      undefined,
-      [
-        factory.createArrayLiteralExpression(
-          [currentNode.elements[0].expression],
-          false,
-        ),
-      ],
-    );
   }
 
   currentNode = visitChildren();
+
+  // handles `[...other]` and `$mix([other])` when it doesn't match.
+  if (
+    ts.isArrayLiteralExpression(currentNode) &&
+    ts.isSpreadElement(currentNode.elements[0])
+  ) {
+    return factory.createCallExpression(
+      factory.createIdentifier("$elements"),
+      undefined,
+      [currentNode.elements[0].expression, ...currentNode.elements.slice(1)],
+    );
+  }
 
   if (
     ts.isBinaryExpression(currentNode) &&
