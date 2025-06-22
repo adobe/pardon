@@ -433,7 +433,18 @@ export function defineReference<T = unknown>(
         }
       }
 
-      if (anull) return null as T;
+      // this is a bit funny, the rendering of refs might have flushed out the
+      // value in a way that can be resolved even though the value
+      // wasn't returned by any of the actions
+      // (hopefully this isn't dependent on race conditions!!!).
+      const postRenderValue = resolveReference(context);
+      if (postRenderValue !== undefined) {
+        return convertScalar(postRenderValue, encoding, { anull }) as T;
+      }
+
+      if (anull) {
+        return null as T;
+      }
 
       if (isOptional({ hint })) {
         return undefined;
@@ -483,8 +494,8 @@ export function defineReference<T = unknown>(
       resolved(context) {
         return resolveReference(rescope(context, scope) as SchemaContext<T>);
       },
-      async rendered(context) {
-        return await renderReference(schema, rescope(context, scope));
+      rendered(context) {
+        return renderReference(schema, rescope(context, scope));
       },
     });
   }
@@ -505,12 +516,7 @@ export function defineReference<T = unknown>(
   ) {
     for (const ref of refs) {
       if (ref !== resolution.ref) {
-        if (
-          undefined ===
-          context.evaluationScope.define(context, ref, resolution.resolved)
-        ) {
-          throw new Error("conflicting resolution");
-        }
+        context.evaluationScope.define(context, ref, resolution.resolved);
       }
     }
 
@@ -559,6 +565,26 @@ export function defineReference<T = unknown>(
 
     if (result === undefined) {
       result = resolveReference(context, schema);
+    }
+
+    if (result === undefined) {
+      for (const ref of refs) {
+        const key = `ref:::${ref}`;
+        if (context.cycles.has(key)) {
+          continue;
+        }
+
+        const declaration = context.evaluationScope.lookupDeclaration(ref);
+        const rendered = await declaration?.rendered?.({
+          ...context,
+          cycles: new Set(context.cycles).add(key),
+        });
+
+        if (rendered !== undefined) {
+          result = rendered as T;
+          break;
+        }
+      }
     }
 
     const defined = defineRenderedReferenceValue(context, result as T);

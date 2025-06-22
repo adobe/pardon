@@ -107,6 +107,12 @@ async function renderIdentifierInExpression(
   name: string,
   renderExpression?: string,
 ) {
+  const lookup = renderContext?.evaluationScope.lookup(name);
+
+  if (isLookupValue(lookup)) {
+    return lookup.value;
+  }
+
   const { context, expression, source, hint, rendered, aggregates } =
     synthesizeExpressionDeclaration(renderContext, name, renderExpression);
 
@@ -138,7 +144,7 @@ async function renderIdentifierInExpression(
     }
 
     const result = await context.environment.evaluate({
-      context: context,
+      context,
       identifier,
     });
 

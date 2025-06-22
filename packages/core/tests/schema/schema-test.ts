@@ -116,7 +116,7 @@ async function compose(
  * intent.fails and intent.todo both assert a failure (with different semantics of course).
  * donot
  */
-function intent(
+function templating(
   testname: string,
   mode?: "only" | "skip" | "fails" | "todo" | "tofail",
 ): (
@@ -166,25 +166,25 @@ function intent(
     };
 }
 
-intent["only"] = (testname) => intent(testname, "only");
-intent["skip"] = (testname) => intent(testname, "skip");
-intent["fails"] = (testname) => intent(testname, "fails");
-intent["todo"] = (testname) => intent(testname, "todo");
-intent["tofail"] = (testname) => intent(testname, "tofail");
+templating["only"] = (testname) => templating(testname, "only");
+templating["skip"] = (testname) => templating(testname, "skip");
+templating["fails"] = (testname) => templating(testname, "fails");
+templating["todo"] = (testname) => templating(testname, "todo");
+templating["tofail"] = (testname) => templating(testname, "tofail");
 
-intent("render-empty-object")`
+templating("render-empty-object")`
 {}
 ---
 {}
 `();
 
-intent("render-number")`
+templating("render-number")`
 27
 ---
 27
 `();
 
-intent("merge-number")`
+templating("merge-number")`
 "{{a}}"
 ---
 27
@@ -193,7 +193,7 @@ a=27
 27
 `();
 
-intent("render-primitives")`
+templating("render-primitives")`
 {
   string: "s",
   number: 1,
@@ -205,7 +205,7 @@ intent("render-primitives")`
 {"string":"s","number":1,"boolean":true,"false":false,"nil":null}
 `();
 
-intent("match-object-with-reference")`
+templating("match-object-with-reference")`
 a
 ---
 { x: "y" }
@@ -213,7 +213,7 @@ a
 a={ x=y }
 `();
 
-intent("chained-evaluation")`
+templating("chained-evaluation")`
 {
   "world": "planet earth",
   "planet": "PLANET {{planet}}"
@@ -229,8 +229,7 @@ intent("chained-evaluation")`
 planet=EARTH
 `();
 
-// this should behave the same as above, fails to produce the "hello" field currently.
-intent.todo("inverse-chained-evaluation")`
+templating("inverse-chained-evaluation")`
 {
   "world": "{{#-globe}}",
   "hi": "{{#-world = globe.toUpperCase()}}",
@@ -249,7 +248,7 @@ planet=EARTH
 }
 `();
 
-intent.todo("match-simple-pattern-as-reference")`
+templating.todo("match-simple-pattern-as-reference")`
 "{{a}}"
 ---
 { x: "y" }
@@ -257,7 +256,7 @@ intent.todo("match-simple-pattern-as-reference")`
 a={ x=y }
 `();
 
-intent("match-string-number")`
+templating("match-string-number")`
 "{{x}}4{{y}}" as number
 ---
 1234567
@@ -266,13 +265,13 @@ x="123"
 y="567"
 `();
 
-intent.fails("match string number")`
+templating.fails("match string number")`
 "{{x}} {{y}}"
 ---
 "a {{z}}"
 `();
 
-intent.todo("x-y-merge")`
+templating.todo("x-y-merge")`
 "{{x}} {{y}}"
 ---
 "a {{y}}"
@@ -282,7 +281,7 @@ intent.todo("x-y-merge")`
 "a b"
 `();
 
-intent("match-primitives")`
+templating("match-primitives")`
 {
   string: "s",
   number: 1,
@@ -303,13 +302,13 @@ s=s n=1 t=true f=false z=null
 {"string":"s","number":1,"boolean":true,"false":false,"nil":null}
 `();
 
-intent("null")`
+templating("null")`
 null
 ---
 null
 `();
 
-intent("null-match")`
+templating("null-match")`
 null
 ---
 "{{z}}"
@@ -318,7 +317,7 @@ z=null
 null
 `();
 
-intent("match-null")`
+templating("match-null")`
 "{{z}}"
 ---
 null
@@ -327,7 +326,7 @@ z=null
 null
 `();
 
-intent("reference-array")`
+templating("reference-array")`
 abc
 ---
 ["a","b","c"]
@@ -336,14 +335,14 @@ abc=[a,b,c]
 ["a","b","c"]
 `();
 
-intent("array-reference-of")`
+templating("array-reference-of")`
 abc.of(["a","b","c"])
 ---
 abc=[a,b,c]
 ["a","b","c"]
 `();
 
-intent("reference-squashing")`
+templating("reference-squashing")`
 abc || "hello"
 ---
 xyz
@@ -353,7 +352,7 @@ xyz=hello
 "hello"
 `();
 
-intent("reference-squashing-of-a")`
+templating("reference-squashing-of-a")`
 abc.of(xyz)
 ---
 xyz.of(abc.of("hello"))
@@ -363,7 +362,7 @@ xyz=hello
 "hello"
 `();
 
-intent("reference-squashing-of-b")`
+templating("reference-squashing-of-b")`
 abc.of(xyz).of("hello")
 ---
 xyz.of(abc)
@@ -373,7 +372,7 @@ xyz=hello
 "hello"
 `();
 
-intent("array-reference")`
+templating("array-reference")`
 ["a","b","c"]
 ---
 abc
@@ -382,13 +381,13 @@ abc=[a,b,c]
 ["a","b","c"]
 `();
 
-intent("base64-json")`
+templating("base64-json")`
 base64(json({}))
 ---
 "e30="
 `();
 
-intent("base64-json-enc-dec")`
+templating("base64-json-enc-dec")`
 { enc: base64(json(a)), dec: a }
 ---
 { dec: "hello" }
@@ -397,7 +396,7 @@ a=hello
 { "enc": "ImhlbGxvIg==", "dec": "hello" }
 `();
 
-intent("base64-json-dec-enc")`
+templating("base64-json-dec-enc")`
 { enc: base64(json(a)), dec: a }
 ---
 { "enc": "ImhlbGxvIg==" }
@@ -406,7 +405,7 @@ a=hello
 { "enc": "ImhlbGxvIg==", "dec": "hello" }
 `();
 
-intent("json-data-in-out")`
+templating("json-data-in-out")`
 { enc: json({ a: '{{a=b+c}}', b }), c: "{{c}}" }
 ---
 { enc: json({ a: '{{a=b+c}}', b }), c: "{{b = 10}}", a }
@@ -417,7 +416,7 @@ c=10
 { "enc": "{\\"a\\":20,\\"b\\":10}", "c": 10, "a": 20 }
 `();
 
-intent("json-object-order")`
+templating("json-object-order")`
 { x: json({ a: 1, b: 2 }), y: json({ b: 2, a: 1 }) }
 ---
 { x: json({ a: 1, b: 2 }), y: json({ a: 1, b: 2 }) }
@@ -425,7 +424,7 @@ intent("json-object-order")`
 { "x": '{"a":1,"b":2}', "y": '{"b":2,"a":1}' }
 `();
 
-intent("export-ascope-array-value")`
+templating("export-ascope-array-value")`
 { x: [...a] }
 ---
 { x: [1,2,3,"hello"] }
@@ -433,7 +432,7 @@ intent("export-ascope-array-value")`
 a=[1,2,3,hello]
 `();
 
-intent("export-ascope-array-reference")`
+templating("export-ascope-array-reference")`
 { x: [...a.item!] }
 ---
 { x: [1,2,3,"hello"] }
@@ -441,7 +440,7 @@ intent("export-ascope-array-reference")`
 a=[{item=1},{item=2},{item=3},{item=hello}]
 `();
 
-intent("export-ascope-array-pattern")`
+templating("export-ascope-array-pattern")`
 { x: [..."{{a.item}}"] }
 ---
 { x: [1,2,3,"hello"] }
@@ -449,7 +448,7 @@ intent("export-ascope-array-pattern")`
 a=[{item=1},{item=2},{item=3},{item=hello}]
 `();
 
-intent("import-ascope-array-pattern")`
+templating("import-ascope-array-pattern")`
 a=[{item=1},{item=2},{item=3},{item=hello}]
 { x: [..."{{a.item}}"] }
 ---
@@ -457,7 +456,7 @@ a=[{item=1},{item=2},{item=3},{item=hello}]
 { "x": [1,2,3,"hello"] }
 `();
 
-intent("import-ascope-array-pattern-computation")`
+templating("import-ascope-array-pattern-computation")`
 a=[{item=1},{item=2},{item=3}]
 { x: [...["{{a.item}}","{{=item*2}}"]] }
 ---
@@ -465,7 +464,7 @@ a=[{item=1},{item=2},{item=3}]
 { "x": [[1,2],[2,4],[3,6]] }
 `();
 
-intent("import-ascope-array-pattern-computation-and-bind-value")`
+templating("import-ascope-array-pattern-computation-and-bind-value")`
 a=[{item=1},{item=2},{item=3}]
 { x: [...["{{a.item}}","{{=item*2}}"]] }
 ---
@@ -476,7 +475,7 @@ each=[[1,2], [2,4], [3,6]]
 { "x": [[1,2],[2,4],[3,6]] }
 `();
 
-intent("import-ascope-array-pattern-computation-and-bind-each-element")`
+templating("import-ascope-array-pattern-computation-and-bind-each-element")`
 a=[{item=1},{item=2},{item=3}]
 { x: [...["{{a.item}}","{{=item*2}}"]] }
 ---
@@ -487,7 +486,7 @@ each=[{value=[1,2]}, {value=[2,4]}, {value=[3,6]}]
 { "x": [[1,2],[2,4],[3,6]] }
 `();
 
-intent("bind-layers")`
+templating("bind-layers")`
 outer.of(base64(inner.of(json({ a: 10, b }))))
 ---
 outer2.of(base64(inner2.of(json({ b: 20, a: "{{a}}" }))))
@@ -501,7 +500,7 @@ outer2=eyJhIjoxMCwiYiI6MjB9
 "eyJhIjoxMCwiYiI6MjB9"
 `();
 
-intent("mix-mux-array")`
+templating("mix-mux-array")`
 [..."{{x}}"]
 ---
 ["x"]
@@ -511,7 +510,7 @@ intent("mix-mux-array")`
 
 // this is okay because `{{x}}` is in a specific item scope, and
 // x=y is global scope.
-intent("mix-mux-array-with-conflicting-value")`
+templating("mix-mux-array-with-conflicting-value")`
 x=y
 [..."{{x}}"]
 ---
@@ -520,7 +519,7 @@ x=y
 ["x"]
 `();
 
-intent.fails("mux-mux-array-with-conflicting-value")`
+templating.fails("mux-mux-array-with-conflicting-value")`
 x=y
 ["{{x}}"]
 ---
@@ -529,20 +528,20 @@ x=y
 ["xyz"]
 `();
 
-intent("mix-array-input-but-no-strut")`
+templating("mix-array-input-but-no-strut")`
 x=x
 { a: [..."{{x}}"] }
 ---
 {}
 `();
 
-intent.fails("mux-array-no-value")`
+templating.fails("mux-array-no-value")`
 ["{{x}}"]
 ---
 []
 `();
 
-intent("mux-array-with-value")`
+templating("mux-array-with-value")`
 ["{{x}}"]
 ---
 [..."x"]
@@ -551,7 +550,7 @@ x=x
 ["x"]
 `();
 
-intent("mux-array-with-input")`
+templating("mux-array-with-input")`
 x=x
 ["{{x}}"]
 ---
@@ -561,7 +560,7 @@ x=x
 ["x"]
 `();
 
-intent("mux-pattern-with-mix-value")`
+templating("mux-pattern-with-mix-value")`
 [..."x"]
 ---
 ["{{item.x}}"]
@@ -574,7 +573,7 @@ item=[{x=x}]
  * this test checks that "ab" defined in the top scope is not evaluated with
  * the values in the inner scope.
  */
-intent("referential-consistency")`
+templating("referential-consistency")`
 {
   "a": "{{a = 1}}",
   "b": "{{b = 2}}",
@@ -604,7 +603,7 @@ intent("referential-consistency")`
 `();
 
 // unwrapSingle is always mix / scoped
-intent("lenient-array-behavior")`
+templating("lenient-array-behavior")`
 a=foo
 b=bar
 c=baz
@@ -620,7 +619,7 @@ c=baz
 
 // either {a: ["foo"]} or {a: "foo"} would be acceptable, but let's
 // make sure it doesn't change by surprise.
-intent("lenient-array-behavior-expanded-by-value")`
+templating("lenient-array-behavior-expanded-by-value")`
 a=[foo]
 {
   "a": ![ "{{a.@value}}" ]
@@ -632,7 +631,7 @@ a=[foo]
 }
 `();
 
-intent("lenient-array-behavior-valued-match-to-array")`
+templating("lenient-array-behavior-valued-match-to-array")`
 {
   "b": ![ "{{b.@value}}" ]
 }
@@ -647,7 +646,7 @@ b=[bar]
 }
 `();
 
-intent("lenient-array-behavior-valued-match-to-value")`
+templating("lenient-array-behavior-valued-match-to-value")`
 {
   "b": ![ "{{b.@value}}" ]
 }
@@ -662,7 +661,7 @@ b=[bar]
 }
 `();
 
-intent("lenient-array-behavior-non-unit-case")`
+templating("lenient-array-behavior-non-unit-case")`
 {
   "a": ![..."{{a.@value}}"],
   "b": ![..."{{b.@value}}"]
@@ -680,7 +679,7 @@ a=[1,2]
 }
 `();
 
-intent("lenient-array-behavior-non-unit-case-explicit")`
+templating("lenient-array-behavior-non-unit-case-explicit")`
 {
   "a": elements("{{a.@value}}"),
   "b": elements("{{b.@value}}")
@@ -698,7 +697,7 @@ a=[1,2]
 }
 `();
 
-intent("keyed-list-value-rendering")`
+templating("keyed-list-value-rendering")`
 map={ x=1, y=2 }
 keyed({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}", // should this be implied from the match archetype?
@@ -709,7 +708,7 @@ keyed({ id: "{{key}}" }, elements({
 [{ "id": "x", "a": 1 }, { "id": "y", "a": 2 }]
 `();
 
-intent("keyed-list-merging-and-value-rendering")`
+templating("keyed-list-merging-and-value-rendering")`
 map={ x={ a=1, b=2 }, y={ a=3, b=4 }}
 keyed({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}", // should this be implied from the match archetype?
@@ -724,7 +723,7 @@ keyed({ id: "{{key}}" }, elements({
 [{ "id": "x", "a": 1, "b": 2 }, { "id": "y", "a": 3, "b": 4 }]
 `();
 
-intent("keyed-list-merging-and-value-rendering-reuse-value")`
+templating("keyed-list-merging-and-value-rendering-reuse-value")`
 map={ x=xx, y=yy }
 keyed({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}",
@@ -740,7 +739,7 @@ keyed({ id: "{{key}}" }, elements({
  { "id": "y", "a": "yy", "b": "yy" }]
 `();
 
-intent("mv-keyed-list-matching")`
+templating("mv-keyed-list-matching")`
 keyed$mv({ id: "{{key}}" }, elements({
   "id": "{{map.a.@key}}", // should this be implied from the match archetype?
   "a": "{{map.a.@value}}"
@@ -758,7 +757,7 @@ map={x={a=[xx,xy]},y={a=[yy,yz]}}
  { "id": "y", "a": "yz" }]
 `();
 
-intent("mv-keyed-list-rendering-by-value")`
+templating("mv-keyed-list-rendering-by-value")`
 map={x={a=[xx,xy]},y={a=[yy,yz]}}
 keyed$mv({ id: "{{key}}" }, elements({
   "id": "{{map.@key}}",
@@ -772,7 +771,7 @@ keyed$mv({ id: "{{key}}" }, elements({
  { "id": "y", "a": "yz" }]
 `();
 
-intent("keyed-tuple-list-mapping")`
+templating("keyed-tuple-list-mapping")`
 keyed(["{{key}}", undefined],
 elements(["{{headers.@key}}", "{{headers.value}}"]))
 ---
@@ -784,7 +783,7 @@ headers={a={value=AAA}, b={value=BBB}}
  ["b", "BBB"]]
 `();
 
-intent("keyed-tuple-list-value-rendering")`
+templating("keyed-tuple-list-value-rendering")`
 headers={a={value=AAA}, b={value=BBB}}
 keyed(["{{key}}", undefined],
 elements(["{{headers.@key}}", "{{headers.value}}"]))
@@ -794,7 +793,7 @@ elements(["{{headers.@key}}", "{{headers.value}}"]))
  ["b", "BBB"]]
 `();
 
-intent("mix-match")`
+templating("mix-match")`
 [..."{{array.@value}}"]
 ---
 ["a","b"]
@@ -803,7 +802,7 @@ array=[a,b]
 ["a","b"]
 `();
 
-intent("keyed-new-syntax")`
+templating("keyed-new-syntax")`
 headers={a={value=AAA}, b={value=BBB}}
 [key, undefined] * [
   ...[headers.$key, headers.value]
@@ -814,7 +813,7 @@ headers={a={value=AAA}, b={value=BBB}}
  ["b", "BBB"]]
 `();
 
-intent("keyed-merging-new-syntax")`
+templating("keyed-merging-new-syntax")`
 map={ x=xx, y=yy }
 { id: key } * [...{
   "id": map.$key,
@@ -830,7 +829,7 @@ map={ x=xx, y=yy }
  { "id": "y", "a": "yy", "b": "yy" }]
 `();
 
-intent("keyed-merging-new-syntax-expression")`
+templating("keyed-merging-new-syntax-expression")`
 map={ x={value=xx}, y={value=yy} }
 { id: $key } * [...{
   id: map.$key,
@@ -843,7 +842,7 @@ map={ x={value=xx}, y={value=yy} }
  { "id": "y", "a": "yy", "a1": "yy1" }]
 `();
 
-intent("nested-kv-export")`
+templating("nested-kv-export")`
 keyed({ id: "{{key}}" }, elements({
   id: "{{map.@key}}",
   nested: keyed({ id: "{{key}}" }, elements({
@@ -861,7 +860,7 @@ map={ hello={ nested={ x=y, p=q } } }
 ]}]
 `();
 
-intent("nested-kv-import")`
+templating("nested-kv-import")`
 map={ hello={ nested={ x=y, p=q } } }
 keyed({ id: key }, elements({
   id: map.$key,
@@ -878,7 +877,7 @@ keyed({ id: key }, elements({
 ]}]
 `();
 
-intent("scalar-conversions")`
+templating("scalar-conversions")`
 {
   a
 }
@@ -901,7 +900,7 @@ intent("scalar-conversions")`
 }
 `();
 
-intent.fails("scalar-matching")`
+templating.fails("scalar-matching")`
 {
   a: $bool()
 }
@@ -916,7 +915,7 @@ intent.fails("scalar-matching")`
 }
 `();
 
-intent("bigint")`
+templating("bigint")`
 {
   a: $bigint()
 }
@@ -931,7 +930,7 @@ intent("bigint")`
 }
 `();
 
-intent("tpl-quoted-value")`
+templating("tpl-quoted-value")`
 a-b=a-b-c
 {
   a: $\`a-b\`
@@ -943,7 +942,7 @@ a-b=a-b-c
 }
 `();
 
-intent("tpl-structured-value")`
+templating("tpl-structured-value")`
 items=[
   { a-b = 10 },
   { a-b = 20 }
@@ -960,7 +959,7 @@ items=[
 }
 `();
 
-intent("tpl-expression-value")`
+templating("tpl-expression-value")`
 a-b=c
 {
   a: ($\`a-b\`)
@@ -972,7 +971,7 @@ a-b=c
 }
 `();
 
-intent("aggregate-value-elements")`
+templating.only("aggregate-value-elements")`
 {
   items: [...items]
 }
@@ -988,7 +987,7 @@ intent("aggregate-value-elements")`
 }
 `();
 
-intent("aggregate-complex-elements")`
+templating("aggregate-complex-elements")`
 {
   items: [...[items.x, items.y]]
 }
@@ -1004,7 +1003,7 @@ intent("aggregate-complex-elements")`
 }
 `();
 
-intent("aggregate-value-fields")`
+templating("aggregate-value-fields")`
 {
   items: { key } * [...{ key, value: items.$value }]
 }
@@ -1020,7 +1019,7 @@ intent("aggregate-value-fields")`
 }
 `();
 
-intent("aggregate-complex-fields")`
+templating("aggregate-complex-fields")`
 {
   items: { key } * [...{ key, value: items.field }]
 }
@@ -1036,7 +1035,7 @@ intent("aggregate-complex-fields")`
 }
 `();
 
-intent("aggregate-array-of-map")`
+templating("aggregate-array-of-map")`
 {
   items: { key } * [...{ key, value: [...items.each], which: (each.join("")) }]
 }
@@ -1066,7 +1065,7 @@ intent("aggregate-array-of-map")`
 }
 `();
 
-intent("mixed-styles")`
+templating("mixed-styles")`
 flag=true
 {
   flag: "{{?flag}}" as bool
@@ -1077,7 +1076,7 @@ flag=true
 }
 `();
 
-intent("render-sum")`
+templating("render-sum")`
 {
   items: [...items]
 }
@@ -1093,7 +1092,7 @@ intent("render-sum")`
 }
 `();
 
-intent("merge-operator")`
+templating("merge-operator")`
 {
   x: a || b || "hello"
 }
@@ -1104,7 +1103,7 @@ a=hello b=hello
 }
 `();
 
-intent("merge-operator-value-first")`
+templating("merge-operator-value-first")`
 {
   x: "hello" || b || a
 }
@@ -1115,7 +1114,7 @@ a=hello b=hello
 }
 `();
 
-intent("merge-operator-value-middle")`
+templating("merge-operator-value-middle")`
 {
   x: b || "hello" || a
 }
@@ -1126,7 +1125,7 @@ a=hello b=hello
 }
 `();
 
-intent("merge-operator-array-archetype-and-array")`
+templating("merge-operator-array-archetype-and-array")`
 {
   x: [...{ p: xs.p, q: xs.q = (1) }] || [{ p: "hello" }, { p: "world", q: 7 }] 
 }
@@ -1139,9 +1138,9 @@ xs=[{ p=hello, q=1 }, { p=world, q=7 }]
 
 // not sure if we _should_ support adding array archetypes post-hoc
 // marking as todo for now.
-intent.todo("merge-operator-array-and-array-archetype")`
+templating.todo("merge-operator-array-and-array-archetype")`
 {
-  x: ++[{ p: "hello" }] || --[{ p: xs.p, q: xs.q = (1) }]
+  x: [{ p: "hello" }] || [...{ p: xs.p, q: xs.q = (1) }]
 }
 ---
 xs=[{ p=hello, q=1 }]
@@ -1150,7 +1149,7 @@ xs=[{ p=hello, q=1 }]
 }
 `();
 
-intent.fails("incompatible-regex-via-reference")`
+templating.fails("incompatible-regex-via-reference")`
 {
   x: x = /a/,
   y: x,
@@ -1166,7 +1165,7 @@ intent.fails("incompatible-regex-via-reference")`
 }
 `();
 
-intent("expr-and-resolution-ref-conflict")`
+templating("expr-and-resolution-ref-conflict")`
 {
   x: x = (10),
   y: x || 30,
@@ -1178,7 +1177,7 @@ intent("expr-and-resolution-ref-conflict")`
 }
 `();
 
-intent("array-reference-and-expansion")`
+templating("array-reference-and-expansion")`
 x = [1]
 {
   x
@@ -1196,7 +1195,7 @@ x = [1]
 
 // we can't yet "resolve" x.$value into the internal representation
 // that expands back into { items: [x.$value] }
-intent.todo("resolved-references")`
+templating.todo("resolved-references")`
 {
   x: [...x]
 }
@@ -1212,19 +1211,19 @@ intent.todo("resolved-references")`
 }
 `();
 
-intent.fails("undefined-scalar")`
+templating.fails("undefined-scalar")`
 { x: "{{x}}" }
 ---
 { }
 `();
 
-intent.fails("undefined-reference")`
+templating.fails("undefined-reference")`
 { x }
 ---
 { }
 `();
 
-intent.only("merged-references")`
+templating("merged-references")`
 {
   x: hidden(a = (10)),
   y: b || c || a
@@ -1241,19 +1240,25 @@ a=10
 }
 `();
 
-intent.todo("cyclic-undefined/broken")`
+templating("cyclic-undefined/alternate")`
 { c, y: a = (1 + 2 + 3), x: a || b, z: c || b }
 ---
 { x: 6, y: 6, z: 6, c: 6 }
 `();
 
-intent("cyclic-undefined")`
+templating("cyclic-undefined")`
 { c, y: a = (1 + 2 + 3), x: b || a, z: c || b }
 ---
 { x: 6, y: 6, z: 6, c: 6 }
 `();
 
-intent(`evaluate-input-aggregate`)`
+templating("cyclic-undefined-chained-evaluation")`
+{ c, y: a = (1 + 2 + 3), x: (a + 1) || b, z: c || b }
+---
+{ x: 7, y: 6, z: 7, c: 7 }
+`();
+
+templating(`evaluate-input-aggregate`)`
 x=[1,2,3,4]
 { x: [...x], z: (x) }
 ---
@@ -1262,7 +1267,7 @@ x=[1,2,3,4]
 `();
 
 // not sure if this is something we ever want to support
-intent.fails(`match-eval-aggregate`)`
+templating.fails(`match-eval-aggregate`)`
 { x: [...y] }
 ---
 { x: ([1,2,3,4]) }
@@ -1271,7 +1276,7 @@ intent.fails(`match-eval-aggregate`)`
 { x: [1,2,3,4] }
 `();
 
-intent.fails(`recursive-spread-evaluation`)`
+templating.fails(`recursive-spread-evaluation`)`
 a=[1,2,3,4]
 { a: [...a.x!] }
 ---
