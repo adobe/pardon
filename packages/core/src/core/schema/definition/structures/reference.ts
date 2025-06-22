@@ -54,6 +54,7 @@ type ReferenceInfo<T> = {
   schema?: Schema<T>;
   encoding?: ScalarType;
   anull?: true;
+  expr?: string;
 };
 
 export type ReferenceSchematicOps<T> = SchematicOps<T> & {
@@ -66,10 +67,12 @@ type ReferenceTemplate<T> = {
   template?: Template<T>;
   encoding?: Exclude<ScalarType, "null">;
   anull?: true;
+  expr?: string;
 };
 
 export type ReferenceSchematic<T> = Schematic<T> & {
   $of<T>(template: Template<T> | string): ReferenceSchematic<T>;
+  $expr(expr: string): ReferenceSchematic<T>;
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
   readonly $noexport: ReferenceSchematic<T>;
@@ -131,6 +134,7 @@ export function referenceTemplate<T = unknown>(
             : undefined,
         encoding: reference.encoding,
         anull: reference.anull,
+        expr: reference.expr,
       });
 
       const value = ref
@@ -183,6 +187,7 @@ export function referenceTemplate<T = unknown>(
         schema,
         encoding: reference.encoding,
         anull: reference.anull,
+        expr: reference.expr,
       });
 
       return schema;
@@ -232,6 +237,14 @@ export function referenceTemplate<T = unknown>(
             template: template as Template<T>,
           });
         };
+      }
+
+      if (property === "$expr") {
+        return (expr: string) =>
+          referenceTemplate({
+            ...reference,
+            expr,
+          });
       }
 
       if (reference.ref && property == "$value") {
@@ -288,7 +301,7 @@ const references = new WeakSet<Schema<any>>();
 export function defineReference<T = unknown>(
   referenceInfo: ReferenceInfo<T>,
 ): Schema<T> {
-  const { refs, hint, schema, encoding, anull } = referenceInfo;
+  const { refs, hint, expr, schema, encoding, anull } = referenceInfo;
 
   const reference = defineSchema<T>({
     merge(context) {
@@ -333,6 +346,7 @@ export function defineReference<T = unknown>(
           schema: merged,
           encoding: info.encoding ?? encoding,
           anull: info.anull || anull,
+          expr: info.expr ?? expr,
         });
       }
 
@@ -433,13 +447,16 @@ export function defineReference<T = unknown>(
         }
       }
 
-      // this is a bit funny, the rendering of refs might have flushed out the
-      // value in a way that can be resolved even though the value
-      // wasn't returned by any of the actions
-      // (hopefully this isn't dependent on race conditions!!!).
-      const postRenderValue = resolveReference(context);
-      if (postRenderValue !== undefined) {
-        return convertScalar(postRenderValue, encoding, { anull }) as T;
+      if (expr) {
+        const result = (await evaluateIdentifierWithExpression(
+          context,
+          "",
+          expr,
+        )) as T;
+        if (result !== undefined) {
+          defineRenderedReferenceValue(context, result);
+          return result;
+        }
       }
 
       if (anull) {
@@ -459,7 +476,7 @@ export function defineReference<T = unknown>(
     },
     scope(context) {
       for (const ref of refs) {
-        declareRef(context, { ref, hint });
+        declareRef(context, { ref, hint, expr });
 
         if (!isMergingContext(context) && isAbstractContext(context)) {
           context.evaluationScope.resolve(context, ref);
@@ -478,7 +495,7 @@ export function defineReference<T = unknown>(
 
   function declareRef(
     context: SchemaContext,
-    { ref, hint }: { ref?: string; hint?: string },
+    { ref, hint, expr }: { ref?: string; hint?: string; expr?: string },
   ) {
     if (!ref) {
       return;
@@ -488,7 +505,7 @@ export function defineReference<T = unknown>(
 
     scope.declare(ref, {
       context,
-      expression: null,
+      expression: expr ?? null,
       hint: hint || null,
       source: null,
       resolved(context) {

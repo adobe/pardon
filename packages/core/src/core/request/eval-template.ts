@@ -109,8 +109,14 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   if (ts.isParenthesizedExpression(currentNode)) {
     const text = currentNode.expression.getText();
-    const pattern = `{{ = $$expr(${JSON.stringify(text)}) }}`;
-    return factory.createStringLiteral(pattern);
+    return factory.createCallExpression(
+      factory.createPropertyAccessExpression(
+        factory.createIdentifier("$"),
+        "$expr",
+      ),
+      undefined,
+      [factory.createStringLiteral(text)],
+    );
   }
 
   if (
@@ -151,7 +157,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   currentNode = visitChildren();
 
-  // handles `[...other]` and `$mix([other])` when it doesn't match.
+  // handles `[...other]` as `$elements(other)` when it's not a reference
   if (
     ts.isArrayLiteralExpression(currentNode) &&
     ts.isSpreadElement(currentNode.elements[0])
@@ -469,8 +475,10 @@ function binaryExpression(
           lhs,
         );
         return ts.isParenthesizedExpression(rhs.expression)
-          ? factory.createStringLiteral(
-              `{{ ${identifierOf(ref, factory)} = $$expr(${JSON.stringify(text)}) }}`,
+          ? factory.createCallExpression(
+              factory.createPropertyAccessExpression(ref, "$expr"),
+              undefined,
+              [factory.createStringLiteral(text)],
             )
           : factory.createCallExpression(
               factory.createPropertyAccessExpression(ref, "$of"),
@@ -480,9 +488,14 @@ function binaryExpression(
       } else if (ts.isParenthesizedExpression(rhs)) {
         const text = rhs.expression.getText();
 
-        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
+        return factory.createCallExpression(
+          factory.createPropertyAccessExpression(lhs, "$expr"),
+          undefined,
+          [factory.createStringLiteral(text)],
+        );
+        //        const pattern = `{{ ${identifierOf(lhs, factory)} = $$expr(${JSON.stringify(text)}) }}`;
 
-        return factory.createStringLiteral(pattern);
+        //return factory.createStringLiteral(pattern);
       } else if (
         ts.isBinaryExpression(rhs) &&
         (scalar || ts.isParenthesizedExpression(rhs.left)) &&

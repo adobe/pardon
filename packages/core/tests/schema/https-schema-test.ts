@@ -536,24 +536,17 @@ describe("https-schema-tests", () => {
     }),
   });
 
-  transforms("parens-to-expressions")
-    .from("(a)")
-    .to(
-      `
-      "{{ = $$expr(\\"a\\") }}"
-  `,
-    )
-    .symbols();
+  transforms("parens-to-expressions").from("(a)").to(`$.$expr("a")`).symbols();
 
   transforms("optional-chain").from("a?.b").to(`a?.b`).symbols("a");
 
   transforms("parens-as-assignments")
     .from("b = ('hello')")
-    .to(`"{{ b = $$expr(\\"'hello'\\") }}"`);
+    .to(`b.$expr("'hello'")`);
 
   transforms("parens-with-noexport-modifier")
     .from("b = ('hello') as internal")
-    .to(`"{{ -b = $$expr(\\"('hello')\\") }}"`);
+    .to(`b.$noexport.$expr("('hello')")`);
 
   transforms("no-parens") //
     .from("b = 'hello'")
@@ -572,7 +565,7 @@ describe("https-schema-tests", () => {
 
   transforms("parens-with-redact-modifier")
     .from("b.$secret = ('hello')")
-    .to(`"{{ @b = $$expr(\\"'hello'\\") }}"`);
+    .to(`b.$secret.$expr("'hello'")`);
 
   transforms("plus-as-flow").from("+x").to(`$flow(x)`).symbols("x", "$flow");
 
@@ -581,8 +574,8 @@ describe("https-schema-tests", () => {
   //        and("{{ a }}", "{{ b = c }}")
   transforms("reference-reference")
     .from("a = b = (c)")
-    .to(`a.$of("{{ b = $$expr(\\"c\\") }}")`)
-    .symbols("a");
+    .to(`a.$of(b.$expr("c"))`)
+    .symbols("a", "b");
 
   transforms("regexp").from("/abc/").to(`"{{ % /abc/ }}"`).symbols();
 
@@ -628,7 +621,7 @@ describe("https-schema-tests", () => {
 $keyed({ id: key }, $elements({
     id: map.$key,
     a: "{{map.value}}",
-    a1: "{{ = $$expr(\\"value + 1\\") }}"
+    a1: $.$expr("value + 1")
 }))
 `,
     )
@@ -649,7 +642,7 @@ $keyed({ id: key }, $elements({
     .to(
       `
 {
-    x: $merged($elements({ p: xs.p, q: "{{ xs.q = $$expr(\\"1\\") }}" }), [{ p: "hello" }, { p: "world", q: $$number("7") }])
+    x: $merged($elements({ p: xs.p, q: xs.q.$expr("1") }), [{ p: "hello" }, { p: "world", q: $$number("7") }])
 }`,
     );
 });

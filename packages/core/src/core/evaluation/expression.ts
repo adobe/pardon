@@ -23,6 +23,7 @@ import {
 } from "ts-morph";
 import { PardonError } from "../error.js";
 import { arrayIntoObjectAsync } from "../../util/mapping.js";
+import { referenceTemplate } from "../schema/definition/structures/reference.js";
 
 export type TsMorphTransform = (control: TransformTraversalControl) => ts.Node;
 
@@ -196,8 +197,19 @@ export function syncEvaluation(
 
   const args = bound.map(([, v]) => v);
 
+  const $ref = referenceTemplate({});
+  const $ = new Proxy(Function.prototype, {
+    apply(_target, _thisArg, [name]) {
+      return refs[name];
+    },
+    get(target, p) {
+      if (typeof p === "symbol") return target[p];
+      return $ref[p];
+    },
+  });
+
   try {
-    return fn(([name]: TemplateStringsArray) => refs[name], ...args);
+    return fn($, ...args);
   } catch (error) {
     console.warn(`error evaluating script: ${expression} as ${morphed}`, error);
     throw error;

@@ -930,7 +930,7 @@ templating("bigint")`
 }
 `();
 
-templating("tpl-quoted-value")`
+templating.only("tpl-quoted-value")`
 a-b=a-b-c
 {
   a: $\`a-b\`
@@ -971,7 +971,7 @@ a-b=c
 }
 `();
 
-templating.only("aggregate-value-elements")`
+templating("aggregate-value-elements")`
 {
   items: [...items]
 }
@@ -1193,8 +1193,8 @@ x = [1]
 }
 `();
 
-// we can't yet "resolve" x.$value into the internal representation
-// that expands back into { items: [x.$value] }
+// we can't yet (?) "resolve" x into the internal representation
+// that expands back into { items: [...x] } (but you can use `items: x` or `items: (x.map(...))`)
 templating.todo("resolved-references")`
 {
   x: [...x]
@@ -1258,7 +1258,7 @@ templating("cyclic-undefined-chained-evaluation")`
 { x: 7, y: 6, z: 7, c: 7 }
 `();
 
-templating(`evaluate-input-aggregate`)`
+templating("evaluate-input-aggregate")`
 x=[1,2,3,4]
 { x: [...x], z: (x) }
 ---
@@ -1266,8 +1266,7 @@ x=[1,2,3,4]
 { x: [1,2,3,4], z: [1,2,3,4] }
 `();
 
-// not sure if this is something we ever want to support
-templating.fails(`match-eval-aggregate`)`
+templating("match-eval-aggregate")`
 { x: [...y] }
 ---
 { x: ([1,2,3,4]) }
@@ -1276,11 +1275,28 @@ templating.fails(`match-eval-aggregate`)`
 { x: [1,2,3,4] }
 `();
 
-templating.fails(`recursive-spread-evaluation`)`
-a=[1,2,3,4]
-{ a: [...a.x!] }
+templating("self-matching-spread-evaluation")`
+a=[{x=1},{x=2},{x=3},{x=4}]
+{ a: [...{ x: a.x }] }
 ---
 { a }
 ---
-{}
+{ a: [{x:1},{x:2},{x:3},{x:4}] }
+`();
+
+templating("evaluated-items")`
+a=[1,2]
+{ a: [...a], b: [...[a.$value, ($\`a.@value\` * 2)]] }
+---
+{ a: [1,2],
+  b: [[1,2],[2,4]] }
+`();
+
+templating.only("matching-references-with-expressive-defaults")`
+{ x: x = ([1, 2, 3]), y: y = ([4, 5, 6]) }
+---
+{ x: ['a', 'b'] }
+---
+*
+{ x: ['a', 'b'], y: [4, 5, 6]}
 `();
