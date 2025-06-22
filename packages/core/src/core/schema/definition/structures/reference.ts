@@ -19,8 +19,8 @@ import {
   isSchematic,
   merge,
   maybeResolve,
+  directMerge,
 } from "../../core/schema-ops.js";
-import { parseScopedIdentifier } from "../../core/scope.js";
 import {
   Schema,
   SchemaContext,
@@ -48,7 +48,7 @@ import {
 import { isMergingContext } from "../../core/schema.js";
 import { isPatternSimple, patternize } from "../../core/pattern.js";
 
-type ReferenceSchema<T> = {
+type ReferenceInfo<T> = {
   refs: Set<string>;
   hint: string;
   schema?: Schema<T>;
@@ -165,6 +165,10 @@ export function referenceTemplate<T = unknown>(
         return;
       }
 
+      if (schema && references.has(schema)) {
+        return directMerge(schema, context);
+      }
+
       if (schema && !isSchematic(context.template)) {
         schema = merge(schema, context);
       }
@@ -279,12 +283,14 @@ function extractReference<T>({
   }
 }
 
-export function defineReference<T = unknown>(
-  referenceSchema: ReferenceSchema<T>,
-): Schema<T> {
-  const { refs, hint, schema, encoding, anull } = referenceSchema;
+const references = new WeakSet<Schema<any>>();
 
-  return defineSchema<T>({
+export function defineReference<T = unknown>(
+  referenceInfo: ReferenceInfo<T>,
+): Schema<T> {
+  const { refs, hint, schema, encoding, anull } = referenceInfo;
+
+  const reference = defineSchema<T>({
     merge(context) {
       const info = extractReference(context);
 
@@ -389,8 +395,7 @@ export function defineReference<T = unknown>(
       }
 
       return (
-        nextSchema &&
-        defineReference({ ...referenceSchema, schema: nextSchema })
+        nextSchema && defineReference({ ...referenceInfo, schema: nextSchema })
       );
     },
     async render(context) {
@@ -455,6 +460,10 @@ export function defineReference<T = unknown>(
       }
     },
   });
+
+  references.add(reference);
+
+  return reference;
 
   function declareRef(
     context: SchemaContext,
@@ -555,7 +564,7 @@ export function defineReference<T = unknown>(
     const defined = defineRenderedReferenceValue(context, result as T);
 
     if (
-      isSecret(referenceSchema) &&
+      isSecret(referenceInfo) &&
       typeof defined === "string" &&
       context.mode === "postrender" &&
       "{{redacted}}" === defined
@@ -564,7 +573,7 @@ export function defineReference<T = unknown>(
       return `{{ @${[...refs].filter(Boolean)[0] ?? ""} }}`;
     }
 
-    if (isSecret(referenceSchema)) {
+    if (isSecret(referenceInfo)) {
       const redacted = await context.environment.redact({
         value: defined,
         context,
@@ -586,11 +595,7 @@ export function defineReference<T = unknown>(
     }
 
     for (const ref of refs) {
-      const identifier = parseScopedIdentifier(ref);
-
-      if (!context.evaluationScope.evaluating(identifier.name)) {
-        context.evaluationScope.define(context, ref, result);
-      }
+      context.evaluationScope.define(context, ref, result);
     }
 
     return result;

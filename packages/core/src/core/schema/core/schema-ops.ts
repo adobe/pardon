@@ -136,6 +136,13 @@ export function exposeSchematic<O extends SchematicOps<unknown>>(
   return template() as Partial<O>;
 }
 
+export function directMerge<T>(
+  schema: Schema<T>,
+  context: SchemaMergingContext<T>,
+) {
+  return exposeSchema<SchemaOps<T>>(schema).merge!(context);
+}
+
 export function merge<T>(
   schema: Schema<T>,
   context: SchemaMergingContext<T>,
@@ -148,7 +155,7 @@ export function merge<T>(
     }
   }
 
-  return exposeSchema<SchemaOps<T>>(schema).merge!(context);
+  return directMerge(schema, context);
 }
 
 export function isSchema<T = unknown>(thing: unknown): thing is Schema<T> {

@@ -9,12 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import {
-  defineSchematic,
-  exposeSchematic,
-  isSchematic,
-  merge,
-} from "../../core/schema-ops.js";
+import { defineSchematic, merge } from "../../core/schema-ops.js";
 import { SchematicOps, Template } from "../../core/types.js";
 import { expandTemplate } from "../../template.js";
 
@@ -33,31 +28,8 @@ export function mergedSchematic<T = any>(
       return lhsSchema && merge(lhsSchema, { ...context, template: rhs });
     },
     blend(context, next) {
-      const lhss = isSchematic(lhs) && exposeSchematic<SchematicOps<T>>(lhs);
-
-      if (lhss && lhss.blend) {
-        return lhss.blend(context, (context) => {
-          const merged = next(context);
-          return merged && merge(merged, { ...context, template: rhs });
-        });
-      }
-
       const merged = next({ ...context, template: lhs });
       return merged && merge(merged, { ...context, template: rhs });
     },
   });
 }
-
-/*    blend(context, next) {
-      const lhss = isSchematic(lhs) && exposeSchematic<SchematicOps<T>>(lhs);
-
-      if (lhss && lhss.blend) {
-        return lhss.blend({ ...context, template: undefined }, (context) => {
-          const merged = next(context);
-          return merged && merge(merged, { ...context, template: rhs });
-        });
-      }
-
-      const merged = next({ ...context, template: lhs });
-      return merged && merge(merged, { ...context, template: rhs });
-    }, */
