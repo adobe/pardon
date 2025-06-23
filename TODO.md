@@ -28,13 +28,6 @@
   - [x] kv objects-in-arrays could omit the `{}`s and `,`s.
   - [ ] recall available in requests scripts (make a request based on data in a
         prior request or response)
-  - [ ] enforce structured data to root without no-export tagging.
-
-- Fidelity
-
-  - [ ] redact render pass - brainstorm alternative mechanisms that avoid
-        matching the rendered output with the schema again (expression results
-        might not match pattern regexes)
 
 - Quality of life
 
@@ -42,7 +35,7 @@
   - [ ] generate `d.ts` files for `pardon:xyz` modules.
   - [x] assets should be `Record<string, string[]>` so ux can show all layers of
         a file.
-  - [ ] detect conflict in value `x=abc` + match `"/{{x}}"` with `"/xyz"`.
+  - [x] detect conflict in value `x=abc` + match `"/{{x}}"` with `"/xyz"`.
         (currently overrides `x=xyz`)
 
 ### git-flow request graphs / UX Test Runner
