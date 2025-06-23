@@ -85,7 +85,7 @@ export function processCollectionLayer(sources: Record<string, AssetSource>): {
           source,
         };
       }
-      case /[.](mix|mux)[.](https)$/.test(name):
+      case /[.](mix(?:in)?)[.](https)$/.test(name):
         return {
           type: "mixin" as const,
           name,

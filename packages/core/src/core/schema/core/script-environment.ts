@@ -112,10 +112,12 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.space.choose(input ?? {});
 
     this.resolver = (context, { identifier, scoped }) => {
+      let value = this.input[identifier.root];
+      if (value === undefined) {
+        value = resolve?.(context, { name: identifier.root, scoped });
+      }
       return resolveAccess(context, {
-        value:
-          this.input[identifier.root] ??
-          resolve?.(context, { name: identifier.root, scoped }),
+        value,
         identifier,
         scoped,
       });
@@ -150,10 +152,12 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     identifier: Identifier;
     context: SchemaRenderContext;
   }): unknown | undefined | Promise<unknown | undefined> {
-    return (
-      this.resolver?.(context, { identifier, scoped: false }) ??
-      this.evaluator?.(identifier, context)
-    );
+    const resolved = this.resolver?.(context, { identifier, scoped: false });
+    if (resolved !== undefined) {
+      return resolved;
+    }
+
+    return this.evaluator?.(identifier, context);
   }
 
   match(

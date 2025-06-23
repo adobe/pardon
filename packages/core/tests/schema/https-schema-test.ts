@@ -645,4 +645,9 @@ $keyed({ id: key }, $elements({
     x: $merged($elements({ p: xs.p, q: xs.q.$expr("1") }), [{ p: "hello" }, { p: "world", q: $$number("7") }])
 }`,
     );
+
+  transforms("match-mode")
+    .from(`~~{ x: "{{x}}" }`)
+    .to(`$match({ x: "{{x}}" })`)
+    .symbols("$match");
 });

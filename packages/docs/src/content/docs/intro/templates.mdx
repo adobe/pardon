@@ -39,62 +39,174 @@ For the following discussion, basic understanding of programming terms is assume
 
 ## Templates
 
+Templates are a novel way of building JSON data, or really any data that can be structures
+as dictionaries and lists (or objects and arrays).  Unlike most schema implementations,
+Pardon's templates are designed to look like the data they represent as much as possible.
+
 Templates are composed of nodes that represent values, variables,
-structures (such as objects or arrays), or encodings.
+structures (such as objects or arrays).  There are also nodes that transform
+data, operating on an interior representation with an external encoding.
 
 Nodes support two operations: merge and render.  Merging is used to match
-and extend requests, as well as to process responses.  Rendering is the more
-familiar expansion of the template into a concrete object.
+and extend requests, as well as to handle responses.  Rendering a template
+is (obviously) necessary for building requests but can also be useful to
+process responses (e.g., hide secrets, etc).
 
-Encoding nodes transform an external representation to an internal one.
+### Template interpolations
 
-### Some examples
+Some parts of templates represent and break down "atomic" values like numbers, strings, booleans, or `null`, while
+others are suitable for representing structures like objects and arrays.
 
-Here's some examples of templates and how they compose.
+There is both a string interpolation and a javascript syntax representation for templating.
+The string interpolation form is necessary for the request origin, pathname, query params and headers,
+while the syntax version is more suitable for processing the JSON request body.
 
-:::note
-These docs from here on out are rough, working on fininshing some decisions and rewriting
-them
-:::
+Interpolations are structured with the following pieces, all of which are optional.
+<Tabs>
+  <TabItem label="name">
+    <FlexyCodeGrid centered>
+      ```text "?" ins="name" "= expr" "% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The name identifies this interpolation: if a value is matched,... or a value is passed,... or a value
+    is evaluated somewhere else.
+
+    Names can be hyphenated (but cannot start with a hyphen.)
+  </TabItem>
+  <TabItem label="hints">
+    <FlexyCodeGrid centered>
+      ```text ins="?" "name" "= expr" "% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The hint adds some flavor to how this value is processed, a `?` allows this value to be omitted,
+    a `@` marks it as a secret, `...` modifies the default regex in some contexts (like in the pathname,
+    to allow a value to match multiple path segments), while `-` removes a value from rendering entirely.
+  </TabItem>
+  <TabItem label="expr">
+    <FlexyCodeGrid centered>
+      ```text "?" "name" ins="= expr" "% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The expression provides a default value if one is not available through matching and merging.
+    Expressions can be arbitrary asynchronous javascript expressions.
+  </TabItem>
+  <TabItem label="regex">
+    <FlexyCodeGrid centered>
+      ```text "?" "name" "= expr" ins="% /regex/"
+      {{ ? name = expr % /regex/ }}
+      ```
+    </FlexyCodeGrid>
+    The regex can be used to specify exactly what values qualify for this field.
+  </TabItem>
+</Tabs>
+
+Interpolations can be used to match, capture, reuse, and redact specific data in an http exchange.
+
+### Template References
+
+In JSON bodies, references might be preferable, as they are shorter to write.  Any raw identifier
+in the JSON is treated as a reference! For example, the POST task api in the introduction
+can be represented a little more ergonomically with references, especially the `task` which appears
+as a shorthand property:
+
+<FlexyCodeGrid centered>
+```http /".*",?/
+POST https://todo.example.com/todos
+Authorization: User {{@token}}
+Content-Type: application/json
+
+{
+  "task": "{{task}}",
+  "done": "{{?done}}"
+}
+```
+```http ins="task" ins="done: done.$optional"
+POST https://todo.example.com/todos
+Authorization: User {{@token}}
+Content-Type: application/json
+
+{
+  task,
+  done: done.$optional
+}
+```
+</FlexyCodeGrid>
+
+The `done: done.$optional` might be longer than even the canonical JSON form `"done": "{{?done}}"`, but
+one might argue that it's simpler to read and type (no need to open and close with `"{{` and `}}"`, just add `.$optional`).
+
+For simple values, the choice to use references or interpolations is purely a stylistic one.
+
+Expressions in the javascript syntax is "(anything in parentheses)".  For instance a default
+value of `done` can be provided with
+```js
+{
+  done: done = (false)
+}
+```
+
+This is essentially the same as the interpolated template
+```js
+{
+  "done": "{{done = false}}"
+}
+```
+
+We can omit the optional hint with this expression since there will always be a default.
+
+Try it out, here's the above template, but try editing it
 
 <TemplatePlayground>
 ```
-a=3
+task="learn pardon"
+
 {
-  sides: json({ a, b }),
-  pythagorean: `${a}^2 + ${b}^2 = ${c = (Math.sqrt(a**2 + b**2))}^2`
+  task,
+  done: done = (false)
+}
+```
+</TemplatePlayground>
+
+The values below the dashed line are the values of any variables and references
+bound by the template.
+
+## Encodings
+
+Sometimes values have specific encodings that can be broken down further,
+for instance, you might have an APIs that takes (or return) base64-encoded JSON strings.
+
+Pardon can describe this with `base64(json(...))`.
+
+<TemplatePlayground>
+```
+hello=world
+
+{
+  data: base64(json({ hello }))
+}
+```
+</TemplatePlayground>
+
+We can bind references to each step here to see what's going on, try updating the above with
+`data: base64(j = json(o = { hello }))` to see the `j` and `o` values.
+
+Encodings can also be used to extract data from encoded values!  In the following example,
+we're matching the template with an already base64-encoded value, and we still get `hello=world` out.
+
+<TemplatePlayground>
+```
+{
+  data: base64(json({ hello }))
 }
 ---
-{
-  sides: '{ "b": 4 }',
-  abc: { a, b, c }
-}
+{ "data": "eyJoZWxsbyI6IndvcmxkIn0=" }
 ```
 </TemplatePlayground>
 
-<TemplatePlayground>
-```
-map={a=1 b=2 c=3}
-{
-  mappedlist: [key,_] * [...[map.$key, map.$value]]
-}
-```
-</TemplatePlayground>
-
-<TemplatePlayground>
-```
-{
-  mappedlist: [key,_] * [...[map.$key, map.$value]]
-}
----
-{
-  mappedlist: [['a', 1], ['b', 2], ['c', 3]],
-  map
-}
-```
-</TemplatePlayground>
-
-### HTTP Templates
+## HTTP Templates
 
 HTTP is parsed before being matched into a base http template.
 The template text on the left is parsed into an object for further processing.
@@ -120,7 +232,7 @@ content
 ```
 </FlexyCodeGrid>
 
-This data is merged with a template for http requessts.
+This parsed object data is then merged with a template that represents all http requessts.
 
 <FlexyCodeGrid>
 ```js title="parsed"
@@ -149,152 +261,118 @@ This data is merged with a template for http requessts.
 ```
 </FlexyCodeGrid>
 
-As might be expected, merging objects merges their field values,
+{/*The body template is smart enough to detect the type of input:
+if the content parses as a typescript code, it's a JSON,
+and otherwise it tries to determine form-encoding or just text.*/}
+
+Merging objects naturally merges their field values,
 i.e., the value `"POST"` is merged with `{{method}}`, `"http://service"` with `{{origin}}`, etc...
 
-Some templates transform what they match to an internal representation, and render that to an external one.
+Some parts transform what they match to an internal representation, like `base64(json(...))` but more
+specialized for processing those parts:
+In particular, the `search` params, `headers` and `body` templates further break down their values.
+`body` can act as a json, form, or text encoding.
 
-For instance, the `search` params,
-`headers` and `body` templates break down their values further as they merge.
+## Arrays in templates
 
-Often, `body` represents as `json()` data. Externally this is the text json and internally
-it is the parsed object value.  Note these are not 1:1, the external representation may be formatted with newlines/spaces/indentation, but this is discarded
-by parsing it to the internal representation.
+Processing arrays requires setting up a template to process multiple items.
+Let's start with the template for one item:
 
-### Template Values
+<TemplatePlayground>
+```
+[
+  { id, task, done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false }
+]
+```
+</TemplatePlayground>
 
-Most of the magic happens with scalars: scalars are the simple values of an object, numbers, strings, booleans, or `null`.
-("scalar" is a conventional word to describe "individual values").
+adding a second value `{ id: "T1002", task: "world", done: false }`, to the data does not
+work as the arrays now have different lengths.
 
-A simple pattern like `"{{x}}"` can represent any scalar value.
-A non-simple pattern like `"{{x}} {{y}}"` generally function as a string only, e.g, in this case, matching and rendering
-values like `"hello world"`.
+To work around this, template needs to specify any number of items...
 
-Templates can also represent objects (with things in fields), or arrays (list of things).
-For example, the parsed HTTP request is an object.
+<TemplatePlayground>
+```
+[
+  ...{ id, task, done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false },
+  { id: "T1002", task: "world", done: false }
+]
+```
+</TemplatePlayground>
 
-Templates cannot merge if their values are incompatible, e.g., the value `"a"` cannot directly merge with `"b"`.
-Also arrays and objects can't merge with each other, nor with scalar values.
+... identifying the item as an example of what goes into the array, without specifying a size.
 
-There are two interesting problems in this space: handling individual values and handling overall structures (arrays in particular).
+This template now merges, but notice there's no values exported!
 
-### Template Scopes and Arrays
+This is because because each `id`, `task`, and `done` value 
+are in the scope of each array element. For them to show up in the output, we need
+to give them a property path:
 
-Suppose we were parsing a 3d model, we might want a `{ position: [x,y,z] }`.
-This template would only match another 3-element array.  It doesn't make sense to add or remove dimensions.
+<TemplatePlayground>
+```
+[
+  ...{ id: todos.id, task: todos.task, done: todos.done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false },
+  { id: "T1002", task: "world", done: false }
+]
+```
+</TemplatePlayground>
 
-If we were building a shopping cart, we might want a template `{ items: [{ product: items.product, quantity: items.quantity = 1 }] }`
-that could match any number of items, including 0, but it declares that each item should have
-a `product` and defaults the quantity to 1 if not specified.
+Now, as a user of this data, you might not want to have to search the array for 
+a particular `id`: it would be more natural to bind this as a map.
 
-In objects with arrays, if the template has a single item,
-each item is templated in a separate scope.
-{/*
-todo: maybe template these as { items: [...{ product, quantity }] }
-and remove this single-item case, ... we might be able to collapse
-mix and mux mode as well.
-*/}
+Pardon supports this with a little syntax: `{ id: key } * [...items]`.
+The first part is a template which is merged with each item purely to deteremine a value
+for `key`, and then the items are represented internally as a map.
 
-For instance, the template
-```json
-{
-  "items": ["{{items.item}}"]
+<TemplatePlayground>
+```
+{ id: key } * [
+  ...{ task: todos.task, done: todos.done }
+]
+---
+[
+  { id: "T1001", task: "hello", done: false },
+  { id: "T1002", task: "world", done: false }
+]
+```
+</TemplatePlayground>
+
+These structures might be even more useful in reverse, although it does
+require adding `todos.$key` to render the id back into the list.
+
+<TemplatePlayground>
+```
+todos={
+  T1001={ task=hello done=false }
+  T1002={ task=world done=false }
 }
+{ id: key } * [
+  ...{ id: todos.$key, task: todos.task, done: todos.done }
+]
 ```
-is compatible with the template (or value) `{ "items": ["a", "b", "c"] }`.
+</TemplatePlayground>
 
-This behavior can depends on the _mode_ of the template expansion:
-sometimes a single-element array is a template for each item, and sometimes it's a single
-element.
-
-If needed, `++` and `--` can be used to change the templating mode.
-
-If we're specifying a request that only supports single element arrays, we can
-use `++` to represent that structure.
-```js
-++["{{item}}"] // unscoped item variable, array has one element.
-```
-
-## Rendering Templates
-
-Templates processing is two phase: the resolution phase when the templates are merged,
-and the rendering phase.  The first phase is used to select the correct template for rendering.
-Pardon requires this resolution to be unique: your collection templates should be 1:1 with your
-service APIs, and which template was selected is important metadata in your history.
-
-Once a template is selected, rendering can proceed. Rendering is when expressions (scripts) are executed.
-Separating resolution from execution ensures no extraneous script actions will be taken.
-
-A template depending on a variable, like `"{{world}}"`, cannot be rendered without
-providing some value for `world`.  A value may be resolved through many mechanisms:
-
-- merging the template with a value.
-- resolving the value somewhere else.
-- evaluating the value from this template.
-- evaluating the value somewhere else.
-- resolving the value from another evaluation.
-
-A simple remplate can just be a constant, `"{{hello = 'world'}}"`
-this provides a default value.
-
-Once a value is resolved (through matching or script evaluation), it can
-be referenced in other parts of the same template or as values in scripts.
-
-We've seen more interesting templates in `examples/todo/collection/todo/user-auth.mix`:
-running an imported function for generating the authorization token.
-
-In the template, that call looks like this
-```http
-Authorization: User {{@token = authorizeUser({ username, origin })}}
-```
-the expression refers to three values: `authorizeUser` is imported from the seript, and
-`username` and `origin` are template variables:  In order to execute the expression,
-all the `username` and `origin` are resolved/evaluated first.
-
-Let's suppose that instead of using pardon's `secrets` mechanism, we wanted to
-have a local files with usernames and passwords (per environment).
-To load a password, we make a function `loadPassword({ env, username })`.
-
-For making the authorization call, our template would start like this
-
-```http
-PUT https://todo.example.com/users
-
-{
-  "username": "{{username}}",
-  "password": "{{@password = loadPassword({ username })}}"
-}
-```
-
-We could provide `username=test-user` as an input above the request, or
-we can provide the partial request, which defines implicitly as
-`"{{username}}"` merges with `"test-user"`, so the following two requests
-inputs do the same thing.
-
-<FlexyCodeGrid>
-```http
-PUT https://todo.example.com/users
-
-{
-  "username": "test-user"
-}
-```
-```http
-username=test-user
-PUT https://todo.example.com/users
-```
-</FlexyCodeGrid>
+Note that within expressions (parenthesized), references should be direct names,
+you can refer to `todos` anywhere in the above template, and directly to `task`, `done`, etc...
+only within each item (you can't use `todos.task` because it would be ambiguous whether
+`todos` was the value object or `todos.task` was the scoped reference).
 
 ## Next Steps
 
-A discussion of the pattern syntax.
+The following docs need a refresh.
 
-<CollectionLinkCard href="/intro/patterns" />
+<CollectionLinkCard href="/intro/layers" />
 
-Exploring a small collection of endpoints for our service example.
-
-<CollectionLinkCard href="/intro/collections" />
-
-An explanation of how templates are composed into schemas.
-
-<CollectionLinkCard href="/intro/schemas" />
+<CollectionLinkCard href="/intro/testcases" />

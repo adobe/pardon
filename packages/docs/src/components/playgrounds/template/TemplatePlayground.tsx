@@ -3,6 +3,7 @@ import {
   createResource,
   createSignal,
   For,
+  Show,
   type ParentProps,
 } from "solid-js";
 
@@ -23,6 +24,7 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
   ]
     .map((line) => line.textContent)
     .join("\n")
+    .replace(/\n{3,}/gm, "\n\n")
     .split(/\n---\n/m)
     .map((s) => s.trim());
 
@@ -38,23 +40,24 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
     schema: Schema<string>,
     phase: "validate" | "build" = "build",
   ) {
-    try {
-      const {
-        [KV.eoi]: _eoi,
-        [KV.upto]: _upto,
-        [KV.unparsed]: rest,
-        ...values
-      } = KV.parse(template, "stream");
+    if (!template.trim().startsWith("{"))
+      try {
+        const {
+          [KV.eoi]: _eoi,
+          [KV.upto]: _upto,
+          [KV.unparsed]: rest,
+          ...values
+        } = KV.parse(template, "stream");
 
-      if (rest?.trim()) {
-        return {
-          values,
-          result: merge({ mode: "merge", phase }, schema, rest),
-        };
+        if (rest?.trim()) {
+          return {
+            values,
+            result: merge({ mode: "merge", phase }, schema, rest),
+          };
+        }
+      } catch (error) {
+        void error;
       }
-    } catch (error) {
-      void error;
-    }
 
     return {
       values: {},
@@ -103,55 +106,92 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
 
   const [renderResource] = createResource(
     mergedTemplate,
-    async ({ values, result: { context, schema, error } }) => {
+    async ({
+      values,
+      result: { context, schema, error },
+    }): Promise<{ output: string; values?: string }> => {
       if (!schema) {
-        if (error) return String(error);
+        if (error) return { output: String(error) };
         const { loc, err } = context!.diagnostics[0] ?? {};
-        return `error: ${loc} ${err}`;
+        return { output: `error: ${loc} ${err}` };
       }
 
       const result = await render(schema, createScriptEnvironment({ values }));
 
       if (result.context?.diagnostics.length) {
-        return String(result.context.diagnostics[0]);
+        return { output: String(result.context.diagnostics[0]) };
       }
 
-      return KV.stringify(JSON.parse(result.output), {
-        limit: 50,
-        indent: 2,
-        mode: "json",
-      });
+      return {
+        output:
+          (result.output?.trim() &&
+            KV.stringify(JSON.parse(result.output), {
+              limit: 40,
+              indent: 2,
+              mode: "json",
+            })) ??
+          "",
+        values: KV.stringify(result.context.evaluationScope.resolvedValues(), {
+          indent: 2,
+          limit: 60,
+          split: true,
+          quote: "auto",
+        }),
+      };
     },
   );
 
   const renderResult = createMemo(() => {
     switch (true) {
       case renderResource.loading:
-        return "rendering...";
+        return { output: "rendering..." };
       case renderResource.state === "errored":
-        return String(renderResource.error);
+        return { output: String(renderResource.error) };
       case renderResource.state === "ready":
         return renderResource();
     }
   });
 
   return (
-    <div>
-      <CodeMirror value={template()} readwrite onValueChange={setTemplate} />
+    <div class="p-3">
+      <CodeMirror
+        value={template()}
+        readwrite
+        onValueChange={setTemplate}
+        class="rounded-lg bg-white/75 dark:bg-neutral-500/20"
+      />
       <For each={nextTemplateSignals}>
         {([input, setInput]) => (
           <>
             <div class="relative -my-2 grid w-full place-items-center overflow-hidden">
               <span class="relative -top-0.5">+</span>
             </div>
-            <CodeMirror value={input()} readwrite onValueChange={setInput} />
+            <CodeMirror
+              value={input()}
+              readwrite
+              onValueChange={setInput}
+              class="rounded-lg bg-white/75 dark:bg-neutral-500/20"
+            />
           </>
         )}
       </For>
       <div class="relative -my-10 grid w-full place-items-center overflow-hidden">
         <span class="relative -top-0.5">=</span>
       </div>
-      <CodeMirror value={renderResult()} readonly />
+      <CodeMirror
+        value={renderResult()?.output ?? "..."}
+        readonly
+        class="opacity-75"
+      />
+      <Show when={renderResult()?.values}>
+        <div class="pt-2">
+          <CodeMirror
+            value={renderResult()?.values}
+            readonly
+            class="border-t-2 border-dashed border-neutral-500 pt-2 opacity-75"
+          />
+        </div>
+      </Show>
     </div>
   );
 }

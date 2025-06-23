@@ -930,7 +930,7 @@ templating("bigint")`
 }
 `();
 
-templating.only("tpl-quoted-value")`
+templating("tpl-quoted-value")`
 a-b=a-b-c
 {
   a: $\`a-b\`
@@ -1292,11 +1292,35 @@ a=[1,2]
   b: [[1,2],[2,4]] }
 `();
 
-templating.only("matching-references-with-expressive-defaults")`
+templating("matching-references-with-expressive-defaults")`
 { x: x = ([1, 2, 3]), y: y = ([4, 5, 6]) }
 ---
 { x: ['a', 'b'] }
 ---
 *
 { x: ['a', 'b'], y: [4, 5, 6]}
+`();
+
+templating("conflict-with-defaults-interpolate")`
+done=true
+{
+  done: bool("{{done = false}}")
+}
+---
+*
+{
+  done: true
+}
+`();
+
+templating("conflict-with-defaults-ref")`
+done=true
+{
+  done: done.$bool = (false)
+}
+---
+*
+{
+  done: true
+}
 `();

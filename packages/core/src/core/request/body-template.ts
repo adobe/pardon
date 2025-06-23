@@ -10,6 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import { PardonError } from "../error.js";
 import { KV } from "../formats/kv-fmt.js";
 import { createNumber, JSON } from "../raw-json.js";
 import { isPatternSimple, patternize } from "../schema/core/pattern.js";
@@ -67,7 +68,7 @@ export const encodings = {
       textTemplate(datums.antipattern<string>(value)),
     );
   },
-  $template(value: string) {
+  $template(value: string, encoding?: string /* EncodingTypes */) {
     if (
       (typeof value === "string" &&
         /^(?![0-9])[a-z0-9_-]+$/.test(value.trim())) ||
@@ -91,12 +92,18 @@ export const encodings = {
 
           // don't accept top-level body aliases, assume it might be templated though.
           if (
+            encoding === "text" ||
             exposeSchematic<ReferenceSchematicOps<string>>(template).reference
           ) {
             return textTemplate(value);
           }
         }
 
+        if (encoding && encoding !== "json") {
+          throw new PardonError(
+            `encoding specified as ${encoding} but falling back to json`,
+          );
+        }
         return jsonEncoding(template);
       });
     } catch (error) {
@@ -125,6 +132,7 @@ export const bodyGlobals: Record<string, any> = {
   $string: <T>(x: Template<T>) => referenceTemplate<string>({}).$of(x).$string,
   $number: <T>(x: Template<T>) => referenceTemplate<number>({}).$of(x).$number,
   $bool: <T>(x: Template<T>) => referenceTemplate<boolean>({}).$of(x).$bool,
+  $boolean: <T>(x: Template<T>) => referenceTemplate<boolean>({}).$of(x).$bool,
   $noexport: <T>(x: Template<T>) => referenceTemplate<T>({}).$of(x).$noexport,
   $elements<T>(item: Template<T>, lenient?: boolean) {
     return arrays.archetype(item, lenient);
@@ -153,6 +161,12 @@ export function getContentEncoding(encoding: InternalEncodingTypes) {
 
 export function jsonEncoding(template?: Template<unknown>): Template<string> {
   return encodingTemplate(jsonEncodingType, template);
+}
+
+export function jsonScriptEncoding(
+  template?: Template<unknown>,
+): Template<string> {
+  return encodingTemplate(jsonScriptEncodingType, template);
 }
 
 export const jsonEncodingType: EncodingType<string, unknown> = {
@@ -195,6 +209,50 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
     return JSON.stringify(output, null, 0);
   },
 };
+
+export const jsonScriptEncodingType: EncodingType<string, string> = {
+  as: "string",
+  decode({ template, mode }) {
+    if ((template ?? "") == "") {
+      return undefined;
+    }
+
+    if (typeof template !== "string") {
+      throw new Error("json cannot parse non-string");
+    }
+
+    const templateText = JSON.parse(template);
+
+    try {
+      return JSON.parse(templateText);
+    } catch (error) {
+      if (mode === "match") {
+        throw error;
+      }
+
+      // fallback to script evaluation (in non-match contexts)
+      // if body doesn't parse
+      return evalBodyTemplate(templateText);
+    }
+  },
+  encode(output, context) {
+    if (output === undefined) {
+      return undefined;
+    }
+
+    if (context.environment.option("pretty-print")) {
+      return KV.stringify(output, {
+        mode: "json",
+        indent: 2,
+        limit: 80,
+        split: true,
+      });
+    }
+
+    return JSON.stringify(output, null, 0);
+  },
+};
+
 function $ref(
   template: TemplateStringsArray,
   ...args: never[]

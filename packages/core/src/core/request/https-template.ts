@@ -113,12 +113,13 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
         return merged && bodySchema(merged);
       }
 
-      if (encoding) {
+      if (encoding && encoding !== "json") {
         const encodedTemplate = encodings[`$${encoding}`](template);
 
         const encodedMergeContext = {
           ...context,
           template: encodedTemplate,
+          encoding,
         };
 
         const merged = merge(schema ?? stubSchema(), encodedMergeContext);
@@ -129,7 +130,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
       }
 
       try {
-        const templateEncoded = encodings.$template(template);
+        const templateEncoded = encodings.$template(template, encoding);
 
         // special case to enable "xyz=123" single-value forms that otherwise parse as valid
         // templates to be still treated as forms.

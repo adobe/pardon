@@ -234,6 +234,13 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     switch (currentNode.operator) {
       case SyntaxKind.TildeToken: // ~~(...) -> match mode
         if (
+          ts.isPrefixUnaryExpression(currentNode.parent) &&
+          currentNode.parent.operator === SyntaxKind.TildeToken
+        ) {
+          break;
+        }
+
+        if (
           ts.isPrefixUnaryExpression(currentNode.operand) &&
           currentNode.operand.operator === SyntaxKind.TildeToken
         ) {

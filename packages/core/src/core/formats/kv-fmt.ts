@@ -885,7 +885,7 @@ const KeyValueEncoding: KeyValueEncodingRules = {
     inline: {
       start: "{ ",
       end: " }",
-      entrysep: ", ",
+      entrysep: " ",
     },
     wrapped: {
       entrysep: "",

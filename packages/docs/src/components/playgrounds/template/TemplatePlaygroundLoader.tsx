@@ -35,8 +35,8 @@ export default function TemplatePlaygroundLoader(props: ParentProps<{}>) {
   );
 
   return (
-    <div class="pp-container copypaste-context grid gap-2 pl-2">
-      <div class="not-content pt-5">
+    <div class="pp-container copypaste-context m-0! grid gap-2 p-0!">
+      <div class="not-content pt-0">
         <Suspense fallback={loading}>
           <Show when={!isSSR()} fallback={loading}>
             <PlaygroundApp {...props} />

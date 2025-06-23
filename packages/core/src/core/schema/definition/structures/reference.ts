@@ -84,6 +84,7 @@ export type ReferenceSchematic<T> = Schematic<T> & {
   readonly $meld: ReferenceSchematic<T>;
   readonly $string: ReferenceSchematic<string>;
   readonly $bool: ReferenceSchematic<boolean>;
+  readonly $boolean: ReferenceSchematic<boolean>;
   readonly $number: ReferenceSchematic<number>;
   readonly $bigint: ReferenceSchematic<bigint>;
   readonly $nullable: ReferenceSchematic<T | null>;
@@ -447,14 +448,15 @@ export function defineReference<T = unknown>(
         }
       }
 
-      if (expr) {
+      // we should only need to render here if the expression wasn't declared in the scope/variables.
+      if (refs.size === 0 && expr) {
         const result = (await evaluateIdentifierWithExpression(
           context,
           "",
           expr,
         )) as T;
+
         if (result !== undefined) {
-          defineRenderedReferenceValue(context, result);
           return result;
         }
       }
@@ -576,11 +578,16 @@ export function defineReference<T = unknown>(
   ) {
     let result: T | string | undefined;
 
-    if (schema) {
+    // resolve before trying to render
+    result = resolveReference(context, schema);
+
+    if (schema && result === undefined) {
       result = await executeOp(schema, "render", context);
     }
 
     if (result === undefined) {
+      // sometimes resolving afterwards works
+      // TODO: determine if race conditions apply here
       result = resolveReference(context, schema);
     }
 
