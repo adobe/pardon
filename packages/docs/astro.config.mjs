@@ -50,28 +50,8 @@ export default defineConfig({
               link: "/intro/templates",
             },
             {
-              label: "Collections (and Mixins)",
-              link: "/intro/collections",
-            },
-            {
-              label: "Dataflow",
-              link: "/intro/dataflow",
-            },
-            {
-              label: "Scripting",
-              link: "/intro/scripting",
-            },
-            {
               label: "Collection Layers",
               link: "/intro/layers",
-            },
-            {
-              label: "Patterns",
-              link: "/intro/patterns",
-            },
-            {
-              label: "Schemas",
-              link: "/intro/schemas",
             },
             {
               label: "Pardon for Testing",

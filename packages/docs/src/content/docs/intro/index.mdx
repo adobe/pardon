@@ -110,7 +110,7 @@ Please familiarize yourself with the following 8 requests to manage users and to
         Content-Type: application/json
 
         {
-          "task": "{{task}}",
+          "task": "{{?task}}",
           "done": "{{?done}}"
         }
         ```
@@ -289,10 +289,7 @@ content-type: application/json
 ```
 </FlexyCodeGrid>
 
-See pardon also supplies the necessary but forgettable `content-type` header here.
-It's not a guess, nor is it based on the request body: it's in the template.  
-
-After sending this out, the server-emulator in this page registered the test user.
+This requests tells the server-emulator in this page to register the user.
 
 The full https schema for the create user endpoint includes a response matcher
 and a post request script.  The response matcher assures that the script is only
@@ -392,8 +389,8 @@ Here are some ideas for exploration.
   <TabItem label="auth">
     Try the authorization request.
     
-    - Notice how Pardon adds
-      the password (use the lock to toggle showing the value).
+    - Notice how Pardon adds the password
+      (use the lock to toggle showing the value).
     - Try overriding it in the request and seeing how that works for you.
       (Then try overriding it the _other_ way.)
 
