@@ -1,0 +1,1 @@
+/*! tailwindcss v4.1.6 | MIT License | https://tailwindcss.com */.icon-grid{place-items:center;gap:calc(var(--spacing,.25rem)*1);height:100%;display:grid;position:relative;top:-3px}.icon-grid-col{direction:rtl;grid-template-rows:repeat(1,minmax(0,1fr));grid-auto-flow:column}.icon-grid-col>*{direction:normal}
