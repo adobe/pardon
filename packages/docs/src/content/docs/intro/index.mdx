@@ -35,11 +35,11 @@ Pardon is a polite http framework.
 
 Pardon is a template processor:
 templates are used to describe, match, format, extend, and parse
-http requests and the responses.
+http requests and http responses.
 Templates are written in a dialect of the "HTTP format".
 
 Templates supply the "etiquette" that is easy to forget.
-"Did you remember your content-type header?".  Of course you did,
+"Did you forget your content-type header?".  Of course you did,
 you were focused on the data.  Pardon takes care of the syntax part
 of the request so you can focus on the semantics.
 
@@ -132,7 +132,7 @@ Please familiarize yourself with the following 8 requests to manage users and to
         Get the state of a single todo
 
         ```http
-        PUT https://todo.example.com/todos/{{todo}}
+        GET https://todo.example.com/todos/{{todo}}
         Authorization: User {{@token}}
         ```
       </TabItem>
@@ -216,14 +216,14 @@ export async function authorizeUser(username) {
 
 ### Demo
 
-Using our todo API, we can get a feel for Pardon works.
+Using our todo API, we can get a feel for how Pardon works.
 
 We will go through some basic flows.
  - create a user.
  - create a todo item.
  - mark the todo as completed.
 
-In this tutorial, changing tabs updates the request: you will need
+In this tutorial, switching between the following tabs updates the request: you will need
 to run each request before the following one.
 
 <PardonPlayground secrets response id="todo-playground" example={`
