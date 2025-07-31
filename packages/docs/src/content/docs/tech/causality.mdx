@@ -17,7 +17,7 @@ prev: false
 import "@components/inline-icon.css";
 import { SolidIcon } from "@components";
 
-Node's async_hooks API has been "experimental" since it was introducted 
+Pardon's tracking module is based on node's `async_hooks` API, which has been "experimental" since it was introducted 
 in Node 8:
 
 <div class="p-2 border-2 border-solid dark:border-neutral-600 border-neutral-300 rounded-sm">
@@ -36,16 +36,18 @@ create a more purpose-focused API.
 </div>
 </div>
 
-We're using it anyway! <span class='inline-icon'><SolidIcon size={20} name="wink" /></span>
+The risk is offset by how powerful this paradigm can be for asynchronous programming.
 
 ## Concurrent Serial Tests
 
-Other http frameworks provide a single thread of execution, and a global
-environment object which is used to configure each request and response in turn.
+Other http frameworks provide a single thread of execution: a global
+environment object can be used to configure each request and response in turn.
 
 With Pardon, we offer the same ergonomics of a "global object" (`environment`), but the values assigned
-to this object are independent of the execution order: only _awaited_ updates are visible in
-the "global" object.
+to this object are independent of the execution order: only _awaited_ assignments are visible.
+
+The global `environment` object is available in some Pardon-enabled runtimes:
+when run with `--run-script` and via the testcase runner.
 
 Underlying this is a tracking system that understands
 _what happened_ to reach a certain point by way of a series of tracked values.
@@ -95,16 +97,18 @@ awaited(); // ['f', 'g']
 // further awaits of pf/pg here will not change the result.
 ```
 
-Notice that `awaited()` above will always return the tracked values in `awaited` order,
-despite the fact that the tracking might have been in the reverse order due to the `randomDelay()s`.
+`awaited()` returns the tracked values in `awaited` order,
+despite the fact that the actually tracking calls might have been executed the reverse order
+(according to the wall clock) due to the `randomDelay()s`.
 
 This might feel a bit weird at first, but it is _stable_, as the composition/order of the `awaited()`
 values will be based only on the (stable) "lexical shape" of the code, rather than the
-unstable order of execution.
+unstable order of asynchronous execution.
 
-In tests, we use this to track assignments to a global environment value.
+We can use this to track assignments to a global environment value.
 We also track dependent requests that might be executed via script helpers to
-surface dependent requests in `favor`.
+surface dependent requests in `favor`.  Creating an execution graph of what
+depends on what.
 
 :::caution
 Some async constructs are inherently inconsistent, such as `Promise.race`.

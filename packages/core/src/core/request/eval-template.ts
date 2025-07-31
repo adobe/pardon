@@ -128,7 +128,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     return factory.createCallExpression(
       factory.createIdentifier("$itemOrArray"),
       undefined,
-      [currentNode.operand.elements[0].expression],
+      [decorateAs(currentNode.operand.elements[0].expression, factory)],
     );
   }
 
@@ -176,7 +176,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     return factory.createCallExpression(
       factory.createIdentifier("$elements"),
       undefined,
-      [currentNode.elements[0].expression],
+      [decorateAs(currentNode.elements[0].expression, factory)],
     );
   }
 
@@ -194,34 +194,11 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     return factory.createCallExpression(
       factory.createIdentifier("$scoped"),
       undefined,
-      [currentNode.properties[0].expression],
+      [decorateAs(currentNode.properties[0].expression, factory)],
     );
   }
 
-  if (ts.isAsExpression(currentNode)) {
-    const types = asTypes(currentNode.type);
-
-    if (
-      ts.isLeftHandSideExpression(currentNode.expression) &&
-      !ts.isLiteralExpression(currentNode.expression)
-    ) {
-      return types.reduce<ts.Expression>(
-        (node, type) =>
-          factory.createPropertyAccessChain(node, undefined, type),
-        currentNode.expression,
-      );
-    }
-
-    return types.reduce<ts.Expression>(
-      (node, type) =>
-        factory.createCallExpression(
-          factory.createIdentifier(type),
-          undefined,
-          [node],
-        ),
-      currentNode.expression,
-    );
-  }
+  currentNode = decorateAs(currentNode, factory);
 
   if (ts.isBinaryExpression(currentNode)) {
     const expression = binaryExpression(currentNode, factory);
@@ -302,6 +279,45 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   return currentNode;
 };
+
+function decorateAs(
+  currentNode: ts.Expression,
+  factory: ts.NodeFactory,
+): ts.Expression;
+function decorateAs<T extends ts.Node>(
+  currentNode: T,
+  factory: ts.NodeFactory,
+): T;
+function decorateAs<T extends ts.Node>(
+  currentNode: ts.Expression | T,
+  factory: ts.NodeFactory,
+): T | ts.Expression {
+  if (!ts.isAsExpression(currentNode)) {
+    return currentNode;
+  }
+
+  const types = asTypes(currentNode.type);
+
+  if (
+    ts.isLeftHandSideExpression(currentNode.expression) &&
+    !ts.isLiteralExpression(currentNode.expression)
+  ) {
+    return types.reduce<ts.Expression>(
+      (node, type) => factory.createPropertyAccessChain(node, undefined, type),
+      currentNode.expression,
+    );
+  } else {
+    return types.reduce<ts.Expression>(
+      (node, type) =>
+        factory.createCallExpression(
+          factory.createIdentifier(type),
+          undefined,
+          [node],
+        ),
+      currentNode.expression,
+    );
+  }
+}
 
 function decorateCall(expression: ts.Node, factory: ts.NodeFactory) {
   if (!ts.isCallExpression(expression)) {

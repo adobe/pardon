@@ -674,4 +674,14 @@ $keyed({ id: key }, $elements({
     .from(`{ ...{ x: obj.x, y: obj.y } }`)
     .to(`$scoped({ x: obj.x, y: obj.y })`)
     .symbols("$scoped", "obj");
+
+  transforms("secret-spread-elements")
+    .from(`[...x.$value as secret]`)
+    .to(`$elements(x.$value.$secret)`)
+    .symbols("$elements", "x");
+
+  transforms("secret-spread-unwrapped")
+    .from(`![...x.$value as secret]`)
+    .to(`$itemOrArray(x.$value.$secret)`)
+    .symbols("$itemOrArray", "x");
 });
