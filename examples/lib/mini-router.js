@@ -54,7 +54,8 @@ export function createMiniRouter(routemap) {
         }
       }
     } catch (error) {
-      return new Response(String(error), { status: 500 });
+      console.warn(`mini-router: ${req.method} ${req.url}: error`, error);
+      return new Response("error", { status: 500 });
     }
   };
 }
