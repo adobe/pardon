@@ -10,10 +10,10 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { PardonDatabase } from "../../db/sqlite.js";
-import { PardonCompiler } from "../../runtime/compiler.js";
-import { type PardonExecution } from "../execution/pardon-execution.js";
-import {
+import type { PardonDatabase } from "../../db/sqlite.js";
+import type { PardonCompiler } from "../../runtime/compiler.js";
+import type { PardonExecution } from "../execution/pardon-execution.js";
+import type {
   PardonExecutionContext,
   PardonExecutionIngress,
   PardonExecutionInit,
@@ -21,8 +21,12 @@ import {
   PardonExecutionEgress,
   PardonExecutionResult,
 } from "./pardon.js";
-import { PardonCollection, Workspace } from "../../runtime/init/workspace.js";
-import { FlowContext } from "../execution/flow/data/flow-context.js";
+import type {
+  PardonCollection,
+  Workspace,
+} from "../../runtime/init/workspace.js";
+import type { FlowContext } from "../execution/flow/data/flow-context.js";
+import type { SecretStorage } from "../../runtime/secrets.js";
 
 export type PardonRuntime<Type extends "loading" | "ready" = "ready"> = {
   config: {
@@ -30,6 +34,7 @@ export type PardonRuntime<Type extends "loading" | "ready" = "ready"> = {
     collections: string[];
   };
   database?: PardonDatabase;
+  secrets?: SecretStorage;
   collection: PardonCollection;
   compiler: PardonCompiler;
   cleanup?(): void;

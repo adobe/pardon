@@ -31,49 +31,27 @@ export default defineConfig({
   output: "static",
   integrations: [
     AutoImportAstro({
-      resolvers: [
-        IconsResolver({
-          prefix: "Icon",
-          extension: "jsx",
-        }),
-      ],
+      resolvers: [IconsResolver({ prefix: "Icon", extension: "jsx" })],
     }),
     starlight({
       title: "Pardon",
       customCss: ["./src/styles/global.css"],
       sidebar: [
-        {
-          label: "Welcome",
-          link: "/",
-        },
+        { label: "Welcome", link: "/" },
         {
           label: "Introduction to Pardon",
           items: [
-            {
-              label: "Overview",
-              link: "/intro/",
-            },
-            {
-              label: "Quickstart",
-              link: "/intro/quickstart",
-            },
-            {
-              label: "Templates",
-              link: "/intro/templates",
-            },
-            {
-              label: "Endpoints",
-              link: "/intro/endpoints",
-            },
-            {
-              label: "Pardon for Testing",
-              link: "/intro/testcases",
-            },
+            { label: "Overview", link: "/intro/" },
+            { label: "Quickstart", link: "/intro/quickstart" },
+            { label: "Templates", link: "/intro/templates" },
+            { label: "Endpoints", link: "/intro/endpoints" },
+            { label: "Pardon for Testing", link: "/intro/testcases" },
           ],
         },
         {
           label: "Reference",
           items: [
+            { label: "Overview", link: "/reference" },
             { label: "The HTTPS format", link: "/reference/https-format" },
             { label: "Template Runtime", link: "/reference/template-runtime" },
             { label: "Built-in values", link: "/reference/builtin-values" },
@@ -82,14 +60,9 @@ export default defineConfig({
         {
           label: "Technology",
           items: [
-            {
-              label: "Causality Tracking",
-              link: "/tech/causality",
-            },
-            {
-              label: "The KV format",
-              link: "/tech/kv",
-            },
+            { label: "Overview", link: "/tech" },
+            { label: "Causality Tracking", link: "/tech/causality" },
+            { label: "The KV format", link: "/tech/kv" },
           ],
         },
         {

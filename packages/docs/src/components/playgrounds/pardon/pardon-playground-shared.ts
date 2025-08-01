@@ -11,8 +11,11 @@ governing permissions and limitations under the License.
 */
 
 import type { ApplicationContext } from "@components/playgrounds/pardon/PardonApplication";
-import { PardonFetchExecution, pardonExecutionHandle } from "pardon/playground";
-import { type pardon as pardonFn } from "pardon";
+import {
+  type PardonFetchExecution,
+  pardonExecutionHandle,
+} from "pardon/playground";
+import type { pardon as pardonFn } from "pardon";
 import { createMemo, type Accessor } from "solid-js";
 export { deferred } from "pardon/utils";
 import { users } from "@components/todo-server-hook.ts";

@@ -11,7 +11,7 @@ import {
 } from "solid-js";
 import CodeMirror from "@components/codemirror/CodeMirror.tsx";
 
-import { type ExecutionHandle } from "@components/playgrounds/pardon/pardon-playground-shared";
+import type { ExecutionHandle } from "@components/playgrounds/pardon/pardon-playground-shared";
 import { useSecretsSignal } from "@components/playgrounds/pardon/PardonPlaygroundSecretsSignalContext";
 import type { FlightStatus } from "./PardonPlaygroundResponseView.tsx";
 

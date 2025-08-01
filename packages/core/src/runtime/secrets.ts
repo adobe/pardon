@@ -11,33 +11,47 @@ governing permissions and limitations under the License.
 */
 import { SchemaRenderContext } from "../core/schema/core/types.js";
 import { isScalar } from "../core/schema/definition/scalar.js";
-import { secretOps } from "../db/entities/secrets-entity.js";
 import { mapObject } from "../util/mapping.js";
 
-const memory: [Record<string, string>, Record<string, any>][] = [];
+export type SecretStorage = {
+  learn(keys: Record<string, string>, values: Record<string, any>): void;
+  recall(keys: Record<string, string>, ...secrets: string[]): void;
+};
+
+export function inMemorySecrets(): SecretStorage & {
+  readonly memory: [Record<string, string>, Record<string, any>][];
+} {
+  const memory: [Record<string, string>, Record<string, any>][] = [];
+
+  return {
+    memory,
+    learn(scope: Record<string, string>, secrets: Record<string, unknown>) {
+      memory.push([scope, secrets]);
+    },
+    recall(scope: Record<string, any>, ...secrets: string[]): unknown {
+      const found = memory.reduce((found, [ctx, values]) => {
+        if (Object.entries(ctx).every(([k, v]) => scope[k] === v)) {
+          Object.assign(found, values);
+        }
+        return found;
+      }, {});
+
+      if (secrets.length === 1) {
+        return found[secrets[0]];
+      }
+
+      return found;
+    },
+  };
+}
 
 export function makeSecretsProxy(context: SchemaRenderContext) {
-  const { database } = context.environment.app ?? {};
+  const { secrets: storage } = context.environment.app ?? {};
 
   function lookup(scope: Record<string, any>, ...secrets: string[]) {
     scope = scalars(scope);
 
-    if (database) {
-      return secretOps(database).rememberSecrets(scope)(...secrets);
-    }
-
-    const found = memory.reduce((found, [ctx, values]) => {
-      if (Object.entries(ctx).every(([k, v]) => scope[k] === v)) {
-        Object.assign(found, values);
-      }
-      return found;
-    }, {});
-
-    if (secrets.length === 1) {
-      return found[secrets[0]];
-    }
-
-    return found;
+    return storage?.recall(scope, ...secrets);
   }
 
   function scopedSecrets(scope: Record<string, any>) {
@@ -50,11 +64,8 @@ export function makeSecretsProxy(context: SchemaRenderContext) {
           }
 
           const secrets = secret === "*" ? value : { [secret]: value };
-          if (database) {
-            secretOps(database).memorizeSecret(scope, secrets);
-          } else {
-            memory.push([scope, secrets]);
-          }
+          storage?.learn(scope, secrets);
+
           return true;
         },
         get(target, secret) {

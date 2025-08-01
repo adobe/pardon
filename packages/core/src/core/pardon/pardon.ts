@@ -69,7 +69,7 @@ import { makeSecretsProxy } from "../../runtime/secrets.js";
 
 export type PardonAppContext = Pick<
   PardonRuntime,
-  "collection" | "compiler" | "database"
+  "collection" | "compiler" | "database" | "secrets"
 >;
 
 export type PardonExecutionMatch = {

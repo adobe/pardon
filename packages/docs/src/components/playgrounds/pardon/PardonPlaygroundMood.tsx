@@ -1,6 +1,6 @@
 import { createResource, type ParentProps } from "solid-js";
 import PardonPlaygroundMoodComponent from "@components/playgrounds/pardon/PardonPlaygroundMoodComponent";
-import { type ExecutionHandle } from "@components/playgrounds/pardon/pardon-playground-shared";
+import type { ExecutionHandle } from "@components/playgrounds/pardon/pardon-playground-shared";
 
 export default function PardonPlaygroundMood(
   props: ParentProps<{

@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { type PersistenceOptions } from "@solid-primitives/storage";
+import type { PersistenceOptions } from "@solid-primitives/storage";
 import { JSON } from "pardon/formats";
 
 export const persistJson: Pick<

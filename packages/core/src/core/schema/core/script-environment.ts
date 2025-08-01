@@ -63,7 +63,7 @@ export type ScriptDefaultsResolver = (
 export type ScriptOptions = (key: string) => unknown;
 
 export class ScriptEnvironment implements SchemaScriptEnvironment {
-  app: Pick<PardonAppContext, "database">;
+  app: Pick<PardonAppContext, "database" | "secrets">;
   name: () => string | undefined;
   input: Record<string, unknown>;
   space: ConfigSpace;
@@ -91,7 +91,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     resolvedDefaults,
     context,
   }: {
-    app?: Pick<PardonAppContext, "database">;
+    app?: Pick<PardonAppContext, "database" | "secrets">;
     name?: string;
     config?: Record<string, string>[];
     defaults?: DefaultsMap;

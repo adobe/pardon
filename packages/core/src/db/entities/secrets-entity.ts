@@ -97,8 +97,8 @@ VALUES (:context, :secret, :value)
 `);
 
   return {
-    memorizeSecret,
-    rememberSecrets,
+    learnSecret,
+    recallSecrets,
   };
 
   function serialize(value: unknown) {
@@ -155,7 +155,7 @@ VALUES (:context, :secret, :value)
     }
   }
 
-  function memorizeSecret(
+  function learnSecret(
     criteria: Record<string, string | number | boolean>,
     secrets: Record<string, unknown>,
   ) {
@@ -176,7 +176,7 @@ VALUES (:context, :secret, :value)
     })();
   }
 
-  function rememberSecrets(
+  function recallSecrets(
     context: Record<string, string>,
   ): <T extends any[]>(...names: T) => unknown | Record<T[number], unknown> {
     const contextvalues = [...Object.entries(context)];

@@ -31,6 +31,8 @@ import fetchPolyfillReady from "./fetch-polyfill.js";
 import { KV } from "../../core/formats/kv-fmt.js";
 import { PardonRuntime } from "../../core/pardon/types.js";
 import { Flow } from "../../core/execution/flow/flow-core.js";
+import { inMemorySecrets, SecretStorage } from "../secrets.js";
+import { secretOps } from "../../db/entities/secrets-entity.js";
 
 export type CollectionData = {
   values: Record<string, unknown>;
@@ -144,6 +146,7 @@ export type PardonAppContextOptions = {
   sqlite3?: {
     nativeBinding?: string;
   };
+  secrets?: SecretStorage;
 };
 
 function normalizeRC(
@@ -228,6 +231,9 @@ export async function loadPardonRuntime(options?: PardonAppContextOptions) {
     database,
     samples,
     example,
+    secrets:
+      options?.secrets ??
+      (database ? inDatabaseSecrets(database) : inMemorySecrets()),
   });
 }
 
@@ -257,12 +263,14 @@ export function resolvePardonRuntime({
   database,
   samples,
   example,
+  secrets,
 }: {
   config: PardonRuntime["config"];
   layers: Awaited<ReturnType<typeof loadCollections>>;
   samples: string[];
   example: Workspace["example"];
   database?: PardonDatabase;
+  secrets?: SecretStorage;
 }): PardonRuntime<"loading"> {
   const collection = buildCollection(layers);
 
@@ -277,7 +285,19 @@ export function resolvePardonRuntime({
     database,
     samples,
     example,
+    secrets: secrets ?? inMemorySecrets(),
   };
 
   return runtime;
+}
+
+function inDatabaseSecrets(database: PardonDatabase): SecretStorage {
+  return {
+    learn(scope: Record<string, string>, secrets: Record<string, unknown>) {
+      secretOps(database).learnSecret(scope, secrets);
+    },
+    recall(scope: Record<string, any>, ...secrets: string[]): unknown {
+      return secretOps(database).recallSecrets(scope)(...secrets);
+    },
+  };
 }

@@ -14,6 +14,7 @@ export { KV } from "../core/formats/kv-fmt.js";
 
 export { PardonFetchExecution } from "../core/pardon/pardon.js";
 export { pardonExecutionHandle } from "../api/pardon-wrapper.js";
+export { inMemorySecrets } from "../runtime/secrets.js";
 
 export {
   resolvePardonRuntime,

@@ -93,7 +93,7 @@ export function createEndpointEnvironment({
       return resolvedDefaults(context, endpoint?.configuration?.defaults);
     },
     evaluate(name, context) {
-      if (name === "secrets") {
+      if (name === "secrets" && context.environment.app?.secrets) {
         return makeSecretsProxy(context);
       }
 

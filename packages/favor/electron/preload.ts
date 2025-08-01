@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { contextBridge, ipcRenderer } from "electron";
-import { type PardonWorkerHandlers } from "./pardon-worker.js";
+import type { PardonWorkerHandlers } from "./pardon-worker.js";
 
 const initialSettings = new Promise<Preferences>((resolve, reject) => {
   const timeout = setTimeout(() => {
