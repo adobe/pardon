@@ -19,6 +19,7 @@ import { intoURL } from "../request/url-object.js";
 import { RequestObject } from "./http-fmt.js";
 import { PardonError } from "../error.js";
 import { createHeaders } from "../request/header-object.js";
+import { isIP } from "node:net";
 
 export const CURL = {
   parse,
@@ -45,6 +46,14 @@ function headerList(headers: HeadersInit = []) {
   return Object.entries(headers);
 }
 
+function resolveString(resolve: string) {
+  if (isIP(resolve)) {
+    return resolve;
+  }
+
+  return `$(dig +short "${resolve}" | tail -1)`;
+}
+
 function stringify(
   request: FetchObject,
   { include }: { include?: boolean } = {},
@@ -55,7 +64,7 @@ function stringify(
   const port = url.port || (url.protocol == "https:" ? 443 : 80);
 
   return [
-    `curl ${method !== "GET" ? `--request ${method} ` : ""}"${quot(url)}"${resolve ? ` \\\n  --resolve "${url.hostname}:${port}:$(dig +short ${resolve} | tail -1)" \\\n ` : ""}${
+    `curl ${method !== "GET" ? `--request ${method} ` : ""}"${quot(url)}"${resolve ? ` \\\n  --resolve "${url.hostname}:${port}:${resolveString(resolve)}" \\\n ` : ""}${
       include ? " --include" : ""
     }`,
     ...headerList(headers).map(

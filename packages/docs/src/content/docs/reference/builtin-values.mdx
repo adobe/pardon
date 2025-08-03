@@ -9,8 +9,8 @@
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-title: Pardon Collections
-description: https files
+title: Built-in Values
+description: all the magic variables
 next: false
 prev: false
 ---
@@ -60,3 +60,29 @@ The base template defines the following variables:
 | `headers` | The response headers, as an object largely compatible with `Headers` |
 | `body` | The response body, usually as a `string`. |
 </div>
+
+### Http Meta-Headers
+
+There are two meta-headers, `body` and `resolve`
+
+```http
+POST https://example.com/...
+[body]: plain
+[resolve]: localhost
+```
+
+#### The `body` meta header
+`body` overrides the normal guess for how to parse the request or response body.  Options are
+
+| `[body]` | behavior |
+| --- | --- |
+| `plain` | plain text, supports `{{interpolation}}` |
+| `raw` | raw text |
+| `json` | JSON or scripted templates |
+| `form` | url-encoded form data, supports `{{interpolation}}` |
+
+#### The `resolve` meta header
+
+The `[resolve]` meta header specifies the DNS name or IP address to connect to.
+This overrides DNS only, the host header and SNI will still be based on the origin of the request.
+This mimics `curl`'s `--resolve` option.

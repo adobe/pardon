@@ -11,7 +11,8 @@
     "dev": "cross-env NODE_OPTIONS=--enable-source-maps electron-forge start",
     "prepackage": "rimraf ../core/dist ./.vite/ ./node_modules/.vite && npm run build --prefix ../core",
     "package": "cross-env NODE_OPTIONS='--disable-warning=DEP0174' electron-forge package",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prepare": "patch-package"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.3.3",
@@ -48,8 +49,10 @@
     "eslint-plugin-headers": "^1.1.2",
     "glob": "^11.0.0",
     "globals": "^16.0.0",
+    "is-ip": "^5.0.1",
     "localforage": "^1.10.0",
     "pardon": "file:../core",
+    "patch-package": "^8.0.0",
     "prettier": "^3.3.2",
     "prettier-plugin-tailwindcss": "^0.6.5",
     "rimraf": "^6.0.1",

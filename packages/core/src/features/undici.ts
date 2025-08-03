@@ -11,6 +11,7 @@ governing permissions and limitations under the License.
 */
 import dns from "node:dns/promises";
 import consumers from "node:stream/consumers";
+import { isIP } from "node:net";
 import { Agent, request } from "undici";
 
 import {
@@ -62,12 +63,10 @@ async function fetchSNI(
   { meta, method, headers, body }: SimpleRequestInit,
 ) {
   const serverhost = meta?.resolve;
+
   const hostip =
     serverhost &&
-    url.protocol === "https:" &&
-    (/^(\d+[.]){3}(\d+)$/.test(serverhost)
-      ? serverhost
-      : (await dns.resolve(serverhost, "A"))[0]);
+    (isIP(serverhost) ? serverhost : (await dns.resolve4(serverhost))[0]);
 
   const insecure = meta?.insecure === "true";
 
@@ -76,7 +75,8 @@ async function fetchSNI(
   }
 
   const servername = hostip ? url.host : undefined;
-  const requestUrl = `${hostip ? `${url.protocol}//${hostip}` : url.origin}${url.pathname}${url.search}`;
+  const port = url.port;
+  const requestUrl = `${hostip ? `${url.protocol}//${hostip}${port ? `:${port}` : ""}` : url.origin}${url.pathname}${url.search}`;
 
   const rheaders = new Headers(headers);
   if (hostip && !rheaders.has("host")) {

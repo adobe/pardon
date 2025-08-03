@@ -9,8 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import * as ChildProcessModule from "child_process";
-import type { ChildProcess } from "child_process";
+import { type ChildProcess, spawn } from "child_process";
 import { Transform, pipeline } from "stream";
 import split from "split";
 
@@ -55,7 +54,7 @@ export function hostRpcChild(
   actions: Record<string, Function>, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
 ) {
   // spawn a copy of the current process with --loader specified and wait for it.
-  const child = ChildProcessModule.spawn(
+  const child = spawn(
     process.argv0,
     [
       /* registers src/modules/loader.ts */

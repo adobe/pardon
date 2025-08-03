@@ -1,4 +1,0 @@
-env=local
-username=test
-@password=pw
-POST https://todo.example.com/users
