@@ -51,7 +51,7 @@
     "prettier-plugin-astro": "^0.14.0",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwind-merge": "^3.3.0",
-    "unplugin-auto-import": "^19.3.0",
+    "unplugin-auto-import": "^20.0.0",
     "unplugin-icons": "^22.2.0"
   }
 }

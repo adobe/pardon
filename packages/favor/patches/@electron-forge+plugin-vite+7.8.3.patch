@@ -1,0 +1,18 @@
+diff --git a/node_modules/@electron-forge/plugin-vite/dist/VitePlugin.js b/node_modules/@electron-forge/plugin-vite/dist/VitePlugin.js
+index 5493acf..3b8b4c5 100644
+--- a/node_modules/@electron-forge/plugin-vite/dist/VitePlugin.js
++++ b/node_modules/@electron-forge/plugin-vite/dist/VitePlugin.js
+@@ -148,7 +148,12 @@ the generated files). Instead, it is ${JSON.stringify(pj.main)}.`);
+             const configs = await this.configGenerator.getBuildConfigs();
+             const isRollupWatcher = (x) => x && typeof x === 'object' && 'on' in x && typeof x.on === 'function' && 'close' in x && typeof x.close === 'function';
+             return task?.newListr(configs.map((userConfig) => {
+-                const target = (userConfig.build?.rollupOptions?.input || (typeof userConfig.build?.lib !== 'boolean' && userConfig.build?.lib?.entry)) ?? '';
++                let target = (userConfig.build?.rollupOptions?.input || (typeof userConfig.build?.lib !== 'boolean' && userConfig.build?.lib?.entry)) ?? '';
++
++                if (typeof target === 'object') {
++                    target = (Array.isArray(target) ? target : Object.values(target)).join(', ');
++                }
++
+                 return {
+                     title: `Building ${chalk_1.default.green(target)} target`,
+                     task: async (_ctx, subtask) => {
