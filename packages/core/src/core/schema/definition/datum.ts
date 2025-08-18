@@ -33,6 +33,7 @@ import {
   isSecret,
   isMelding,
   isHidden,
+  isFlowExport,
 } from "./hinting.js";
 import {
   resolveIdentifier,
@@ -128,6 +129,7 @@ function mergeRepresentation<T extends Scalar>(
           arePatternsCompatible(pattern, templatePattern),
         )
       ) {
+        diagnostic(context, "conflict: incompatible");
         return;
       }
 
@@ -145,6 +147,10 @@ function mergeRepresentation<T extends Scalar>(
       );
 
       if (!match) {
+        diagnostic(
+          context,
+          `conflict: incompatible or configuration: ${template} with ${patterns.map(({ source }) => source).join(" | ")}`,
+        );
         return;
       }
 
@@ -470,12 +476,20 @@ async function doRenderScalar<T>(
     .filter(isPatternRegex)
     .some(({ vars }) => vars.length && vars.every(isHidden));
 
+  const flow = patterns
+    .filter(isPatternRegex)
+    .some(({ vars }) => vars.length && vars.every(isFlowExport));
+
   const resolution = resolveScalar(context, self, false) as
     | Exclude<T, undefined>
     | undefined;
 
   if (resolution !== undefined) {
     if (hidden) return undefined;
+
+    if (mode === "prerender" && flow) {
+      return undefined;
+    }
 
     return environment.redact({
       value: resolution as T,

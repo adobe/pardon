@@ -74,7 +74,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   expression?: ScriptExpressionRenderer;
   options?: ScriptOptions;
 
-  extendedContextValues?: Record<string, any>;
+  extendedContext?: Record<string, any>;
 
   constructor({
     app = {},
@@ -89,7 +89,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     express,
     options,
     resolvedDefaults,
-    context,
+    extendedContext,
   }: {
     app?: Pick<PardonAppContext, "database" | "secrets">;
     name?: string;
@@ -103,7 +103,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     redact?: RenderRedactor;
     express?: ScriptExpressionRenderer;
     options?: ScriptOptions;
-    context?: Record<string, any>;
+    extendedContext?: Record<string, any>;
   } = {}) {
     this.app = app;
     this.name = () => name;
@@ -134,7 +134,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
     this.redactor = redact;
     this.expression = express;
     this.options = options;
-    this.extendedContextValues = context;
+    this.extendedContext = extendedContext;
   }
 
   resolve({
@@ -213,7 +213,7 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
   }
 
   get contextValues() {
-    return { ...this.extendedContextValues, ...this.implied(), ...this.input };
+    return { ...this.extendedContext, ...this.implied(), ...this.input };
   }
 
   init({ context }: { context: SchemaContext }) {

@@ -183,7 +183,7 @@ export function createEndpointEnvironment({
     options(key) {
       return options?.[key];
     },
-    get context() {
+    get extendedContext() {
       const {
         service,
         action,

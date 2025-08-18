@@ -95,6 +95,17 @@ export const jsonSchemaTransform: TsMorphTransform = ({
 
   if (
     ts.isBinaryExpression(currentNode) &&
+    currentNode.operatorToken.kind === SyntaxKind.PercentToken &&
+    ts.isNonNullExpression(currentNode.left) &&
+    ts.isRegularExpressionLiteral(currentNode.right)
+  ) {
+    return factory.createStringLiteral(
+      `{{ !${identifierOf(currentNode.left.expression, factory)} % ${currentNode.right.text} }}`,
+    );
+  }
+
+  if (
+    ts.isBinaryExpression(currentNode) &&
     (ts.isAsExpression(currentNode.right) ||
       ts.isParenthesizedExpression(currentNode.right) ||
       ts.isRegularExpressionLiteral(currentNode.right) ||
@@ -219,40 +230,33 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   }
 
   if (ts.isRegularExpressionLiteral(currentNode)) {
-    const text = currentNode.getText();
-    const pattern = `{{ % ${text} }}`;
+    const pattern = `{{ % ${currentNode.text} }}`;
     return factory.createStringLiteral(pattern);
+  }
+
+  if (
+    ts.isBinaryExpression(currentNode) &&
+    currentNode.operatorToken.kind === SyntaxKind.SlashToken &&
+    ts.isIdentifier(currentNode.left)
+  ) {
+    return factory.createCallExpression(
+      factory.createIdentifier(`$${currentNode.left.text.replace(/^[$]/, "")}`),
+      undefined,
+      [currentNode.right],
+    );
   }
 
   if (ts.isPrefixUnaryExpression(currentNode)) {
     switch (currentNode.operator) {
-      case SyntaxKind.TildeToken: // ~~(...) -> match mode
-        if (
-          ts.isPrefixUnaryExpression(currentNode.parent) &&
-          currentNode.parent.operator === SyntaxKind.TildeToken
-        ) {
-          break;
-        }
-
-        if (
-          ts.isPrefixUnaryExpression(currentNode.operand) &&
-          currentNode.operand.operator === SyntaxKind.TildeToken
-        ) {
-          return factory.createCallExpression(
-            factory.createIdentifier("$match"),
-            undefined,
-            [currentNode.operand.operand],
-          );
-        }
-
+      case SyntaxKind.TildeToken:
         return factory.createCallExpression(
-          factory.createIdentifier("$meld"),
+          factory.createIdentifier("$muddle"),
           undefined,
           [currentNode.operand],
         );
       case SyntaxKind.MinusToken:
         return factory.createCallExpression(
-          factory.createIdentifier("$hidden"),
+          factory.createIdentifier("$noexport"),
           undefined,
           [currentNode.operand],
         );
@@ -263,11 +267,6 @@ export const jsonSchemaTransform: TsMorphTransform = ({
           [currentNode.operand],
         );
     }
-  }
-
-  if (ts.isRegularExpressionLiteral(currentNode)) {
-    const pattern = `{{ % ${currentNode.text} }}`;
-    return factory.createStringLiteral(pattern);
   }
 
   if (ts.isNonNullExpression(currentNode)) {
@@ -425,7 +424,7 @@ const referenceHints = {
   $secret: "@",
   $hidden: "#",
   $flow: "+",
-  $meld: "~",
+  $muddle: "~",
 };
 
 const referenceSpecials = {

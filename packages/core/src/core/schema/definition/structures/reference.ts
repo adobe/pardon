@@ -32,7 +32,7 @@ import {
 } from "../../core/types.js";
 import { isStubSchema, stubSchema } from "./stub.js";
 import { RedactedOps } from "./redact.js";
-import { isOptional, isRequired, isSecret } from "../hinting.js";
+import { isFlowExport, isOptional, isRequired, isSecret } from "../hinting.js";
 import {
   convertScalar,
   Scalar,
@@ -76,10 +76,11 @@ export type ReferenceSchematic<T> = Schematic<T> & {
   readonly $key: ReferenceSchematic<T>;
   readonly $value: ReferenceSchematic<T>;
   readonly $noexport: ReferenceSchematic<T>;
+  readonly $required: ReferenceSchematic<T>;
   readonly $secret: ReferenceSchematic<T>;
   readonly $optional: ReferenceSchematic<T>;
   readonly $flow: ReferenceSchematic<T>;
-  readonly $meld: ReferenceSchematic<T>;
+  readonly $muddle: ReferenceSchematic<T>;
   readonly $string: ReferenceSchematic<string>;
   readonly $bool: ReferenceSchematic<boolean>;
   readonly $boolean: ReferenceSchematic<boolean>;
@@ -115,7 +116,7 @@ const hints = {
   $secret: "@",
   $optional: "?",
   $required: "!",
-  $meld: "~",
+  $muddle: "~",
   $flow: "+",
 };
 
@@ -238,6 +239,14 @@ export function referenceTemplate<T = unknown>(
           ...reference,
           hint: `${reference.hint ?? ""}${hints[property]}`,
         });
+      }
+
+      if (property === "$hint") {
+        return (hint: string) =>
+          referenceTemplate({
+            ...reference,
+            hint: `${reference.hint ?? ""}${hint}`,
+          });
       }
 
       if (property in types) {
@@ -597,6 +606,10 @@ export function defineReference<T = unknown>(
     }
 
     const defined = defineRenderedReferenceValue(context, result as T);
+
+    if (context.mode === "prerender" && isFlowExport(referenceInfo)) {
+      return undefined;
+    }
 
     if (
       isSecret(referenceInfo) &&

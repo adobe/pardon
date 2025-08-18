@@ -123,7 +123,7 @@ export function isValidNumberToken(n: string) {
   return numberRegex.test(n);
 }
 
-// 0, 100, 1.1e+10, 1.1e-10
+// 0, 100, +100, -100
 const bigIntRegex = /^[+-]?(?:0|[1-9][0-9]*)?$/;
 
 export function isValidBigInt(n: string) {

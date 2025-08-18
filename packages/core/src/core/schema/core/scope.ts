@@ -336,6 +336,12 @@ export class Scope implements EvaluationScope, ScopeData {
         return value;
       }
 
+      const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
+
+      if (isFlowExport({ hint })) {
+        return (current.value = value);
+      }
+
       if (context.mode === "postrender") {
         return value;
       }

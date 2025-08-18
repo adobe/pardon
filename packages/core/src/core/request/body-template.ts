@@ -141,6 +141,8 @@ export const bodyGlobals: Record<string, any> = {
   $number: withAnonymousRef(anonRef.$number),
   $bool: withAnonymousRef(anonRef.$bool),
   $boolean: withAnonymousRef(anonRef.$boolean),
+  $muddle: withAnonymousRef(anonRef.$muddle),
+  $required: withAnonymousRef(anonRef.$required),
 
   $elements<T>(item: Template<T>) {
     return arrays.archetype(item);

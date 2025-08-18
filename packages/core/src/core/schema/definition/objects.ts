@@ -302,7 +302,7 @@ function inflatedObject<M extends Record<string, unknown>>(
     });
 
     if (!merged) {
-      diagnostic(context, `unmatched ${key}`);
+      diagnostic(context, `unmatched field: ${key}`);
       return undefined;
     }
 

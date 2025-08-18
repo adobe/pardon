@@ -1,0 +1,21 @@
+context:
+  - env
+  - username
+  - todo
+>>>
+GET https://todo.example.com/todos/{{todo}}
+
+<<<
+200
+
+{ done }
+
+>>>
+PUT https://todo.example.com/todos/{{todo}}
+
+{ done: (!done) }
+
+<<<
+200
+
+{ done: +done }

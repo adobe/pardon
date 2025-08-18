@@ -57,7 +57,7 @@ Reference template objects support various (chainable) operations, such as varia
 | `ref.$required` | same as `ref.$hint('!') -- ensures this value is present when matching |
 | `ref.$flow` | same as `ref.$hint('+') -- signals this variable for further use |
 | `ref.$noexport` | same as `ref.$hint('-') -- does not export this variable |
-| `ref.$meld` | same as `ref.$hint('~') -- merges refs in keyed/multivalue contexts |
+| `ref.$muddle` | same as `ref.$hint('~') -- merges refs in keyed/multivalue contexts |
 </div>
 
 References also support typing hints
@@ -105,13 +105,13 @@ that is usually nice than using the API directly.
 <div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
 | Syntax | Transformation |
 | --- | --- |
-| `ref = template` | `$merged(ref, template)` | 
+| `template1 = template2` | `$merged(template2, template1)` | 
 | `ref = (expr)` | `ref.$expr("expr")` |
 | `(expr)` | `$.$expr("expr")` |
 </div>
 
 For references that match simple values (strings, numbers, booleans) a regex can be specified.
-This changes the ref to an inline string.
+This transforms the ref to an interpolation in the runtime, so regex can only be used in these two forms.
 
 <div class="[&_td:nth-child(1)]:whitespace-nowrap [&_td:nth-child(1)]:!align-middle [&_td]:text-sm">
 | Syntax | Transformation |
@@ -128,20 +128,12 @@ Hints and types can be applied via `as type` typescript casts.
 | `ref as flow \| bool` | `ref.$optional.$boolean` |
 </div>
 
-Adding a regex switches the transform to the inline syntax, because regexes can only validate simple values.
-<div class="[&_td]:whitespace-nowrap [&_td]:!align-middle">
-| Syntax | Transformation |
-| --- | --- |
-| `ref % /regex/` | `{{ ref % /regex/ }}` |
-| `ref = (expr) % /regex/` | `{{ ref = $$expr("expr") % /regex/ }}` |
-</div>
-
 ## Other syntax transformations
 
 Other syntax transformations are available to support representing structures and scoping with minimal syntax.
 
 <div class="[&_td]:whitespace-nowrap [&_td]:!align-middle">
-| Syntax | Transformation |
+| Syntax | Transformation | notes |
 | --- | --- |
 | `f(...)` | `$f(...)` |
 | `a.b.f(...)` | `a.b.$f(...)` |
@@ -151,9 +143,18 @@ Other syntax transformations are available to support representing structures an
 | `{ key } * [...item]` | `$keyed({ key }, $elements(item))` |
 | `{ key } ** [...item]` | `$keyed$mv({ key }, $elements(item))` |
 | `{ ...template }` | `$scoped(template)` |
-| `~~ template` | `$match(template)` |
-| `x = template` | `$merged(template, x)` |
+| `ref = template` | `$merged(template, ref)` |
 | `123` | `$$number('123')` |
+| `ref!` | `$required(ref)` |
+| `-ref` | `$noexport(ref)` |
+| `+ref` | `$flow(ref)` |
+| `~ref` | `$muddle(ref)` |
+</div>
+
+In addition, `/` can be used to apply template decoration functions.
+<div class="[&_td]:whitespace-nowrap [&_td]:!align-middle">
+| `hidden / template` | `$hidden(template)` |
+| `match / template` | `$match(template)` |
 </div>
 
 `match` mode mimics response processing, and this could be useful for providing literal
@@ -166,12 +167,12 @@ can be used for any binding. In most cases, merging should be distributive, e.g.
 { a: b } = { a: 10 }
 ```
 </FlexyCodeGrid>
-should result in the same schema as `{ a: b = 10 }`.
+would result in the same effective schema as `{ a: b = 10 }`.
 
 `$$number` is a wrapper applied to numbers in JSON, it produces a `new Number()` (object) with a `source` field equal
 to the original value.  This can be a little annoying, as `$$number(123) == 123` and yet `$$number(123) !== 123`,
-but it's a tradeoff to allow very big numbers and arbitrary precission decimals to get reserialized as-is and
-not mangled by the `String(Number(original))` processing implicit in basic JSON parsing/serialization.
+but it's a tradeoff to allow very big numbers and arbitrary precision decimals to
+not get mangled by the `String(Number(original))` conversion implied by the template runtime.
 
 ## Explore
 

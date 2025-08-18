@@ -800,7 +800,9 @@ async function matchResponseToOutcome(
           ...responseObject,
           statusText: responseObject.statusText?.trim() || undefined,
         },
-        new ScriptEnvironment(),
+        new ScriptEnvironment({
+          input: values,
+        }),
       );
 
     if (match?.schema) {

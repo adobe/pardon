@@ -489,52 +489,64 @@ describe("https-schema-tests", () => {
   }
 
   // operator overloading - JSON edition.
-  //   - (...) -> don't transform the contents, this expression is to be evaluated by the pardon render engine
-  //   - /.../ -> anonymous regex match /.../ :: "{{ % /.../ }}"
-  //   - $x = (...) -> bind $x to the variable :: $x.of("{{ = (...) }}")
-  //   - $x % /.../ -> bind $x to the variable with regex /.../ :: $x.of("{{ % /.../ }}")
-  //   - $x = (...) % /.../ -> bind $x to the variable with regex /.../ :: $x.of("{{ = (...) % /.../ }}")
-  //   - $x = ... -> bind $x to the structure :: $x.of(...)
-  //   - $x! -> mark $x required for match :: $x.required
-  //   - void $x -> mark $x optional for match :: $x.optional
 
-  const transforms = (testname: string) => ({
-    from: (source: string) => ({
-      to: (expected: string) => {
-        let expectedSymbols: Set<string>;
-        let expectedLiterals: Set<string>;
+  const transforms = Object.assign(
+    (testname: string, mode?: "only" | "skip" | "fails" | "todo") => ({
+      from: (source: string) => ({
+        to: (expected: string) => {
+          let expectedSymbols: Set<string>;
+          let expectedLiterals: Set<string>;
 
-        it(testname, () => {
-          const { morphed, unbound } = applyTsMorph(
-            source.trim(),
-            jsonSchemaTransform,
-          );
+          function execute() {
+            const { morphed, unbound } = applyTsMorph(
+              source.trim(),
+              jsonSchemaTransform,
+            );
 
-          assert.equal(morphed, expected.trim());
-          if (expectedSymbols) {
-            assert.deepEqual(expectedSymbols, unbound.symbols);
+            assert.equal(morphed, expected.trim());
+            if (expectedSymbols) {
+              assert.deepEqual(expectedSymbols, unbound.symbols);
+            }
+            if (expectedLiterals) {
+              assert.deepEqual(expectedLiterals, unbound.literals);
+            }
           }
-          if (expectedLiterals) {
-            assert.deepEqual(expectedLiterals, unbound.literals);
-          }
-        });
 
-        return {
-          symbols(...symbols: string[]) {
-            expectedSymbols = new Set(symbols);
-            return {
-              literals(...literals: string[]) {
-                expectedLiterals = new Set(literals);
-              },
-            };
-          },
-          literals(...literals: string[]) {
-            expectedLiterals = new Set(literals);
-          },
-        };
-      },
+          (mode == "only" || mode === "skip" ? it[mode] : it)(testname, () => {
+            try {
+              execute();
+            } catch (ex) {
+              if (mode === "fails" || mode === "todo") {
+                return;
+              }
+
+              throw ex;
+            }
+          });
+
+          return {
+            symbols(...symbols: string[]) {
+              expectedSymbols = new Set(symbols);
+              return {
+                literals(...literals: string[]) {
+                  expectedLiterals = new Set(literals);
+                },
+              };
+            },
+            literals(...literals: string[]) {
+              expectedLiterals = new Set(literals);
+            },
+          };
+        },
+      }),
     }),
-  });
+    {
+      skip: (name: string) => transforms(name, "skip"),
+      only: (name: string) => transforms(name, "only"),
+      todo: (name: string) => transforms(name, "todo"),
+      fails: (name: string) => transforms(name, "fails"),
+    },
+  );
 
   transforms("parens-to-expressions").from("(a)").to(`$.$expr("a")`).symbols();
 
@@ -611,6 +623,11 @@ describe("https-schema-tests", () => {
     .to("$keyed([key, undefined], $elements([headers.$key, headers.$value]))")
     .symbols("$keyed", "$elements", "key", "undefined", "headers");
 
+  transforms("required-regex").from(`x! % /abc/`).to(`"{{ !x % /abc/ }}"`);
+  transforms("required-regex")
+    .from(`x.y.z! % /abc/`)
+    .to(`"{{ !x.y.z % /abc/ }}"`);
+
   transforms("multi-kv-expression")
     .from(`{ id: key } ** { id: map.$key, value: map.each.$value }`)
     .to("$keyed$mv({ id: key }, { id: map.$key, value: map.each.$value })")
@@ -646,6 +663,11 @@ $keyed({ id: key }, $elements({
     .to('$form({ x: $merged(a, $$number("10")) })')
     .symbols("$form", "a", "$$number", "$merged");
 
+  transforms("muddling-operator")
+    .from("~x")
+    .to("$muddle(x)")
+    .symbols("$muddle", "x");
+
   transforms("merge-operator-array-archetype-and-array")
     .from(
       `
@@ -661,14 +683,19 @@ $keyed({ id: key }, $elements({
     );
 
   transforms("match-mode")
-    .from(`~~{ x: "{{x}}" }`)
+    .from(`match / { x: "{{x}}" }`)
     .to(`$match({ x: "{{x}}" })`)
     .symbols("$match");
 
   transforms("meld-mode")
-    .from(`~{ x: "{{x}}" }`)
+    .from(`meld / { x: "{{x}}" }`)
     .to(`$meld({ x: "{{x}}" })`)
     .symbols("$meld");
+
+  transforms("hidden-template")
+    .from(`hidden / { x: "{{x}}" }`)
+    .to(`$hidden({ x: "{{x}}" })`)
+    .symbols("$hidden");
 
   transforms("scoped-objects")
     .from(`{ ...{ x: obj.x, y: obj.y } }`)
