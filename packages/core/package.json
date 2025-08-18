@@ -127,6 +127,8 @@
     "better-sqlite3": "^12.2.0"
   },
   "overrides": {
-    "node-gyp": "^10"
+    "patch-package": {
+      "tmp": "^0.2.5"
+    }
   }
 }

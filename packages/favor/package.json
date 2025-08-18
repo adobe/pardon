@@ -71,5 +71,10 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0"
+  },
+  "overrides": {
+    "patch-package": {
+      "tmp": "^0.2.5"
+    }
   }
 }
