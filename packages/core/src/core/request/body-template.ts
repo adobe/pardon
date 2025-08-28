@@ -44,7 +44,6 @@ import {
   matchTemplate,
   mvKeyedTuples,
   blendEncoding,
-  meldTemplate,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
@@ -132,7 +131,7 @@ export const bodyGlobals: Record<string, any> = {
   null: null,
   ...encodings,
   $: $ref,
-  $flow: withAnonymousRef(anonRef.$flow),
+  $export: withAnonymousRef(anonRef.$export),
   $noexport: withAnonymousRef(anonRef.$noexport),
 
   $bigint: withAnonymousRef(anonRef.$bigint),
@@ -141,7 +140,7 @@ export const bodyGlobals: Record<string, any> = {
   $number: withAnonymousRef(anonRef.$number),
   $bool: withAnonymousRef(anonRef.$bool),
   $boolean: withAnonymousRef(anonRef.$boolean),
-  $muddle: withAnonymousRef(anonRef.$muddle),
+  $distinct: withAnonymousRef(anonRef.$distinct),
   $required: withAnonymousRef(anonRef.$required),
 
   $elements<T>(item: Template<T>) {
@@ -152,7 +151,6 @@ export const bodyGlobals: Record<string, any> = {
   },
   $secret: redact,
   $match: matchTemplate,
-  $meld: meldTemplate,
   $hidden: hiddenTemplate,
   $merged: mergedSchematic,
   $keyed: makeKeyed,

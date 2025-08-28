@@ -111,6 +111,7 @@ export type PardonExecutionResult = {
     actual: ResponseObject;
     response: ResponseObject;
     redacted: ResponseObject;
+    evaluationScope: EvaluationScope;
     outcome?: string;
     values: Record<string, any>;
     secrets: Record<string, any>;
@@ -566,7 +567,7 @@ export const PardonFetchExecution = pardonExecution({
       evaluationScope: rendered.context.evaluationScope,
     };
   },
-  async fetch({ context: { timestamps }, egress: { request, redacted } }) {
+  async fetch({ context: { timestamps }, egress: { request } }) {
     if (timestamps) {
       timestamps.request = Date.now();
     }
@@ -578,20 +579,24 @@ export const PardonFetchExecution = pardonExecution({
 
     try {
       return await intoResponseObject(await fetch(url, init));
-    } catch (error) {
-      console.error("fetch failure", error);
-      const [url, init] = intoFetchParams(redacted);
-      throw new PardonError(
-        `failed to fetch: ${init.method ?? "GET"} ${url}`,
-        error as Error,
-      );
     } finally {
       timestamps.response = Date.now();
     }
   },
-  async process({ context, egress, ingress, match }) {
-    const app = context.app();
+  async process({
+    context,
+    egress,
+    match,
+    error,
+    ingress,
+  }): Promise<PardonExecutionResult> {
     const { layers, endpoint } = match;
+
+    if (!ingress) {
+      throw error;
+    }
+
+    const app = context.app();
 
     const now = Date.now();
 
@@ -698,9 +703,9 @@ export const PardonFetchExecution = pardonExecution({
         );
 
         return {
+          context,
           response,
           evaluationScope: context.evaluationScope,
-          context,
           values: cleanResponseValues(
             getContextualValues(context, { secrets }),
           ),
@@ -708,7 +713,9 @@ export const PardonFetchExecution = pardonExecution({
       }),
     );
 
-    const output = redacted.evaluationScope.resolvedValues({ flow: true });
+    const output = redacted.evaluationScope.resolvedValues({
+      exportsOnly: true,
+    });
 
     // execute all pre-request steps: these follow the matched request.
     for (const { steps } of layers) {
@@ -772,7 +779,7 @@ function cleanResponseValues(response: Record<string, unknown>) {
   } as Record<string, unknown>);
 }
 
-function reducedValues(
+export function reducedValues(
   schema: Schema<HttpsRequestObject>,
   request: RequestObject,
   endpoint: LayeredEndpoint,

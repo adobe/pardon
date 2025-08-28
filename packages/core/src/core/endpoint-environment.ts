@@ -69,15 +69,20 @@ export function createEndpointEnvironment({
       null: null,
       String,
       Number,
+      Math,
+      Date,
+      Boolean(x: any) {
+        if (x instanceof Number) {
+          return Boolean(Number(x));
+        }
+        return Boolean(x);
+      },
       BigInt(n: any) {
         if (n instanceof Number) {
-          return BigInt(n["source"]);
+          return BigInt(n["source"] ?? n);
         }
         return BigInt(n);
       },
-      Math,
-      Date,
-      Boolean,
       ...runtime,
     },
     resolve(context, { name, scoped }) {

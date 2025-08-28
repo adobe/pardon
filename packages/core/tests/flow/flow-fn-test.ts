@@ -30,13 +30,13 @@ describe("flow-fn-tests", async () => {
     });
 
     environment.arg = "hello";
-    assert.deepStrictEqual((await runFlow(flow, {})).result, {
+    assert.deepStrictEqual((await runFlow(flow, { ...environment })).result, {
       arg: "HELLO",
     });
     assert.deepStrictEqual(log.splice(0, log.length), ["flow-executed"]);
 
     environment = null!;
-    await assert.rejects(() => runFlow(flow, {}), {
+    await assert.rejects(() => runFlow(flow, { ...environment }), {
       message: "required param arg undefined",
     });
     assert.deepStrictEqual(log.splice(0, log.length), []);

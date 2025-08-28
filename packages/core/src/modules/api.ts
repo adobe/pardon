@@ -9,10 +9,11 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import "../../types/global-environment.d.ts";
+
 export { pardon, template, type PardonOptions } from "../api/pardon-wrapper.js";
 export {
   flow,
-  executeFlowInContext,
   type Flow,
   type FlowContext,
   type FlowResult,
@@ -23,6 +24,7 @@ export {
   type FlowParamsList,
   type FlowParamsItem,
 } from "../core/execution/flow/index.js";
+export { executeHttpsFlowInContext } from "../core/execution/flow/https-flow.js";
 export {
   type HttpsFlowConfig,
   type HttpsRequestStep,

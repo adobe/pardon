@@ -3,6 +3,6 @@ PUT https://todo.example.com/todos/{{todo}}
 Content-Type: application/json
 
 {
-  task: "{{?task}}",
-  done: "{{?done}}" as bool
+  task: task as optional,
+  done: done as optional | bool
 }

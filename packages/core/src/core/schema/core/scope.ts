@@ -15,7 +15,7 @@ import { disarm } from "../../../util/promise.js";
 import { valueId } from "../../../util/value-id.js";
 import { PardonError } from "../../error.js";
 import {
-  isFlowExport,
+  isExport,
   isNoExport,
   isOptional,
   isSecret,
@@ -338,7 +338,7 @@ export class Scope implements EvaluationScope, ScopeData {
 
       const hint = this.lookupDeclaration(identifier)?.hint ?? undefined;
 
-      if (isFlowExport({ hint })) {
+      if (isExport({ hint })) {
         return (current.value = value);
       }
 
@@ -707,7 +707,11 @@ function shouldExport(
     return false;
   }
 
-  if (options.flow && !isFlowExport(declaration)) {
+  if (options.exportsOnly && !isExport(declaration)) {
+    return false;
+  }
+
+  if (options.declaredOnly && !declaration) {
     return false;
   }
 

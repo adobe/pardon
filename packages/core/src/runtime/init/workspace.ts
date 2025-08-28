@@ -22,6 +22,7 @@ import type {
   LayeredMixin,
   ResourceProcessingPhase,
 } from "../../config/collection-types.js";
+import type { FlowName, FlowContext } from "../../core/execution/flow/index.js";
 import { connectDb, PardonDatabase } from "../../db/sqlite.js";
 import { loadCollections, buildCollection } from "../../config/collection.js";
 import createCompiler from "../compiler.js";
@@ -147,6 +148,7 @@ export type PardonAppContextOptions = {
     nativeBinding?: string;
   };
   secrets?: SecretStorage;
+  createFlowContext?: () => FlowContext;
 };
 
 function normalizeRC(
@@ -249,7 +251,7 @@ export type PardonCollection = {
     identities: Record<string, string>;
   };
 
-  flows: Record<string, Flow>;
+  flows: Record<FlowName, Flow>;
 
   /** all files, used by favor/editor */
   assets: Record<string, AssetInfo>;

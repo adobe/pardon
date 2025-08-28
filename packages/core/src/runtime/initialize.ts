@@ -13,7 +13,7 @@ import { PardonAppContextOptions } from "./init/workspace.js";
 import { establishPardonRuntime } from "./init/establish-pardon-runtime.js";
 import { PardonFetchExecution } from "../core/pardon/pardon.js";
 import { resolveRuntime } from "./runtime-deferred.js";
-import { makeTrackingFlowContext } from "../core/execution/flow/data/tracking-flow-context.js";
+import { createFlowContext } from "../core/execution/flow/flow-context.js";
 
 export type FeatureHook<T> = (_: T) => T;
 
@@ -47,7 +47,10 @@ export async function initializePardon(
     ...runtime,
     execution,
     createFlowContext() {
-      return makeTrackingFlowContext(this);
+      return createFlowContext(this);
     },
+    ...(options.createFlowContext && {
+      createFlowContext: options.createFlowContext,
+    }),
   });
 }

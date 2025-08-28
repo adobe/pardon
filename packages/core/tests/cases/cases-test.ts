@@ -9,14 +9,24 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import { it } from "node:test";
+import { describeCases } from "../../src/modules/playground.js";
+import assert from "node:assert";
 
-declare global {
-  /**
-   * this is available in NodeJS pardon environments only.
-   */
-  export let environment: Record<string, any>;
-}
+it("testcase-formatting", async () => {
+  const cases = (
+    await describeCases(({ format, set, each, local }) => {
+      local(() => {
+        set("x-y", each("x", "y"));
+        set("p-q", each("p", "q"));
+      }).export(set("n", format("%(x-y)-%{p-q}")));
+    })
+  ).map(({ environment }) => environment);
 
-declare let __export_keeper_: undefined;
-
-export { __export_keeper_ };
+  assert.deepEqual(cases, [
+    { n: "x-p" },
+    { n: "x-q" },
+    { n: "y-p" },
+    { n: "y-q" },
+  ]);
+});

@@ -39,18 +39,17 @@ or follow := assignments at the top level.
 // only (), {}, [], and `` nesting is assured, and that the sequence does not
 // end with something that can continue an expression.
 const tokenizer =
-  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\](),]|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
+  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\](),]|-[*]-|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
 const kevsplitter = /^((?!['"])[^:=]+)(:=|:(?!=)|=)(.*)$/im;
 const evsplitter = /^(:=|:(?!=)|=)(.*)$/im;
 
 type ExpressionParseState = {
   stack: string[];
   token: string;
-  strict: boolean;
 };
 
-function makeExpressionParseState(strict: boolean): ExpressionParseState {
-  return { stack: [], token: "", strict: strict };
+function makeExpressionParseState(): ExpressionParseState {
+  return { stack: [], token: "" };
 }
 
 const EXPR_ONGOING = false;
@@ -110,12 +109,12 @@ function addToExpression(
     tokensAt++;
   }
 
-  if (stack.length === 0) {
-    if (state.strict) {
+  if (stack.length === 0 && state.token.trim()) {
+    const nextToken = tokens[tokensAt] ?? "";
+    if (nextToken === "-*-") {
       return EXPR_END;
     }
 
-    const nextToken = tokens[tokensAt] ?? "";
     const lookahead = `${state.token.trim().slice(-1)[0] ?? " "}${nextToken[0]?.trim() || followingToken?.trim() || " "}`;
 
     // check for possible continuations of expressions here, using the
@@ -178,53 +177,6 @@ function tokenize(data: string, options?: { allowExpressions?: boolean }) {
         return state;
       }
 
-      if (options?.allowExpressions) {
-        const reindex = state.retokenized.length - 2;
-        const prevNonBlankTokenIndex = previousNonBlankIndex(
-          state.retokenized,
-          reindex - 2,
-        );
-        const prevNonBlankToken = previousNonBlankToken(
-          state.retokenized,
-          reindex,
-        );
-
-        if (
-          prevNonBlankToken == ":=" &&
-          !inValue(tokens, prevNonBlankTokenIndex)
-        ) {
-          const retokenizedColonEq = previousNonBlankToken(
-            state.retokenized,
-            state.retokenized.length - 2,
-          );
-
-          if (retokenizedColonEq === ":=") {
-            const expression = makeExpressionParseState(false);
-            if (addToExpression(tokens, index, expression) === true) {
-              state.retokenized.push(expression.token);
-              return state;
-            } else {
-              state.retokenized.push(tokens[index]);
-              return { ...state, expression };
-            }
-          }
-        }
-
-        if (
-          tokens[index] === "(" &&
-          !inValue(state.retokenized, previousNonBlankIndex(tokens, index))
-        ) {
-          const expression = makeExpressionParseState(true);
-          if (addToExpression(tokens, index, expression) === true) {
-            state.retokenized.push(expression.token);
-            return state;
-          } else {
-            state.retokenized.push("");
-            return { ...state, expression };
-          }
-        }
-      }
-
       if (
         !inValue(state.retokenized) &&
         state.ctx[state.ctx.length - 1] != "["
@@ -234,7 +186,7 @@ function tokenize(data: string, options?: { allowExpressions?: boolean }) {
           const [, key, eq, value] = ke;
           state.retokenized.push(key, "", eq, "", value);
 
-          if (options?.allowExpressions && eq === ":=" && value.trim()) {
+          if (options?.allowExpressions && eq === ":=") {
             return startRetokenizedExpression(tokens, index, state);
           }
 
@@ -245,9 +197,11 @@ function tokenize(data: string, options?: { allowExpressions?: boolean }) {
         if (ev) {
           const [, eq, value] = ev;
           state.retokenized.push(eq, "", value);
-          if (options?.allowExpressions && eq === ":=" && value.trim()) {
+
+          if (options?.allowExpressions && eq === ":=" /*&& value.trim()*/) {
             return startRetokenizedExpression(tokens, index, state);
           }
+
           return state;
         }
       }
@@ -275,14 +229,18 @@ function startRetokenizedExpression(
   index: number,
   state: TokenizationState,
 ) {
-  const expression = makeExpressionParseState(false);
+  const expression = makeExpressionParseState();
   const expressionResult = addToExpression(
     state.retokenized,
     state.retokenized.length - 1,
     expression,
     nextNonBlankToken(tokens, index),
   );
-  if (expressionResult === true) {
+
+  //if (!state.retokenized[state.retokenized.length - 1].trim()) {
+  //  return { ...state, expression };
+  //} else
+  if (expressionResult === true && expression.token.trim()) {
     state.retokenized[state.retokenized.length - 1] = expression.token;
     return state;
   } else {
@@ -308,13 +266,14 @@ export type KeyValueStringifyOptions = {
   trailer?: string;
   split?: boolean;
   value?: boolean;
-  quote?: "single" | "double" | "auto";
+  quote?: "single" | "double" | "auto" | "auto-single";
 };
 
 const ExpressionTag = Symbol("kv-expr");
 export type ExpressionValue = (() => string) & { [ExpressionTag]: true };
 
 function makeExprValue(token: string): ExpressionValue {
+  token = token.trim();
   return Object.assign(() => token, { [ExpressionTag]: true as const });
 }
 
@@ -328,12 +287,12 @@ function isExprValue(expr: any): expr is ExpressionValue {
 
 export const KV: {
   parse(data: string, mode: "value"): unknown;
-  parse(data: string, mode: "object"): Record<string, unknown>;
+  parse(data: string, mode: "object"): Record<string, any>;
   parse(
     data: string,
     mode: "stream",
     options?: { allowExpressions?: boolean },
-  ): Record<string, unknown> & {
+  ): Record<string, any> & {
     [unparsed]?: string;
   };
   parse(data: string): unknown;
@@ -573,7 +532,7 @@ export const KV: {
             // result[upto] = tokens.slice(parsed).join("").length;
           }
 
-          if (tokens[i] === "*") {
+          if (tokens[i] === "-*-") {
             i++;
           }
 
@@ -610,7 +569,7 @@ export const KV: {
           stack[0] === key &&
           !/^(?:=|:=)$/.test(nextNonBlankToken(tokens, i + 1)!)
         ) {
-          if (tokens[i + 1] === "*") {
+          if (tokens[i + 1] === "-*-") {
             i += 2;
           }
 
@@ -1239,22 +1198,6 @@ function nextNonBlankToken(tokens: string[], i: number) {
   return null;
 }
 
-function previousNonBlankIndex(tokens: string[], i: number) {
-  while (i >= 2 && tokens[--i] === "") {
-    const prev = tokens[--i];
-
-    if (prev?.trim()) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
-function previousNonBlankToken(tokens: string[], i: number) {
-  return tokens[previousNonBlankIndex(tokens, i)] ?? null;
-}
-
 function dequoteJson(
   text: string,
   inValue: boolean,
@@ -1315,16 +1258,30 @@ function stringifyKey(
     : requote(JSON.stringify(key), options);
 }
 
-function requote(
+function singleQuoteStyle(
   quotedValue: string,
-  { quote }: KeyValueStringifyOptions = {},
+  { quote = "auto" }: KeyValueStringifyOptions = {},
 ) {
-  if (
-    quote === "single" ||
-    (quote === "auto" &&
-      quotedValue.includes('"') &&
-      !quotedValue.includes("'"))
-  ) {
+  if (quote === "single") {
+    return true;
+  }
+
+  if (quote === "double") {
+    return false;
+  }
+
+  const hasDoubleQuote = quotedValue.includes('"');
+  const hasSingleQuote = quotedValue.includes("'");
+
+  if (hasDoubleQuote == hasSingleQuote) {
+    return quote === "auto-single";
+  }
+
+  return hasDoubleQuote;
+}
+
+function requote(quotedValue: string, options: KeyValueStringifyOptions = {}) {
+  if (singleQuoteStyle(quotedValue, options)) {
     const decoded: string = JSON.parse(quotedValue);
 
     return `'${decoded.replace(/['\\]/g, (match) => (match === "'" ? "\\'" : match === "\\" ? "\\\\" : match))}'`;

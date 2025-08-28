@@ -22,7 +22,6 @@ export function defi(
   mapping: CaseValues | ((env: CaseValues) => CaseValues),
   allowed?: CaseValues | ((env: CaseValues) => CaseValues),
 ): Generation;
-
 export function defi(
   values: string | CaseValues | { (env: CaseValues): CaseValues },
   value?: unknown,

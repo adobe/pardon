@@ -16,6 +16,8 @@ import { Template } from "../schema/core/types.js";
 import { referenceTemplate } from "../schema/definition/structures/reference.js";
 import { PardonError } from "../error.js";
 
+const $ = referenceTemplate({});
+
 export function evalTemplate(
   schemaSource: string,
   globals: Record<string, unknown>,
@@ -34,6 +36,7 @@ export function evalTemplate(
 
         return undefined;
       },
+      $,
     },
     jsonSchemaTransform,
   ) as Template<string>;
@@ -250,7 +253,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     switch (currentNode.operator) {
       case SyntaxKind.TildeToken:
         return factory.createCallExpression(
-          factory.createIdentifier("$muddle"),
+          factory.createIdentifier("$distinct"),
           undefined,
           [currentNode.operand],
         );
@@ -262,7 +265,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
         );
       case SyntaxKind.PlusToken:
         return factory.createCallExpression(
-          factory.createIdentifier("$flow"),
+          factory.createIdentifier("$export"),
           undefined,
           [currentNode.operand],
         );
@@ -398,8 +401,8 @@ function asTypes(node: ts.TypeNode): string[] {
           return ["$bool"];
         case "optional":
           return ["$optional"];
-        case "flow":
-          return ["$flow"];
+        case "export":
+          return ["$export"];
         default:
           throw new PardonError(`unhandled as-type: ${node.typeName.text}`);
       }
@@ -423,8 +426,8 @@ const referenceHints = {
   $required: "!",
   $secret: "@",
   $hidden: "#",
-  $flow: "+",
-  $muddle: "~",
+  $export: "+",
+  $distinct: "~",
 };
 
 const referenceSpecials = {

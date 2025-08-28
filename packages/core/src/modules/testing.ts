@@ -12,4 +12,4 @@ governing permissions and limitations under the License.
 export { semaphore } from "../core/tracking.js";
 export type { PardonTestConfiguration } from "../entry/testing/runner.js";
 export { verify } from "../entry/testing/assertions.js";
-export { trial, gamut, cases } from "../entry/testing/trial.js";
+export { trial, survey, cases } from "../entry/testing/trial.js";

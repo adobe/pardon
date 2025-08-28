@@ -41,11 +41,11 @@ This format is accepted at the top of any pardon `.http` template and allows
 us to specify values directly above the request without additional syntax.
 
 :::tip
-In the case that the text following KV data is KV-compatible, a single `*`
+In the case that the text following KV data is KV-compatible, the `-*-` sigil
 will terminate the KV data. For example
 ```
 a=b
-*
+-*-
 c=d
 ```
 parses as `{ "a": "b" }` as KV data followed by `c=d` as text.

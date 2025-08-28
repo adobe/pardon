@@ -21,7 +21,6 @@ import {
   type ResponseObject,
   type SimpleRequestInit,
 } from "../request/fetch-object.js";
-import { parseVariable } from "../schema/core/pattern.js";
 import YAML from "yaml";
 import { KV } from "./kv-fmt.js";
 import { JSON } from "../raw-json.js";
@@ -69,6 +68,15 @@ export type HttpsStep = HttpsRequestStep | HttpsResponseStep | HttpsScriptStep;
 export type HttpsMode = "merge" | "flow" | "log";
 
 export type FlowName = `${string}.flow`;
+export type FlowFileName = `${string}.flow.https`;
+
+export function isFlowName(flow: string): flow is FlowName {
+  return flow.endsWith(".flow");
+}
+
+export function isFlowFileName(flow: string): flow is FlowFileName {
+  return flow.endsWith(".flow.https");
+}
 
 export type HttpsFlowContext =
   | string
@@ -179,51 +187,28 @@ function parse(
 }
 
 function scanRequestComputations(file: string) {
+  const { [KV.unparsed]: rest, ...data } = KV.parse(file, "stream", {
+    allowExpressions: true,
+  });
+
   const computations: HttpsRequestStep["computations"] = {};
-  const values: Record<string, any> = {};
 
-  for (;;) {
-    // deprecated
-    if (file.trim().startsWith(":")) {
-      const [, expression, rest] = /\s*:([^\n]*)\n(.*)/s.exec(file)!;
-      const parsed = parseVariable(`${expression}`);
-      if (!parsed) break;
-      computations[parsed.param] = `{{-${parsed.variable.source}}}`;
-      file = rest;
+  const values = Object.assign(
+    {},
+    mapObject(data, {
+      select(value, key) {
+        if (KV.isExprValue(value)) {
+          computations[key as string] =
+            `{{ -${key as string} = $$expr(${JSON.stringify(KV.loadExprValue(value))}) }}`;
+          return false;
+        }
 
-      console.warn(
-        ":value = expression syntax replaced with value=(expression) syntax",
-        parsed.variable.source,
-      );
-      continue;
-    }
+        return true;
+      },
+    }),
+  );
 
-    const { [KV.unparsed]: rest, ...data } = KV.parse(file, "stream", {
-      allowExpressions: true,
-    });
-    if (Object.keys(data).length === 0) {
-      break;
-    }
-
-    Object.assign(
-      values,
-      mapObject(data, {
-        select(value, key) {
-          if (KV.isExprValue(value)) {
-            computations[key as string] =
-              `{{ -${key as string} = $$expr(${JSON.stringify(KV.loadExprValue(value))}) }}`;
-            return false;
-          }
-
-          return true;
-        },
-      }),
-    );
-
-    file = rest ?? "";
-  }
-
-  return { computations, values, rest: file };
+  return { values, computations, rest };
 }
 
 function scanRequest(lines: string[], first: string): HttpsRequestStep {
@@ -231,13 +216,11 @@ function scanRequest(lines: string[], first: string): HttpsRequestStep {
 
   const [, variant] = /^>>>\s*(.*?)\s*$/.exec(first) ?? [];
 
-  // Horribly inefficient code here, but it only runs on load so...
   const { computations, values, rest } = scanRequestComputations(
     lines.join("\n"),
   );
 
-  lines.splice(0, lines.length, ...rest.split("\n"));
-  // end horrible code alert.
+  lines.splice(0, lines.length, ...(rest ?? "").split("\n"));
 
   scanComments(lines, { allowBlank: true });
 

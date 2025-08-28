@@ -292,7 +292,7 @@ async function _shared<T>(fn: () => T | Promise<T>): Promise<T> {
   _unlink();
   await (null! as Promise<void>);
 
-  return await fn();
+  return fn();
 }
 
 /**
@@ -305,7 +305,7 @@ export async function disconnected<T>(fn: () => T | Promise<T>): Promise<T> {
     await (null! as Promise<void>);
     return await fn();
   } finally {
-    await _unlink();
+    _unlink();
   }
 }
 

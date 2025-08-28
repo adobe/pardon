@@ -13,6 +13,10 @@ import {
   HttpsFlowScheme,
   HttpsResponseStep,
   HttpsFlowConfig,
+  isFlowName,
+  FlowFileName,
+  FlowName,
+  HTTPS,
 } from "../../formats/https-fmt.js";
 import { ResponseObject } from "../../request/fetch-object.js";
 import { pardon } from "../../../api/pardon-wrapper.js";
@@ -21,9 +25,16 @@ import {
   prerenderSchema,
   renderSchema,
 } from "../../schema/core/schema-utils.js";
-import { httpsResponseSchema } from "../../request/https-template.js";
+import {
+  httpsRequestSchema,
+  httpsResponseSchema,
+} from "../../request/https-template.js";
 import { ScriptEnvironment } from "../../schema/core/script-environment.js";
-import { definedObject, mapObject } from "../../../util/mapping.js";
+import {
+  definedObject,
+  mapObject,
+  mapObjectAsync,
+} from "../../../util/mapping.js";
 import { createSequenceEnvironment } from "./flow-environment.js";
 import { stubSchema } from "../../schema/definition/structures/stub.js";
 import { HTTP } from "../../formats/http-fmt.js";
@@ -34,14 +45,12 @@ import { withoutEvaluationScope } from "../../schema/core/context-util.js";
 import {
   contextAsFlowParams,
   ejectValuesDict,
-  extractValuesDict,
   FlowParamsDict,
   injectValuesDict,
 } from "./flow-params.js";
-import { FlowContext } from "./data/flow-context.js";
+import { FlowContext } from "./flow-context.js";
 import { PardonRuntime } from "../../pardon/types.js";
-import { Flow, FlowResult } from "./flow-core.js";
-import { executeFlowInContext } from "./index.js";
+import { Flow, FlowResult, runFlow } from "./flow-core.js";
 import { KV } from "../../formats/kv-fmt.js";
 import { PardonError } from "../../error.js";
 import {
@@ -55,9 +64,11 @@ import {
   HttpExchangeInterraction,
   HttpScriptInterraction,
   HttpsSequenceInteraction,
-  SequenceStepReport,
+  FlowStepReport,
 } from "./https-flow-types.js";
-import { dirname } from "node:path";
+import { evaluateIdentifierWithExpression } from "../../schema/core/evaluate.js";
+import { readFile } from "node:fs/promises";
+import { reducedValues } from "../../pardon/pardon.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -66,7 +77,7 @@ export type SequenceReport = {
   result?: Record<string, any>;
   error?: unknown;
   deps: SequenceReport[];
-  steps: SequenceStepReport[];
+  steps: FlowStepReport[];
   executions: TracedResult[];
 };
 
@@ -87,7 +98,7 @@ function createHttpsFlow(sequence: CompiledHttpsSequence): Flow {
       rested: "",
       required: false,
     },
-    action: ({ argument, context }) =>
+    action: ({ input: argument, context }) =>
       executeHttpsSequence(sequence, context, argument),
     source: sequence,
   };
@@ -147,13 +158,11 @@ export async function executeHttpsSequence(
   flowContext: FlowContext,
   input: Record<string, unknown>,
 ): Promise<FlowResult> {
-  const { signature: params } = sequence;
   const { compiler } = flowContext.runtime;
 
-  const definedValues = params ? extractValuesDict(params, input) : input;
-  const initialEnvironment = { ...flowContext.environment };
+  const definedValues = input;
 
-  flowContext.mergeEnvironment(definedValues);
+  flowContext = flowContext.mergeEnvironment(definedValues);
 
   const sequenceEnvironment = createSequenceEnvironment({
     flowScheme: sequence.scheme,
@@ -167,7 +176,10 @@ export async function executeHttpsSequence(
     sequenceEnvironment,
   );
 
-  let allValues = definedObject(renderedTemplate.output) as Record<string, any>;
+  const allValues = definedObject(renderedTemplate.output) as Record<
+    string,
+    any
+  >;
 
   const attemptLimit = sequence.configuration.attempts;
   const dependentFlowResult = await evaluateDependentFlows(
@@ -176,35 +188,23 @@ export async function executeHttpsSequence(
     flowContext,
   );
 
-  flowContext = dependentFlowResult.context;
-
-  allValues = {
-    ...allValues,
-    ...dependentFlowResult.result,
-  };
+  flowContext = dependentFlowResult.context.mergeEnvironment(
+    {},
+    dependentFlowResult.result,
+  );
 
   let attempts = 0;
   const sequenceRun = async () => {
     for (;;) {
       try {
-        const { result, context: sequenceResult } =
-          await executeHttpsFlowSequence(sequence, allValues, flowContext);
+        const { result, context } = await executeHttpsFlowSequence(
+          sequence,
+          flowContext,
+        );
 
         return {
           result,
-          context: sequenceResult.mergeEnvironment(
-            mapObject(
-              { ...sequenceResult.environment },
-              {
-                filter(key, value) {
-                  return Boolean(
-                    initialEnvironment[key] == value ||
-                      allValues[key] !== value,
-                  );
-                },
-              },
-            ),
-          ),
+          context,
         };
       } catch (error) {
         if (!attemptLimit) {
@@ -265,16 +265,13 @@ const flowScriptTransform: (unbound: {
 
 async function executeHttpsFlowSequence(
   sequence: CompiledHttpsSequence,
-  flowValues: Record<string, unknown>,
   flowContext: FlowContext,
 ): Promise<FlowResult> {
   let index = 0;
 
-  let resultValues = { ...flowValues };
+  let resultValues = { ...flowContext.flow };
 
   const retries = { ...sequence.tries };
-
-  let contextual: Record<string, any> = {};
 
   while (index < sequence.interactions.length) {
     const next = sequence.interactions[index];
@@ -291,54 +288,42 @@ async function executeHttpsFlowSequence(
     }
 
     if (next.type === "script") {
-      const { values: scriptValues, target } = await runFlowScript(next, {
-        ...contextual,
-        ...resultValues,
-      });
+      const {
+        context: contextValues,
+        flow: flowValues,
+        target,
+      } = await runFlowScript(next, flowContext);
 
-      flowValues = { ...flowValues, ...scriptValues };
-      resultValues = { ...resultValues, ...scriptValues };
-      flowContext.mergeEnvironment(scriptValues);
+      flowContext.mergeEnvironment(contextValues, flowValues);
       index++;
 
       if (target) {
-        index = sequence.interactionMap[target] ?? sequence.interactions.length;
+        const { name, delay } = parseOutcome(target)!;
+
+        if (delay) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+
+        index = sequence.interactionMap[name] ?? sequence.interactions.length;
       }
 
       continue;
     }
 
-    contextual = {};
-
-    const {
-      outcome,
-      values: { send, recv, flow, data },
-      context: stepResultContext,
-      ingress,
-      egress,
-    } = await executeHttpsSequenceStep({
-      sequenceInteraction: next,
-      sequenceScheme: sequence.scheme,
-      sequencePath: sequence.path,
-      sequenceName: sequence.name,
-      values: flowValues,
-      context: flowContext,
-    });
-
-    contextual = {
-      ingress: ingress.redacted,
-      egress: egress.redacted,
-      ...send,
-      ...data,
-      ...recv,
-    };
+    const { outcome, context: stepResultContext } =
+      await executeHttpsSequenceStep({
+        sequenceInteraction: next,
+        sequenceScheme: sequence.scheme,
+        sequencePath: sequence.path,
+        context: flowContext,
+      });
 
     flowContext = stepResultContext;
 
     // return value from flow has lots of data
     resultValues = {
-      ...resultValues,
-      ...flow,
+      ...stepResultContext.context,
+      ...stepResultContext.flow,
     };
 
     // if the outcome is named in the flow, loop, else exit
@@ -357,27 +342,21 @@ async function executeHttpsFlowSequence(
     }
 
     if (index == sequence.interactions.length && outcome?.name) {
-      flowValues = {
-        outcome: outcome.name,
-        ...flowValues,
-      };
+      resultValues.outcome = outcome.name;
     }
   }
 
   const result = sequence.configuration.provides
     ? {
+        ...(resultValues?.outcome
+          ? { outcome: resultValues.outcome as string }
+          : null),
         ...injectValuesDict(
           contextAsFlowParams(sequence.configuration.provides),
           resultValues,
         ),
-        ...(flowValues?.outcome
-          ? { outcome: flowValues.outcome as string }
-          : null),
       }
-    : {
-        ...flowValues,
-        ...resultValues,
-      };
+    : resultValues;
 
   return {
     result,
@@ -391,7 +370,7 @@ async function evaluateDependentFlows(
   flowContext: FlowContext,
 ) {
   const effectiveValues = {
-    ...flowContext.environment,
+    ...flowContext.context,
     ...values,
   };
 
@@ -423,11 +402,8 @@ async function evaluateDependentFlows(
           ? injectValuesDict(useParams, useValues)
           : useValues;
 
-        let { result, context: resultContext } = await executeFlowInContext(
-          flowName,
-          flowValues,
-          flowContext,
-        );
+        let { result, context: resultContext } =
+          await executeHttpsFlowInContext(flowName, flowValues, flowContext);
 
         if (provides) {
           result = ejectValuesDict(contextAsFlowParams(provides), result);
@@ -479,6 +455,7 @@ function parseHttpsSequenceScheme({
   const tries: Record<number, number> = {};
 
   steps = steps.slice();
+
   while (steps.length) {
     const flowItem = steps.shift()!;
 
@@ -568,63 +545,98 @@ async function executeHttpsSequenceStep({
   sequenceInteraction: interaction,
   sequenceScheme,
   sequencePath,
-  sequenceName,
-  values,
   context: flowContext,
 }: {
   sequenceInteraction: HttpsSequenceInteraction & { type: "exchange" };
   sequenceScheme: HttpsFlowScheme;
   sequencePath: string;
-  sequenceName: string;
-  values: Record<string, any>;
   context: FlowContext;
-}): Promise<SequenceStepReport> {
+}): Promise<FlowStepReport> {
   const { compiler } = flowContext.runtime;
   const { request: requestTemplate, responses: responseTemplates } =
     interaction;
 
-  const executionValues = {
-    ...flowContext.environment,
-    ...values,
-  };
-
-  let requestHttp = HTTP.stringify({
-    ...requestTemplate.request,
-    values: requestTemplate.values,
-  });
-
-  let requestValues = { ...executionValues };
+  let preRenderedRequestTemplate: string | undefined;
+  let preRenderedValues: Record<string, any> = {};
 
   if (requestTemplate.request.pathname || requestTemplate.request.origin) {
-    const prerender = await pardon(
+    const requestSchema = mergeSchema(
+      { mode: "merge", phase: "build" },
+      httpsRequestSchema(),
       {
-        ...requestTemplate.values,
-        ...executionValues,
-        endpoint: sequenceName,
+        ...requestTemplate.request,
+        values: requestTemplate.values,
+        computations: requestTemplate.computations,
       },
+    );
+
+    if (!requestSchema.schema) {
+      throw requestSchema.error ?? new PardonError("failed to merge request");
+    }
+
+    const previewEnv = createSequenceEnvironment({
+      compiler,
+      flowScheme: sequenceScheme,
+      flowPath: sequencePath,
+      values: {
+        ...flowContext.context,
+        ...flowContext.flow,
+        context: { ...flowContext.context },
+        flow: { ...flowContext.flow },
+      },
+    });
+
+    const renderResult = await prerenderSchema(
+      requestSchema.schema,
+      previewEnv,
+    );
+
+    const evaluatedValues = await mapObjectAsync(
+      requestTemplate.computations ?? {},
+      (_value, key) =>
+        evaluateIdentifierWithExpression(renderResult.context, key),
+    );
+
+    preRenderedRequestTemplate = HTTP.stringify(renderResult.output);
+
+    preRenderedValues = {
+      ...renderResult.context.evaluationScope.resolvedValues({
+        declaredOnly: true,
+      }),
+      ...requestTemplate.values,
+      ...evaluatedValues,
+    };
+    preRenderedValues = reducedValues(
+      requestSchema.schema,
+      requestTemplate.request,
       {
-        configuration: {
-          path: dirname(sequenceName),
-          import: sequenceScheme.configuration.import,
-          defaults: sequenceScheme.configuration.defaults,
-          name: sequenceName,
-          config: [{}],
-        },
+        action: "flow",
+        configuration: { name: "flow", path: "inline", config: [{}] },
+        layers: [],
+        service: "default",
       },
-    )`${HTTP.stringify(requestTemplate.request)}`.render();
-    requestHttp = HTTP.stringify({ ...prerender.request, values: undefined });
-    requestValues = values;
+      flowContext.runtime,
+      preRenderedValues,
+    );
   }
 
   flowContext.checkAborted();
 
-  console.log(`>>>
-${KV.stringify(requestValues, { indent: 2, limit: 0, trailer: "\n" })}${requestHttp}`);
+  const executionValues = {
+    ...flowContext.context,
+    ...preRenderedValues,
+  };
+  console.log(`
+>>>
+${KV.stringify(executionValues, { trailer: "\n" })}${preRenderedRequestTemplate ?? requestTemplate.source}`);
 
-  const execution = pardon(requestValues)`${requestHttp}`.render();
+  const execution = pardon(
+    executionValues,
+  )`${preRenderedRequestTemplate ?? requestTemplate.source}`.render();
 
   try {
-    await execution;
+    const rendered = await execution;
+    void rendered;
   } catch (error) {
     console.warn(
       `\n\n
@@ -638,7 +650,8 @@ error = ${error?.stack ?? error}
 
   const { egress, ingress, output } = await execution.result;
 
-  console.log(`<<<
+  console.log(`
+<<<
 ${HTTP.responseObject.stringify(ingress.redacted)}`);
 
   const matching =
@@ -650,7 +663,7 @@ ${HTTP.responseObject.stringify(ingress.redacted)}`);
           { compiler },
           {
             sequenceScheme,
-            sequenceFile: sequencePath,
+            sequencePath,
             values: executionValues,
           },
           responseTemplates,
@@ -681,10 +694,6 @@ ${HTTP.responseObject.stringify(ingress.redacted)}`);
     match: { context: { evaluationScope: scope = undefined } = {} } = {},
   } = matching;
 
-  console.log(`===
->>>${outcomeText ? ` ${outcomeText}` : ""}
-${HTTP.responseObject.stringify(matching.preview)}`);
-
   const outcome = parseOutcome(outcomeText);
 
   const flowResponseValues =
@@ -692,12 +701,8 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
 
   // makes unit tests better for now.
   if (outcome?.name) {
-    console.info(`  > ${outcome.name}`);
+    console.info(`--> ${outcome.name}`);
   }
-
-  //  console.log(
-  //    `${egress.request.method} ${intoURL(egress.request)} (${ingress.response.status}) ${outcome ? `> ${outcome.name}` : ""}`,
-  //  );
 
   return {
     egress: withoutEvaluationScope(egress),
@@ -709,7 +714,7 @@ ${HTTP.responseObject.stringify(matching.preview)}`);
       data: scope?.resolvedValues() ?? {},
       flow: flowResponseValues,
     },
-    context: flowContext.mergeEnvironment(flowResponseValues),
+    context: flowContext.mergeEnvironment({}, flowResponseValues),
   };
 }
 
@@ -735,11 +740,11 @@ async function matchResponseToOutcome(
   { compiler }: Pick<PardonRuntime, "compiler">,
   {
     sequenceScheme,
-    sequenceFile,
+    sequencePath,
     values,
   }: {
     sequenceScheme: HttpsFlowScheme;
-    sequenceFile: string;
+    sequencePath: string;
     values: Record<string, any>;
   },
   responseTemplates: HttpsResponseStep[],
@@ -768,7 +773,7 @@ async function matchResponseToOutcome(
       const previewEnv = createSequenceEnvironment({
         compiler,
         flowScheme: sequenceScheme,
-        flowPath: sequenceFile,
+        flowPath: sequencePath,
         values,
       });
 
@@ -833,7 +838,7 @@ function flowValuesFromScope(scope?: EvaluationScope): Record<string, unknown> {
     return {};
   }
 
-  return scope.resolvedValues({ secrets: false, flow: true });
+  return scope.resolvedValues({ secrets: false });
 }
 
 function parseOutcome(outcome?: string) {
@@ -890,9 +895,14 @@ class Goto extends Error {
 
 async function runFlowScript(
   next: HttpScriptInterraction,
-  resultValues: Record<string, any>,
-): Promise<{ values: Record<string, any>; target?: string }> {
-  const scriptValues = {};
+  flowContext: FlowContext,
+): Promise<{
+  context: Record<string, any>;
+  flow: Record<string, any>;
+  target?: string;
+}> {
+  const flowValues = { ...flowContext.flow };
+  const contextValues = { ...flowContext.context };
 
   const script = `(() => { ${next.script.script} ;;; })()`;
 
@@ -904,7 +914,15 @@ async function runFlowScript(
       {
         binding(key) {
           if (key === "environment") {
-            return scriptValues;
+            return flowValues;
+          }
+
+          if (key === "context") {
+            return contextValues;
+          }
+
+          if (key === "console") {
+            return console;
           }
 
           if (key === "goto") {
@@ -912,18 +930,53 @@ async function runFlowScript(
               throw new Goto(next);
             };
           }
-
-          return resultValues[key];
+          return (
+            flowValues[key] ?? flowContext.flow[key] ?? flowContext.context[key]
+          );
         },
       },
       flowScriptTransform(unbound),
     );
   } catch (error) {
     if (error instanceof Goto) {
-      return { values: scriptValues, target: error.target };
+      return {
+        context: contextValues,
+        flow: flowValues,
+        target: error.target,
+      };
     }
     throw error;
   }
 
-  return { values: scriptValues };
+  return { context: contextValues, flow: flowValues };
+}
+
+async function loadFlowFile(path: FlowFileName) {
+  try {
+    const content = await readFile(path, "utf-8");
+    const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
+    return compileHttpsFlow(scheme, {
+      path,
+      name: path,
+    });
+  } catch (error) {
+    void error;
+    return null;
+  }
+}
+
+export async function executeHttpsFlowInContext(
+  name: FlowName | FlowFileName,
+  input: Record<string, unknown>,
+  context: FlowContext,
+) {
+  const flow = isFlowName(name)
+    ? context.runtime.collection.flows[name]
+    : await loadFlowFile(name);
+
+  if (!flow) {
+    throw new PardonError(`no flow named ${name}`);
+  }
+
+  return runFlow(flow, input, context);
 }

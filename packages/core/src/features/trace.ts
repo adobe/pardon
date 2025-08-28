@@ -60,17 +60,23 @@ function traceRequest({
   return { context, endpoint, values };
 }
 
+type Optional<T, Keys extends keyof T> = Omit<T, Keys> & Partial<Pick<T, Keys>>;
+
 function traceResult({
   context,
   match: { endpoint },
   result: { egress, ingress, output },
-}: Pick<ProcessedHookInput, "context" | "match" | "result">) {
+  error,
+}: Pick<ProcessedHookInput, "context" | "match" | "error"> & {
+  result: Optional<ProcessedHookInput["result"], "ingress">;
+}) {
   return {
     context,
     endpoint,
     egress: withoutEvaluationScope(egress),
-    ingress: withoutEvaluationScope(ingress),
+    ingress: ingress && withoutEvaluationScope(ingress),
     output,
+    error,
   };
 }
 
@@ -164,7 +170,18 @@ export default function trace<Execution extends typeof PardonFetchExecution>(
       const trace = info?.context?.trace;
 
       if (trace) {
-        //        console.warn(`trace: error: ${error.step}`, error.stack);
+        if (info.egress) {
+          const traced = traceResult({
+            ...info,
+            result: {
+              endpoint: info.match.endpoint.configuration.path,
+              egress: info.egress,
+            },
+            error,
+          });
+          trackResult(traced);
+        }
+
         notifier?.onError?.({
           trace,
           error,

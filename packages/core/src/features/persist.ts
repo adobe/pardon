@@ -123,7 +123,7 @@ export default function persist(
             });
 
             const outputRequestValues = scope.resolvedValues({
-              flow: true,
+              exportsOnly: true,
             });
 
             for (const [name, value] of Object.entries(outputRequestValues)) {
@@ -171,7 +171,15 @@ export default function persist(
 
         return next(info);
       },
-      async result({ context: { http, app }, result: { egress, ingress } }) {
+      async result({
+        context: { http, app },
+        result: { egress, ingress },
+        error,
+      }) {
+        if (!ingress) {
+          throw error;
+        }
+
         const { database } = app();
         if (!database) {
           return;
@@ -190,7 +198,7 @@ export default function persist(
             }
 
             const outputRequestValues = egress.evaluationScope.resolvedValues({
-              flow: true,
+              exportsOnly: true,
             });
 
             const once = onceFilter([
@@ -206,7 +214,7 @@ export default function persist(
 
             const outputResponseValues = ingress.evaluationScope.resolvedValues(
               {
-                flow: true,
+                exportsOnly: true,
               },
             );
 

@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { text } from "node:stream/consumers";
 import { HTTP, RequestObject } from "../../../core/formats/http-fmt.js";
 import { PardonError } from "../../../core/error.js";
-import { mapObject } from "../../../util/mapping.js";
+import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { intoURL, parseURL } from "../../../core/request/url-object.js";
 import { extractKVs } from "../../../util/kv-options.js";
 import { JSON } from "../../../core/raw-json.js";
@@ -126,7 +126,9 @@ export async function processOptions(
   }: CommandOptions,
   ...args: string[]
 ) {
-  const values = extractKVs(args, true);
+  const values = arrayIntoObject(extractKVs(args, true), ([k, v]) => ({
+    [k]: v,
+  }));
 
   if (/^[A-Z]+$/.test(args[0])) {
     if (method !== undefined) {
@@ -150,9 +152,12 @@ export async function processOptions(
   }
 
   const mainArg = args.shift();
-  if (mainArg?.endsWith(".flow")) {
+  if (/[.]flow(?:[.]https?)$/.test(mainArg ?? "")) {
     // TODO: assert no other values in request.
-    return { flow: mainArg as `${string}.flow`, values };
+    return {
+      flow: mainArg as `${string}.flow` | `${string}.flow.https`,
+      values,
+    };
   }
 
   const request = await parseMainArgument(mainArg!);

@@ -15,8 +15,8 @@ import {
   describeCases,
   flushTrialRegistry,
   runRegistrationTask,
-  gamut,
-  withGamutConfiguration,
+  survey,
+  withSurveyConfiguration,
   trial,
   type CaseContext,
   applySmokeConfig,
@@ -153,10 +153,10 @@ async function evalTrials(script: string, smoke: string) {
     stop: undefined, // undefine window.stop()
     cases,
     trial,
-    gamut(...args: Parameters<typeof gamut>) {
+    gamut(...args: Parameters<typeof survey>) {
       try {
         environments.unshift({ ...environments[0] });
-        gamut(...args);
+        survey(...args);
       } finally {
         environments.shift();
       }
@@ -165,7 +165,7 @@ async function evalTrials(script: string, smoke: string) {
 
   try {
     await runRegistrationTask(() =>
-      withGamutConfiguration(() =>
+      withSurveyConfiguration(() =>
         new Function(...helperEntries.map(([k]) => k), script)(
           ...helperEntries.map(([, v]) => v),
         ),

@@ -1,0 +1,12 @@
+context:
+  - env
+  - username
+  - todo
+  - done
+>>>
+GET https://todo.example.com/todos/{{todo}}
+
+<<<
+200
+
+{ done }

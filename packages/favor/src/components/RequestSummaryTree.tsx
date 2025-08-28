@@ -25,7 +25,6 @@ import LoadingSplash from "./LoadingSplash.tsx";
 import { RelatedTraces, Trace } from "./request-history.ts";
 import { displayHttp } from "./display-util.ts";
 import { HTTP } from "pardon/formats";
-import { recv } from "pardon/utils";
 import KeyValueCopier from "./KeyValueCopier.tsx";
 
 export type HistoryTree = {
@@ -43,7 +42,7 @@ export function RequestSummaryTree(props: {
   onRestore(history: ExecutionHistory): void;
   clearTrace?(trace: number): void;
 }) {
-  const trace = createMemo(() => recv(props.traces[props.trace]));
+  const trace = createMemo(() => props.traces[props.trace]);
   const relation = createMemo(() =>
     props.related.current === props.trace
       ? "current"
@@ -203,13 +202,11 @@ export function RequestSummary(
           tabIndex={-1}
           onClick={() => {
             const egress = props.trace?.render?.egress;
-            const askValues = HTTP.parse(props.trace.start.context.ask).values;
-            const request = { ...egress?.request, values: { ...askValues } };
             const ingress = props.trace?.result?.ingress;
             navigator.clipboard.writeText(
               `
 >>>
-${HTTP.stringify(HTTP.requestObject.fromJSON(request))}
+${HTTP.stringify(HTTP.requestObject.fromJSON(egress.request))}
 ${
   !ingress
     ? ""

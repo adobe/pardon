@@ -15,10 +15,10 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { arrayIntoObject, mapObject } from "../../util/mapping.js";
 import { TracedResult, awaitedResults } from "../../features/trace.js";
-import { HTTP } from "../../core/formats/http-fmt.js";
+import { HTTP, RequestObject } from "../../core/formats/http-fmt.js";
 import {
-  SequenceReport,
-  SequenceStepReport,
+  FlowReport,
+  FlowStepReport,
 } from "../../core/execution/flow/https-flow-types.js";
 import {
   disconnected,
@@ -31,7 +31,10 @@ import * as YAML from "yaml";
 import { cleanObject } from "../../util/clean-object.js";
 import { KV } from "../../core/formats/kv-fmt.js";
 import { PardonError } from "../../core/error.js";
-import { flushTrialRegistry, withGamutConfiguration } from "./trial.js";
+import {
+  flushTrialRegistry,
+  withSurveyConfiguration as withSurveyConfiguration,
+} from "./trial.js";
 import describeCases, {
   CaseContext,
   CaseHelpers,
@@ -77,11 +80,11 @@ function schedulePending<T>(promise: Promise<T>): Promise<T> {
 }
 
 export async function writeResultSummary(
+  reportDirectory: string,
   testResults: {
     testcase: string;
     errors: unknown[];
   }[],
-  report: string,
 ) {
   const passing = testResults.filter(({ errors }) => errors.length == 0);
   const failing = testResults.filter(({ errors }) => errors.length > 0);
@@ -104,7 +107,7 @@ ${failing.map(({ testcase }) => `${testcase}: FAIL\n`).join("")}
 
   console.info(`\n\n\n${results}`);
 
-  await writeFile(join(report, "results.txt"), results);
+  await writeFile(join(reportDirectory, "results.txt"), results);
 }
 
 export async function executeSelectedTests(
@@ -185,7 +188,11 @@ export async function executeSelectedTests(
 }
 
 type RequestGraph = Record<string, RequestTraceInfo>;
-type RequestTraceInfo = { operation: TracedResult; deps: number[] };
+type RequestTraceInfo = {
+  operation: Omit<TracedResult, "ingress"> &
+    Partial<Pick<TracedResult, "ingress">>;
+  deps: number[];
+};
 
 export async function writeTestExecutionResult(
   report: string,
@@ -193,7 +200,7 @@ export async function writeTestExecutionResult(
   errors: any[],
   init: Record<string, unknown>,
   env: Record<string, unknown>,
-  units: SequenceReport[],
+  flows: FlowReport[],
 ) {
   const { graph: requestGraph, list: requests } = graph();
   const testReportDir = join(report, testcase);
@@ -210,7 +217,7 @@ ${errors.length ? "FAIL" : "PASS"}: ${testcase}${errors.map((error) => `\n  - ER
     testcase,
     testReportDir,
     errors,
-    units,
+    flows,
     init,
     env,
   );
@@ -231,12 +238,18 @@ function formatTracedResult({
   egress: {
     redacted: { method, origin, pathname },
   },
-  ingress: {
-    redacted: { status },
-    outcome,
-  },
+  ingress,
+  error,
 }: TracedResult<unknown>) {
-  return `${fmtTraceId(trace)} > ${method} ${origin}${pathname} ~ ${status}${outcome ? ` (${outcome})` : ""} +${request}ms`;
+  if (ingress) {
+    const {
+      redacted: { status },
+      outcome,
+    } = ingress;
+    return `${fmtTraceId(trace)} > ${method} ${origin}${pathname} ~ ${status}${outcome ? ` (${outcome})` : ""} +${request}ms`;
+  }
+
+  return `${fmtTraceId(trace)} > ${method} ${origin}${pathname} ~ ERR ${rootcause(error)} +${request}ms`;
 }
 
 function formatTracedStep({
@@ -247,8 +260,19 @@ function formatTracedStep({
   ingress: {
     redacted: { status },
   },
-}: SequenceStepReport) {
+}: FlowStepReport) {
   return `${method} ${origin}${pathname} ~ ${status}${name ? ` (${name})` : ""}`;
+}
+
+function rootcause(error?: any) {
+  for (let i = 0; i < 10; i++) {
+    if (!error.cause) {
+      break;
+    }
+    error = error.cause;
+  }
+
+  return error;
 }
 
 function writeHttpRequestResponseFile(
@@ -264,12 +288,19 @@ function writeHttpRequestResponseFile(
     awaited,
   });
 
-  let values = operation.egress.redacted.values;
-  if (operation.context.ask) {
-    const { values: askValues = {} } = HTTP.parse(operation.context.ask);
-    values = mapObject(values, {
+  const request: Partial<RequestObject> = {
+    ...operation.egress.redacted,
+    values: operation.egress.reduced,
+  };
+
+  const ask: Partial<RequestObject> | undefined = operation.context.ask
+    ? HTTP.parse(operation.context.ask)
+    : undefined;
+
+  if (ask) {
+    request.values = mapObject(operation.egress.reduced, {
       filter(key) {
-        return key in askValues;
+        return ask.values && key in ask.values;
       },
     });
   }
@@ -283,10 +314,21 @@ function writeHttpRequestResponseFile(
     ),
     `${info ? YAML.stringify(info, { lineWidth: Infinity, defaultStringType: "PLAIN", doubleQuotedMinMultiLineLength: Infinity }).trim() : ""}
 >>> ${fmtTraceId(traceId)} (${operation.endpoint.configuration.path})
-${HTTP.stringify({ ...operation.egress.redacted, values }).trim()}
+${
+  ask
+    ? `${operation.context.ask!.trim()}
+
+>>>`
+    : ""
+}
+${HTTP.stringify(request).trim()}
 
 <<<
-${HTTP.responseObject.stringify(operation.ingress.redacted)}`.trim(),
+${
+  !operation.ingress
+    ? `ERR ${rootcause(operation.error)}`
+    : `${HTTP.responseObject.stringify(operation.ingress.redacted)}`
+}`.trim(),
   );
 }
 
@@ -294,7 +336,7 @@ function writeReportFile(
   testcase: string,
   testReportDir: string,
   errors: unknown[],
-  sequences: SequenceReport[],
+  flows: FlowReport[],
   init: Record<string, unknown>,
   env: Record<string, unknown>,
 ) {
@@ -309,8 +351,8 @@ function writeReportFile(
           .filter((line) => line.trim())
           .map((line) => `# ${line}`),
       ),
-      sequences.length && `>>>>>`,
-      ...sequences.flatMap(({ type, name, values, result, error, steps }) => [
+      flows.length && `>>>>>`,
+      ...flows.flatMap(({ type, name, values, result, error, steps }) => [
         `>>> ${name}.${type}`,
         `${KV.stringify(cleanObject(values), { indent: 2 })}`,
         ``,
@@ -324,7 +366,7 @@ function writeReportFile(
                 .join(`\n`)}\n`
         }`,
       ]),
-      sequences.length && "<<<<<",
+      flows.length && "<<<<<",
       KV.stringify(resultEnv(env, init) ?? {}, { indent: 2 }),
     ]
       .filter((line) => line != null && (line as unknown as number) !== 0)
@@ -385,13 +427,11 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
           .filter((p) => !resolved.includes(p));
 
         if (once && todo.length) {
-          console.info("finalizing test -- " + testcase);
+          console.warn("finalizing test -- " + testcase);
           once = false;
         }
 
-        completions.push(
-          ...(await disconnected(() => Promise.allSettled(todo))),
-        );
+        completions.push(...(await Promise.allSettled(todo)));
       }
 
       const errors = [
@@ -403,9 +443,9 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
 
       rejected.push(...errors);
 
-      console.info(
-        `test complete -- ${testcase}: ${rejected.length ? `FAIL ${rejected.length} errors` : "PASS"}`,
-      );
+      console.info(`
+-----
+test complete -- ${testcase}: ${rejected.length ? `FAIL ${rejected.length} errors` : "PASS"}`);
     }
 
     return { errors: rejected, environment: { ...environment } };
@@ -461,7 +501,7 @@ export async function chooseReportOutput(format: string) {
 function graph(): { graph: RequestGraph; list: number[] } {
   const operations = awaitedResults();
 
-  const graph = arrayIntoObject(operations, (operation) => ({
+  const graph = arrayIntoObject([...operations], (operation) => ({
     [operation.context.trace]: {
       operation,
       deps: operation.context.awaited.results.map(
@@ -492,33 +532,22 @@ function fmtTraceId(trace: number | string) {
   return `000${trace}`.slice(-3);
 }
 
-type TrialSelection = (
-  initialEnv: Record<string, unknown>,
-) => string | RegExp | (string | RegExp)[];
-type EnvironmentLoading = (
-  environment: Record<string, unknown>,
-) => void | Record<string, unknown> | Promise<void | Record<string, unknown>>;
+type TrialSelection = () => string | RegExp | (string | RegExp)[];
 
 export type PardonTestConfiguration = {
   /** optional selection for trials to run */
   trials?: TrialSelection | string[];
-  /**
-   * An async loading stage for the environment,
-   * (loading a testcase csv via an async function, perhaps)
-   * returned values do not override commandline args.
-   */
-  loading?: EnvironmentLoading;
-  gamut?: string;
   concurrency?: number;
-  sequences?: string[];
+
+  prefix?: string;
   /** initial environment configuration and alternation applying to all testcases */
-  opening?(helpers: CaseHelpers): void;
+  setup?(helpers: CaseHelpers): void;
   /**
    * final environment configuration and alternation applying to all testcases
    * (if a large data object is loaded in a loading phase, closing might be useful
    * to undefine that object here)
    */
-  closing?(helpers: CaseHelpers): void;
+  finish?(helpers: CaseHelpers): void;
   /**
    * a custom additional report function.
    */
@@ -537,9 +566,22 @@ export type TestLoadOptions = {
   concurrency?: number;
 };
 
+function expandInitialCases(testenv: (readonly [string, unknown])[]) {
+  return describeCases(({ set, each }) => {
+    for (const [key, values] of Object.entries(
+      testenv.reduce<Record<string, unknown[]>>(
+        (map, [k, v]) => Object.assign(map, { [k]: [...(map[k] ?? []), v] }),
+        {},
+      ),
+    )) {
+      set(key, each(...values));
+    }
+  });
+}
+
 export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
-  const configuration = (await withGamutConfiguration(() => import(testPath)))
-    .default as PardonTestConfiguration;
+  const configuration = ((await withSurveyConfiguration(() => import(testPath)))
+    .default ?? {}) as PardonTestConfiguration;
 
   if (concurrency !== undefined) {
     configuration.concurrency = concurrency;
@@ -549,16 +591,16 @@ export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
 
   return {
     async testplanner(
-      testenv: Record<string, unknown>,
+      testenv: (readonly [string, unknown])[],
       smokeConfig?: SmokeConfig,
       ...filter: string[]
     ) {
       const alltestcases = await describeCases(
-        configuration.closing || (() => {}),
+        configuration.finish || (() => {}),
         (
           await Promise.all(
             trialRegistry.flatMap(async ({ descriptions }) => {
-              let cases: CaseContext[] | undefined = undefined;
+              let cases: CaseContext[] = await expandInitialCases(testenv);
 
               for (const description of descriptions) {
                 cases = await describeCases(description, cases);
@@ -594,7 +636,7 @@ export async function loadTests({ testPath, concurrency }: TestLoadOptions) {
 
       const filtered = filter.length
         ? filter
-        : await configureTrials(configuration, testenv);
+        : await configureTrials(configuration);
 
       const patterns =
         filtered &&
@@ -634,14 +676,10 @@ export function filterTestPlanning({
   );
 }
 
-async function configureTrials(
-  { trials }: PardonTestConfiguration,
-  testenv: Record<string, unknown>,
-) {
+async function configureTrials({ trials }: PardonTestConfiguration) {
   if (typeof trials === "function") {
     return shared(async () => {
-      environment = testenv;
-      let filtered = trials(testenv);
+      let filtered = trials();
 
       if (typeof filtered === "string") {
         filtered = [filtered];

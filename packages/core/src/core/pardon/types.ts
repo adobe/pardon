@@ -25,7 +25,7 @@ import type {
   PardonCollection,
   Workspace,
 } from "../../runtime/init/workspace.js";
-import type { FlowContext } from "../execution/flow/data/flow-context.js";
+import type { FlowContext } from "../execution/flow/flow-context.js";
 import type { SecretStorage } from "../../runtime/secrets.js";
 
 export type PardonRuntime<Type extends "loading" | "ready" = "ready"> = {

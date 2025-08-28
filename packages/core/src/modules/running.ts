@@ -19,7 +19,7 @@ export { initTrackingEnvironment } from "../runtime/environment.js";
 export {
   flushTrialRegistry,
   runRegistrationTask,
-  withGamutConfiguration as withGamutConfiguration,
+  withSurveyConfiguration as withSurveyConfiguration,
 } from "../entry/testing/trial.js";
 
 export {
