@@ -21,7 +21,6 @@ import {
   executeSelectedTests,
   filterTestPlanning,
   loadTests,
-  PardonTestConfiguration,
   setupRunnerHooks,
   writeResultSummary,
 } from "../runner.js";
@@ -32,9 +31,9 @@ import failfast, {
 } from "../../../core/execution/flow/failfast.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/raw-json.js";
-import { mapObject } from "../../../util/mapping.js";
 import { parseSmokeConfig } from "../smoke-config.js";
 import contentEncodings from "../../../features/content-encodings.js";
+import { createFlowContext } from "../../../core/execution/flow/flow-context.js";
 
 // execute tests
 main().then(
@@ -52,10 +51,11 @@ async function main() {
       report: reportFormat = "reports/report-%date--%num",
       plan,
       verbose,
-      root = ".",
+      cwd = ".",
       concurrency,
       ff,
       smoke,
+      all,
     },
   } = parseArgs({
     allowPositionals: true,
@@ -70,13 +70,16 @@ async function main() {
       verbose: {
         type: "boolean",
       },
-      root: {
+      cwd: {
         type: "string",
       },
       concurrency: {
         type: "string",
       },
       ff: {
+        type: "boolean",
+      },
+      all: {
         type: "boolean",
       },
       /**
@@ -94,57 +97,45 @@ async function main() {
     },
   });
 
-  const context = await initializePardon({ cwd: root }, [
-    ff && failfast,
-    contentEncodings,
-    trace,
-    persist,
-  ]);
+  await initializePardon(
+    {
+      cwd,
+      createFlowContext() {
+        return createFlowContext(this, { ...environment });
+      },
+    },
+    [ff && failfast, contentEncodings, trace, persist],
+  );
 
-  const resolvedTest = resolve(context.config.root, "pardon.test.ts");
+  const testfile = positionals[0].endsWith(".test.ts")
+    ? positionals.shift()!
+    : "pardon.test.ts";
 
-  const argEnvironment = extractKVs(positionals, true);
+  const resolvedTest = resolve(cwd, testfile);
 
   const { testplanner, configuration } = await loadTests({
     testPath: resolvedTest,
   });
 
   await initTrackingEnvironment();
-  environment = argEnvironment;
 
-  const updates = await loadEnvironment(configuration);
-  if (Object.keys(updates).length > 0) {
-    environment = updates;
+  const testenv = extractKVs(positionals, true);
+  let showPlanOnly = plan;
+  if (positionals.length === 0) {
+    positionals.push("**");
+    showPlanOnly = plan || !all;
   }
 
   const planning = await testplanner(
-    environment,
+    testenv,
     parseSmokeConfig(smoke),
     ...positionals,
   );
 
   const testplan = filterTestPlanning(planning);
 
-  if (testplan.length === 0) {
-    console.warn(`
------------------------------
-FAIL
-
-no testcases configured and/or
-all testcases filtered out.${
-      planning.patterns?.some((p) => p.source.includes("package\\.json"))
-        ? `
-
-(Hint: You may need to put your ** filter in quotes.)
-`
-        : ""
-    }
----------------------------`);
-    return 1;
-  }
-
-  if (plan || !planning.patterns) {
-    if (plan) {
+  if (!planning.patterns || showPlanOnly) {
+    if (showPlanOnly) {
       console.info(`--- TEST PLAN ---`);
     } else {
       console.info(`
@@ -171,7 +162,7 @@ No testcases were specified!
         .join("\n")}`,
     );
 
-    if (!plan) {
+    if (!showPlanOnly) {
       console.warn(`
 ---
 No testcases were specified!
@@ -185,9 +176,9 @@ or select a subset of them with selective glob pattern(s).
     return plan ? 0 : 1; // fail by default if there was no --plan
   }
 
-  const report = await chooseReportOutput(reportFormat);
+  const reportOutput = await chooseReportOutput(resolve(cwd, reportFormat));
 
-  console.info(`report> ${report}`);
+  console.info(`report> ${reportOutput}`);
   console.info();
 
   if (concurrency != undefined) {
@@ -197,16 +188,16 @@ or select a subset of them with selective glob pattern(s).
   setupRunnerHooks();
 
   const testResults = await executeWithFastFail(() =>
-    executeSelectedTests(configuration, testplan, report, ff),
+    executeSelectedTests(configuration, testplan, reportOutput, ff),
   );
 
-  await configuration.report?.(report, testResults);
+  await configuration.report?.(reportOutput, testResults);
 
-  await writeResultSummary(testResults, report);
+  await writeResultSummary(reportOutput, testResults);
 
   console.info();
   console.info("--- see test report ---");
-  console.info(report);
+  console.info(reportOutput);
   console.info();
 
   if (testResults.some(({ errors }) => errors.length > 0)) {
@@ -214,23 +205,4 @@ or select a subset of them with selective glob pattern(s).
   }
 
   return 0;
-}
-async function loadEnvironment(configuration: PardonTestConfiguration) {
-  if (typeof configuration.loading === "function") {
-    const environmentLayer = Object.create(environment);
-    const returnedEnvironment =
-      (await configuration.loading(environmentLayer)) ?? {};
-    const overridden = Object.getOwnPropertyNames(environmentLayer);
-
-    return {
-      ...mapObject(returnedEnvironment as typeof environment, {
-        filter(key) {
-          return environmentLayer[key] == null;
-        },
-      }),
-      ...overridden,
-    };
-  }
-
-  return {};
 }

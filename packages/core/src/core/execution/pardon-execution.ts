@@ -64,7 +64,8 @@ export type PardonExecutor<Init, Context, Match, Egress, Ingress, Result> = {
     context: Context;
     match: Match;
     egress: Egress;
-    ingress: Ingress;
+    ingress?: Ingress;
+    error?: any;
   }): Promise<Result>;
 
   error(error: PardonExecutionError, info: any): unknown;
@@ -304,14 +305,22 @@ export function pardonExecution<
 
           function process() {
             return (processing ??= mixin(
-              Promise.all([initializing, matching, egress, requesting_]).then(
-                ([context, match, egress, ingress]) =>
-                  executeStep("process", {
-                    context,
-                    match,
-                    egress,
-                    ingress,
-                  }),
+              Promise.all([initializing, matching, egress]).then(
+                ([context, match, egress]) => {
+                  const setup = { context, match, egress };
+                  return requesting_.then(
+                    (ingress) =>
+                      executeStep("process", {
+                        ...setup,
+                        ingress,
+                      }),
+                    (error) =>
+                      executeStep("process", {
+                        ...setup,
+                        error,
+                      }),
+                  );
+                },
               ),
               {
                 context: initializing,

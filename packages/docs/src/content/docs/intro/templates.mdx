@@ -41,17 +41,17 @@ For the following discussion, basic understanding of programming terms is assume
 Templates are a novel way of structuring or destructuring data, with a
 focus on JSON values, objects, and arrays with "minimal" extra syntax.
 
-Some parts of templates represent and break down "atomic" values like numbers, strings, booleans, or `null`, while
+Some parts of templates represent and break down "simple" values like numbers, strings, booleans, or `null`, while
 others are suitable for representing structures like objects and arrays.  We can also use templates to manage
 encodings like base64-encoded JSON.
 
+Pardon provides a string-interpolation syntax and a javascript/typescript syntax for templating,
+the javascript syntax is a little nicer in JSON contexts like request bodies, while the interpolation syntax
+is necessary for other parts of the http request, like the request origin, pathname, query params and headers.
+
 ### Interpolation Variables
 
-There is both a string interpolation and a special javascript/typescript syntax for templating,
-the javascript syntax is useful in JSON contexts like request bodies, while the interpolation syntax
-is needed for other parts of the http request, like the request origin, pathname, query params and headers.
-
-Interpolations are structured with the following pieces, _all of which are optional._
+Interpolation templates are surrounded by `{{` and `}}`.  Inside we have the following pieces, _all of which are optional._
 
 <Tabs>
   <TabItem label="name">
@@ -90,11 +90,19 @@ Interpolations are structured with the following pieces, _all of which are optio
       {{ ? name = expr % /regex/ }}
       ```
     </FlexyCodeGrid>
-    The regex can be used to specify exactly what values qualify for this field.
+    The regex can be used to restrict the kinds of values that qualify for this field.
   </TabItem>
 </Tabs>
 
-We saw these in `GET https://todo.example.com/TODOS/{{todo}}`.
+ `GET https://todo.example.com/TODOS/{{todo}}`
+
+:::caution
+Other HTTP frameworks might support recursive evaluation of templates, e.g., something like `{{service.origin.{{env}}}}/path/...`,
+where the collection defines `{{service.origin.stage}}` and `{{service.origin.prod}}`, along with a suitable definition of `{{env}}`.
+
+Pardon's other mechanisms, such as `config` and `defaults` in the service and endpoint configurations provide this use-case without
+sacrificing the readability of the templates.
+:::
 
 ### Template References
 

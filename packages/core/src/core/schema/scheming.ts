@@ -89,10 +89,6 @@ export function matchTemplate(template: Template<unknown>) {
   return modeContextBlend("match")(template);
 }
 
-export function meldTemplate(template: Template<unknown>) {
-  return modeContextBlend("meld")(template);
-}
-
 type KeyedTemplate<T, Multivalued extends boolean> = {
   keyTemplate: Template<T>;
   valueTemplate: Template<T[]> | Template<T>[];

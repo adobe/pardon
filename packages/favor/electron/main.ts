@@ -23,6 +23,7 @@ import {
 import { createMainMenu } from "./menu.js";
 import { preferences } from "./preferences.js";
 import { createComputed, createRoot } from "solid-js";
+import { fileURLToPath } from "node:url";
 
 createMainMenu();
 
@@ -32,11 +33,7 @@ app.commandLine.appendSwitch("js-flags", "--stack_trace_limit=100");
 let mainWindow: BrowserWindow | null;
 
 function resolveRelative(path: string) {
-  return new URL(import.meta.resolve(path)).pathname.replace(
-    // be friendlier to windows /C:/xyz/... paths.
-    /[/\\]([A-Z]):([/\\])/,
-    "$1:$2",
-  );
+  return fileURLToPath(new URL(import.meta.resolve(path)));
 }
 
 const PUBLIC = resolveRelative(`../renderer/${MAIN_WINDOW_VITE_NAME}/`);

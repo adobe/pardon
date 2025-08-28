@@ -31,20 +31,19 @@ import {
  } from '@components';
 import todoService from '@pardon/todo-service.ts'
 
-Pardon is a polite http framework.
+Pardon is a polite http framework that allows users to be pert.
 
 Pardon is a template processor:
 templates are used to describe, match, format, extend, and parse
 http requests and http responses.
-Templates are written in a dialect of the "HTTP format".
+Templates are written in a dialect of the "HTTP format", mostly patterned on the plain-text
+format of HTTP/1.1.
 
-Templates supply the "etiquette" that is easy to forget.
-"Did you forget your content-type header?".  Of course you did,
-you were focused on the data.  Pardon takes care of the syntax part
-of the request so you can focus on the semantics.
+Templates supply the forgettable details of your http exchanges.
+Who would remember to add a Content-Type header when they're focused on the actual content?
 
 Authorization tokens? Request signing? Switching environments?
-All easily done in Pardon,... and yet nothing is built-in.
+All easily done in Pardon.
 
 ## A quick tour
 

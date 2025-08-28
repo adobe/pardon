@@ -22,21 +22,21 @@ import {
   PardonExecutionResult,
 } from "../../pardon/pardon.js";
 import { Schema } from "../../schema/core/types.js";
-import { FlowContext } from "./data/flow-context.js";
+import { FlowContext } from "./flow-context.js";
 import { FlowParamsDict } from "./flow-params.js";
 
-export type SequenceReport = {
+export type FlowReport = {
   type: "unit" | "flow";
   name: string;
   values: Record<string, any>;
   result?: Record<string, any>;
   error?: unknown;
-  deps: SequenceReport[];
-  steps: SequenceStepReport[];
+  deps: FlowReport[];
+  steps: FlowStepReport[];
   executions: TracedResult[];
 };
 
-export type SequenceStepReport = {
+export type FlowStepReport = {
   egress: Omit<PardonExecutionEgress, "evaluationScope">;
   ingress: Omit<PardonExecutionResult["ingress"], "evaluationScope">;
   outcome?: { name: string; delay?: number };

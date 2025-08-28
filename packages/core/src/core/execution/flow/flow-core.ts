@@ -14,7 +14,7 @@ import {
   FlowParamsDict,
   flowFunctionSignature,
 } from "./flow-params.js";
-import { FlowContext } from "./data/flow-context.js";
+import { FlowContext } from "./flow-context.js";
 import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
 import { CompiledHttpsSequence } from "./https-flow-types.js";
 
@@ -45,7 +45,7 @@ export type FlowFunction = (
 
 export type FlowParams = {
   context: FlowContext;
-  argument: Record<string, unknown>;
+  input: Record<string, unknown>;
 };
 
 export type FlowResult = {
@@ -71,17 +71,17 @@ export async function currentFlowContext(context?: FlowContext) {
 
 export async function runFlow(
   flow: Flow,
-  input: Record<string, unknown>,
+  values: Record<string, unknown>,
   context?: FlowContext,
 ) {
   context = await currentFlowContext(context);
-  const argument = composeValuesDict(flow.signature, input, {
-    ...context.environment,
+  const input = composeValuesDict(flow.signature, values, {
+    ...context.context,
   });
 
   return flow.action({
     context,
-    argument,
+    input,
   });
 }
 
@@ -90,11 +90,11 @@ export function makeFlow(fn: FlowFunction): Flow {
 
   return {
     signature,
-    async action({ argument, context }) {
+    async action({ input, context }) {
       syncFlowContextStack.unshift(context);
 
       try {
-        return Promise.resolve(fn(argument, { context, signature })).then(
+        return Promise.resolve(fn(input, { context, signature })).then(
           (result) => ({
             result,
             context,

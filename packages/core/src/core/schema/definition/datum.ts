@@ -31,9 +31,9 @@ import {
   isOptional,
   isRequired,
   isSecret,
-  isMelding,
+  isDistinct,
   isHidden,
-  isFlowExport,
+  isExport,
 } from "./hinting.js";
 import {
   resolveIdentifier,
@@ -73,6 +73,7 @@ import {
 } from "./scalar.js";
 import { uniqReducer } from "../../../util/uniq-reducer.js";
 import { JSON } from "../../raw-json.js";
+import { KV } from "../../formats/kv-fmt.js";
 
 type DatumRepresentation = {
   patterns: Pattern[];
@@ -90,17 +91,30 @@ function mergeRepresentation<T extends Scalar>(
   rep: DatumRepresentation,
   info?: DatumSchematicInfo<T>,
 ): DatumRepresentation | undefined {
-  if (info === undefined) {
+  const verifying = context.mode === "match" && context.phase === "validate";
+
+  if (info === undefined && !verifying) {
     return rep;
   }
 
   let { patterns } = rep;
-  const { template, literal } = info;
-  const custom = rep.custom ?? info.custom;
-  const type = rep.type ?? info.type;
-  const unboxed = rep.unboxed || info.unboxed;
+  const { template, literal } = info ?? {};
+  const custom = rep.custom ?? info?.custom;
+  const type = rep.type ?? info?.type;
+  const unboxed = rep.unboxed || info?.unboxed;
 
-  if (template !== undefined) {
+  if (template === undefined) {
+    if (
+      verifying &&
+      patterns
+        .filter(isPatternRegex)
+        .some(({ vars }) => vars.some(isRequired)) &&
+      !patterns.some((pattern) => isPatternTrivial(pattern))
+    ) {
+      diagnostic(context, "missing required value");
+      return;
+    }
+  } else {
     const source = String(template);
 
     const templatePattern =
@@ -112,15 +126,9 @@ function mergeRepresentation<T extends Scalar>(
       context.mode === "meld" &&
       patterns.length &&
       !isPatternTrivial(templatePattern) &&
-      !templatePattern.vars.some((param) => isMelding(param))
+      templatePattern.vars.some((param) => isDistinct(param))
     ) {
-      if (
-        !patterns?.some((existing) =>
-          arePatternsMeldable(context, existing, templatePattern),
-        )
-      ) {
-        return;
-      }
+      return;
     }
 
     if (context.evaluationScope.path.length) {
@@ -164,32 +172,6 @@ function mergeRepresentation<T extends Scalar>(
     type,
     unboxed,
   };
-}
-
-// this is a bit rough, still:
-// the idea is that {{a}} and {{b}} are different patterns which don't by-default conflate
-// (we would conflate them if explicitly imply meldability by `{{~b}}` on the incoming pattern).
-//
-// But a value and a parameter are conflated if they can be.
-// we might want to use to context to check/apply this better.
-function arePatternsMeldable(
-  _context: SchemaMergingContext<unknown>,
-  existing: Pattern,
-  pattern: PatternRegex,
-) {
-  if (isPatternTrivial(existing)) {
-    return true;
-  }
-
-  if (existing.source === pattern.source) {
-    return true;
-  }
-
-  if (isPatternSimple(existing) && isPatternSimple(pattern)) {
-    return existing.vars[0].param == pattern.vars[0].param;
-  }
-
-  return false;
 }
 
 function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
@@ -478,7 +460,7 @@ async function doRenderScalar<T>(
 
   const flow = patterns
     .filter(isPatternRegex)
-    .some(({ vars }) => vars.length && vars.every(isFlowExport));
+    .some(({ vars }) => vars.length && vars.every(isExport));
 
   const resolution = resolveScalar(context, self, false) as
     | Exclude<T, undefined>
@@ -929,17 +911,26 @@ function datumPreviewExpression<T>(
   context: SchemaRenderContext,
   data: T,
 ): T | string {
-  if (typeof data == "string" && context.mode === "preview") {
-    const pattern = patternize(data);
-    const exprs = pattern.vars.map(({ expression, source, param, hint }) =>
-      expression && source?.includes("$$expr(")
-        ? `{{ ${hint ?? ""}${param ?? ""} = ${expression} }}`
-        : source
-          ? `{{${source}}}`
-          : "?",
-    );
-    return patternRender(pattern, exprs);
+  if (typeof data == "string") {
+    if (context.mode === "preview") {
+      const pattern = patternize(data);
+      const exprs = pattern.vars.map(({ expression, source, param, hint }) =>
+        expression && source?.includes("$$expr(")
+          ? `{{ ${hint ?? ""}${param ?? ""} = ${expression} }}`
+          : source
+            ? `{{${source}}}`
+            : "?",
+      );
+      return patternRender(pattern, exprs);
+    } else if (
+      context.mode === "prerender" &&
+      !isPatternTrivial(patternize(data))
+    ) {
+      // create literals for data with template interpolations.
+      return `{{${KV.stringify(data, { quote: "auto-single" })}}}`;
+    }
   }
+
   return data;
 }
 

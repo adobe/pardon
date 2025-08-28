@@ -53,6 +53,7 @@ export default [
   ({ dir, types, input }) =>
     /** @type {import("rollup").RollupOptions} */ ({
       input,
+      treeshake: types ? false : "safest",
       output: {
         dir,
         format: "es",

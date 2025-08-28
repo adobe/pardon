@@ -4,8 +4,7 @@
   "license": "Apache-2.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192' astro dev",
-    "start": "astro dev",
+    "start": "cross-env NODE_OPTIONS='--max-old-space-size=8192' astro dev",
     "check": "astro check",
     "lint": "eslint",
     "postlint": "astro check",

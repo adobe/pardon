@@ -9,10 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { runFlow } from "../core/execution/flow/flow-core.js";
-import { compileHttpsFlow } from "../core/execution/flow/https-flow.js";
 import { HTTP } from "../core/formats/http-fmt.js";
-import { HttpsFlowScheme } from "../core/formats/https-fmt.js";
 
 import {
   PardonExecutionContext,
@@ -21,8 +18,6 @@ import {
 import { PardonRuntime } from "../core/pardon/types.js";
 import type { SimpleRequestInit } from "../core/request/fetch-object.js";
 import { intoURL } from "../core/request/url-object.js";
-import { FlowContext } from "../modules/api.js";
-import { HTTPS } from "../modules/formats.js";
 import { pardonRuntime } from "../runtime/runtime-deferred.js";
 
 export type PardonOptions = {
@@ -62,23 +57,6 @@ export function pardon(
     execution: runtime.execution,
   });
 }
-
-// const { ... } = pardon.flow`....`({ ... })
-Object.assign(pardon, {
-  flow: (template: TemplateStringsArray, ...args: unknown[]) => {
-    const https = String.raw(template, ...args);
-    const flowScheme = HTTPS.parse(https, "flow") as HttpsFlowScheme;
-    const flow = compileHttpsFlow(flowScheme, {
-      name: "script",
-      path: "pardon:script",
-    });
-
-    return async (input: Record<string, string>, context?: FlowContext) => {
-      const { result } = await runFlow(flow, input, context);
-      return result;
-    };
-  },
-});
 
 export function pardonExecutionHandle({
   context,

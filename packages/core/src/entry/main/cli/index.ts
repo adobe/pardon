@@ -29,11 +29,11 @@ import undici from "../../../features/undici.js";
 import { inspect } from "node:util";
 import { mapObject } from "../../../util/mapping.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
-import { executeFlowInContext } from "../../../core/execution/flow/index.js";
 import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/raw-json.js";
 import contentEncodings from "../../../features/content-encodings.js";
 import { resolve } from "node:path";
+import { executeHttpsFlowInContext } from "../../../core/execution/flow/https-flow.js";
 
 main()
   .then((code) => process.exit(code))
@@ -81,7 +81,7 @@ usage
     );
   }
 
-  const {
+  let {
     flow: flowName,
     url,
     init,
@@ -112,19 +112,23 @@ usage
   }
 
   if (flowName) {
+    if (/[.]https$/.test(flowName) && options.cwd) {
+      flowName = resolve(options.cwd, flowName) as `${string}.flow.https`;
+    }
+
     initTrackingEnvironment();
     const flowContext = context.createFlowContext();
-    const { context: resultContext } = await executeFlowInContext(
+    const { context: resultContext } = await executeHttpsFlowInContext(
       flowName,
       values,
       flowContext,
     );
     if (options.json) {
       console.info(
-        KV.stringify(resultContext.environment, { indent: 2, mode: "json" }),
+        KV.stringify(resultContext.flow, { indent: 2, mode: "json" }),
       );
     } else {
-      console.info(KV.stringify(resultContext.environment, { indent: 2 }));
+      console.info(KV.stringify(resultContext.flow, { indent: 2 }));
     }
     return;
   }

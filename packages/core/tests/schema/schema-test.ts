@@ -256,7 +256,7 @@ templating("optional")`
   x: x.$optional
 }
 ---
-*
+-*-
 {}
 `();
 
@@ -367,7 +367,7 @@ abc=[a,b,c]
 `();
 
 templating("array-reference-eq")`
-*
+-*-
 abc = ["a","b","c"]
 ---
 abc=[a,b,c]
@@ -375,7 +375,7 @@ abc=[a,b,c]
 `();
 
 templating("reference-squashing")`
-*
+-*-
 abc = "hello"
 ---
 xyz
@@ -386,7 +386,7 @@ xyz=hello
 `();
 
 templating("reference-squish-squashing")`
-*
+-*-
 abc = xyz
 ---
 xyz = abc = "hello"
@@ -397,7 +397,7 @@ xyz=hello
 `();
 
 templating("reference-squash-squishing")`
-*
+-*-
 abc = xyz = "hello"
 ---
 xyz = abc
@@ -522,7 +522,7 @@ each=[{value=[1,2]}, {value=[2,4]}, {value=[3,6]}]
 `();
 
 templating("bind-layers")`
-*
+-*-
 outer = base64(inner = json({ a: 10, b }))
 ---
 outer2 = base64(inner2 = json({ b: 20, a: "{{a}}" }))

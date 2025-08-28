@@ -488,6 +488,7 @@ export default function Main(
       ...(includeHeaders() ? {} : { headers: new Headers() }),
     });
 
+    console.log({ http, values });
     return { http, values };
   });
 

@@ -1,4 +1,3 @@
-
 {
   "type": "module",
   "scripts": {
@@ -6,5 +5,8 @@
   },
   "pardon": {
     "collections": "./collection"
+  },
+  "devDependencies": {
+    "pardon": "file:../../packages/core"
   }
 }

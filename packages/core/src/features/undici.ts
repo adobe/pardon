@@ -70,10 +70,6 @@ async function fetchSNI(
 
   const insecure = meta?.insecure === "true";
 
-  if (hostip) {
-    console.info(`undici: resolved ${serverhost} = ${hostip}`);
-  }
-
   const servername = hostip ? url.host : undefined;
   const port = url.port;
   const requestUrl = `${hostip ? `${url.protocol}//${hostip}${port ? `:${port}` : ""}` : url.origin}${url.pathname}${url.search}`;

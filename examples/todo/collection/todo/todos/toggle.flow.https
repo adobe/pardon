@@ -11,6 +11,7 @@ GET https://todo.example.com/todos/{{todo}}
 { done }
 
 >>>
+xyz := 123+456
 PUT https://todo.example.com/todos/{{todo}}
 
 { done: (!done) }

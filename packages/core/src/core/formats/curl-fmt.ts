@@ -58,20 +58,23 @@ function stringify(
   request: FetchObject,
   { include }: { include?: boolean } = {},
 ) {
-  const { method, headers, body, meta: { resolve } = {} } = request;
+  const { method, headers, body, meta: { resolve, insecure } = {} } = request;
   const url = intoURL(request);
 
   const port = url.port || (url.protocol == "https:" ? 443 : 80);
 
   return [
-    `curl ${method !== "GET" ? `--request ${method} ` : ""}"${quot(url)}"${resolve ? ` \\\n  --resolve "${url.hostname}:${port}:${resolveString(resolve)}" \\\n ` : ""}${
-      include ? " --include" : ""
-    }`,
+    `curl ${method !== "GET" ? `--request ${method} ` : ""}"${quot(url)}"`,
+    resolve && `--resolve "${url.hostname}:${port}:${resolveString(resolve)}"`,
+    insecure && insecure !== "false" && "--insecure",
+    include && "--include",
     ...headerList(headers).map(
       ([key, value]) => `--header "${quot(key)}: ${quot(value)}"`,
     ),
     ...(body ? [`--data-raw '${squot(body)}'`] : []),
-  ].join(" \\\n  ");
+  ]
+    .filter(Boolean)
+    .join(" \\\n  ");
 }
 
 // subset of https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
@@ -151,7 +154,9 @@ function parse(command: string): {
   });
 
   const include = opts.include;
-  const values = extractKVs(positionals);
+  const values = arrayIntoObject(extractKVs(positionals), ([k, v]) => ({
+    [k]: v,
+  }));
   const url = opts.url ?? positionals.shift();
 
   if (!url) {

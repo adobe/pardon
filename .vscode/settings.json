@@ -14,7 +14,7 @@
   },
   "explorer.openEditors.sortOrder": "editorOrder",
   "explorer.sortOrder": "type",
-  "explorer.excludeGitIgnore": true,
+  "explorer.excludeGitIgnore": false,
   "typescript.tsdk": "node_modules/typescript/lib",
   "editor.renderFinalNewline": "off",
   "files.insertFinalNewline": true,

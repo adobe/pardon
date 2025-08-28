@@ -1,0 +1,279 @@
+---
+# Copyright 2025 Adobe. All rights reserved.
+# This file is licensed to you under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License. You may obtain a copy
+# of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+# Unless required by applicable law or agreed to in writing, software distributed under
+# the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+# OF ANY KIND, either express or implied. See the License for the specific language
+# governing permissions and limitations under the License.
+
+title: Pardon Flows
+description: Pardon's Scripting Language
+server: todo
+---
+
+import { Tabs, TabItem, Icon, Aside } from '@astrojs/starlight/components';
+import {
+  Exercises,
+  ExerciseItem,
+  ExerciseItemPrompt,
+  CodeGrid,
+  FlexyCodeGrid,
+  PardonPlayground,
+  TemplatePlayground
+} from '@components';
+import {
+  productsExample,
+  productsExampleWithAuth,
+} from'@pardon/templates-collections'
+
+# Flows
+
+Pardon has a basic scripting system for flowing data between requests. It uses the same
+`https` file structure, but describes a sequence of requests rather than options
+for a single one.
+
+Here's a script for our todo system for toggling a flag:
+
+```https
+context:
+  - env?
+  - username = "test"
+  - todo
+>>>
+GET https://todo.example.com/todos/{{todo}}
+
+<<<
+200
+
+{ done }
+
+>>>
+PUT https://todo.example.com/todos/{{todo}}
+
+{ done: (!done) }
+```
+
+This flow has three templates, one request template and a template to interpret the response, followed by
+a second request to push the update.
+
+<Tabs>
+  <TabItem label="context">
+    The `context` configures what data is accepted into a flow.  It's basically
+    an array of fields specifications that destructures the input into values.
+
+    ```yaml
+    context:
+      - env
+      - username
+      - todo
+    ```
+
+    Context values are available but not necessarily used to render the flow template, but are used
+    to render the flow request.
+  </TabItem>
+  <TabItem label="GET todo">
+    We need to get the done flag of our todo item, binding the `{ done }` value in
+    the response to our environment.
+
+    ```http
+    >>>
+    GET https://todo.example.com/todos/{{todo}}
+
+    <<<
+    200
+
+    { done }
+    ```
+
+    The response template binds the value of `done` so we can use it in the next request.
+    This is bound to the flow environment.
+  </TabItem>
+  <TabItem label="PUT todo">
+    Finally we send an update, using the `(!done)` expression to send the opposite value
+    that our flag had.
+
+    ```http
+    >>>
+    PUT https://todo.example.com/todos/{{todo}}
+
+    { done: (!done) }
+    ```
+
+    This uses the value of `done` propagated via the flow environment from the previous request.
+  </TabItem>
+</Tabs>
+
+## Running flows
+
+Flows can be in the collection, 
+
+## Flows rendering - two passes
+
+Flows render their requests twice: once based on the flow templates with flow variables, and then that is fed to the collection templates
+and rendered with `context` variables only.
+
+This two-pass approach separates the analysis of the flow behavior from the implementation details mixed in with the collection.
+One practical reason for this is evident above where we use `{ done: (!done) }`.  The flow templates render this to e.g., `{ done: true }`,
+but then we pass this to the collection with a body template that includes `{ done }`.
+
+If we included the `done` value here, we would form the following request
+
+```http
+done=false
+PUT https://todo.example.com/todos/T1001
+
+{ done: true }
+```
+
+where `{ done: true }` is being merged with the collection's `{ done: done }`, which is incompatible with `done=false`.
+
+## Flow Control Flow
+
+Flows include two ways to control which labeled requests to run next.
+The simplest way to control flow is using labels on responses:
+
+```https
+context:
+  - env
+  - task
+>>>
+POST https://tasker.example.com/task
+
+{ task }
+
+<<<
+200
+
+{ id: $`task-id` }
+
+>>> check
+GET https://tasker.example.com/task/{{task-id}}
+
+<<< check
+200
+
+{ status: "pending" }
+
+<<<
+200
+
+{ status, result }
+```
+
+<Tabs>
+  <TabItem label="create a task">
+    First we create a task, and capture the id field from the response 
+    as `task-id` for checking progress of the task.
+    ```https
+    context:
+      - env
+      - task
+    >>>
+    POST https://tasker.example.com/task
+
+    { task }
+
+    <<<
+    200
+
+    { id: $`task-id` }
+    ```
+  </TabItem>
+  <TabItem label="check">
+    When multiple response patterns are provided, only first matching response is used,
+    so when the task's status is `"pending"`, the response pattern labeled `check` is matched.
+    Since `check` is also the name of a request, we "goto" the request again, rather than advancing
+    to the next request in the flow.
+
+    the final response template is necessary for the flow to succeed: otherwise it would fail to match the final response.
+
+    ```http "check"
+    >>> check
+    GET https://tasker.example.com/task/{{task-id}}
+
+    <<< check
+    200
+
+    { status: "pending" }
+
+    <<<
+    200
+
+    { status, result }
+    ```
+  </TabItem>
+</Tabs>
+
+### Controlling the control flow
+
+In the previous example, if the task does not finish, the flow will loop forever.
+Also, the flow would initiate another check request as soon as the response is received.
+
+To improve the flow behavior for both of these issues, we can tune the flow with `/ limit` and `+delay` info along with the label names:
+this will run the call at most 10 times, delaying 2 seconds after each pending response.
+
+```https ins="/ 10" ins="+2s"
+>>> check / 10
+GET https://tasker.example.com/task/{{task-id}}
+
+<<< check +2s
+200
+
+{ status: "pending" }
+
+<<<
+200
+
+{ status, result }
+```
+
+### Flow Scripts Blocks
+
+The other mechanism we can use to influence flows is flow scripts.
+Flow scripts can modify the flow environment.  Or be used to
+`goto` other places in the flow.
+
+Using a flow script to implement the same wait loop is a bit shorter,
+but offers less in terms of template matching and capturing results values.
+
+```https
+>>> check / 10
+GET https://tasker.example.com/task/{{task-id}}
+
+<<<
+200
+
+{ status }
+
+!!!
+if (status === "pending") {
+  goto("check +3s");
+}
+```
+
+Flow scripts can also be used to modify the flow environment.
+For example, going back to the todo example, instead of using `{ done: (!done) }` to render with
+the toggled flag value we can toggle in a script.
+
+```https
+>>>
+GET https://todo.example.com/todos/{{todo}}
+
+<<<
+200
+
+{ done }
+
+!!!
+done = !done;
+
+>>>
+PUT https://todo.example.com/todos/{{todo}}
+
+{ done }
+```
+
+Which mechanism to use is a matter of style and fit.

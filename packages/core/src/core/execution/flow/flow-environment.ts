@@ -25,7 +25,7 @@ export function createSequenceEnvironment({
   compiler: PardonCompiler;
   flowScheme: HttpsFlowScheme;
   flowPath: string;
-  values?: Record<string, string>;
+  values?: Record<string, unknown>;
 }) {
   const scriptEnv = new ScriptEnvironment({
     name: sequencePath,

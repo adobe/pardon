@@ -23,39 +23,50 @@ import {
 } from '@components';
 import { Icon, Tabs, TabItem, FileTree } from '@astrojs/starlight/components';
 
-:::note
-These docs are stale and need a refresh.
-
-- Split test api (gamut/trials) docs from testcase enumeration framework.
-- Split flow documtation into own document.
-- Highlight testcase enumeration supports async.
-:::
-
 ## Tests
 
-Tests build on top of collections and use additional "flow" https files.
-These are a similar format but used as scripts for running a flow of request/responses,
-(rather than as templates for a single request response.)
+Pardon includes a test runner focused on parallel execution of comprehensive cases.
 
-Pardon's test system executes _trials_.  Trials can be organized in _gamuts_ (similar to
-how `it("should", ...)` or `test(...)`  tests from other frameworks can be organized with `describe` blocks).
+A single test case is called a **trial**. A trial is defined by three things
+ - a name (which must be unique).
+ - the starting environment.
+ - the function.
 
-To illustrate the concept, let's consdier a test setup for confirming `ping` works.
-In addition to our collection, we need an overall script for configuring the test system,
-a test, and a sequence to execute.
+The trial can accept additional environmental data from the run, as well.
 
-<FileTree>
-- tests/service.test.ts
-- flows/ping.flow.https
-- pardon.test.ts
-- ...
-- pardonrc.yaml
-- collection/...
-</FileTree>
+Trial functions can be implemented by stitching together one or more [flows](./flows),
+along with any other validation.
 
-These files 
- - define the trials/flows to run, and
- - configure the test environment
+Trials can be selected by name or glob pattern for debugging single trials, and subsets
+can be selected according to various criteria, for quicker/light-weight smoke testing
+of a few cases.
+
+A basic test could simply run a [flow](./flows.mdx).
+
+```ts title="./health-check.test.ts"
+import { trial, flow } from 'pardon/testing';
+
+trial("%env/health-check", () => {
+  flow`
+    context:
+      - env
+    >>>
+    GET https://todo.example.com/health-check
+
+    <<<
+    200
+  `();
+});
+```
+
+This validates the basic health check.
+
+```sh
+% pardon-runner health-check.test.ts env=local "**"
+```
+
+Trials can be organized in _surveys_ (similar to how `it("should", ...)` or `test(...)`  tests from other
+frameworks can be organized with `describe` or `suite` blocks).
 
 <Tabs>
   <TabItem label="example.test.ts">
@@ -65,7 +76,7 @@ the output of each trial execution should go, they have to be unique.
 Here we're using `%env/ping` so we can run this trial in multiple envs at once.
 Also, the report output will go into directories according to the environment they were run in.
 ```js title="example.test.ts"
-import { trial, executeFlow } from 'pardon/testing'
+import { trial, pardon } from 'pardon/testing'
 
 trial("%env/ping", () => execute("ping.flow"));
 ```
@@ -713,7 +724,7 @@ cases(({ set, each }) => {
   set("env", each("stage", "prod"));
 });
 
-gamut(() => {
+survey(() => {
   cases(({ set, each }) => {
     set("name", each("pencils", "pens"));
   });
@@ -743,7 +754,7 @@ There are many utilities defining transforms of the test case(s):
     defi("env", each("stage", "prod"), "local");
   });
 
-  gamut("%env", () => {
+  survey("%env", () => {
     cases(({ set, each }) => {
       set("name", each("pencils", "pens"));
     });

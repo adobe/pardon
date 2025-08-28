@@ -32,7 +32,7 @@ import {
 } from "../../core/types.js";
 import { isStubSchema, stubSchema } from "./stub.js";
 import { RedactedOps } from "./redact.js";
-import { isFlowExport, isOptional, isRequired, isSecret } from "../hinting.js";
+import { isExport, isOptional, isRequired, isSecret } from "../hinting.js";
 import {
   convertScalar,
   Scalar,
@@ -79,8 +79,8 @@ export type ReferenceSchematic<T> = Schematic<T> & {
   readonly $required: ReferenceSchematic<T>;
   readonly $secret: ReferenceSchematic<T>;
   readonly $optional: ReferenceSchematic<T>;
-  readonly $flow: ReferenceSchematic<T>;
-  readonly $muddle: ReferenceSchematic<T>;
+  readonly $export: ReferenceSchematic<T>;
+  readonly $distinct: ReferenceSchematic<T>;
   readonly $string: ReferenceSchematic<string>;
   readonly $bool: ReferenceSchematic<boolean>;
   readonly $boolean: ReferenceSchematic<boolean>;
@@ -116,8 +116,8 @@ const hints = {
   $secret: "@",
   $optional: "?",
   $required: "!",
-  $muddle: "~",
-  $flow: "+",
+  $distinct: "~",
+  $export: "+",
 };
 
 export function referenceTemplate<T = unknown>(
@@ -287,6 +287,13 @@ export function defineReference<T = unknown>(
   const reference = defineSchema<T>({
     merge(context) {
       const info = extractReference(context);
+      const verifying =
+        context.mode === "match" && context.phase === "validate";
+
+      if (verifying && !info && isRequired({ hint })) {
+        diagnostic(context, `missing value for ${[...refs].join("/")}`);
+        return undefined;
+      }
 
       if (info) {
         const { ref } = info;
@@ -593,7 +600,16 @@ export function defineReference<T = unknown>(
         }
 
         const declaration = context.evaluationScope.lookupDeclaration(ref);
-        const rendered = await declaration?.rendered?.({
+
+        if (!declaration) {
+          continue;
+        }
+
+        if (context.mode !== "render" && declaration.expression) {
+          return `{{ ${hint}${ref} = ${declaration.expression} }}`;
+        }
+
+        const rendered = await declaration.rendered?.({
           ...context,
           cycles: new Set(context.cycles).add(key),
         });
@@ -607,7 +623,7 @@ export function defineReference<T = unknown>(
 
     const defined = defineRenderedReferenceValue(context, result as T);
 
-    if (context.mode === "prerender" && isFlowExport(referenceInfo)) {
+    if (context.mode === "prerender" && isExport(referenceInfo)) {
       return undefined;
     }
 

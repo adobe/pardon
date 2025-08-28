@@ -46,14 +46,14 @@ export function isNoExport({ hint }: Hinting = {}) {
   return hint?.includes("-");
 }
 
-// signals a reference can meld with another reference in a
+// signals a reference should not merge with differently-named references in a
 // keyed context.
-export function isMelding({ hint }: Hinting = {}) {
+export function isDistinct({ hint }: Hinting = {}) {
   return hint?.includes("~");
 }
 
-// propagates values to flow context
-export function isFlowExport({ hint }: Hinting = {}) {
+// marks values as output
+export function isExport({ hint }: Hinting = {}) {
   return hint?.includes("+");
 }
 

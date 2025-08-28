@@ -33,11 +33,11 @@ export {
   type CaseContext,
 } from "../core/testcases/index.js";
 
-export { cases, gamut, trial } from "./testing.js";
+export { cases, survey, trial } from "./testing.js";
 export {
   flushTrialRegistry,
   runRegistrationTask,
-  withGamutConfiguration,
+  withSurveyConfiguration,
 } from "../entry/testing/trial.js";
 export {
   applySmokeConfig,

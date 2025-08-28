@@ -63,11 +63,11 @@ export async function flushTrialRegistry(
     .splice(0, trialRegistry.length)
     .map(({ name, descriptions, definition }) => ({
       descriptions: [
-        configuration.opening,
+        configuration.setup,
         ...descriptions,
         ({ set, format, fun }) => {
           const testcaseFormat = join(
-            ...[configuration.gamut, ...name].filter(Boolean),
+            ...[configuration.prefix, ...name].filter(Boolean),
           );
 
           set("testcase", format(testcaseFormat));
@@ -89,7 +89,7 @@ const gamutHolder = new AsyncLocalStorage<{
   descriptions: TestcaseDescription[];
 }>();
 
-export function withGamutConfiguration<T>(callback: () => T) {
+export function withSurveyConfiguration<T>(callback: () => T) {
   return gamutHolder.run(
     {
       name: [],
@@ -112,7 +112,7 @@ export function cases(description: Parameters<typeof describeCases>[0]) {
         throw new Error("cases.trial invoked late");
       }
 
-      gamut(() => {
+      survey(() => {
         cases(description);
         trial(...args);
       });
@@ -143,21 +143,21 @@ function withCases(
   );
 }
 
-export function gamut(gamutDefinition: () => void | Promise<void>): void;
-export function gamut(
+export function survey(surveyDefinition: () => void | Promise<void>): void;
+export function survey(
   nameFormat: string,
-  gamutDefinition: () => void | Promise<void>,
+  surveyDefinition: () => void | Promise<void>,
 ): void;
-export function gamut(
-  nameOrGamutDefinition?: string | { (): void | Promise<void> },
-  gamutDefinition?: () => void | Promise<void>,
+export function survey(
+  nameOrSurveyDefinition?: string | { (): void | Promise<void> },
+  surveyDefinition?: () => void | Promise<void>,
 ) {
-  if (gamutDefinition) {
-    return withCases(nameOrGamutDefinition as string, gamutDefinition);
+  if (surveyDefinition) {
+    return withCases(nameOrSurveyDefinition as string, surveyDefinition);
   } else {
     return withCases(
       undefined,
-      nameOrGamutDefinition as () => void | Promise<void>,
+      nameOrSurveyDefinition as () => void | Promise<void>,
     );
   }
 }

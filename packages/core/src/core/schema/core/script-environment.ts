@@ -128,8 +128,12 @@ export class ScriptEnvironment implements SchemaScriptEnvironment {
 
     this.resolvedDefaults = resolvedDefaults;
 
-    this.evaluator = (identifier, context) =>
-      runtime?.[identifier.root] ?? evaluate?.(identifier.root, context);
+    this.evaluator = (identifier, context) => {
+      const runtimeValue = runtime?.[identifier.root];
+      return runtimeValue !== undefined
+        ? runtimeValue
+        : evaluate?.(identifier.root, context);
+    };
 
     this.redactor = redact;
     this.expression = express;

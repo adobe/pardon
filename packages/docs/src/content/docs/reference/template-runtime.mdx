@@ -55,9 +55,9 @@ Reference template objects support various (chainable) operations, such as varia
 | `ref.$optional` | same as `ref.$hint('?') -- allow this value to be missing when rendering |
 | `ref.$secret` | same as `ref.$hint('@') -- redacts this variable in non-secret contexts |
 | `ref.$required` | same as `ref.$hint('!') -- ensures this value is present when matching |
-| `ref.$flow` | same as `ref.$hint('+') -- signals this variable for further use |
+| `ref.$export` | same as `ref.$hint('+') -- signals this variable for further use |
 | `ref.$noexport` | same as `ref.$hint('-') -- does not export this variable |
-| `ref.$muddle` | same as `ref.$hint('~') -- merges refs in keyed/multivalue contexts |
+| `ref.$distinct` | same as `ref.$hint('~') -- distinguishes a ref in keyed/multivalue contexts |
 </div>
 
 References also support typing hints
@@ -147,8 +147,8 @@ Other syntax transformations are available to support representing structures an
 | `123` | `$$number('123')` |
 | `ref!` | `$required(ref)` |
 | `-ref` | `$noexport(ref)` |
-| `+ref` | `$flow(ref)` |
-| `~ref` | `$muddle(ref)` |
+| `+ref` | `$export(ref)` |
+| `~ref` | `$distinct(ref)` |
 </div>
 
 In addition, `/` can be used to apply template decoration functions.

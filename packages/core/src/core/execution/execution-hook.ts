@@ -94,13 +94,15 @@ type ExtendedExecutionHooks<
             context: Context & ContextExtension;
             match: Match;
             egress: Egress;
-            ingress: Ingress;
+            ingress?: Ingress;
+            error?: any;
           },
           next: (info: {
             context: Context;
             match: Match;
             egress: Egress;
-            ingress: Ingress;
+            ingress?: Ingress;
+            error?: any;
           }) => Promise<Result>,
         ): Promise<Result>;
 
@@ -108,7 +110,8 @@ type ExtendedExecutionHooks<
           context: Context & ContextExtension;
           match: Match;
           egress: Egress;
-          ingress: Ingress;
+          ingress?: Ingress;
+          error?: any;
           result: Result;
         }): void | Promise<void>;
 

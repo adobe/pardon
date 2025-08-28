@@ -190,14 +190,12 @@ function defineObject<M extends Record<string, unknown>>(
       const rendered = (await mapObjectAsync(
         inflated as Record<string, Schema<M[keyof M]>>,
         {
-          async values(field, key) {
-            const fieldValue = await executeOp(
+          values(field, key) {
+            return executeOp(
               field,
               "render",
               fieldContext(context, scoped, key) as SchemaRenderContext,
             );
-
-            return fieldValue;
           },
           filter(_key, mapped) {
             return mapped !== undefined;

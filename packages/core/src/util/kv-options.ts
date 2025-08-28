@@ -16,12 +16,15 @@ function simpleKV(arg: string) {
 
   if (match) {
     const [, field, value] = match;
-    return [field, value];
+    return [field, value] as const;
   }
 }
 
-export function extractKVs(args: string[], permissive?: boolean) {
-  const map: Record<string, unknown> = {};
+export function extractKVs(
+  args: string[],
+  permissive?: boolean,
+): (readonly [string, unknown])[] {
+  const kvs: (readonly [string, unknown])[] = [];
 
   for (let i = 0; i < args.length; i++) {
     try {
@@ -31,7 +34,7 @@ export function extractKVs(args: string[], permissive?: boolean) {
 
       if (data) {
         args.splice(i--, 1);
-        Object.assign(map, data);
+        kvs.push(Object.entries(data)[0]);
       }
     } catch (error) {
       // since this is a commandline,
@@ -44,12 +47,12 @@ export function extractKVs(args: string[], permissive?: boolean) {
 
       if (kv) {
         args.splice(i--, 1);
-        map[kv[0]] = kv[1];
+        kvs.push(kv);
       }
     }
   }
 
-  return map;
+  return kvs;
 }
 
 function decode(token: string) {

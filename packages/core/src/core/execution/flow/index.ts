@@ -11,9 +11,8 @@ governing permissions and limitations under the License.
 */
 
 import { disarm } from "../../../util/promise.js";
-import { PardonError } from "../../error.js";
-import { FlowName } from "../../formats/https-fmt.js";
-import type { FlowContext } from "./data/flow-context.js";
+import { FlowName, HTTPS, HttpsFlowScheme } from "../../formats/https-fmt.js";
+import type { FlowContext } from "./flow-context.js";
 import {
   Flow,
   currentFlowContext,
@@ -22,6 +21,7 @@ import {
   FlowFunction,
   FlowParams,
 } from "./flow-core.js";
+import { compileHttpsFlow, executeHttpsFlowInContext } from "./https-flow.js";
 export type {
   FlowParam,
   FlowParamsDict,
@@ -48,8 +48,43 @@ export function flow(
   name: FlowName,
   input?: Record<string, unknown>,
   context?: FlowContext,
+): Promise<Record<string, any>>;
+export function flow(
+  input?: Record<string, unknown>,
+  context?: FlowContext,
+): (
+  template: TemplateStringsArray,
+  ...args: any
+) => Promise<Record<string, any>>;
+export function flow(
+  nameOrInput: FlowName | Record<string, unknown> | undefined,
+  ...args: any
 ) {
-  return disarm(flowHook(__flow(name, input, context)));
+  if (typeof nameOrInput === "string") {
+    const [input, context] = args;
+    return disarm(flowHook(__flow(nameOrInput, input, context)));
+  }
+
+  const [context] = args;
+
+  return (template: TemplateStringsArray, ...args: any) => {
+    const content = String.raw({ raw: template }, ...args);
+
+    const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
+    scheme.configuration ??= {};
+    scheme.configuration.context ??= Object.keys(nameOrInput ?? {});
+
+    const flow = compileHttpsFlow(scheme, {
+      path: "inline",
+      name: "inline.flow",
+    });
+
+    return disarm(
+      flowHook(runFlow(flow, nameOrInput ?? {}, context)).then(
+        ({ result }) => result,
+      ),
+    );
+  };
 }
 
 async function __flow(
@@ -58,20 +93,10 @@ async function __flow(
   context?: FlowContext,
 ) {
   context ??= await currentFlowContext(context);
-  const { result } = await executeFlowInContext(name, input ?? {}, context);
+  const { result } = await executeHttpsFlowInContext(
+    name,
+    input ?? {},
+    context,
+  );
   return result;
-}
-
-export function executeFlowInContext(
-  name: FlowName,
-  input: Record<string, unknown>,
-  context: FlowContext,
-) {
-  const flow = context.runtime.collection.flows[name];
-
-  if (!flow) {
-    throw new PardonError(`no flow named ${name}`);
-  }
-
-  return runFlow(flow, input, context);
 }

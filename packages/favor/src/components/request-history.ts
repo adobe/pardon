@@ -22,6 +22,7 @@ import {
 import { persistJson } from "../util/persistence.ts";
 import localforage from "localforage";
 import { setSecureData } from "./secure-data.ts";
+import { recv } from "pardon/utils";
 
 export type Trace = {
   trace: number;
@@ -78,7 +79,7 @@ createRoot(() => {
       onRenderComplete(trace, { secure, ...render }) {
         setSecureData((data) => ({
           ...data,
-          [trace]: { ...data[trace], ...secure },
+          [trace]: { ...data[trace], ...recv(secure) },
         }));
 
         setTraces((traces) => {
@@ -87,7 +88,7 @@ createRoot(() => {
             ...traces,
             [trace]: {
               ...thisTrace,
-              render,
+              render: recv(render),
               tlr: thisTrace?.tlr || Number(activeTrace()) == Number(trace),
             },
           };
@@ -102,13 +103,13 @@ createRoot(() => {
       onResult(trace, { secure, ...result }) {
         setSecureData((data) => ({
           ...data,
-          [trace]: { ...data[trace], ...secure },
+          [trace]: { ...data[trace], ...recv(secure) },
         }));
 
         setTraces((traces) => {
           const combinedTraces = {
             ...traces,
-            [trace]: { ...traces[trace], result },
+            [trace]: { ...traces[trace], result: recv(result) },
           };
 
           setHistory(() => ({
@@ -123,7 +124,7 @@ createRoot(() => {
           if (record?.render) {
             const combinedTraces = {
               ...traces,
-              [trace]: { ...record, error },
+              [trace]: { ...record, error: recv(error) },
             };
 
             setHistory(() => ({

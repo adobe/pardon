@@ -13,19 +13,23 @@ import { type Alternation, type Generation, reputed } from "./core.js";
 
 import { set } from "./set.js";
 
+// formats %% as %, -- as -, and %hypenated keys
 function formatter(format: Format): FormatFn {
   if (typeof format === "function") {
     return format;
   }
 
   return (env) =>
-    format.replace(/%([a-z_]+)%?|%%/gi, (match, key) => {
-      if (match === "%%") {
-        return "%";
-      }
+    format.replace(
+      /%([a-z0-9_]+)|%\{([^{}]+)\}|%\(([^()]+)\)|%%/gi,
+      (match, key, bkey, pkey) => {
+        if (match === "%%") {
+          return "%";
+        }
 
-      return String(env[key]);
-    });
+        return String(env[pkey ?? bkey ?? key]);
+      },
+    );
 }
 
 type FormatFn = (env: Record<string, any>) => string;

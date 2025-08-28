@@ -277,7 +277,8 @@ fi({ x: each("a", "b", "c") });
 `defi` defines values to some set, and also filters the values to not be outside
 of that set.
 
-i.e.,
+It can be used to restrict an input to one or more known values while also
+providing a value or alternation of values if none are set.
 
 ```js
 defi({ env: each("stage", "prod") });
@@ -306,6 +307,22 @@ not filtered out.
 set({ env: each("stage", "local") });
 defi({ env: each("stage", "prod") }, { env: "local" });
 // { env: "stage" }
+// { env: "local" }
+```
+
+You can also uses it in a key/default/allowed format:
+
+```js
+defi("env", "stage", each("stage", "prod", "local"));
+// { env: "stage" }
+```
+
+Invalid values not in the allowed or defaults are removed.
+
+```js
+set({ env: each("prod", "local", "invalid") });
+defi("env", "stage", each("stage", "prod", "local"));
+// { env: "prod" }
 // { env: "local" }
 ```
 
