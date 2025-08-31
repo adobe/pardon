@@ -70,11 +70,7 @@ export default [
           preferBuiltins: true,
         }),
         ...(types
-          ? [
-              dts({
-                respectExternal: true,
-              }),
-            ]
+          ? [dts({})]
           : [
               esbuild({
                 exclude: ["tests/**", "ux/**", "node_modules/**"],
@@ -84,6 +80,11 @@ export default [
               }),
             ]),
       ],
-      external: ["better-sqlite3", "@types/better-sqlite3", "fsevents"],
+      external: [
+        "better-sqlite3",
+        "@types/better-sqlite3",
+        "fsevents",
+        "node:sqlite",
+      ],
     }),
 );

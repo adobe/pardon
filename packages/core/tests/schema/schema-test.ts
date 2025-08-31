@@ -22,6 +22,7 @@ import { Schema } from "../../src/core/schema/core/types.js";
 import { KV } from "../../src/core/formats/kv-fmt.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 import { merging } from "../../src/core/schema/core/contexts.js";
+import { bodyTemplate } from "../../src/core/request/https-template.js";
 
 async function compose(
   testname: string,
@@ -32,7 +33,26 @@ async function compose(
 
   const templates = formatted.split("\n---\n");
 
-  const { [KV.unparsed]: first, ...input } = templates[0].trim().startsWith("{")
+  const testmeta: Record<string, string> = {};
+  const firstTemplateLines = templates[0].split("\n");
+  for (;;) {
+    if (!firstTemplateLines[0].trim()) {
+      firstTemplateLines.shift();
+      continue;
+    }
+
+    const [, k, v] =
+      /\s*\[\s*([a-z]+)\s*\]\s*:\s*(.*)$/.exec(firstTemplateLines[0]) ?? [];
+    if (!k) {
+      break;
+    }
+    firstTemplateLines.shift();
+    testmeta[k] = v;
+  }
+
+  templates[0] = firstTemplateLines.join("\n").trim();
+
+  const { [KV.unparsed]: first, ...input } = templates[0].startsWith("{")
     ? { [KV.unparsed]: templates[0] }
     : KV.parse(templates[0], "stream");
   templates[0] = first ?? "";
@@ -52,12 +72,13 @@ async function compose(
     ));
   }
 
-  const merged = templates.reduce<Schema<string>>(
+  const merged = templates.reduce<Schema<string | undefined>>(
     (schema, template, index) => {
       const merge = mergeSchema(
         {
           mode: "merge",
           phase: index === templates.length - 1 ? "validate" : "build",
+          body: "json",
         },
         schema,
         template,
@@ -68,7 +89,7 @@ async function compose(
       }
       throw merge.error || merge.context!.diagnostics?.[0] || merge;
     },
-    merging(jsonEncoding(undefined))!,
+    merging(testmeta.schema === "body" ? bodyTemplate() : jsonEncoding())!,
   );
 
   const {
@@ -125,6 +146,7 @@ function templating(
 ) => void {
   return (...args) =>
     (expect) => {
+      // if (testname !== "match string number") return;
       const action =
         mode === "only" ? it["only"] : mode === "skip" ? it["skip"] : it;
       action(
@@ -269,7 +291,7 @@ templating("optional-interpolated")`
 {}
 `();
 
-templating.only("optional-interpolated-as-type")`
+templating("optional-interpolated-as-type")`
 {
   x: "{{?x}}" as boolean
 }
@@ -278,7 +300,7 @@ templating.only("optional-interpolated-as-type")`
 {}
 `();
 
-templating.only("optional-interpolated-as-type-2")`
+templating("optional-interpolated-as-type-2")`
 {
   x: x as optional | boolean
 }
@@ -1580,4 +1602,14 @@ templating("cast-ref-with-expr")`
 ---
 z=1
 { x: "1", y: "1" }
+`();
+
+templating("text-and-json")`
+[schema]: body
+text("{{json}}")
+---
+{}
+---
+json='{}'
+{}
 `();

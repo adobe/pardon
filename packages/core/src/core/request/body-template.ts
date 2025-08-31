@@ -94,7 +94,7 @@ export const encodings = {
             encoding === "text" ||
             exposeSchematic<ReferenceSchematicOps<string>>(template).reference
           ) {
-            return textTemplate(value);
+            return value;
           }
         }
 
@@ -169,7 +169,7 @@ export function getContentEncoding(encoding: InternalEncodingTypes) {
   return encodings[encoding]!;
 }
 
-export function jsonEncoding(template?: Template<unknown>): Template<string> {
+export function jsonEncoding(template?: Template<unknown>): Schematic<string> {
   return encodingTemplate(jsonEncodingType, template);
 }
 
@@ -212,13 +212,24 @@ export const jsonEncodingType: EncodingType<string, unknown> = {
       return undefined;
     }
 
-    if (context.environment.option("pretty-print")) {
-      return KV.stringify(output, {
-        indent: 2,
-        limit: 80,
-        mode: "json",
-        split: true,
-      });
+    const prettyPrint = context.environment.option("pretty-print");
+
+    if (prettyPrint) {
+      if (typeof prettyPrint === "function") {
+        return prettyPrint(output, context);
+      }
+
+      return KV.stringify(
+        output,
+        typeof prettyPrint === "object"
+          ? prettyPrint
+          : {
+              indent: 2,
+              limit: typeof prettyPrint === "number" ? prettyPrint : 80,
+              mode: "json",
+              split: true,
+            },
+      );
     }
 
     return JSON.stringify(output, null, 0);

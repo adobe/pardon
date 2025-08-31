@@ -21,7 +21,6 @@ import {
 } from "./collection-types.js";
 import {
   HTTPS,
-  HttpsFlowScheme,
   HttpsSchemeType,
   HttpsTemplateConfiguration,
   HttpsTemplateScheme,
@@ -36,7 +35,6 @@ import {
 } from "../runtime/init/workspace.js";
 import { PardonError } from "../core/error.js";
 import { expandConfigMap } from "../core/schema/core/config-space.js";
-import { compileHttpsFlow } from "../core/execution/flow/https-flow.js";
 import { JSON } from "../core/raw-json.js";
 
 type CollectionLayer = {
@@ -250,9 +248,6 @@ export function buildCollection(
         break;
       case "script":
         addScript({ collection, id });
-        break;
-      case "flow":
-        addFlow({ collection, id });
         break;
       case "unknown":
         // console.warn(`unknown asset: ${id}`);
@@ -640,20 +635,6 @@ function addScript({
     scripts.identities[path] = `${id}?${resolution.length}`;
     resolution.push({ path, content });
   }
-}
-
-function addFlow({
-  collection: { assets, flows },
-  id,
-}: {
-  collection: PardonCollection;
-  id: string;
-}) {
-  const { sources } = assets[id];
-
-  const { content, path } = sources.slice(-1)[0];
-  const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
-  flows[id] = compileHttpsFlow(scheme, { path, name: id });
 }
 
 function loadConfig(

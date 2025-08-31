@@ -15,6 +15,7 @@ import CodeMirror, { type CodeMirrorProps } from "./codemirror/CodeMirror.tsx";
 import { extractKVs, intoArgs } from "pardon/formats";
 
 import * as ArgumentParsing from "@pkgjs/parseargs";
+import { arrayIntoObject } from "pardon/utils";
 const { parseArgs } = ArgumentParsing;
 
 type Values = Record<string, unknown>;
@@ -64,7 +65,9 @@ export default function ValuesInput<
     on(value, (value) => {
       try {
         const args = intoArgs(value);
-        const data = extractKVs(args, true);
+        const data = arrayIntoObject(extractKVs(args, true), ([k, v]) => ({
+          [k]: v,
+        }));
 
         if (props.config) {
           const result = parseArgs({

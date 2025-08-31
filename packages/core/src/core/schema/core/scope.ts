@@ -731,7 +731,7 @@ export function indexChain(scope: EvaluationScope | undefined) {
   return chain;
 }
 
-function fuzzyMatch(value: any, other: any) {
+export function fuzzyMatch(value: any, other: any) {
   return (
     other === value ||
     (isScalar(other) && isScalar(value) && String(other) === String(value)) ||

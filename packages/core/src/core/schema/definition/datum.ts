@@ -40,7 +40,7 @@ import {
   evaluateIdentifierWithExpression,
 } from "../core/evaluate.js";
 import { isMergingContext } from "../core/schema.js";
-import { isLookupValue } from "../core/scope.js";
+import { fuzzyMatch, isLookupValue } from "../core/scope.js";
 import {
   ExpressionDeclaration,
   Schema,
@@ -53,9 +53,11 @@ import {
 import {
   defineSchema,
   defineSchematic,
+  executeOp,
   exposeSchematic,
   isSchema,
   isSchematic,
+  merge,
 } from "../core/schema-ops.js";
 import {
   diagnostic,
@@ -75,8 +77,9 @@ import { uniqReducer } from "../../../util/uniq-reducer.js";
 import { JSON } from "../../raw-json.js";
 import { KV } from "../../formats/kv-fmt.js";
 
-type DatumRepresentation = {
+type DatumRepresentation<T extends Scalar> = {
   patterns: Pattern[];
+  schema: Schema<T> | undefined;
   type?: ScalarType;
   custom?: PatternBuilding;
   unboxed?: boolean;
@@ -88,9 +91,9 @@ const defaultScalarBuilding: PatternBuilding = {
 
 function mergeRepresentation<T extends Scalar>(
   context: SchemaMergingContext<T>,
-  rep: DatumRepresentation,
+  rep: DatumRepresentation<T>,
   info?: DatumSchematicInfo<T>,
-): DatumRepresentation | undefined {
+): DatumRepresentation<T> | undefined {
   const verifying = context.mode === "match" && context.phase === "validate";
 
   if (info === undefined && !verifying) {
@@ -102,6 +105,7 @@ function mergeRepresentation<T extends Scalar>(
   const custom = rep.custom ?? info?.custom;
   const type = rep.type ?? info?.type;
   const unboxed = rep.unboxed || info?.unboxed;
+  let schema = rep.schema;
 
   if (template === undefined) {
     if (
@@ -114,6 +118,17 @@ function mergeRepresentation<T extends Scalar>(
       diagnostic(context, "missing required value");
       return;
     }
+  } else if (!isScalar(template)) {
+    const merged = rep.schema
+      ? merge(rep.schema, context)
+      : context.expand(template);
+
+    if (!merged) {
+      diagnostic(context, "could not merge into datum");
+      return undefined;
+    }
+
+    schema = merged;
   } else {
     const source = String(template);
 
@@ -168,17 +183,24 @@ function mergeRepresentation<T extends Scalar>(
 
   return {
     custom,
+    schema,
     patterns,
     type,
     unboxed,
   };
 }
 
-function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
+function defineScalar<T extends Scalar>(
+  self: DatumRepresentation<T>,
+): Schema<T> | undefined {
   return defineSchema<T>({
     scope(context) {
       const { evaluationScope: scope } = context;
       const { patterns } = self;
+
+      if (self.schema) {
+        executeOp(self.schema, "scope", context);
+      }
 
       // only consider expressions for the last-merged expressive definition.
       const exprPattern = patterns?.find(isPatternExpressive);
@@ -388,19 +410,19 @@ function defineScalar<T extends Scalar>(self: DatumRepresentation): Schema<T> {
   });
 }
 
-function renderScalar<T>(
+function renderScalar<T extends Scalar>(
   context: SchemaRenderContext,
-  self: DatumRepresentation,
+  self: DatumRepresentation<T>,
 ): Exclude<T, undefined> | Promise<T | undefined> {
   return doRenderScalar(context, self);
 }
 
 function resolveScalar<T extends Scalar>(
   context: SchemaContext<T>,
-  self: DatumRepresentation,
+  self: DatumRepresentation<T>,
   forScope?: boolean,
 ): T | undefined {
-  const { patterns, unboxed, type } = self;
+  const { patterns, unboxed, type, schema } = self;
 
   const configuredPatterns =
     context.mode === "render" ||
@@ -419,6 +441,23 @@ function resolveScalar<T extends Scalar>(
   }
 
   let result = resolveDefinedPattern(context, configuredPatterns);
+
+  const schemaResolution = schema?.().resolve?.(context);
+
+  if (schemaResolution !== undefined) {
+    if (result === undefined) {
+      result = schemaResolution;
+    } else {
+      if (!fuzzyMatch(result, schemaResolution)) {
+        if (context.mode === "render") {
+          throw diagnostic(
+            context,
+            `resolve: patterns and schema resolve differently`,
+          );
+        }
+      }
+    }
+  }
 
   if (result !== undefined) {
     result = convertScalar(result, type, { unboxed }) as T;
@@ -440,9 +479,9 @@ function resolveScalar<T extends Scalar>(
   }
 }
 
-async function doRenderScalar<T>(
+async function doRenderScalar<T extends Scalar>(
   context: SchemaRenderContext,
-  self: DatumRepresentation,
+  self: DatumRepresentation<T>,
 ): Promise<T | undefined> {
   const { mode, environment } = context;
   const { type, unboxed } = self;
@@ -482,20 +521,22 @@ async function doRenderScalar<T>(
 
   let result: unknown | undefined;
 
-  // if there's a pattern which is already defined, we can evaluate it
-  const definition = resolveDefinedPattern(context, patterns);
-
-  if (definition !== undefined) {
-    result = convertScalar(definition, type, { unboxed });
-  }
-
   if (mode === "render" || mode === "prerender" || mode === "postrender") {
-    if (result === undefined) {
-      result = convertScalar(
-        (await evaluateScalar(context, patterns as PatternRegex[])) as Scalar,
-        type,
-        { unboxed },
-      );
+    const schemaResult =
+      self.schema && (await executeOp(self.schema, "render", context));
+
+    result = convertScalar(
+      (await evaluateScalar(context, patterns as PatternRegex[])) as Scalar,
+      type,
+      { unboxed },
+    );
+
+    if (schemaResult !== undefined) {
+      if (result === undefined) {
+        result = schemaResult;
+      } else if (!fuzzyMatch(schemaResult, result)) {
+        throw diagnostic(context, "schema and pattern conflict");
+      }
     }
 
     if (result === undefined) {
@@ -540,9 +581,9 @@ async function doRenderScalar<T>(
   }) as Promise<T> | T;
 }
 
-async function renderAndLookup(
+async function renderAndLookup<T extends Scalar>(
   context: SchemaRenderContext,
-  self: DatumRepresentation,
+  self: DatumRepresentation<T>,
   param: string,
 ) {
   await renderScalar(context, self);
@@ -558,7 +599,7 @@ async function renderAndLookup(
 
 function resolveAndLookup<T extends Scalar>(
   context: SchemaContext<T>,
-  self: DatumRepresentation,
+  self: DatumRepresentation<T>,
   param: string,
 ) {
   if (resolveScalar(context, self) === undefined) {
@@ -787,7 +828,7 @@ type DatumSchematicOps<T> = SchematicOps<T> & {
 function extractDatumInfo<T>(
   context: SchemaMergingContext<T>,
 ): DatumSchematicInfo<T> | undefined {
-  const template = context.template;
+  const { template } = context;
 
   if (isSchema(template)) {
     throw diagnostic(
@@ -799,14 +840,9 @@ function extractDatumInfo<T>(
   if (isSchematic(template)) {
     const ops = exposeSchematic<DatumSchematicOps<T>>(template);
 
-    if (!ops.datum) {
-      throw diagnostic(
-        context,
-        `merge scalar with unknown schematic (${Object.keys(ops).join("/")})`,
-      );
+    if (ops.datum) {
+      return ops.datum(context);
     }
-
-    return ops.datum(context);
   }
 
   return template === undefined
@@ -892,6 +928,7 @@ export function datumTemplate<T extends Scalar>(
         context,
         {
           patterns: [],
+          schema: undefined,
         },
         {
           template,

@@ -10,10 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { ScriptEnvironment } from "../core/schema/core/script-environment.js";
+import {
+  ScriptEnvironment,
+  ScriptOptions,
+} from "../core/schema/core/script-environment.js";
 
 export type { Schema, Template } from "../core/schema/core/types.js";
 export { jsonEncoding as json } from "../core/request/body-template.js";
+export { bodyTemplate as body } from "../core/request/https-template.js";
 export { scalars } from "../core/schema/definition/index.js";
 export { expandTemplate } from "../core/schema/template.js";
 export {
@@ -22,10 +26,12 @@ export {
 } from "../core/schema/core/schema-utils.js";
 export { stubSchema as seed } from "../core/schema/definition/structures/stub.js";
 
-export function createScriptEnvironment(options: {
+export function createScriptEnvironment({
+  values: input = {},
+  options,
+}: {
   values?: Record<string, any>;
-}) {
-  return new ScriptEnvironment({
-    input: options?.values ?? {},
-  });
+  options?: ScriptOptions;
+} = {}) {
+  return new ScriptEnvironment({ input, options });
 }

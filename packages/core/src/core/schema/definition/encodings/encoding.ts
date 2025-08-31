@@ -15,6 +15,7 @@ import {
   Schema,
   SchemaMergingContext,
   SchemaRenderContext,
+  Schematic,
   SchematicOps,
   Template,
 } from "../../core/types.js";
@@ -57,7 +58,7 @@ function decode<T, S>(
       if (ops.encoding().as === encoding.as && !isSchematic(ops.template!())) {
         return {
           ...context,
-          template: encoding.decode({
+          template: ops.encoding().decode({
             ...context,
             template: ops.template!() as T,
           }),
@@ -83,7 +84,7 @@ export function encodingTemplate<T, S>(
   encoding: EncodingType<T, S>,
   template?: Template<S>,
   source?: NoInfer<S>,
-): Template<T> {
+): Schematic<T> {
   return templateSchematic(
     (context) => {
       let inner: Schema<S> | undefined = context.expand(template);

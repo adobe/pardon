@@ -99,11 +99,10 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   if (
     ts.isBinaryExpression(currentNode) &&
     currentNode.operatorToken.kind === SyntaxKind.PercentToken &&
-    ts.isNonNullExpression(currentNode.left) &&
     ts.isRegularExpressionLiteral(currentNode.right)
   ) {
     return factory.createStringLiteral(
-      `{{ !${identifierOf(currentNode.left.expression, factory)} % ${currentNode.right.text} }}`,
+      `{{ ${identifierOf(currentNode.left, factory)} % ${currentNode.right.text} }}`,
     );
   }
 
@@ -471,7 +470,10 @@ function identifierOf(node: ts.Expression, factory: ts.NodeFactory) {
   const hints = new Set<string>();
 
   while (!isReferenceRoot(node)) {
-    if (ts.isPropertyAccessExpression(node)) {
+    if (ts.isNonNullExpression(node)) {
+      node = node.expression;
+      hints.add("!");
+    } else if (ts.isPropertyAccessExpression(node)) {
       const name = node.name.text;
 
       if (name.startsWith("$hint(") && name.endsWith(")")) {
@@ -602,7 +604,7 @@ function binaryExpression(
     }
     case SyntaxKind.PercentEqualsToken:
       if (ts.isRegularExpressionLiteral(currentNode.right)) {
-        const pattern = `{{ ${identifierOf(currentNode.left, factory)} = % ${currentNode.right.text} }}`;
+        const pattern = `{{ ${identifierOf(currentNode.left, factory)} % ${currentNode.right.text} }}`;
         return factory.createStringLiteral(pattern);
       }
       break;

@@ -10,6 +10,7 @@ import {
 import {
   createScriptEnvironment,
   json,
+  body,
   merge,
   render,
   seed,
@@ -32,7 +33,7 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
   const jsonSchema = merge(
     { mode: "merge", phase: "build" },
     seed(),
-    json(),
+    body(),
   ).schema!;
 
   function parseAndMerge(
@@ -111,21 +112,28 @@ export default function TemplatePlayground(props: ParentProps<{}>) {
         return { output: `error: ${loc} ${err}` };
       }
 
-      const result = await render(schema, createScriptEnvironment({ values }));
+      const result = await render(
+        schema,
+        createScriptEnvironment({
+          values,
+          options(key) {
+            if (key === "pretty-print") {
+              return {
+                limit: 50,
+                indent: 2,
+                mode: "json",
+              };
+            }
+          },
+        }),
+      );
 
       if (result.context?.diagnostics.length) {
         return { output: String(result.context.diagnostics[0]) };
       }
 
       return {
-        output:
-          (result.output?.trim() &&
-            KV.stringify(JSON.parse(result.output), {
-              limit: 50,
-              indent: 2,
-              mode: "json",
-            })) ??
-          "",
+        output: result.output,
         values: KV.stringify(result.context.evaluationScope.resolvedValues(), {
           indent: 2,
           limit: 60,

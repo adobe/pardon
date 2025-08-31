@@ -11,6 +11,7 @@ governing permissions and limitations under the License.
 */
 import { arrayIntoObject } from "../../../util/mapping.js";
 import { re } from "../../../util/re.js";
+import { PardonError } from "../../error.js";
 import { JSON } from "../../raw-json.js";
 
 export type Pattern = PatternLiteral | PatternRegex;
@@ -77,13 +78,9 @@ const dquote = /["](?:(?:[^"\\]|[\\].)*)["]/;
 function parseRex(rex?: string) {
   if (!rex) return;
 
-  const [, re, flags] = /^[/](.*)[/]([imsg]*)$/.exec(rex.trim())!;
+  const [, re, flags] = /^[/](.*)[/]([dgimsuvy]*)$/.exec(rex.trim())!;
 
-  if (flags) {
-    throw new Error("pattern regex flags are unsupported");
-  }
-
-  return new RegExp(re, flags);
+  return new RegExp(re, [...new Set([...(flags ?? [])])].sort().join(""));
 }
 
 const exprMatcher = re`[$][$]expr[(](${dquote})[)]`;
@@ -160,11 +157,20 @@ export function patternize(
   });
 
   const patterns: string[] = [];
+  let flags: string | undefined;
 
   function build(index: number, ...args: Parameters<PatternMaker>) {
     const pattern = vars[index].re ?? building.re(...args);
     const rex = typeof pattern === "string" ? pattern : pattern.source;
     patterns.push(rex);
+
+    if (pattern instanceof RegExp) {
+      if (flags === undefined) {
+        flags = pattern.flags;
+      } else if (flags !== pattern.flags) {
+        throw new PardonError("incompatible regex flags in pattern: " + source);
+      }
+    }
 
     return rex;
   }
@@ -181,7 +187,7 @@ export function patternize(
           suffix: source.slice(index + matchlen),
         })})`,
     })})$`,
-    "m",
+    flags,
   );
 
   return {
@@ -220,7 +226,7 @@ export function patternize(
             return `(${pattern})`;
           },
         })})$`,
-        "m",
+        flags,
       );
     },
 

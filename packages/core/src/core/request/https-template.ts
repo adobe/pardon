@@ -112,12 +112,9 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
         const matchTemplate =
           encoding === "json" ? JSON.parse(template) : template;
 
-        const merged = merge(schema ?? stubSchema(), {
-          ...context,
-          template: encodings[`$${encoding}`](matchTemplate),
-        });
+        const merged = context.expand(encodings[`$${encoding}`](matchTemplate));
 
-        return merged && bodySchema(merged);
+        return merged;
       }
 
       if (encoding && encoding !== "json") {
@@ -132,7 +129,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
         const merged = merge(schema ?? stubSchema(), encodedMergeContext);
 
         if (merged) {
-          return bodySchema(merged);
+          return merged;
         }
       }
 
@@ -154,7 +151,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
           });
 
           if (merged) {
-            return bodySchema(merged);
+            return merged;
           }
         }
       } catch (error) {
@@ -165,7 +162,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
       if (schema) {
         const merged = merge(schema, context);
         if (merged) {
-          return bodySchema(merged);
+          return merged;
         }
       }
 
@@ -177,7 +174,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
         });
 
         if (merged) {
-          return bodySchema(merged);
+          return merged;
         }
       }
     },
