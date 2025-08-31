@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { IncomingHttpHeaders, OutgoingHttpHeaders } from "node:http";
+import type { IncomingHttpHeaders, OutgoingHttpHeaders } from "node:http";
 
 export function createHeaders(
   headers?: Record<string, string> | [string, string][] | Headers,

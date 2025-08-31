@@ -20,7 +20,7 @@ import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { intoSearchParams } from "../../src/core/request/search-object.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
-import {
+import type {
   Schema,
   SchemaScriptEnvironment,
   Template,

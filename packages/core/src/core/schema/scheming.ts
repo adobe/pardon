@@ -14,9 +14,9 @@ import * as KeyedList from "./definition/structures/keyed-list.js";
 import { createMergingContext } from "./core/context.js";
 import { isLookupValue } from "./core/scope.js";
 import { objects } from "./definition/objects.js";
-import { arrays, ArraySchematicOps } from "./definition/arrays.js";
+import { type ArraySchematicOps, arrays } from "./definition/arrays.js";
 import { patternize } from "./core/pattern.js";
-import { ScopedOptions, defineScoped } from "./definition/scoped.js";
+import { type ScopedOptions, defineScoped } from "./definition/scoped.js";
 import { mapObject } from "../../util/mapping.js";
 import { PardonError } from "../error.js";
 import { diagnostic, loc } from "./core/context-util.js";
@@ -26,7 +26,7 @@ import {
   isSchematic,
   merge,
 } from "./core/schema-ops.js";
-import {
+import type {
   Schema,
   SchemaMergingContext,
   Schematic,
@@ -34,7 +34,7 @@ import {
   Template,
 } from "./core/types.js";
 import { merging } from "./core/contexts.js";
-import { ReferenceSchematicOps } from "./definition/structures/reference.js";
+import type { ReferenceSchematicOps } from "./definition/structures/reference.js";
 
 function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
   return (template: Template<T>) =>

@@ -16,13 +16,13 @@ import {
   createMergingContext,
   createRenderContext,
 } from "../../src/core/schema/core/context.js";
+import type { Schema } from "../../src/core/schema/core/types.js";
 import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
 import { base64Encoding } from "../../src/core/schema/definition/encodings/base64-encoding.js";
 import { deepStrictMatchEqual } from "../asserts.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { mergeSchema } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
-import { Schema } from "../../src/core/schema/core/types.js";
 import { merging } from "../../src/core/schema/core/contexts.js";
 import { JSON } from "../../src/core/raw-json.js";
 import { encodings } from "../../src/core/request/body-template.js";

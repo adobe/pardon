@@ -11,6 +11,7 @@
       "@pardon/*": ["./src/pardon/*"]
     },
     "jsx": "preserve",
-    "jsxImportSource": "solid-js"
+    "jsxImportSource": "solid-js",
+    "verbatimModuleSyntax": true
   }
 }

@@ -16,10 +16,13 @@ declare module "core-js-pure/actual/json/index.js" {
     isRawJSON(value: any): value is RawJSONType;
     parse(
       value: string,
-      replacer: undefined | null | ((key: string, value: any) => any),
-      indent?: number,
+      deserializer?: (key: string, value: any, info: { source: string }) => any,
     ): any;
-    stringify(value: unknown): string;
+    stringify(
+      value: unknown,
+      replacer: undefined | null | ((key: string, value: any) => any),
+      indent?: number | string,
+    ): string;
   };
   export default defaults;
 }

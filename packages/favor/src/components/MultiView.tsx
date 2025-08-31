@@ -10,18 +10,18 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { Accessor } from "solid-js";
 import {
-  ComponentProps,
+  type Accessor,
+  type ComponentProps,
+  type Signal,
+  type JSX,
   createContext,
   createEffect,
   createMemo,
   createSelector,
   createSignal,
   For,
-  JSX,
   on,
-  Signal,
   splitProps,
   useContext,
 } from "solid-js";

@@ -17,6 +17,5 @@ declare global {
   export let environment: Record<string, any>;
 }
 
-declare let __export_keeper_: undefined;
-
-export { __export_keeper_ };
+declare type __export_keeper__ = never;
+export type { __export_keeper__ };

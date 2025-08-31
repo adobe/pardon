@@ -14,9 +14,9 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { arrayIntoObject, mapObject } from "../../util/mapping.js";
-import { TracedResult, awaitedResults } from "../../features/trace.js";
-import { HTTP, RequestObject } from "../../core/formats/http-fmt.js";
-import {
+import { type TracedResult, awaitedResults } from "../../features/trace.js";
+import { type RequestObject, HTTP } from "../../core/formats/http-fmt.js";
+import type {
   FlowReport,
   FlowStepReport,
 } from "../../core/execution/flow/https-flow-types.js";
@@ -36,8 +36,8 @@ import {
   withSurveyConfiguration as withSurveyConfiguration,
 } from "./trial.js";
 import describeCases, {
-  CaseContext,
-  CaseHelpers,
+  type CaseContext,
+  type CaseHelpers,
 } from "../../core/testcases/index.js";
 import { applySmokeConfig, type SmokeConfig } from "./smoke-config.js";
 import { registerFlowHook } from "../../core/execution/flow/index.js";

@@ -72,7 +72,7 @@ export default [
       files: ["**/*.ts"],
     })),
   {
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
 
     plugins: {
       "@typescript-eslint": typescriptEslint,
@@ -86,6 +86,8 @@ export default [
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
 
+      "no-undef": "off",
+      "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
         {

@@ -6,6 +6,7 @@
     "moduleResolution": "bundler",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "useDefineForClassFields": true,
+    "incremental": true,
 
     /* Bundler mode */
     "allowImportingTsExtensions": true,
@@ -14,11 +15,13 @@
     "noEmit": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "types": ["unplugin-icons/types/solid"]
+    "types": ["unplugin-icons/types/solid"],
+    "verbatimModuleSyntax": true
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "electron/preload.ts",
     "electron/**/*.d.ts",
     "auto-imports.d.ts"
   ],

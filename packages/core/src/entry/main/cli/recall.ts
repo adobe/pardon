@@ -12,11 +12,11 @@ governing permissions and limitations under the License.
 import { valueOps } from "../../../db/entities/value-entity.js";
 import { httpOps } from "../../../db/entities/http-entity.js";
 import { PardonError } from "../../../core/error.js";
-import { PardonRuntime } from "../../../core/pardon/types.js";
+import type { PardonRuntime } from "../../../core/pardon/types.js";
 import { FILE } from "../../../runtime/file.js";
-import { HTTP, HTTPS, ResponseObject } from "../../../modules/formats.js";
+import { HTTP, HTTPS, type ResponseObject } from "../../../modules/formats.js";
 import {
-  HttpsScheme,
+  type HttpsScheme,
   isHttpResponseStep,
   isHttpScriptStep,
 } from "../../../core/formats/https-fmt.js";

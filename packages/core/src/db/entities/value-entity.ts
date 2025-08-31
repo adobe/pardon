@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { PardonDatabase, Id, cachedOps } from "../sqlite.js";
+import { type PardonDatabase, type Id, cachedOps } from "../sqlite.js";
 import { arrayIntoObject } from "../../util/mapping.js";
 import { httpOps } from "./http-entity.js";
 import { JSON } from "../../core/raw-json.js";

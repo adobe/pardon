@@ -11,12 +11,12 @@ governing permissions and limitations under the License.
 */
 
 import {
-  ComponentProps,
+  type ComponentProps,
+  type Ref,
+  type JSX,
   createEffect,
   createSignal,
-  JSX,
   on,
-  Ref,
   splitProps,
 } from "solid-js";
 

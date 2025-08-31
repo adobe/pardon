@@ -11,11 +11,12 @@ governing permissions and limitations under the License.
 */
 
 import Services, {
-  CollectionItemInfo,
+  type CollectionItemInfo,
 } from "../components/collection/Services.tsx";
 import {
+  type ComponentProps,
+  type VoidProps,
   batch,
-  ComponentProps,
   createEffect,
   createMemo,
   createResource,
@@ -26,7 +27,6 @@ import {
   Show,
   Switch,
   untrack,
-  VoidProps,
 } from "solid-js";
 import CodeMirror, {
   EditorView,
@@ -36,12 +36,12 @@ import PardonInput from "../components/PardonInput.tsx";
 import { executionMemo } from "../signals/pardon-execution-signal.ts";
 
 import {
+  type HttpsRequestStep,
+  type HttpsResponseStep,
   CURL,
   guessContentType,
   HTTP,
   HTTPS,
-  HttpsRequestStep,
-  HttpsResponseStep,
   KV,
 } from "pardon/formats";
 import Toggle from "../components/Toggle.tsx";
@@ -60,9 +60,9 @@ import { persistJson } from "../util/persistence.ts";
 
 import { animation } from "../components/animate.ts";
 import KeyValueCopier, {
+  type KvCopierControl,
+  type KvEntry,
   KeyValueCopierWidget,
-  KvCopierControl,
-  KvEntry,
   makeKeyValueCopierContext,
 } from "../components/KeyValueCopier.tsx";
 import settle from "../util/settle.ts";

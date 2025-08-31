@@ -10,11 +10,11 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import type { AssetSource, AssetType, AssetInfo } from "pardon/runtime";
+import type { CollectionTreeItem, Filters } from "./collection-tree-types.ts";
 import { createMemo, createSelector, createSignal, For } from "solid-js";
 import { fileManifest, manifest } from "../../signals/pardon-config.ts";
 import { CollectionTreeView } from "./CollectionTreeView.tsx";
-import type { AssetSource, AssetType, AssetInfo } from "pardon/runtime";
-import { CollectionTreeItem, Filters } from "./collection-tree-types.ts";
 import CornerControls from "../CornerControls.tsx";
 import { animation } from "../animate.ts";
 import Dialog from "corvu/dialog";
@@ -60,12 +60,7 @@ export default function Services(props: {
   filters: Filters;
 }) {
   const services = createMemo(() => {
-    const {
-      endpoints = {},
-      assets = {},
-      errors = [],
-      flows,
-    } = manifest() || {};
+    const { endpoints = {}, assets = {}, errors = [] } = manifest() || {};
 
     const badPaths = new Set(errors.map(({ path }) => path));
 
@@ -76,23 +71,8 @@ export default function Services(props: {
       }
     }
 
-    return [
-      ...Object.entries(assets).filter(
-        ([, { subtype, type }]) => (subtype ?? type) !== "flow",
-      ),
-      ...Object.keys(flows).map(
-        (key) =>
-          [
-            key,
-            {
-              sources: [] as (typeof assets)[string]["sources"],
-              type: "flow",
-              name: key,
-            },
-          ] as const,
-      ),
-    ]
-      .map(([id, asset]) => {
+    return [...Object.entries(assets)]
+      .map(([id, asset]: [string, AssetInfo]) => {
         return {
           ...asset,
           id,

@@ -9,22 +9,23 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import {
+
+import type { Schema, SchemaMergingContext } from "../schema/core/types.js";
+import type {
   LayeredEndpoint,
   EndpointStepsLayer,
   Configuration,
 } from "../../config/collection-types.js";
-import { PardonExecutionContext } from "./pardon.js";
+import type { PardonExecutionContext } from "./pardon.js";
 import { mapObject } from "../../util/mapping.js";
 import { isHttpRequestStep } from "../formats/https-fmt.js";
 import {
-  HttpsRequestObject,
+  type HttpsRequestObject,
   httpsRequestSchema,
 } from "../request/https-template.js";
 import { mergeConfigurations } from "../../config/collection.js";
 import { ScriptEnvironment } from "../schema/core/script-environment.js";
 import { ProgressiveMatch } from "../schema/progress.js";
-import { Schema, SchemaMergingContext } from "../schema/core/types.js";
 import { createEndpointEnvironment } from "../endpoint-environment.js";
 import { isScalar } from "../schema/definition/scalar.js";
 

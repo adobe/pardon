@@ -10,10 +10,10 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
+  type ReferenceSchematicOps,
   referenceTemplate,
-  ReferenceSchematicOps,
 } from "../schema/definition/structures/reference.js";
-import { FetchObject, ResponseObject } from "./fetch-object.js";
+import type { FetchObject, ResponseObject } from "./fetch-object.js";
 import { queryEncodingType } from "../schema/definition/encodings/url-encoded.js";
 import { headersTemplate } from "../schema/definition/encodings/headers-encoding.js";
 import { datums } from "../schema/definition/datum.js";
@@ -21,7 +21,7 @@ import { mvKeyedTuples, scopedFields } from "../schema/scheming.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { diagnostic } from "../schema/core/context-util.js";
 import { stubSchema } from "../schema/definition/structures/stub.js";
-import {
+import type {
   Schema,
   Schematic,
   SchematicOps,
@@ -35,7 +35,7 @@ import {
   isSchematic,
   merge,
 } from "../schema/core/schema-ops.js";
-import { encodings, EncodingTypes } from "./body-template.js";
+import { type EncodingTypes, encodings } from "./body-template.js";
 import { JSON } from "../raw-json.js";
 import { merging } from "../schema/core/contexts.js";
 import { encodingTemplate } from "../schema/definition/encodings/encoding.js";

@@ -13,7 +13,7 @@ import { dirname, relative, resolve } from "node:path";
 
 import * as YAML from "yaml";
 
-import {
+import type {
   AssetParseError,
   Configuration,
   LayeredEndpoint,
@@ -21,14 +21,14 @@ import {
 } from "./collection-types.js";
 import {
   HTTPS,
-  HttpsSchemeType,
-  HttpsTemplateConfiguration,
-  HttpsTemplateScheme,
+  type HttpsSchemeType,
+  type HttpsTemplateConfiguration,
+  type HttpsTemplateScheme,
 } from "../core/formats/https-fmt.js";
 import { globfiles } from "./util/globfiles.js";
 import { arrayIntoObject, mapObject } from "../util/mapping.js";
 import { resolvePardonRelativeImport } from "../runtime/compiler.js";
-import {
+import type {
   AssetSource,
   AssetType,
   PardonCollection,
@@ -207,7 +207,6 @@ export function buildCollection(
     data: {},
     mixins: {},
     assets: {},
-    flows: {},
     scripts: {
       resolutions: {},
       identities: {},
@@ -681,7 +680,7 @@ export function mergeConfigurations({
     .reduce<
       Pick<
         Configuration<"runtime">,
-        "config" | "defaults" | "import" | "export" | "mixin" | "type" | "flow"
+        "config" | "defaults" | "import" | "export" | "mixin" | "type"
       >
     >(
       (
@@ -693,7 +692,6 @@ export function mergeConfigurations({
           export: exports,
           mixin,
           type,
-          flow,
           //...other
         },
       ) => ({
@@ -741,7 +739,6 @@ export function mergeConfigurations({
           ...unmergedMixins(merged, mixin, target),
           ...(merged.mixin || []),
         ],
-        flow: flow ?? merged.flow,
         type:
           merged.type === "service" || type === "service"
             ? ("service" as const)

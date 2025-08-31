@@ -10,6 +10,16 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import type {
+  Schema,
+  SchemaContext,
+  SchemaMergingContext,
+  SchemaRenderContext,
+  Schematic,
+  SchematicOps,
+  Template,
+} from "../../core/types.js";
+import type { RedactedOps } from "./redact.js";
 import { evaluateIdentifierWithExpression } from "../../core/evaluate.js";
 import {
   defineSchema,
@@ -21,23 +31,13 @@ import {
   maybeResolve,
   directMerge,
 } from "../../core/schema-ops.js";
-import {
-  Schema,
-  SchemaContext,
-  SchemaMergingContext,
-  SchemaRenderContext,
-  Schematic,
-  SchematicOps,
-  Template,
-} from "../../core/types.js";
 import { isStubSchema, stubSchema } from "./stub.js";
-import { RedactedOps } from "./redact.js";
 import { isExport, isOptional, isRequired, isSecret } from "../hinting.js";
 import {
+  type Scalar,
+  type ScalarType,
   convertScalar,
-  Scalar,
   scalarFuzzyTypeOf,
-  ScalarType,
 } from "../scalar.js";
 import { datumTemplate } from "../datum.js";
 import {

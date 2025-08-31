@@ -10,16 +10,16 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  PardonExecutionContext,
+  type PardonExecutionContext,
   PardonFetchExecution,
 } from "../core/pardon/pardon.js";
-import { Id } from "../db/sqlite.js";
+import type { Id } from "../db/sqlite.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
 import { HTTP } from "../core/formats/http-fmt.js";
 import { valueOps } from "../db/entities/value-entity.js";
 import { httpOps } from "../db/entities/http-entity.js";
 import { scopedScalarValues } from "../core/schema/core/schema-utils.js";
-import { PardonTraceExtension } from "./trace.js";
+import type { PardonTraceExtension } from "./trace.js";
 
 export type PardonHttpExecutionContext = { http: Id } & PardonExecutionContext &
   Partial<PardonTraceExtension<{ http: Id }>>;

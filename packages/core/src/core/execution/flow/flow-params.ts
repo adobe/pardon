@@ -10,8 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import * as acorn from "acorn";
-import { HttpsFlowContext } from "../../formats/https-fmt.js";
-import { FlowFunction } from "./flow-core.js";
+import type { HttpsFlowContext } from "../../formats/https-fmt.js";
+import type { FlowFunction } from "./flow-core.js";
 import {
   arrayIntoObject,
   definedObject,

@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import type { Database, Statement } from "better-sqlite3";
-import { PardonAppContextOptions } from "../runtime/init/workspace.js";
+import type { PardonAppContextOptions } from "../runtime/init/workspace.js";
 
 export type Id = number | bigint;
 export type Datetime = string;

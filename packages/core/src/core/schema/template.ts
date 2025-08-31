@@ -13,7 +13,7 @@ import { diagnostic, loc } from "./core/context-util.js";
 import { stubSchema } from "./definition/structures/stub.js";
 import { expandArray } from "./definition/arrays.js";
 import { expandObject } from "./definition/objects.js";
-import {
+import type {
   Schema,
   SchemaMergingContext,
   SchemaOps,

@@ -8,6 +8,7 @@
     "check": "astro check",
     "lint": "eslint",
     "postlint": "astro check",
+    "lint:fix": "eslint --fix",
     "build": "cross-env NODE_OPTIONS='--max-old-space-size=8192' astro build",
     "preview": "astro preview",
     "astro": "astro"

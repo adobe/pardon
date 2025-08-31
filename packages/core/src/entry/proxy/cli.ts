@@ -15,7 +15,7 @@ import { parseArgs } from "node:util";
 import { initializePardon } from "../../runtime/initialize.js";
 import { HTTP } from "../../core/formats/http-fmt.js";
 import HttpProxy from "http-proxy";
-import { IncomingMessage, createServer } from "node:http";
+import { type IncomingMessage, createServer } from "node:http";
 import { gunzipSync } from "node:zlib";
 import { createFromHttpHeaders } from "../../core/request/header-object.js";
 

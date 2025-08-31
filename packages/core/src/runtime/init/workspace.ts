@@ -22,17 +22,16 @@ import type {
   LayeredMixin,
   ResourceProcessingPhase,
 } from "../../config/collection-types.js";
-import type { FlowName, FlowContext } from "../../core/execution/flow/index.js";
-import { connectDb, PardonDatabase } from "../../db/sqlite.js";
+import type { FlowContext } from "../../core/execution/flow/index.js";
+import { type PardonDatabase, connectDb } from "../../db/sqlite.js";
 import { loadCollections, buildCollection } from "../../config/collection.js";
 import createCompiler from "../compiler.js";
 import { homely } from "../../util/resolvehome.js";
 
 import fetchPolyfillReady from "./fetch-polyfill.js";
 import { KV } from "../../core/formats/kv-fmt.js";
-import { PardonRuntime } from "../../core/pardon/types.js";
-import { Flow } from "../../core/execution/flow/flow-core.js";
-import { inMemorySecrets, SecretStorage } from "../secrets.js";
+import type { PardonRuntime } from "../../core/pardon/types.js";
+import { type SecretStorage, inMemorySecrets } from "../secrets.js";
 import { secretOps } from "../../db/entities/secrets-entity.js";
 
 export type CollectionData = {
@@ -250,8 +249,6 @@ export type PardonCollection = {
     /** converse of resolutions, required name to import each asset */
     identities: Record<string, string>;
   };
-
-  flows: Record<FlowName, Flow>;
 
   /** all files, used by favor/editor */
   assets: Record<string, AssetInfo>;

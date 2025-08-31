@@ -10,14 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
+  type ContextMeta,
   createPreviewContext,
   createRenderContext,
   createPrerenderContext,
   createPostrenderContext,
-  ContextMeta,
   createMergingContext,
 } from "./context.js";
-import {
+import type {
   Schema,
   SchemaMergingContext,
   SchemaScriptEnvironment,
@@ -27,7 +27,7 @@ import {
 import { executeOp, merge } from "./schema-ops.js";
 import { isNoExport, isSecret } from "../definition/hinting.js";
 import { diagnostic } from "./context-util.js";
-import { isScalar, Scalar } from "../definition/scalar.js";
+import { type Scalar, isScalar } from "../definition/scalar.js";
 
 function applySchema<T>(
   context: SchemaMergingContext<T>,

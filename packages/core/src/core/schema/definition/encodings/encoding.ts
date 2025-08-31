@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { isMergingContext } from "../../core/schema.js";
 import { diagnostic } from "../../core/context-util.js";
-import {
+import type {
   Schema,
   SchemaMergingContext,
   SchemaRenderContext,

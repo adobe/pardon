@@ -12,13 +12,13 @@ governing permissions and limitations under the License.
 
 import { KV, valueId } from "pardon/formats";
 import {
-  Accessor,
+  type Accessor,
+  type Setter,
   batch,
   createEffect,
   createMemo,
   createSignal,
   on,
-  Setter,
   splitProps,
 } from "solid-js";
 import CodeMirror, { type CodeMirrorProps } from "./codemirror/CodeMirror.tsx";

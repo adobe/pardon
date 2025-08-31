@@ -13,11 +13,11 @@ governing permissions and limitations under the License.
 import { createMemo, For, createContext, Show } from "solid-js";
 import { RequestSummaryTree } from "./RequestSummaryTree.tsx";
 import {
+  type Trace,
   clearAllTraces,
   clearTrace,
   relatedTraces,
   requestHistory,
-  Trace,
   traces,
 } from "./request-history.ts";
 

@@ -11,7 +11,7 @@
     "dev": "cross-env NODE_OPTIONS=--enable-source-maps electron-forge start",
     "prepackage": "rimraf ../core/dist ./.vite/ ./node_modules/.vite && npm run build --prefix ../core",
     "package": "cross-env NODE_OPTIONS='--disable-warning=DEP0174' electron-forge package",
-    "lint": "eslint",
+    "lint": "eslint && tsc --project tsconfig.json --project tsconfig.node.json --noEmit",
     "prepare": "patch-package"
   },
   "devDependencies": {

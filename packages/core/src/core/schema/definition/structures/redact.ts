@@ -9,13 +9,13 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import type { Schema, SchematicOps, Template } from "../../core/types.js";
 import {
   defineSchema,
   defineSchematic,
   executeOp,
   merge,
 } from "../../core/schema-ops.js";
-import { Schema, SchematicOps, Template } from "../../core/types.js";
 
 export type RedactedOps<T> = SchematicOps<T> & {
   readonly redacted: true;

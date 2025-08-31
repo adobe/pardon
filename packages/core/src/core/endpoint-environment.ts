@@ -9,26 +9,32 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Configuration, LayeredEndpoint } from "../config/collection-types.js";
 import {
-  Pattern,
-  PatternRegex,
+  type Pattern,
+  type PatternRegex,
   isPatternRegex,
   isPatternSimple,
   patternRender,
   patternValues,
 } from "./schema/core/pattern.js";
+import type {
+  Configuration,
+  LayeredEndpoint,
+} from "../config/collection-types.js";
+import type { PardonCompiler } from "../runtime/compiler.js";
+import type { DefaultsMap } from "./schema/core/config-space.js";
+import type { HttpsRequestObject } from "./request/https-template.js";
+import type {
+  SchemaContext,
+  SchemaMergingContext,
+} from "./schema/core/types.js";
+import type { PardonAppContext } from "./pardon/pardon.js";
 import { resolveIdentifier } from "./schema/core/evaluate.js";
 import { ScriptEnvironment } from "./schema/core/script-environment.js";
-import { PardonCompiler } from "../runtime/compiler.js";
-import { DefaultsMap } from "./schema/core/config-space.js";
 import { arrayIntoObject, mapObject } from "../util/mapping.js";
-import { HttpsRequestObject } from "./request/https-template.js";
 import { PardonError } from "./error.js";
-import { SchemaContext, SchemaMergingContext } from "./schema/core/types.js";
 import { isSecret } from "./schema/definition/hinting.js";
 import { isScalar } from "./schema/definition/scalar.js";
-import { PardonAppContext } from "./pardon/pardon.js";
 import { makeSecretsProxy } from "../runtime/secrets.js";
 
 function simpleValues(values: Record<string, any>): Record<string, string> {

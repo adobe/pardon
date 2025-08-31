@@ -18,7 +18,7 @@ import {
   isSchematic,
   merge,
 } from "../../core/schema-ops.js";
-import { Schema, SchematicOps, Template } from "../../core/types.js";
+import type { Schema, SchematicOps, Template } from "../../core/types.js";
 import { stubSchema } from "./stub.js";
 
 type HiddenSchematicOps<T> = SchematicOps<T> & {

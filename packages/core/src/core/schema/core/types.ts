@@ -189,7 +189,7 @@ export type EvaluationScope = {
     declaration: Omit<ExpressionDeclaration, "identifier" | "path" | "name">,
   ): void;
 
-  imported(indentifer: string, context: SchemaRenderContext): void;
+  imported(identifer: string, context: SchemaRenderContext): void;
 
   define<T>(context: SchemaContext<T>, key: string, value: T): T | undefined;
 

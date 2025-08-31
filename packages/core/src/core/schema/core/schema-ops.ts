@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import { DEBUG } from "./debugging.js";
-import {
+import type {
   Schema,
   SchemaContext,
   SchemaMergingContext,

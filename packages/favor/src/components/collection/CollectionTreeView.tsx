@@ -11,12 +11,12 @@ governing permissions and limitations under the License.
 */
 
 import {
-  ComponentProps,
+  type ComponentProps,
+  type VoidProps,
   For,
   Match,
   Show,
   Switch,
-  VoidProps,
   createEffect,
   createMemo,
   createSignal,
@@ -24,7 +24,7 @@ import {
 } from "solid-js";
 
 import { twMerge } from "tailwind-merge";
-import { CollectionTreeItem, Filters } from "./collection-tree-types.ts";
+import type { CollectionTreeItem, Filters } from "./collection-tree-types.ts";
 import CollectionItemIcon from "./CollectionItemIcon.tsx";
 import { KV } from "pardon/formats";
 

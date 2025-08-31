@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import { PardonError } from "../../core/error.js";
 import { JSON } from "../../core/raw-json.js";
 import { disconnected, shared } from "../../core/tracking.js";
-import { PardonDatabase, Datetime, cachedOps } from "../sqlite.js";
+import { type PardonDatabase, type Datetime, cachedOps } from "../sqlite.js";
 
 export type CacheEntity = {
   key: string;

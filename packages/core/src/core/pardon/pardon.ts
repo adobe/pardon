@@ -11,13 +11,13 @@ governing permissions and limitations under the License.
 */
 import { pardonExecution } from "../execution/pardon-execution.js";
 import {
-  FetchObject,
-  ResponseObject,
+  type FetchObject,
+  type ResponseObject,
   fetchIntoObject,
   intoFetchParams,
   intoResponseObject,
 } from "../request/fetch-object.js";
-import { PardonOptions } from "../../api/pardon-wrapper.js";
+import type { PardonOptions } from "../../api/pardon-wrapper.js";
 import { matchRequest } from "./match.js";
 import { ProgressiveMatch } from "../schema/progress.js";
 import { createEndpointEnvironment } from "../endpoint-environment.js";
@@ -28,19 +28,19 @@ import {
   mergeSchema,
 } from "../schema/core/schema-utils.js";
 import {
-  HttpsRequestObject,
+  type HttpsRequestObject,
   httpsRequestSchema,
   httpsResponseSchema,
 } from "../request/https-template.js";
 import { ScriptEnvironment } from "../schema/core/script-environment.js";
-import {
+import type {
   Configuration,
   EndpointStepsLayer,
   LayeredEndpoint,
 } from "../../config/collection-types.js";
 import {
-  HttpsResponseStep,
-  HttpsScriptStep,
+  type HttpsResponseStep,
+  type HttpsScriptStep,
   guessContentType,
   isHttpRequestStep,
   isHttpResponseStep,
@@ -48,8 +48,8 @@ import {
 } from "../formats/https-fmt.js";
 import { PardonError } from "../error.js";
 import { intoURL, parseURL } from "../request/url-object.js";
-import { HTTP, RequestObject } from "../formats/http-fmt.js";
-import {
+import { HTTP, type RequestObject } from "../formats/http-fmt.js";
+import type {
   EvaluationScope,
   Schema,
   SchemaMergingContext,
@@ -58,7 +58,7 @@ import {
 import { getContextualValues } from "../schema/core/context.js";
 import { definedObject, mapObject } from "../../util/mapping.js";
 import { JSON } from "../raw-json.js";
-import { PardonRuntime } from "./types.js";
+import type { PardonRuntime } from "./types.js";
 import { valueId } from "../../util/value-id.js";
 import { cleanObject } from "../../util/clean-object.js";
 import { parseHints, patternize } from "../schema/core/pattern.js";

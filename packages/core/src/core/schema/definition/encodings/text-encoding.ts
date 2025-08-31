@@ -10,8 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { Template } from "../../core/types.js";
-import { encodingTemplate, EncodingType } from "./encoding.js";
+import type { Template } from "../../core/types.js";
+import { encodingTemplate, type EncodingType } from "./encoding.js";
 
 const textEncoder: EncodingType<string, string> = {
   as: "string",

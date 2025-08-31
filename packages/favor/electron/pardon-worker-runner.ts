@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { BrowserWindow, ipcMain, WebContents } from "electron";
+import { type WebContents, BrowserWindow, ipcMain } from "electron";
 import { randomUUID } from "node:crypto";
 import { Worker } from "node:worker_threads";
 import { preferences, savePreferences } from "./preferences";

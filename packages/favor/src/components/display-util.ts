@@ -10,7 +10,12 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { HTTP, intoURL, RequestJSON, type RequestObject } from "pardon/formats";
+import {
+  type RequestJSON,
+  type RequestObject,
+  HTTP,
+  intoURL,
+} from "pardon/formats";
 
 export function displayHttp(request: RequestJSON | undefined) {
   if (!request) {

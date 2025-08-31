@@ -11,8 +11,11 @@ governing permissions and limitations under the License.
 */
 
 import { SyntaxKind, ts } from "ts-morph";
-import { syncEvaluation, TsMorphTransform } from "../evaluation/expression.js";
-import { Template } from "../schema/core/types.js";
+import {
+  type TsMorphTransform,
+  syncEvaluation,
+} from "../evaluation/expression.js";
+import type { Template } from "../schema/core/types.js";
 import { referenceTemplate } from "../schema/definition/structures/reference.js";
 import { PardonError } from "../error.js";
 

@@ -67,12 +67,7 @@ export type HttpsStep = HttpsRequestStep | HttpsResponseStep | HttpsScriptStep;
 
 export type HttpsMode = "merge" | "flow" | "log";
 
-export type FlowName = `${string}.flow`;
 export type FlowFileName = `${string}.flow.https`;
-
-export function isFlowName(flow: string): flow is FlowName {
-  return flow.endsWith(".flow");
-}
 
 export function isFlowFileName(flow: string): flow is FlowFileName {
   return flow.endsWith(".flow.https");
@@ -94,7 +89,7 @@ export type HttpsFlowConfig = {
 };
 
 export type UseFlow = {
-  flow: FlowName;
+  flow: FlowFileName;
   context?: HttpsFlowContext;
   provides?: string | ValueMapping;
 };

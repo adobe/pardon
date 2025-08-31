@@ -10,9 +10,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  Pattern,
-  PatternBuilding,
-  PatternRegex,
+  type Pattern,
+  type PatternBuilding,
+  type PatternRegex,
   isPatternExpressive,
   isPatternLiteral,
   isPatternRegex,
@@ -41,7 +41,7 @@ import {
 } from "../core/evaluate.js";
 import { isMergingContext } from "../core/schema.js";
 import { fuzzyMatch, isLookupValue } from "../core/scope.js";
-import {
+import type {
   ExpressionDeclaration,
   Schema,
   SchemaContext,
@@ -65,11 +65,11 @@ import {
   rescope,
 } from "../core/context-util.js";
 import {
+  type Scalar,
+  type ScalarType,
   convertScalar,
   isScalar,
-  Scalar,
   scalarFuzzyTypeOf,
-  ScalarType,
   scalarTypeOf,
   unboxObject,
 } from "./scalar.js";

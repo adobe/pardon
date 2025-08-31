@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 
 import {
-  PardonExecutionContext,
+  type PardonExecutionContext,
   PardonFetchExecution,
 } from "../core/pardon/pardon.js";
 import { hookExecution } from "../core/execution/execution-hook.js";

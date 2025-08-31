@@ -10,15 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  HttpsFlowScheme,
-  HttpsResponseStep,
-  HttpsFlowConfig,
-  isFlowName,
-  FlowFileName,
-  FlowName,
+  type HttpsFlowScheme,
+  type HttpsResponseStep,
+  type HttpsFlowConfig,
+  type FlowFileName,
   HTTPS,
 } from "../../formats/https-fmt.js";
-import { ResponseObject } from "../../request/fetch-object.js";
+import type { ResponseObject } from "../../request/fetch-object.js";
 import { pardon } from "../../../api/pardon-wrapper.js";
 import {
   mergeSchema,
@@ -38,28 +36,28 @@ import {
 import { createSequenceEnvironment } from "./flow-environment.js";
 import { stubSchema } from "../../schema/definition/structures/stub.js";
 import { HTTP } from "../../formats/http-fmt.js";
-import { TracedResult } from "../../../features/trace.js";
-import { EvaluationScope } from "../../schema/core/types.js";
+import type { TracedResult } from "../../../features/trace.js";
+import type { EvaluationScope } from "../../schema/core/types.js";
 import { JSON } from "../../raw-json.js";
 import { withoutEvaluationScope } from "../../schema/core/context-util.js";
 import {
+  type FlowParamsDict,
   contextAsFlowParams,
   ejectValuesDict,
-  FlowParamsDict,
   injectValuesDict,
 } from "./flow-params.js";
-import { FlowContext } from "./flow-context.js";
-import { PardonRuntime } from "../../pardon/types.js";
-import { Flow, FlowResult, runFlow } from "./flow-core.js";
+import type { FlowContext } from "./flow-context.js";
+import type { PardonRuntime } from "../../pardon/types.js";
+import { type Flow, type FlowResult, runFlow } from "./flow-core.js";
 import { KV } from "../../formats/kv-fmt.js";
 import { PardonError } from "../../error.js";
 import {
+  type TsMorphTransform,
   applyTsMorph,
   evaluation,
-  TsMorphTransform,
 } from "../../evaluation/expression.js";
 import { SyntaxKind, ts } from "ts-morph";
-import {
+import type {
   CompiledHttpsSequence,
   HttpExchangeInterraction,
   HttpScriptInterraction,
@@ -377,7 +375,7 @@ async function evaluateDependentFlows(
   const dependentResults = await Promise.all(
     (configuration.use ?? [])
       .filter((usage) => usageNeeded(usage.provides, values))
-      .map(async ({ provides, context, flow: flowName }) => {
+      .map(async ({ provides, context, flow: flowFileName }) => {
         const useDefinitions = {};
         const useParams = contextAsFlowParams(context ?? [], useDefinitions);
 
@@ -403,7 +401,11 @@ async function evaluateDependentFlows(
           : useValues;
 
         let { result, context: resultContext } =
-          await executeHttpsFlowInContext(flowName, flowValues, flowContext);
+          await executeHttpsFlowInContext(
+            flowFileName,
+            flowValues,
+            flowContext,
+          );
 
         if (provides) {
           result = ejectValuesDict(contextAsFlowParams(provides), result);
@@ -966,13 +968,11 @@ async function loadFlowFile(path: FlowFileName) {
 }
 
 export async function executeHttpsFlowInContext(
-  name: FlowName | FlowFileName,
+  name: FlowFileName,
   input: Record<string, unknown>,
   context: FlowContext,
 ) {
-  const flow = isFlowName(name)
-    ? context.runtime.collection.flows[name]
-    : await loadFlowFile(name);
+  const flow = await loadFlowFile(name);
 
   if (!flow) {
     throw new PardonError(`no flow named ${name}`);

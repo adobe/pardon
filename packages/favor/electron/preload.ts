@@ -58,9 +58,6 @@ const pardonWorkerApi: PardonWorkerHandlers = {
   async recall(keys, other, limit) {
     return invokePardonWorker("recall", keys, other, limit);
   },
-  async flow(name, input) {
-    return invokePardonWorker("flow", name, input);
-  },
   async debug() {
     console.info(
       `
@@ -172,7 +169,7 @@ async function invokePardonWorker<Action extends keyof PardonWorkerHandlers>(
   action: Action,
   ...args: Parameters<PardonWorkerHandlers[Action]>
 ): Promise<Awaited<ReturnType<PardonWorkerHandlers[Action]>>> {
-  const result = (await ipcRenderer.invoke("pardon", action, ...args)) as any;
+  const result = await ipcRenderer.invoke("pardon", action, ...args);
 
   if (result.exception) {
     throw result.exception;

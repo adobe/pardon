@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import { mapObjectAsync } from "../../../util/mapping.js";
 import { isMergingContext } from "../core/schema.js";
 import { stubSchema } from "./structures/stub.js";
-import {
+import type {
   Schema,
   SchemaContext,
   SchemaMergingContext,

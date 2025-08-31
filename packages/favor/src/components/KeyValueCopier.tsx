@@ -12,17 +12,17 @@ governing permissions and limitations under the License.
 
 import { JSON, KV } from "pardon/formats";
 import {
-  ComponentProps,
+  type ComponentProps,
+  type Accessor,
+  type Setter,
+  type JSX,
   For,
   splitProps,
-  JSX,
   createSignal,
-  Accessor,
   untrack,
   createEffect,
   on,
   Show,
-  Setter,
   createMemo,
 } from "solid-js";
 import { twMerge } from "tailwind-merge";

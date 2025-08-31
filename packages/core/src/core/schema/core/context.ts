@@ -13,7 +13,7 @@ import { expandTemplate } from "../template.js";
 import { executeOp } from "./schema-ops.js";
 import { Scope } from "./scope.js";
 import { ScriptEnvironment } from "./script-environment.js";
-import {
+import type {
   ResolvedValueOptions,
   Schema,
   SchemaContext,

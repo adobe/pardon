@@ -9,8 +9,8 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { EncodingType, encodingTemplate } from "./encoding.js";
-import { Template } from "../../core/types.js";
+import { type EncodingType, encodingTemplate } from "./encoding.js";
+import type { Template } from "../../core/types.js";
 import { mvKeyedTuples } from "../../scheming.js";
 import { createHeaders } from "../../../request/header-object.js";
 

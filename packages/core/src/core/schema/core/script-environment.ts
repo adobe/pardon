@@ -9,12 +9,12 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { Pattern, patternize } from "./pattern.js";
+import { type Pattern, patternize } from "./pattern.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
-import { DefaultsMap, ConfigSpace } from "./config-space.js";
+import { type DefaultsMap, ConfigSpace } from "./config-space.js";
 import { makeGlobalIdentifier } from "./identifier.js";
 import { indexChain } from "./scope.js";
-import {
+import type {
   SchemaContext,
   SchemaMergingContext,
   SchemaRenderContext,
@@ -22,7 +22,7 @@ import {
   Identifier,
 } from "./types.js";
 import { loc } from "./context-util.js";
-import { PardonAppContext } from "../../pardon/pardon.js";
+import type { PardonAppContext } from "../../pardon/pardon.js";
 
 export type ScriptDataResolver = (
   context: SchemaContext,

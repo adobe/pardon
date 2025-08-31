@@ -11,18 +11,18 @@ governing permissions and limitations under the License.
 */
 
 import {
-  ComponentProps,
+  type ComponentProps,
+  type JSX,
   createMemo,
   Show,
   splitProps,
-  JSX,
   Switch,
   Match,
 } from "solid-js";
 import { twMerge } from "tailwind-merge";
 import HttpMethodIcon from "./HttpMethodIcon.tsx";
 import LoadingSplash from "./LoadingSplash.tsx";
-import { RelatedTraces, Trace } from "./request-history.ts";
+import type { RelatedTraces, Trace } from "./request-history.ts";
 import { displayHttp } from "./display-util.ts";
 import { HTTP } from "pardon/formats";
 import KeyValueCopier from "./KeyValueCopier.tsx";

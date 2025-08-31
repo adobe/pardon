@@ -14,17 +14,17 @@ import consumers from "node:stream/consumers";
 import { isIP } from "node:net";
 import { Agent, request } from "undici";
 
+import type {
+  ResponseObject,
+  SimpleRequestInit,
+} from "../core/request/fetch-object.js";
 import {
-  PardonExecutionContext,
+  type PardonExecutionContext,
   PardonFetchExecution,
 } from "../core/pardon/pardon.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
 import { PardonError } from "../core/error.js";
 import { intoFetchParams } from "../modules/formats.js";
-import {
-  ResponseObject,
-  SimpleRequestInit,
-} from "../core/request/fetch-object.js";
 import MIME from "whatwg-mimetype";
 
 export default function undici(

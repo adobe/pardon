@@ -10,9 +10,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { RequestJSON, ResponseJSON } from "pardon/formats";
-import type { PardonElectronApi } from "./preload.js";
-import { PardonHttpExecutionContext } from "pardon/features/persist";
+import type { RequestJSON, ResponseJSON } from "pardon/formats";
+import type { PardonHttpExecutionContext } from "pardon/features/persist";
+import { type PardonElectronApi } from "./preload.ts";
 
 // Used in Renderer process, expose in `preload.ts`
 declare global {

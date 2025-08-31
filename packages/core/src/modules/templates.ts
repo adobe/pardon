@@ -11,8 +11,8 @@ governing permissions and limitations under the License.
 */
 
 import {
+  type ScriptOptions,
   ScriptEnvironment,
-  ScriptOptions,
 } from "../core/schema/core/script-environment.js";
 
 export type { Schema, Template } from "../core/schema/core/types.js";

@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { Schema, SchemaContext, SchemaMergingContext } from "./types.js";
+import type { Schema, SchemaContext, SchemaMergingContext } from "./types.js";
 
 /** Given a type with Schema\<T> nested in it, try to unwrap all Schema\<T>s into T */
 export type Render<R> =

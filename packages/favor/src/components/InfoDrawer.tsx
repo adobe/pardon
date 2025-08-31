@@ -11,12 +11,12 @@ governing permissions and limitations under the License.
 */
 
 import Drawer from "corvu/drawer";
-import { createMemo, createSignal, splitProps, type JSX } from "solid-js";
+import { type JSX, createMemo, createSignal, splitProps } from "solid-js";
 
 import { twMerge } from "tailwind-merge";
 
 export function InfoDrawer(
-  props: Parameters<typeof Drawer.Content>[0] & {
+  props: Parameters<typeof Drawer.Content<"div">>[0] & {
     children: Parameters<typeof Drawer>[0]["children"];
     content: JSX.Element;
     side?: Parameters<typeof Drawer>[0]["side"];

@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { SchemaRenderContext } from "../core/schema/core/types.js";
+import type { SchemaRenderContext } from "../core/schema/core/types.js";
 import { isScalar } from "../core/schema/definition/scalar.js";
 import { mapObject } from "../util/mapping.js";
 

@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import "../../types/global-environment.d.ts";
+import type {} from "../../types/global-environment.d.ts";
 
 export { pardon, template, type PardonOptions } from "../api/pardon-wrapper.js";
 export {
@@ -17,7 +17,7 @@ export {
   type Flow,
   type FlowContext,
   type FlowResult,
-  type FlowName,
+  type FlowFileName,
   type FlowFunction,
   type FlowParams,
   type FlowParamsDict,

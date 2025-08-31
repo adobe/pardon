@@ -12,9 +12,9 @@ governing permissions and limitations under the License.
 import { PardonError } from "../../core/error.js";
 import { depatternize, patternize } from "../schema/core/pattern.js";
 import {
-  FetchObject,
-  ResponseObject,
-  SimpleRequestInit,
+  type FetchObject,
+  type ResponseObject,
+  type SimpleRequestInit,
   intoFetchParams,
 } from "../request/fetch-object.js";
 import { intoURL, parseURL } from "../request/url-object.js";

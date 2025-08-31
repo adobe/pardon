@@ -9,10 +9,10 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { RequestObject, ResponseObject } from "../formats/http-fmt.js";
+import type { RequestObject, ResponseObject } from "../formats/http-fmt.js";
 import { mergeSchema } from "./core/schema-utils.js";
 import { ScriptEnvironment } from "./core/script-environment.js";
-import { Schema, SchemaMergingContext, Template } from "./core/types.js";
+import type { Schema, SchemaMergingContext, Template } from "./core/types.js";
 
 export interface ProgressiveMatchData<T> {
   object: Template<T>;

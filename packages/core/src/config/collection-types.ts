@@ -9,11 +9,11 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { HttpsFlowConfig, type HttpsStep } from "../core/formats/https-fmt.js";
-import { EncodingTypes } from "../core/request/body-template.js";
-import {
+import type { HttpsStep } from "../core/formats/https-fmt.js";
+import type { EncodingTypes } from "../core/request/body-template.js";
+import type {
   DefaultsMap,
-  type ConfigMap,
+  ConfigMap,
 } from "../core/schema/core/config-space.js";
 
 export type Helper = {
@@ -28,19 +28,18 @@ export type AssetParseError = { path: string; error: any };
 
 export type ResourceProcessingPhase = "source" | "runtime";
 
-export { EncodingTypes };
+export type { EncodingTypes };
 
 export type Configuration<
   ProcessingPhase extends ResourceProcessingPhase = "runtime",
 > = {
   name: string;
   path: string;
+  export?: string;
+  import?: ConfigurationImports;
   defaults?: DefaultsMap;
   mixin?: string | string[];
-  import?: ConfigurationImports;
-  export?: string;
   type?: "service" | "config";
-  flow?: HttpsFlowConfig;
 } & (ProcessingPhase extends "source"
   ? {
       config?: ConfigMap | Record<string, string>[];

@@ -10,7 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { Accessor, ComponentProps, For, JSX, splitProps } from "solid-js";
+import {
+  type Accessor,
+  type ComponentProps,
+  type JSX,
+  For,
+  splitProps,
+} from "solid-js";
 
 type CornerControlPlacement =
   | "tl"

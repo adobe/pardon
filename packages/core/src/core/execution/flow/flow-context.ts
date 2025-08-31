@@ -10,8 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import deferred, { Deferred } from "../../../util/deferred.js";
-import { PardonRuntime } from "../../pardon/types.js";
+import deferred, { type Deferred } from "../../../util/deferred.js";
+import type { PardonRuntime } from "../../pardon/types.js";
 
 export interface FlowContext {
   runtime: PardonRuntime;

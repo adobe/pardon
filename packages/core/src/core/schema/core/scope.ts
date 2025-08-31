@@ -24,7 +24,7 @@ import { isScalar } from "../definition/scalar.js";
 import { diagnostic, loc } from "./context-util.js";
 import { DEBUG } from "./debugging.js";
 import { isMergingContext } from "./schema.js";
-import {
+import type {
   ExpressionDeclaration,
   ResolvedValueOptions,
   SchemaContext,

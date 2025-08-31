@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { Accessor, createEffect, JSX, on } from "solid-js";
+import { type Accessor, type JSX, createEffect, on } from "solid-js";
 import "./animations.css";
 
 export function animation(

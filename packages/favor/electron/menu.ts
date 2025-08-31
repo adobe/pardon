@@ -11,11 +11,11 @@ governing permissions and limitations under the License.
 */
 
 import {
+  type MenuItemConstructorOptions,
   app,
   BrowserWindow,
   dialog,
   Menu,
-  MenuItemConstructorOptions,
 } from "electron";
 import { recreatePardonWorker } from "./pardon-worker-runner";
 

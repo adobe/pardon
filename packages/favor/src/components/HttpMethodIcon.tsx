@@ -10,7 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { ComponentProps, Match, splitProps, Switch, VoidProps } from "solid-js";
+import {
+  type ComponentProps,
+  type VoidProps,
+  Match,
+  splitProps,
+  Switch,
+} from "solid-js";
 import { twMerge } from "tailwind-merge";
 
 export default function HttpMethodIcon(

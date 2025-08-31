@@ -12,6 +12,7 @@ governing permissions and limitations under the License.
 import { describe, it } from "node:test";
 import assert from "node:assert";
 
+import type { Schema, Schematic } from "../../src/core/schema/core/types.js";
 import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
 import { referenceTemplate } from "../../src/core/schema/definition/structures/reference.js";
 import { keyed } from "../../src/core/schema/definition/structures/keyed-list.js";
@@ -19,7 +20,6 @@ import { deepStrictMatchEqual } from "../asserts.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
 import { evalBodyTemplate } from "../../src/core/request/body-template.js";
-import { Schema, Schematic } from "../../src/core/schema/core/types.js";
 import {
   createMergingContext,
   createRenderContext,

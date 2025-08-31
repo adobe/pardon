@@ -10,14 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  PardonAppContext,
+  type PardonAppContext,
   PardonFetchExecution,
 } from "../core/pardon/pardon.js";
 import { disconnected, tracking } from "../core/tracking.js";
 import { hookExecution } from "../core/execution/execution-hook.js";
 import { withoutEvaluationScope } from "../core/schema/core/context-util.js";
 import { PardonExecutionError } from "../core/execution/pardon-execution.js";
-import { LayeredEndpoint } from "../config/collection-types.js";
+import type { LayeredEndpoint } from "../config/collection-types.js";
 
 let notifier:
   | {

@@ -20,6 +20,9 @@ export type {
   LayeredMixin,
 } from "../config/collection-types.js";
 
+export type { ConfigurationImports } from "../config/collection-types.js";
+export type { DefaultsMap } from "../core/schema/core/config-space.js";
+
 export type { EncodingTypes } from "../core/request/body-template.js";
 
 export type {

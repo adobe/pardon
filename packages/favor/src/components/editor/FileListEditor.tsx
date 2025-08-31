@@ -11,14 +11,14 @@ governing permissions and limitations under the License.
 */
 
 import {
-  ComponentProps,
+  type ComponentProps,
+  type Setter,
   createEffect,
   createMemo,
   createSelector,
   createSignal,
   For,
   on,
-  Setter,
   Show,
   splitProps,
 } from "solid-js";

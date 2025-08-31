@@ -23,7 +23,7 @@ import {
   merge,
 } from "../core/schema-ops.js";
 import { isMergingContext } from "../core/schema.js";
-import {
+import type {
   Schema,
   SchemaContext,
   SchemaMergingContext,

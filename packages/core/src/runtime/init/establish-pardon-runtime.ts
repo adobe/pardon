@@ -9,7 +9,11 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { loadPardonRuntime, PardonAppContextOptions } from "./workspace.js";
+import type { PardonRuntime } from "../../core/pardon/types.js";
+import {
+  type PardonAppContextOptions,
+  loadPardonRuntime,
+} from "./workspace.js";
 import {
   awaitChildProcess,
   hostRpcChild,
@@ -17,8 +21,6 @@ import {
 import createCompiler from "../compiler.js";
 import { PardonError } from "../../core/error.js";
 import { registerPardonLoader } from "../loader/modern/register.js";
-import { PardonRuntime } from "../../core/pardon/types.js";
-import { loadFlows } from "../../core/execution/flow/flow-registration.js";
 
 /**
  * ensures we have the pardon compiler/loader:
@@ -42,7 +44,6 @@ export async function establishPardonRuntime(
   // in the current process.
   if (major > 20 || (major == 20 && minor >= 6)) {
     await registerModernLoader(runtime);
-    await loadFlows(runtime);
     return runtime;
   }
 
@@ -53,7 +54,6 @@ export async function establishPardonRuntime(
     //
     // we could, (as an optimization), have for the host process send
     // the context here rather than re-doing the loading work.
-    await loadFlows(runtime);
     return runtime;
   }
 

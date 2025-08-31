@@ -10,10 +10,10 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
-  Alternation,
-  CaseContext,
-  CaseValues,
-  Generation,
+  type Alternation,
+  type CaseContext,
+  type CaseValues,
+  type Generation,
   desequenced,
   exalternates,
   fi,

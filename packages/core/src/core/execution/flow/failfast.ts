@@ -9,12 +9,12 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import type { PardonHttpExecutionContext } from "../../../features/persist.js";
 import { AsyncLocalStorage } from "async_hooks";
-import { PardonHttpExecutionContext } from "../../../features/persist.js";
 import { hookExecution } from "../execution-hook.js";
 import { PardonFetchExecution } from "../../pardon/pardon.js";
 import { PardonError } from "../../error.js";
-import deferred, { Deferred } from "../../../util/deferred.js";
+import deferred, { type Deferred } from "../../../util/deferred.js";
 
 const fornever = new Promise(() => {});
 

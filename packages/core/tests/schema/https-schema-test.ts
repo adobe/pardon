@@ -10,6 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { describe, it } from "node:test";
+import type { Schema } from "../../src/core/schema/core/types.js";
 import {
   createMergingContext,
   createRenderContext,
@@ -23,7 +24,6 @@ import {
   renderSchema,
 } from "../../src/core/schema/core/schema-utils.js";
 import { executeOp, merge } from "../../src/core/schema/core/schema-ops.js";
-import { Schema } from "../../src/core/schema/core/types.js";
 import { httpsRequestSchema } from "../../src/core/request/https-template.js";
 
 describe("https-schema-tests", () => {

@@ -24,7 +24,7 @@ import {
   merge,
 } from "../../core/schema-ops.js";
 import { isLookupValue } from "../../core/scope.js";
-import {
+import type {
   Schema,
   SchemaContext,
   SchemaMergingContext,
@@ -32,7 +32,7 @@ import {
   SchematicOps,
   Template,
 } from "../../core/types.js";
-import { KeyedTemplateOps } from "../../scheming.js";
+import type { KeyedTemplateOps } from "../../scheming.js";
 import { objects } from "../objects.js";
 
 type KeyedListOps<T, Multivalued extends boolean> = SchematicOps<T[]> & {

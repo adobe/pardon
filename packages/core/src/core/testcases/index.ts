@@ -37,7 +37,7 @@ import { unset } from "./unset.js";
 import { page, skip, take } from "./page.js";
 import { smoke } from "./smoke.js";
 
-export { CaseContext };
+export type { CaseContext };
 
 const CaseHelpers = Object.freeze({
   set,

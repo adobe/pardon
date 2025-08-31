@@ -10,13 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import {
+  type FlowParamsDict,
   composeValuesDict,
-  FlowParamsDict,
   flowFunctionSignature,
 } from "./flow-params.js";
-import { FlowContext } from "./flow-context.js";
+import type { FlowContext } from "./flow-context.js";
+import type { CompiledHttpsSequence } from "./https-flow-types.js";
 import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
-import { CompiledHttpsSequence } from "./https-flow-types.js";
 
 /**
  * - Flows -

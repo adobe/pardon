@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 
 import { makePersisted } from "@solid-primitives/storage";
 import {
-  Accessor,
+  type Accessor,
   createEffect,
   createMemo,
   createRoot,
@@ -90,26 +90,29 @@ createRoot(() => {
               ...thisTrace,
               render: recv(render),
               tlr: thisTrace?.tlr || Number(activeTrace()) == Number(trace),
-            },
+            } as Trace,
           };
         });
       },
       onSend(trace) {
         setTraces((traces) => ({
           ...traces,
-          [trace]: { ...traces[trace], sent: Date.now() },
+          [trace]: { ...traces[trace], sent: Date.now() } as Trace,
         }));
       },
       onResult(trace, { secure, ...result }) {
         setSecureData((data) => ({
           ...data,
-          [trace]: { ...data[trace], ...recv(secure) },
+          [trace]: { ...data[trace], ...recv(secure) } as Trace,
         }));
 
         setTraces((traces) => {
           const combinedTraces = {
             ...traces,
-            [trace]: { ...traces[trace], result: recv(result) },
+            [trace]: {
+              ...traces[trace],
+              result: recv(result) as Trace["result"],
+            } as Trace,
           };
 
           setHistory(() => ({

@@ -10,9 +10,9 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { ComponentProps, Match, splitProps, Switch } from "solid-js";
+import { type ComponentProps, Match, splitProps, Switch } from "solid-js";
 import { manifest } from "../../signals/pardon-config.ts";
-import { CollectionTreeItem } from "./collection-tree-types.ts";
+import type { CollectionTreeItem } from "./collection-tree-types.ts";
 import HttpMethodIcon from "../HttpMethodIcon.tsx";
 import { twMerge } from "tailwind-merge";
 

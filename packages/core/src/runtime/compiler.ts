@@ -17,11 +17,11 @@ import { Project, SourceFile, ts } from "ts-morph";
 
 import { PardonError } from "../core/error.js";
 import {
+  type TsMorphTransform,
   dotAwaitTransform,
-  TsMorphTransform,
 } from "../core/evaluation/expression.js";
 import { shared } from "../core/tracking.js";
-import { PardonCollection } from "./init/workspace.js";
+import type { PardonCollection } from "./init/workspace.js";
 import { JSON } from "../core/raw-json.js";
 
 const { join, normalize } = posix;

@@ -10,19 +10,19 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import type { Schematic, Template } from "../schema/core/types.js";
 import { PardonError } from "../error.js";
 import { KV } from "../formats/kv-fmt.js";
 import { createNumber, JSON } from "../raw-json.js";
 import { isPatternSimple, patternize } from "../schema/core/pattern.js";
 import { exposeSchematic, isSchematic } from "../schema/core/schema-ops.js";
-import { Schematic, Template } from "../schema/core/types.js";
 import { arrays } from "../schema/definition/arrays.js";
 import { datums } from "../schema/definition/datum.js";
 import { base64Encoding } from "../schema/definition/encodings/base64-encoding.js";
 import {
-  EncodingSchematicOps,
+  type EncodingSchematicOps,
+  type EncodingType,
   encodingTemplate,
-  EncodingType,
 } from "../schema/definition/encodings/encoding.js";
 import { textTemplate } from "../schema/definition/encodings/text-encoding.js";
 import {
@@ -34,8 +34,8 @@ import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
 import { mergedSchematic } from "../schema/definition/structures/merge.js";
 import { redact } from "../schema/definition/structures/redact.js";
 import {
-  ReferenceSchematic,
-  ReferenceSchematicOps,
+  type ReferenceSchematic,
+  type ReferenceSchematicOps,
   referenceTemplate,
 } from "../schema/definition/structures/reference.js";
 import {

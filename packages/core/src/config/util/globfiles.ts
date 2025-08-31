@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { resolve, sep } from "node:path";
 
-import { GlobOptionsWithFileTypesFalse, glob } from "glob";
+import { type GlobOptionsWithFileTypesFalse, glob } from "glob";
 import { readFile } from "node:fs/promises";
 
 export async function globfiles<T>(

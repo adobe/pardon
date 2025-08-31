@@ -11,15 +11,19 @@ governing permissions and limitations under the License.
 */
 
 import { disarm } from "../../../util/promise.js";
-import { FlowName, HTTPS, HttpsFlowScheme } from "../../formats/https-fmt.js";
+import {
+  type HttpsFlowScheme,
+  type FlowFileName,
+  HTTPS,
+} from "../../formats/https-fmt.js";
 import type { FlowContext } from "./flow-context.js";
 import {
-  Flow,
-  currentFlowContext,
-  FlowResult,
+  type Flow,
+  type FlowResult,
+  type FlowFunction,
+  type FlowParams,
   runFlow,
-  FlowFunction,
-  FlowParams,
+  currentFlowContext,
 } from "./flow-core.js";
 import { compileHttpsFlow, executeHttpsFlowInContext } from "./https-flow.js";
 export type {
@@ -32,7 +36,7 @@ export type {
 export type {
   Flow,
   FlowContext,
-  FlowName,
+  FlowFileName,
   FlowResult,
   FlowFunction,
   FlowParams,
@@ -45,7 +49,7 @@ export function registerFlowHook(hook: typeof flowHook) {
 }
 
 export function flow(
-  name: FlowName,
+  name: FlowFileName,
   input?: Record<string, unknown>,
   context?: FlowContext,
 ): Promise<Record<string, any>>;
@@ -57,7 +61,7 @@ export function flow(
   ...args: any
 ) => Promise<Record<string, any>>;
 export function flow(
-  nameOrInput: FlowName | Record<string, unknown> | undefined,
+  nameOrInput: FlowFileName | Record<string, unknown> | undefined,
   ...args: any
 ) {
   if (typeof nameOrInput === "string") {
@@ -88,7 +92,7 @@ export function flow(
 }
 
 async function __flow(
-  name: FlowName,
+  name: FlowFileName,
   input?: Record<string, unknown>,
   context?: FlowContext,
 ) {

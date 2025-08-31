@@ -10,8 +10,8 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { createMemo, createSignal, on, type Accessor } from "solid-js";
-import { Deferred, deferred, recv, ship } from "pardon/utils";
+import { type Accessor, createMemo, createSignal, on } from "solid-js";
+import { type Deferred, deferred, recv, ship } from "pardon/utils";
 import { cancelTrace } from "../components/request-history.ts";
 
 export type ExecutionResult = Awaited<

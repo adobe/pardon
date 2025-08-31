@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 import { parseArgs } from "node:util";
 import { readFile } from "node:fs/promises";
 import { text } from "node:stream/consumers";
-import { HTTP, RequestObject } from "../../../core/formats/http-fmt.js";
+import { HTTP, type RequestObject } from "../../../core/formats/http-fmt.js";
 import { PardonError } from "../../../core/error.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { intoURL, parseURL } from "../../../core/request/url-object.js";
@@ -152,10 +152,10 @@ export async function processOptions(
   }
 
   const mainArg = args.shift();
-  if (/[.]flow(?:[.]https?)$/.test(mainArg ?? "")) {
+  if (/[.]flow[.]https$/.test(mainArg ?? "")) {
     // TODO: assert no other values in request.
     return {
-      flow: mainArg as `${string}.flow` | `${string}.flow.https`,
+      flow: mainArg as `${string}.flow.https`,
       values,
     };
   }

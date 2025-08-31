@@ -10,13 +10,13 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
+import type { RequestObject } from "./http-fmt.js";
+import type { FetchObject, RequestMeta } from "../request/fetch-object.js";
 import { extractKVs, intoArgs } from "../../util/kv-options.js";
-import { FetchObject, RequestMeta } from "../request/fetch-object.js";
 import { parseArgs } from "node:util";
 import { intoSearchParams } from "../request/search-object.js";
 import { arrayIntoObject } from "../../util/mapping.js";
 import { intoURL } from "../request/url-object.js";
-import { RequestObject } from "./http-fmt.js";
 import { PardonError } from "../error.js";
 import { createHeaders } from "../request/header-object.js";
 import { isIP } from "node:net";

@@ -82,7 +82,7 @@ usage
   }
 
   let {
-    flow: flowName,
+    flow: flowFileName,
     url,
     init,
     values,
@@ -111,15 +111,18 @@ usage
     options.secrets ??= false;
   }
 
-  if (flowName) {
-    if (/[.]https$/.test(flowName) && options.cwd) {
-      flowName = resolve(options.cwd, flowName) as `${string}.flow.https`;
+  if (flowFileName) {
+    if (/[.]https$/.test(flowFileName) && options.cwd) {
+      flowFileName = resolve(
+        options.cwd,
+        flowFileName,
+      ) as `${string}.flow.https`;
     }
 
     initTrackingEnvironment();
     const flowContext = context.createFlowContext();
     const { context: resultContext } = await executeHttpsFlowInContext(
-      flowName,
+      flowFileName,
       values,
       flowContext,
     );

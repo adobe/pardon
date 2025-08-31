@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { CollectionItemInfo } from "./Services.tsx";
+import type { CollectionItemInfo } from "./Services.tsx";
 
 export type Filters = {
   endpoint?: boolean;

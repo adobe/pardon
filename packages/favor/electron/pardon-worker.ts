@@ -19,33 +19,27 @@ import { resolve } from "node:path";
 import * as YAML from "yaml";
 import { glob } from "glob";
 
-import { PardonAppContextOptions, initializePardon } from "pardon/runtime";
-import { arrayIntoObject, mapObject, recv, ship } from "pardon/utils";
 import {
-  Flow,
-  FlowName,
-  HTTP,
-  HTTPS,
-  PardonOptions,
-  executeHttpsFlowInContext,
-  pardon,
-} from "pardon";
+  type AssetInfo,
+  type PardonAppContextOptions,
+  initializePardon,
+} from "pardon/runtime";
+import { arrayIntoObject, mapObject, recv, ship } from "pardon/utils";
+import { type PardonOptions, HTTP, HTTPS, pardon } from "pardon";
 import { httpOps, valueOps } from "pardon/database";
 
 import { traced } from "pardon/features/trace";
 import undici from "pardon/features/undici";
 import encodings from "pardon/features/content-encodings";
-import persist, { PardonHttpExecutionContext } from "pardon/features/persist";
+import persist, {
+  type PardonHttpExecutionContext,
+} from "pardon/features/persist";
 import {
+  type HttpsRequestStep,
+  type HttpsResponseStep,
   cleanObject,
-  HttpsRequestStep,
-  HttpsResponseStep,
 } from "pardon/formats";
-import {
-  CompiledHttpsSequence,
-  failfast,
-  initTrackingEnvironment,
-} from "pardon/running";
+import { failfast, initTrackingEnvironment } from "pardon/running";
 
 const [cwd] = argv.slice(2);
 
@@ -296,12 +290,6 @@ export type PardonWorkerOptions = PardonOptions & {
   service?: string;
 };
 
-function isFlowSequenceSource(
-  flow?: Flow["source"],
-): flow is CompiledHttpsSequence {
-  return flow?.["interactions"];
-}
-
 const handlers = {
   async manifest() {
     const { app } = await ready;
@@ -355,15 +343,11 @@ const handlers = {
           content,
           path: path.replace(/[\\]/g, "/"),
         })),
-      })),
+      })) as Record<string, AssetInfo>,
       configurations: app.collection.configurations,
       collections: app.config.collections.map((root) =>
         root.replace(/[\\]/g, "/"),
       ),
-      flows: mapObject(app.collection.flows ?? {}, ({ signature, source }) => ({
-        signature,
-        interactions: isFlowSequenceSource(source) && source.interactions,
-      })),
       example: app.example,
       data: app.collection.data,
       mixins: app.collection.mixins,
@@ -417,6 +401,7 @@ const handlers = {
 
     return { handle, context };
   },
+
   async render(handle: string) {
     const { execution } = ongoing[handle];
 
@@ -562,13 +547,6 @@ const handlers = {
         };
       })
       .filter(Boolean);
-  },
-  async flow(name: FlowName, input: Record<string, unknown>) {
-    const runtime = await ready;
-    const context = runtime.app.createFlowContext();
-    return {
-      ...(await executeHttpsFlowInContext(name, input, context)).context.flow,
-    };
   },
   async debug() {
     const { default: inspector } = await import("node:inspector");

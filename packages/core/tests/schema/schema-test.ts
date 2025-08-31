@@ -12,13 +12,13 @@ governing permissions and limitations under the License.
 import { it } from "node:test";
 import assert from "node:assert";
 
+import type { Schema } from "../../src/core/schema/core/types.js";
 import {
   mergeSchema,
   renderSchema,
 } from "../../src/core/schema/core/schema-utils.js";
 import { jsonEncoding } from "../../src/core/schema/definition/encodings/json-encoding.js";
 import { ScriptEnvironment } from "../../src/core/schema/core/script-environment.js";
-import { Schema } from "../../src/core/schema/core/types.js";
 import { KV } from "../../src/core/formats/kv-fmt.js";
 import { unboxObject } from "../../src/core/schema/definition/scalar.js";
 import { merging } from "../../src/core/schema/core/contexts.js";

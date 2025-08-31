@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { ComponentProps, createSignal, onCleanup } from "solid-js";
+import { type ComponentProps, createSignal, onCleanup } from "solid-js";
 
 export default function LoadingSplash(props: ComponentProps<"span">) {
   const spinner = "-/|\\";

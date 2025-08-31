@@ -11,7 +11,7 @@ governing permissions and limitations under the License.
 */
 import { PardonFetchExecution } from "../pardon/pardon.js";
 import {
-  PardonExecution,
+  type PardonExecution,
   pardonExecution,
   PardonExecutionError,
 } from "./pardon-execution.js";

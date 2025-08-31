@@ -15,7 +15,7 @@ import { JSON } from "../../raw-json.js";
 import { loc } from "./context-util.js";
 
 import { isLookupValue, isLookupExpr, parseScopedIdentifier } from "./scope.js";
-import {
+import type {
   ExpressionDeclaration,
   SchemaContext,
   SchemaRenderContext,

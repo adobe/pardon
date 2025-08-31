@@ -9,9 +9,9 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { HttpsFlowScheme } from "../../formats/https-fmt.js";
+import type { HttpsFlowScheme } from "../../formats/https-fmt.js";
+import type { PardonCompiler } from "../../../runtime/compiler.js";
 import { ScriptEnvironment } from "../../schema/core/script-environment.js";
-import { PardonCompiler } from "../../../runtime/compiler.js";
 import { shared } from "../../tracking.js";
 import { resolveDefaults, resolveImport } from "../../endpoint-environment.js";
 import { dirname } from "node:path";

@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 
 import ValuesInput from "./ValuesInput.tsx";
 import { createResource, createSignal, For, Show, Suspense } from "solid-js";
-import { HTTP, JSON, KV, ResponseJSON } from "pardon/formats";
+import { type ResponseJSON, HTTP, JSON, KV } from "pardon/formats";
 import LoadingSplash from "./LoadingSplash.tsx";
 import { makePersisted } from "@solid-primitives/storage";
 import { RequestSummaryNode } from "./RequestSummaryTree.tsx";

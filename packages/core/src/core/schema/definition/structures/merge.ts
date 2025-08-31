@@ -9,8 +9,8 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+import type { Schematic, SchematicOps, Template } from "../../core/types.js";
 import { defineSchematic, merge } from "../../core/schema-ops.js";
-import { Schematic, SchematicOps, Template } from "../../core/types.js";
 import { expandTemplate } from "../../template.js";
 
 type MergedSchematicOps<T> = SchematicOps<T> & {

@@ -12,13 +12,12 @@ governing permissions and limitations under the License.
 
 // @ts-nocheck -- hast JSX typing is rough.
 
-import type { EditorViewConfig } from "@codemirror/view";
-import type { EditorView } from "@components/codemirror/CodeMirror.tsx";
 import { definePlugin } from "@expressive-code/core";
 import * as acorn from "acorn";
 import * as walker from "acorn-walk";
 import { generate } from "astring";
 import { h } from "@expressive-code/core/hast";
+void h;
 
 export function copypastePlugin() {
   return definePlugin({
@@ -118,7 +117,7 @@ export function copypastePlugin() {
         }
       }),
     ],
-    baseStyles: (context) => `
+    baseStyles: () => `
 .copypaste {
   position: absolute;
   bottom: 0.5rem;
@@ -157,7 +156,7 @@ export function copypastePlugin() {
   });
 }
 
-function $$ssr<T>(x: T): T {
+function $$ssr<T>(): T {
   throw new Error("virtual");
 }
 
@@ -180,7 +179,7 @@ function src<T extends unknown[]>(
 
     const ast = acorn.parse(code.trim().slice(1, -1), options);
     walker.simple(ast, {
-      Expression(node, state) {
+      Expression(node) {
         if (
           node.type == "CallExpression" &&
           node.callee.type === "Identifier" &&

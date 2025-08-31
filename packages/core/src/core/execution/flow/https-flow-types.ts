@@ -9,21 +9,21 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { TracedResult } from "../../../features/trace.js";
-import {
+import type { TracedResult } from "../../../features/trace.js";
+import type {
   HttpsFlowConfig,
   HttpsFlowScheme,
   HttpsRequestStep,
   HttpsResponseStep,
   HttpsScriptStep,
 } from "../../formats/https-fmt.js";
-import {
+import type {
   PardonExecutionEgress,
   PardonExecutionResult,
 } from "../../pardon/pardon.js";
-import { Schema } from "../../schema/core/types.js";
-import { FlowContext } from "./flow-context.js";
-import { FlowParamsDict } from "./flow-params.js";
+import type { Schema } from "../../schema/core/types.js";
+import type { FlowContext } from "./flow-context.js";
+import type { FlowParamsDict } from "./flow-params.js";
 
 export type FlowReport = {
   type: "unit" | "flow";

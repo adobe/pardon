@@ -11,16 +11,16 @@ governing permissions and limitations under the License.
 */
 import {
   type Pattern,
+  type PatternRegex,
   matchToPattern,
   patternize,
   isPatternRegex,
-  PatternRegex,
   arePatternsCompatible,
   patternsMatch,
 } from "./pattern.js";
+import type { SchemaContext } from "./types.js";
 import { arrayIntoObject, mapObject } from "../../../util/mapping.js";
 import { uniqReducer } from "../../../util/uniq-reducer.js";
-import { SchemaContext } from "./types.js";
 import { diagnostic } from "./context-util.js";
 
 export type ConfigMap = Record<string, ConfigMapping | ConfigMapping[]>;

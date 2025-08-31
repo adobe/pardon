@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { PardonAppContextOptions } from "./init/workspace.js";
+import type { PardonAppContextOptions } from "./init/workspace.js";
 import { establishPardonRuntime } from "./init/establish-pardon-runtime.js";
 import { PardonFetchExecution } from "../core/pardon/pardon.js";
 import { resolveRuntime } from "./runtime-deferred.js";

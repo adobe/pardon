@@ -13,7 +13,7 @@ governing permissions and limitations under the License.
 import { mapObject } from "../../../util/mapping.js";
 import { createNumber } from "../../raw-json.js";
 import { isPatternSimple, patternize } from "../core/pattern.js";
-import { SchemaMergingContext } from "../core/types.js";
+import type { SchemaMergingContext } from "../core/types.js";
 
 export type Scalar =
   | string

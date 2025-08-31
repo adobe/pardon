@@ -12,7 +12,7 @@ governing permissions and limitations under the License.
 
 import { stubSchema } from "../definition/structures/stub.js";
 import { createMergingContext } from "./context.js";
-import { Schema, Template } from "./types.js";
+import type { Schema, Template } from "./types.js";
 
 export function merging<T>(
   template: Template<T>,

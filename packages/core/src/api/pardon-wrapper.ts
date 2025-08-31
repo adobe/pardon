@@ -11,11 +11,11 @@ governing permissions and limitations under the License.
 */
 import { HTTP } from "../core/formats/http-fmt.js";
 
-import {
+import type {
   PardonExecutionContext,
   PardonExecutionInit,
 } from "../core/pardon/pardon.js";
-import { PardonRuntime } from "../core/pardon/types.js";
+import type { PardonRuntime } from "../core/pardon/types.js";
 import type { SimpleRequestInit } from "../core/request/fetch-object.js";
 import { intoURL } from "../core/request/url-object.js";
 import { pardonRuntime } from "../runtime/runtime-deferred.js";

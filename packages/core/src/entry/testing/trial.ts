@@ -10,14 +10,14 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import "../../../types/global-environment.d.ts";
+export type { __export_keeper__ } from "../../../types/global-environment.d.ts";
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 
 import describeCases from "../../core/testcases/index.js";
 import { disarm } from "../../util/promise.js";
-import { PardonTestConfiguration } from "./runner.js";
+import type { PardonTestConfiguration } from "./runner.js";
 
 const pendingRegistrationTasks: Promise<unknown>[] = [];
 

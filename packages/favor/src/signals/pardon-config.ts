@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { AssetSource } from "pardon/runtime";
+import type { AssetInfo, AssetSource } from "pardon/runtime";
 import { mapObject } from "pardon/utils";
 import {
   createMemo,
@@ -27,7 +27,6 @@ export const { manifest, samples, manifestPromise, setManifestPromise } =
     >(
       (async () => {
         const cwd = (await window.pardon.settings).cwd ?? "/";
-        console.info("pardon.setConfig", cwd);
         return window.pardon.setConfig(cwd);
       })(),
     );
@@ -86,31 +85,34 @@ class FileManifest {
       return path;
     });
 
-    this.assets = mapObject(app.assets, (value) => ({
-      sources: this.croots
-        .map((root) => {
-          const firstRoot = this.croots.find((root) =>
-            value.sources[0].path.startsWith(root),
-          );
+    this.assets = mapObject(
+      app.assets as Record<string, AssetInfo>,
+      (value) => ({
+        sources: this.croots
+          .map((root) => {
+            const firstRoot = this.croots.find((root) =>
+              value.sources[0].path.startsWith(root),
+            );
 
-          if (!firstRoot) {
-            return null;
-          }
+            if (!firstRoot) {
+              return null;
+            }
 
-          const extension = value.sources[0].path.slice(firstRoot.length);
-          const source = value.sources.find(({ path }) =>
-            path.startsWith(root),
-          );
-          if (source) {
-            return { ...source, exists: true };
-          }
+            const extension = value.sources[0].path.slice(firstRoot.length);
+            const source = value.sources.find(({ path }) =>
+              path.startsWith(root),
+            );
+            if (source) {
+              return { ...source, exists: true };
+            }
 
-          const path = root + extension;
+            const path = root + extension;
 
-          return { path, content: "", exists: false };
-        })
-        .filter(Boolean),
-    }));
+            return { path, content: "", exists: false };
+          })
+          .filter(Boolean),
+      }),
+    );
   }
 
   assetFromPath(path: string) {

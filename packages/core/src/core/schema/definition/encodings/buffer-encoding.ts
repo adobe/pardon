@@ -9,7 +9,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import { EncodingType } from "./encoding.js";
+import type { EncodingType } from "./encoding.js";
 import { Buffer } from "node:buffer";
 
 export type TextBufferEncoding = Exclude<BufferEncoding, "binary">;

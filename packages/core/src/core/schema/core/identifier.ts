@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 
-import { Identifier } from "./types.js";
+import type { Identifier } from "./types.js";
 
 export function makeGlobalIdentifier(key: string): Identifier {
   return {

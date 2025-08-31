@@ -20,11 +20,11 @@ import { EditorState, Prec } from "@codemirror/state";
 import { history, historyKeymap } from "@codemirror/commands";
 import { search, searchKeymap } from "@codemirror/search";
 import {
+  type ComponentProps,
+  type Accessor,
   createEffect,
   splitProps,
-  type ComponentProps,
   createMemo,
-  Accessor,
 } from "solid-js";
 
 import { twMerge } from "tailwind-merge";
