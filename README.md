@@ -25,7 +25,7 @@ running is,
 
 To use pardon globally as a script, in the packages/core directory either run
 
-- `npm link .` (note the dot), or
+- `npm link .` (yes the dot too), or
 - `npm install . --global`
 
 To remove the installation of pardon, use `npm uninstall -g pardon` (this works
