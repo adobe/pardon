@@ -1,0 +1,7 @@
+context:
+  - env
+>>>
+GET https://todo.example.com/health-check
+
+<<<
+2xx OK

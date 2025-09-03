@@ -10,12 +10,12 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import os from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { PardonError } from "../core/error.js";
 
-export function homely(path: string): string {
+export function homely(path: string, relative?: string): string {
   if (/^~[/\\]/.test(path)) {
-    return join(os.homedir(), ...path.split(/[/\\]/).slice(1));
+    return join(os.homedir(), ...path.split(/[\\/]/).slice(1));
   }
 
   if (path !== "." && !path.startsWith("./") && !path.startsWith("../")) {
@@ -25,5 +25,5 @@ export function homely(path: string): string {
     );
   }
 
-  return path;
+  return resolve(relative ? dirname(relative) : ".", path);
 }

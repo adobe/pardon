@@ -46,10 +46,8 @@ A basic test could simply run a [flow](./flows.mdx).
 ```ts title="./health-check.test.ts"
 import { trial, flow } from 'pardon/testing';
 
-trial("%env/health-check", () => {
-  flow`
-    context:
-      - env
+trial("%env/health-check", ({ env }) => {
+  flow({ env })`
     >>>
     GET https://todo.example.com/health-check
 
@@ -59,7 +57,8 @@ trial("%env/health-check", () => {
 });
 ```
 
-This validates the basic health check.
+This validates that the `/health-check` endpoint returns 200, parameterized
+by the environment.
 
 ```sh
 % pardon-runner health-check.test.ts env=local "**"
@@ -67,6 +66,15 @@ This validates the basic health check.
 
 Trials can be organized in _surveys_ (similar to how `it("should", ...)` or `test(...)`  tests from other
 frameworks can be organized with `describe` or `suite` blocks).
+
+You can use surveys to organize trials:
+```ts
+survey("%env", {
+  trial("health-check", ({ env }) => {
+    ...
+  });
+})
+```
 
 <Tabs>
   <TabItem label="example.test.ts">
@@ -78,7 +86,7 @@ Also, the report output will go into directories according to the environment th
 ```js title="example.test.ts"
 import { trial, pardon } from 'pardon/testing'
 
-trial("%env/ping", () => execute("ping.flow"));
+trial("%env/health-check", () => flow("./health-check.flow.https"));
 ```
   </TabItem>
   <TabItem label="flows/example-ping.flow.https">

@@ -48,55 +48,71 @@ export function registerFlowHook(hook: typeof flowHook) {
   flowHook = hook;
 }
 
-export function flow(
-  name: FlowFileName,
-  input?: Record<string, unknown>,
-  context?: FlowContext,
-): Promise<Record<string, any>>;
-export function flow(
-  input?: Record<string, unknown>,
-  context?: FlowContext,
-): (
-  template: TemplateStringsArray,
-  ...args: any
-) => Promise<Record<string, any>>;
-export function flow(
-  nameOrInput: FlowFileName | Record<string, unknown> | undefined,
-  ...args: any
-) {
-  if (typeof nameOrInput === "string") {
-    const [input, context] = args;
-    return disarm(flowHook(__flow(nameOrInput, input, context)));
-  }
-
-  const [context] = args;
-
-  return (template: TemplateStringsArray, ...args: any) => {
-    const content = String.raw({ raw: template }, ...args);
-
-    const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
-    scheme.configuration ??= {};
-    scheme.configuration.context ??= Object.keys(nameOrInput ?? {});
-
-    const flow = compileHttpsFlow(scheme, {
-      path: "inline",
-      name: "inline.flow",
-    });
-
-    return disarm(
-      flowHook(runFlow(flow, nameOrInput ?? {}, context)).then(
-        ({ result }) => result,
-      ),
-    );
-  };
+function wrapRebase(flow: ReturnType<typeof buildFlowFunction>) {
+  return Object.assign(flow, {
+    rebase: (path?: string) => {
+      return wrapRebase(buildFlowFunction(path));
+    },
+  });
 }
 
-async function __flow(
+export const flow = wrapRebase(buildFlowFunction());
+
+function buildFlowFunction(relative?: string) {
+  function flow(
+    name: FlowFileName,
+    input?: Record<string, unknown>,
+    context?: FlowContext,
+  ): Promise<Record<string, any>>;
+  function flow(
+    input?: Record<string, unknown>,
+    context?: FlowContext,
+  ): (
+    template: TemplateStringsArray,
+    ...args: any
+  ) => Promise<Record<string, any>>;
+  function flow(
+    nameOrInput: FlowFileName | Record<string, unknown> | undefined,
+    ...args: any
+  ) {
+    if (typeof nameOrInput === "string") {
+      const [input, context] = args;
+      return disarm(flowHook(runflow(nameOrInput, input, context, relative)));
+    }
+
+    const [context] = args;
+
+    return (template: TemplateStringsArray, ...args: any) => {
+      const content = String.raw({ raw: template }, ...args);
+
+      const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
+      scheme.configuration ??= {};
+      scheme.configuration.context ??= Object.keys(nameOrInput ?? {});
+
+      const flow = compileHttpsFlow(scheme, {
+        path: "inline",
+        name: "inline.flow",
+      });
+
+      return disarm(
+        flowHook(runFlow(flow, nameOrInput ?? {}, context)).then(
+          ({ result }) => result,
+        ),
+      );
+    };
+  }
+
+  return flow;
+}
+
+async function runflow(
   name: FlowFileName,
   input?: Record<string, unknown>,
   context?: FlowContext,
+  relative?: string,
 ) {
   context ??= await currentFlowContext(context);
+  context = { ...context, ...(relative && { relative }) };
   const { result } = await executeHttpsFlowInContext(
     name,
     input ?? {},

@@ -558,7 +558,11 @@ async function doRenderScalar<T extends Scalar>(
   if (mode === "preview" && result === undefined) {
     // TODO: this unfortunately discards any known type here.
     return patterns[0]?.source as T;
-  } else if (result !== undefined && isScalar(result)) {
+  } else if (result !== undefined) {
+    if (!isScalar(result)) {
+      throw diagnostic(context, "expected scalar value");
+    }
+
     const issue = defineMatchesInScope(context, patterns, result, {
       unboxed,
     });
