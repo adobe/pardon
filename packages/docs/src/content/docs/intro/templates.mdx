@@ -200,10 +200,23 @@ we're matching the template with an already base64-encoded value, and we still g
 ```
 </TemplatePlayground>
 
+## Structured data
+
+Pardon supports rendering data in scopes.  Besides the root scope, additional
+scopes are introduced inside elements of indeterminate arrays or objects.
+
+An array with one exactly element is `[{ key, value }]`,
+while an indeterminate array of data is described with `[...{ key, value }]`,
+and an indeterminate object could be described with `{ ...{ info } }`.
+
+Data matched to this will not become available in the global scope, since 
+there could be zero, one, or more `key` and `value`s produced.  However
+`key` and `value` variables referenced from within each array element
+will be defined.
+
 ## Arrays in templates
 
-Processing arrays requires setting up a template to process multiple items.
-Let's start with the template for one item:
+Let's look at a template for exactly one item.
 
 <TemplatePlayground>
 ```
@@ -218,9 +231,11 @@ Let's start with the template for one item:
 </TemplatePlayground>
 
 Adding a second value `{ id: "T1002", task: "world", done: false }`, to the data would not
-work as the arrays now have different lengths.
+work as the arrays now have different lengths, and there would no longer be a unique
+definition of `id`, `task` or `done`.
 
-To work around this, a template needs to specify any number of items...
+To work around this, we use an indeterminate array, which can merged with
+any number of items...
 
 <TemplatePlayground>
 ```
@@ -235,12 +250,15 @@ To work around this, a template needs to specify any number of items...
 ```
 </TemplatePlayground>
 
-... using ellipsis to identify an item as a template for items in the array.
+... using ellipsis to identify the template for items in the array.
 
-The data is now compatible with the template, but notice how no values are exported!
+The data is now compatible with the template, but no variables are defined for the root scope.
+
 The values for each `id`, `task`, and `done` value 
-are in the scope of each array element: there's no way to uniquely identify them.
-For them to show up in the output, we need to give them a property path, `todos.id`, `todos.task` etc...
+are in the scope of each array element.
+
+To export these values into the root scope, we can define them via a pathed-reference,
+like `todos.id`, `todos.task`:
 
 <TemplatePlayground>
 ```
@@ -256,7 +274,7 @@ For them to show up in the output, we need to give them a property path, `todos.
 </TemplatePlayground>
 
 The `todos` value is implied to be an array of objects structured as `{ id, task, done }` elements,
-so the actual data paths are `todos[0].id` or `todos[1].task` etc... 
+so the actual data paths are `todos[0].id` or `todos[1].task` etc...
 
 This works in reverse as well, specifying an array of todos as input and the template:
 
@@ -273,14 +291,21 @@ todos=[
 ```
 </TemplatePlayground>
 
+:::note
+Why not `todos[].id` instead?
+
+Since Pardon is leveraging the typescript compiler for processing these
+templates, we would have to boil the ocean to "improve" on this syntax.
+:::
+
 ### Mapped Data
 
-Now, as a user of this data, you might not want to have to search the array for 
+As a user of this data, you might not want to have to search the array for 
 a particular `id`: it would be more natural to bind this as a map.
 
 Pardon supports this with a little syntax: `{ id: key } * [...template]`.
-The first part is a template which resolves a value for `key` and then
-the `todos` array is represented internally as a map based on that key.
+The first part is a template which is applied to each item to _resolve_ a value for `key`
+and then the `todos` array is represented internally as a map based on that key.
 
 <TemplatePlayground>
 ```
@@ -295,8 +320,11 @@ the `todos` array is represented internally as a map based on that key.
 ```
 </TemplatePlayground>
 
-This form can also be used in reverse, although in this case
-we add `todos.$key` to render the id back into the list:
+In the above example, we omitted the `id: todos.id` field since it's already
+represented.
+
+This can also be used in reverse, although in this case
+we need to add `todos.$key` to render the `id` field back:
 
 <TemplatePlayground>
 ```
@@ -314,7 +342,8 @@ todos={
 ### Unscoped Mapped Data
 
 Keyed arrays can also work unscoped.
-For this usage, we omit the `...` example element.
+For this usage, we omit the `...` example element and only use the `key` mapping
+with a concrete array (with keys evident).
 
 <TemplatePlayground>
 ```
@@ -331,10 +360,10 @@ hello=world
 ```
 </TemplatePlayground>
 
-Now the values `hello` and `hi` are bound to the root scope, and can be provided as input data, or
-matched.  Additional entries can be added too, so long as the key is distinct.
+With this variant, the values for `hello` and `hi` are bound to the root scope.
+And the additional entry is maintained as-is.
 
-### Single-Item Arrays
+### Unwrapped Single-Item Arrays
 
 One last feature for dealing with arrays is when we have a single element and we want to treat it as a single-item array.
 This is for interoperability with the Java/Jackson `WRITE_SINGLE_ELEM_ARRAYS_UNWRAPPED` and `ACCEPT_SINGLE_VALUE_AS_ARRAY`
@@ -366,9 +395,9 @@ This demonstates the following cases:
 
 | Case | Description |
 | --- | --- |
-| `one` | a single item list serializes unwrapped |
-| `two` | a multi-item list serializes as a list |
-| `three` | an item match is rendered unwrapped |
+| `one` | a single item list renders unwrapped |
+| `two` | a multi-item list renders as a list |
+| `three` | a non-array match is rendered unwrapped |
 | `four` | a single item list stays as a list |
 | `five` | a multi-item list also remains as a list |
 
@@ -420,10 +449,10 @@ This parsed object data is then merged with a template that represents all http 
     method: "{{method}}",
     origin: "{{origin}}",
     pathname: "{{...pathname}}",
-    searchParams: search = ...,
-
-    headers: headers = ...,
-
+    searchParams
+      search = ...,
+    headers:
+      headers = ...,
     body: body = ...
 }
 ```

@@ -67,6 +67,7 @@ import type {
 import { evaluateIdentifierWithExpression } from "../../schema/core/evaluate.js";
 import { readFile } from "node:fs/promises";
 import { reducedValues } from "../../pardon/pardon.js";
+import { dirname, resolve } from "node:path";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -953,12 +954,18 @@ async function runFlowScript(
   return { context: contextValues, flow: flowValues };
 }
 
-async function loadFlowFile(path: FlowFileName) {
+async function loadFlowFile(context: FlowContext, path: FlowFileName) {
+  if (context.relative) {
+    path = resolve(dirname(context.relative), path) as FlowFileName;
+  }
+
+  const flowFilePath = context.runtime.compiler.resolve(path, "");
+  console.log(`flowFilePath: ${flowFilePath}: ${resolve(flowFilePath)}`);
   try {
-    const content = await readFile(path, "utf-8");
+    const content = await readFile(flowFilePath, "utf-8");
     const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;
     return compileHttpsFlow(scheme, {
-      path,
+      path: flowFilePath,
       name: path,
     });
   } catch (error) {
@@ -972,7 +979,7 @@ export async function executeHttpsFlowInContext(
   input: Record<string, unknown>,
   context: FlowContext,
 ) {
-  const flow = await loadFlowFile(name);
+  const flow = await loadFlowFile(context, name);
 
   if (!flow) {
     throw new PardonError(`no flow named ${name}`);

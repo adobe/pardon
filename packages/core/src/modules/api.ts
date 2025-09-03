@@ -9,11 +9,30 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-import type {} from "../../types/global-environment.d.ts";
+
+declare global {
+  interface ImportMeta {
+    /**
+     * this is only present within the "pardon" script when loaded
+     * by the pardon runtime, and is replaced with the resolved
+     * moduleSpecifier of the importing script.
+     *
+     * It allows flows to refer to files with a path relative to the importing
+     * script, rather than relative to the current directory of the runtime.
+     */
+    parent?: string;
+  }
+}
+
+import { flow as _flow } from "../core/execution/flow/index.js";
+import { FILE as _FILE } from "../runtime/file.js";
+
+export const flow = _flow.rebase(import.meta.parent);
+export const FILE = _FILE.rebase(import.meta.parent);
 
 export { pardon, template, type PardonOptions } from "../api/pardon-wrapper.js";
+
 export {
-  flow,
   type Flow,
   type FlowContext,
   type FlowResult,
@@ -43,5 +62,3 @@ export { type ScopeData } from "../core/schema/core/types.js";
 
 export { HTTPS, type HttpsScheme } from "../core/formats/https-fmt.js";
 export { PardonError } from "../core/error.js";
-
-export { FILE } from "../runtime/file.js";

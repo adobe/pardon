@@ -14,15 +14,22 @@ import { readFile } from "node:fs/promises";
 import { homely } from "../util/resolvehome.js";
 import { JSON } from "../core/raw-json.js";
 
-export const FILE = {
-  text,
-  json,
-};
+function fileAPI(relative?: string) {
+  return {
+    text,
+    json,
+    rebase(path?: string) {
+      return fileAPI(path);
+    },
+  };
 
-async function text(path: string) {
-  return (await readFile(homely(path), "utf-8")).trimEnd();
+  async function text(path: string) {
+    return (await readFile(homely(path, relative), "utf-8")).trimEnd();
+  }
+
+  async function json(path: string) {
+    return JSON.parse(await text(path));
+  }
 }
 
-async function json(path: string) {
-  return JSON.parse(await text(path));
-}
+export const FILE = fileAPI();

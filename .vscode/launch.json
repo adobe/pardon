@@ -150,8 +150,8 @@
         "--stack-trace-limit=100",
         "src/entry/testing/cli/index.ts",
         "--cwd=${workspaceFolder}/examples/todo",
-        "./tests/ping.test.ts",
-        "env=stage",
+        "./tests/health-check.test.ts",
+        "env=local",
         "--all"
       ],
       "env": {

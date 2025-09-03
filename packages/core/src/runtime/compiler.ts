@@ -28,7 +28,40 @@ const { join, normalize } = posix;
 
 export type PardonCompiler = ReturnType<typeof createCompiler>;
 
-const withIdentityTransform: (identity: string) => TsMorphTransform =
+const withFlowRelativeTransform: (
+  parentSpecifier: string,
+) => TsMorphTransform =
+  (parentSpecifier) =>
+  ({ factory, visitChildren, currentNode }) => {
+    if (
+      ts.isImportDeclaration(currentNode) &&
+      ts.isStringLiteral(currentNode.moduleSpecifier) &&
+      currentNode.moduleSpecifier.text === "pardon"
+    ) {
+      return factory.createImportDeclaration(
+        currentNode.modifiers,
+        currentNode.importClause,
+        currentNode.moduleSpecifier,
+        factory.createImportAttributes(
+          factory.createNodeArray([
+            factory.createImportAttribute(
+              factory.createIdentifier("parent"),
+              factory.createStringLiteral(parentSpecifier),
+            ),
+            ...(currentNode.attributes?.elements ?? []),
+          ]),
+        ),
+      );
+    }
+
+    if (currentNode.kind === ts.SyntaxKind.SourceFile) {
+      return visitChildren();
+    } else {
+      return currentNode;
+    }
+  };
+
+const withImportTransform: (identity: string) => TsMorphTransform =
   (identity) =>
   ({ factory, visitChildren, currentNode }) => {
     if (!identity) {
@@ -120,11 +153,8 @@ export default function createCompiler({
         scriptKind: path.endsWith(".js") ? ts.ScriptKind.JS : ts.ScriptKind.TS,
       })
       .transform(dotAwaitTransform)
-      .transform(
-        identity
-          ? withIdentityTransform(identity)
-          : ({ currentNode }) => currentNode,
-      )
+      .transform(withFlowRelativeTransform(path))
+      .transform(withImportTransform(identity))
       .asKind(ts.SyntaxKind.SourceFile)!;
 
     const exports = [...(compiled?.getExportedDeclarations().entries() ?? [])]
@@ -214,11 +244,25 @@ export default function createCompiler({
       !resolution.endsWith(".https")
     ) {
       const content = readFileSync(resolution, "utf-8");
-      if (!resolution.endsWith(".ts")) {
-        return content;
-      }
 
-      const compiled = translate(resolution, content)?.compiled.getEmitOutput();
+      const compiled = translate(resolution, content)
+        ?.compiled.transform(({ currentNode, visitChildren, factory }) => {
+          if (!context.importAttributes.parent) {
+            return currentNode;
+          }
+
+          if (
+            ts.isPropertyAccessExpression(currentNode) &&
+            ts.isMetaProperty(currentNode.expression) &&
+            currentNode.name.text === "parent"
+          ) {
+            return factory.createStringLiteral(context.importAttributes.parent);
+          }
+
+          return visitChildren();
+        })
+        .asKind(ts.SyntaxKind.SourceFile)
+        ?.getEmitOutput();
 
       return compiled?.getOutputFiles()[0].getText();
     }

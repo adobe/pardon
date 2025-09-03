@@ -10,7 +10,7 @@ export default {
   prefix: "%env",
 } as PardonTestConfiguration;
 
-trial("ping", async ({ env }) => {
+trial("health-check", async ({ env }) => {
   flow({ env })`
     >>>
     GET https://todo.example.com/health-check
@@ -18,4 +18,8 @@ trial("ping", async ({ env }) => {
     <<<
     2xx OK
   `;
+});
+
+trial("health-check-flow", async ({ env }) => {
+  flow("./health-check.flow.https");
 });
