@@ -39,9 +39,9 @@ or follow := assignments at the top level.
 // only (), {}, [], and `` nesting is assured, and that the sequence does not
 // end with something that can continue an expression.
 const tokenizer =
-  /(\s+|'(?:[^'\n\\]|\\[^\n])*'|"(?:[^"\n\\]|\\[^\n])*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\](),]|-[*]-|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/im;
-const kevsplitter = /^((?!['"])[^:=]+)(:=|:(?!=)|=)(.*)$/im;
-const evsplitter = /^(:=|:(?!=)|=)(.*)$/im;
+  /(\s+|'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\$]|\\.|[$](?=[^{]))*`|[{}[\](),]|-[*]-|[a-z0-9~!@#$%^&|*_./:=?+-]+)|(?:#.*$)/ims;
+const kevsplitter = /^((?!['"])[^:=]+)(:=|:(?!=)|=)(.*)$/ims;
+const evsplitter = /^(:=|:(?!=)|=)(.*)$/ims;
 
 type ExpressionParseState = {
   stack: string[];
@@ -326,16 +326,30 @@ export const KV: {
 
     function decode(token: string) {
       switch (true) {
-        case /^".*"$/.test(token):
+        case /^".*"$/s.test(token):
         case isValidNumberToken(token):
           return JSON.parse(token);
-        case /^'.*'$/.test(token):
+        case /^'.*'$/s.test(token):
           return JSON.parse(
-            `"${token.slice(1, -1).replace(/\\.|\\'|"|\\/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"` })[match] ?? match)}"`,
+            `"${token
+              .replace(/\n/g, "\\n")
+              .slice(1, -1)
+              .replace(
+                /\\.|\\'|"|\\/gs,
+                (match) => ({ [`\\'`]: `'`, [`"`]: `\\"` })[match] ?? match,
+              )}"`,
           );
         case /^`.*`$/s.test(token):
           return JSON.parse(
-            `"${token.slice(1, -1).replace(/\\.|\\'|"|\n/g, (match) => ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ?? match)}"`,
+            `"${token
+              .replace(/\n/g, "\\n")
+              .slice(1, -1)
+              .replace(
+                /\\.|\\'|"|\n/gs,
+                (match) =>
+                  ({ [`\\'`]: `'`, [`"`]: `\\"`, ["\n"]: "\\n" })[match] ??
+                  match,
+              )}"`,
           );
         case allowExpressions && /^[(].*[)]$/.test(token):
           return makeExprValue(token);
@@ -532,11 +546,11 @@ export const KV: {
             // result[upto] = tokens.slice(parsed).join("").length;
           }
 
-          if (tokens[i] === "-*-") {
-            i++;
+          if (tokens[parsed] === "-*-") {
+            parsed++;
           }
 
-          result[unparsed] = tokens.slice(i).join("");
+          result[unparsed] = tokens.slice(parsed).join("");
           return result;
         }
 
@@ -815,6 +829,7 @@ const KeyValueEncoding: KeyValueEncodingRules = {
       JSON.stringify(value, (_, value) => toRawJson(value)),
       true,
       options,
+      typeof value,
     ),
   arrays: {
     inline: { start: "[ ", end: " ]" },
@@ -842,6 +857,7 @@ const KeyValueEncodingCompact: KeyValueEncodingRules = {
       JSON.stringify(value, (_, value) => toRawJson(value)),
       true,
       options,
+      typeof value,
     ),
   arrays: {
     inline: { start: "[", end: "]" },
@@ -1202,6 +1218,7 @@ function dequoteJson(
   text: string,
   inValue: boolean,
   options: KeyValueStringifyOptions | undefined,
+  type: "string" | string,
 ) {
   if (text === "") {
     return '""';
@@ -1209,6 +1226,14 @@ function dequoteJson(
 
   if (typeof text !== "string") {
     return text;
+  }
+
+  if (
+    type === "string" &&
+    /^['"]/.test(text) &&
+    isValidNumberToken(JSON.parse(text))
+  ) {
+    return requote(text, options);
   }
 
   const tokens = tokenize(text);

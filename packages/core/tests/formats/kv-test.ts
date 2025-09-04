@@ -67,6 +67,33 @@ it("should stringify patterns", () => {
   assert.equal(KV.stringify("{{'xyz'[0]}}"), "\"{{'xyz'[0]}}\"");
 });
 
+it("should parse multiline strings", () => {
+  const { [KV.unparsed]: rest, ...data } = KV.parse(
+    `x='
+a
+'`,
+    "stream",
+    { allowExpressions: true },
+  );
+
+  assert.equal(data.x, "\na\n");
+});
+
+it("should keep all data", () => {
+  const { [KV.unparsed]: rest, ...data } = KV.parse(
+    `a=b
+x='`,
+    "stream",
+    {
+      allowExpressions: true,
+    },
+  );
+
+  assert.equal(data.a, "b");
+  assert.equal(data.x, undefined);
+  assert.equal(rest, "x='");
+});
+
 it("should end at -*- patterns", () => {
   const { [KV.unparsed]: rest, ...data } = KV.parse(
     `x := y()
@@ -78,4 +105,11 @@ it("should end at -*- patterns", () => {
 
   assert.equal(data.x(), "y()");
   assert.equal(rest?.trim(), "extra");
+});
+
+it("should stringify numbers and strings differently", () => {
+  assert.equal(
+    KV.stringify({ x: 123, y: "123" }, { quote: "single" }),
+    "x=123 y='123'",
+  );
 });
