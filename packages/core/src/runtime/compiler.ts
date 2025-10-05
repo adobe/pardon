@@ -23,6 +23,7 @@ import {
 import { shared } from "../core/tracking.js";
 import type { PardonCollection } from "./init/workspace.js";
 import { JSON } from "../core/raw-json.js";
+import { pathToFileURL } from "node:url";
 
 const { join, normalize } = posix;
 
@@ -130,6 +131,7 @@ export default function createCompiler({
       allowJs: true,
       noCheck: true,
       strict: false,
+      rootDir: "/",
       noEmitOnError: true,
       inlineSourceMap: true,
     },
@@ -282,7 +284,7 @@ export default function createCompiler({
         .map(
           ({ path, exports }, index) =>
             `export { ${exports.join(", ")} } from ${JSON.stringify(
-              `file://${path}`,
+              pathToFileURL(path),
             )} with { identity: ${JSON.stringify(`${identity}?${index}`)} };`,
         )
         .join("\n");

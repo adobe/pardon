@@ -44,6 +44,7 @@ import {
   matchTemplate,
   mvKeyedTuples,
   blendEncoding,
+  namespaceTemplate,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
@@ -151,6 +152,7 @@ export const bodyGlobals: Record<string, any> = {
   },
   $secret: redact,
   $match: matchTemplate,
+  $namespace: namespaceTemplate,
   $hidden: hiddenTemplate,
   $merged: mergedSchematic,
   $keyed: makeKeyed,

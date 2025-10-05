@@ -48,6 +48,22 @@ function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
     });
 }
 
+function namespaceContextBlend<T>(namespace: string) {
+  return (template: Template<T>) =>
+    defineSchematic({
+      blend(context, next) {
+        return next({
+          ...context,
+          namespace: [...(context.namespace ?? []), namespace],
+          template,
+        });
+      },
+      expand(context) {
+        return context.expand(template);
+      },
+    });
+}
+
 export function blendEncoding<T>(
   blending: Template<any> | undefined,
   wrapper: (template?: Template<any>) => Template<T>,
@@ -87,6 +103,13 @@ export function mergeTemplate(template: Template<unknown>) {
 
 export function matchTemplate(template: Template<unknown>) {
   return modeContextBlend("match")(template);
+}
+
+export function namespaceTemplate(
+  namespace: string,
+  template: Template<unknown>,
+) {
+  return namespaceContextBlend(namespace)(template);
 }
 
 type KeyedTemplate<T, Multivalued extends boolean> = {

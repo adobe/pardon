@@ -53,7 +53,7 @@ export function evalTemplate(
 //   - x %= /.../ -> bind x to the variable with regex /.../ :: x.of("{{ % /.../ }}")
 //   - x = (...) % /.../ -> bind $x to the variable with regex /.../ :: x.of("{{ = (...) % /.../ }}")
 //   - x = ... -> bind x to the structure :: x.of(...)
-//   - x! -> mark x required for match :: x.$required (this only affects matching response templates)
+//   - x! -> mark x required for match :: x.$required (this affects response template matching)
 export const jsonSchemaTransform: TsMorphTransform = ({
   currentNode,
   visitChildren,
@@ -177,6 +177,20 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   }
 
   currentNode = visitChildren();
+
+  if (
+    ts.isBinaryExpression(currentNode) &&
+    currentNode.operatorToken.kind === ts.SyntaxKind.BarToken
+  ) {
+    if (isReferenceRoot(currentNode.left)) {
+      const namespace = identifierOf(currentNode.left, factory);
+      return factory.createCallExpression(
+        factory.createIdentifier("$namespace"),
+        undefined,
+        [factory.createStringLiteral(namespace), currentNode.right],
+      );
+    }
+  }
 
   // handles `[...other]` as `$elements(other)` when it's not a reference
   if (
@@ -479,25 +493,21 @@ function identifierOf(node: ts.Expression, factory: ts.NodeFactory) {
     } else if (ts.isPropertyAccessExpression(node)) {
       const name = node.name.text;
 
-      if (name.startsWith("$hint(") && name.endsWith(")")) {
-        hints.add(JSON.parse(name.slice(6, -1)));
-      } else {
-        const hint = referenceHints[name];
-        const special = referenceSpecials[name];
+      const hint = referenceHints[name];
+      const special = referenceSpecials[name];
 
-        if (hint) {
-          hints.add(hint);
-        } else if (special) {
-          parts.unshift(special);
-        } else if (!name.startsWith("$")) {
-          parts.unshift(name);
-        } else {
-          throw new Error(
-            "illegal reference node name: " +
-              name +
-              " (references must not start with $)",
-          );
-        }
+      if (hint) {
+        hints.add(hint);
+      } else if (special) {
+        parts.unshift(special);
+      } else if (!name.startsWith("$")) {
+        parts.unshift(name);
+      } else {
+        throw new Error(
+          "illegal reference node name: " +
+            name +
+            " (references must not start with $)",
+        );
       }
 
       node = node.expression;

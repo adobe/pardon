@@ -120,13 +120,22 @@ const hints = {
   $export: "+",
 };
 
+function namespacedRef(
+  context: SchemaMergingContext<unknown>,
+  self: { ref?: string },
+) {
+  const { ref: selfRef } = self;
+  if (!selfRef) return;
+
+  return [...(context.namespace ?? []), selfRef].join(".");
+}
+
 export function referenceTemplate<T = unknown>(
   reference: ReferenceTemplate<T>,
 ): ReferenceSchematic<T> {
   const referenceSchematic = defineSchematic<ReferenceSchematicOps<T>>({
     expand(context) {
-      const { ref } = reference;
-
+      const ref = namespacedRef(context, reference);
       const schema = defineReference({
         refs: new Set([ref].filter(Boolean)),
         hint: reference.hint ?? "",
@@ -151,7 +160,8 @@ export function referenceTemplate<T = unknown>(
     },
     blend(context, next) {
       let { template } = reference;
-      const { ref } = reference;
+      const ref = namespacedRef(context, reference);
+
       let hint = reference.hint ?? "";
 
       while (isSchematic(template)) {
@@ -290,13 +300,18 @@ export function defineReference<T = unknown>(
       const verifying =
         context.mode === "match" && context.phase === "validate";
 
-      if (verifying && !info && isRequired({ hint })) {
+      if (
+        verifying &&
+        !info &&
+        context.template === undefined &&
+        isRequired({ hint })
+      ) {
         diagnostic(context, `missing value for ${[...refs].join("/")}`);
         return undefined;
       }
 
       if (info) {
-        const { ref } = info;
+        const ref = namespacedRef(context, info);
         const mergedHint = `${hint}${info.hint ?? ""}`;
 
         let merged = schema;

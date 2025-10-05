@@ -129,12 +129,14 @@ async function renderIdentifierInExpression(
     const identifier = parseScopedIdentifier(name);
 
     if (expression) {
-      return doRenderExpression(context, {
+      const result = await doRenderExpression(context, {
         identifier,
         expression,
         source,
         hint,
       });
+
+      return result;
     }
 
     const ambientResult = await rendered?.(context);

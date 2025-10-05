@@ -513,6 +513,14 @@ a=[{item=1},{item=2},{item=3},{item=hello}]
 { "x": [1,2,3,"hello"] }
 `();
 
+templating("import-namespaced-ascope-array-reference")`
+a=[{item=1},{item=2},{item=3},{item=hello}]
+{ x: a | [...item!] }
+---
+*
+{ "x": [1,2,3,"hello"] }
+`();
+
 templating("import-ascope-array-pattern-computation")`
 a=[{item=1},{item=2},{item=3}]
 { x: [...["{{a.item}}","{{=item*2}}"]] }

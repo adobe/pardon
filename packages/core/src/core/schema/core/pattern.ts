@@ -78,7 +78,8 @@ const dquote = /["](?:(?:[^"\\]|[\\].)*)["]/;
 function parseRex(rex?: string) {
   if (!rex) return;
 
-  const [, re, flags] = /^[/](.*)[/]([dgimsuvy]*)$/.exec(rex.trim())!;
+  let [, re, flags] = /^[/](.*)[/]([dgimsuvy]*)$/.exec(rex.trim())!;
+  if (flags.includes("v")) flags = flags.replaceAll("u", "");
 
   return new RegExp(re, [...new Set([...(flags ?? [])])].sort().join(""));
 }
