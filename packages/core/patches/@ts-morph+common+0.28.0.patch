@@ -1,8 +1,8 @@
 diff --git a/node_modules/@ts-morph/common/dist/typescript.js b/node_modules/@ts-morph/common/dist/typescript.js
-index c927ce9..bd06efe 100644
+index 698d8c1..2e35678 100644
 --- a/node_modules/@ts-morph/common/dist/typescript.js
 +++ b/node_modules/@ts-morph/common/dist/typescript.js
-@@ -8277,7 +8277,7 @@ var sys = (() => {
+@@ -8279,7 +8279,7 @@ var sys = (() => {
      const platform = _os.platform();
      const useCaseSensitiveFileNames2 = isFileSystemCaseSensitive();
      const fsRealpath = !!_fs.realpathSync.native ? process.platform === "win32" ? fsRealPathHandlingLongPath : _fs.realpathSync.native : _fs.realpathSync;
@@ -11,7 +11,7 @@ index c927ce9..bd06efe 100644
      const fsSupportsRecursiveFsWatch = process.platform === "win32" || isMacOs;
      const getCurrentDirectory = memoize(() => process.cwd());
      const { watchFile: watchFile2, watchDirectory } = createSystemWatchFunctions({
-@@ -8482,7 +8482,7 @@ var sys = (() => {
+@@ -8484,7 +8484,7 @@ var sys = (() => {
        if (platform === "win32" || platform === "win64") {
          return false;
        }
