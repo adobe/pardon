@@ -21,10 +21,19 @@ governing permissions and limitations under the License.
 starlight-tabs {
   @apply rounded-md shadow-lg dark:shadow-none;
 
+  & > .tablist-wrapper > ul[role="tablist"] {
+    & > li {
+      @apply flex flex-1;
+      & > [role="tab"] {
+        @apply w-full;
+      }
+    }
+  }
+
   & > [role="tabpanel"] {
     @apply mt-0! bg-stone-100 p-3 dark:border-0 dark:bg-stone-800 dark:text-stone-200;
 
-    @apply leading-5;
+    @apply px-2 leading-5;
     @apply rounded-b-lg;
 
     & > starlight-tabs {
