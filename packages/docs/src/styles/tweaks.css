@@ -43,21 +43,26 @@ starlight-tabs {
       }
     }
   }
+
   & > .tablist-wrapper {
     @apply my-0! border-none! pb-0;
   }
+
   & > .tablist-wrapper > ul {
     @apply my-0! gap-0 !border-none;
   }
+
   & > .tablist-wrapper > ul > * {
     @apply my-0! !flex-auto;
 
     &:first-child > * {
       @apply rounded-ss-md;
     }
+
     &:last-child > * {
       @apply rounded-se-md;
     }
+
     & > * {
       @apply !py-1;
       @apply light:shadow-neutral-500 dark:shadow-stone-600;
@@ -67,6 +72,7 @@ starlight-tabs {
       &:not([aria-selected="true"]) {
         @apply place-content-center bg-stone-200 whitespace-nowrap dark:bg-stone-700 dark:!text-stone-300;
       }
+
       &[aria-selected="true"] {
         @apply border-b-0 bg-stone-300 font-normal! dark:bg-stone-600;
       }
@@ -79,6 +85,7 @@ starlight-tabs {
     @apply font-mono;
   }
 }
+
 .tab-subtitle {
   @apply text-center text-lg font-bold text-shadow-sm;
 }
@@ -87,12 +94,15 @@ starlight-tabs {
   ul:not(:where(.not-content *)) {
     @apply m-0 ml-3;
   }
+
   ul > li:not(:where(.not-content *)) {
     @apply mt-0 list-item list-inside list-disc leading-snug;
   }
+
   ul ul:not(:where(.not-content *)) {
     @apply m-0 ml-5;
   }
+
   ul ul li:not(:where(.not-content *)) {
     @apply mt-0 list-item list-inside list-[square] leading-tight;
   }

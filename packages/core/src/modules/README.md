@@ -5,7 +5,8 @@ modules produced via the `rollup.config`.
 
 ## The pardon modules
 
-A brief description of the modules and their roles.
+A brief description of the modules and their roles. Unless otherwise noted,
+these require a NodeJS-type environment.
 
 ### import "pardon"
 
@@ -21,22 +22,22 @@ responses.
 
 ### import "pardon/runtime"
 
-Provides the method for initializing the pardon systems.
+Provides the method for initializing the pardon systems, for integrating the
+pardon runtime into other environments.
 
 ### import "pardon/loader"
 
 (internal, do not use directly.)
 
-Used internally for initializing the system, needs to be its own artifact.
+Used internally for initializing the system, this needs to be its own artifact
+especially when running on older versions of node.
 
 repackaging: build this to "./loader.js" for runtime access.
 
 ### import "pardon/formats"
 
-Provides the pardon formats without the rest of the runtime, (easier to consume
-in front-end code than the entire pardon api.)
-
-The exports are also provided in "api".
+Provides the pardon formats (https, kv, curl) without the rest of the runtime.
+This import is safe for front-end / non-node environments.
 
 ### import "pardon/utils"
 
