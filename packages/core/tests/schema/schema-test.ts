@@ -1621,3 +1621,26 @@ text("{{json}}")
 json='{}'
 {}
 `();
+
+templating("double-encodings")`
+base64(json(content)) = "eyAieCI6IDcgfQ=="
+---
+content={ x=7 }
+"eyJ4Ijo3fQ=="
+`();
+
+templating.todo("reference-binding-in-encodings")`
+base64(json(content) = x) = "eyAieCI6IDcgfQ=="
+---
+x='{"x":7}'
+content={ x=7 }
+"eyJ4Ijo3fQ=="
+`();
+
+templating.todo("reference-binding-in-encodings-alt-order")`
+base64(x = json(content)) = "eyAieCI6IDcgfQ=="
+---
+x='{"x":7}'
+content={ x=7 }
+"eyJ4Ijo3fQ=="
+`();
