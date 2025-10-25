@@ -1629,15 +1629,15 @@ content={ x=7 }
 "eyJ4Ijo3fQ=="
 `();
 
-templating.todo("reference-binding-in-encodings")`
-base64(json(content) = x) = "eyAieCI6IDcgfQ=="
+templating.only("reference-binding-in-encodings")`
+base64(json(content) = j) = "eyAieCI6IDcgfQ=="
 ---
-x='{"x":7}'
+j='{"x":7}'
 content={ x=7 }
 "eyJ4Ijo3fQ=="
 `();
 
-templating.todo("reference-binding-in-encodings-alt-order")`
+templating("reference-binding-in-encodings-alt-order")`
 base64(x = json(content)) = "eyAieCI6IDcgfQ=="
 ---
 x='{"x":7}'

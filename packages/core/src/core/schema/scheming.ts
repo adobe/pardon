@@ -34,7 +34,6 @@ import type {
   Template,
 } from "./core/types.js";
 import { merging } from "./core/contexts.js";
-import type { ReferenceSchematicOps } from "./definition/structures/reference.js";
 
 function modeContextBlend<T>(mode: SchemaMergingContext<unknown>["mode"]) {
   return (template: Template<T>) =>
@@ -62,39 +61,6 @@ function namespaceContextBlend<T>(namespace: string) {
         return context.expand(template);
       },
     });
-}
-
-export function blendEncoding<T>(
-  blending: Template<any> | undefined,
-  wrapper: (template?: Template<any>) => Template<T>,
-): Template<T> {
-  if (!isSchematic(blending)) {
-    return wrapper(blending);
-  }
-
-  // don't blend with references or the
-  // reference captures the wrong encoding layer.
-  const schematic = exposeSchematic<ReferenceSchematicOps<any>>(blending);
-  if (schematic.reference || !schematic.blend) {
-    return wrapper(blending);
-  }
-
-  return defineSchematic<SchematicOps<any>>({
-    blend(context, next) {
-      return blending().blend!(context, (context) => {
-        return next({
-          ...context,
-          template: wrapper(context.template),
-        });
-      });
-    },
-    expand(context) {
-      return blending().expand({
-        ...context,
-        template: wrapper(context.template),
-      });
-    },
-  });
 }
 
 export function mergeTemplate(template: Template<unknown>) {

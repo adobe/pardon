@@ -30,10 +30,10 @@ const transforms = Object.assign(
 
           assert.equal(morphed, expected.trim());
           if (expectedSymbols) {
-            assert.deepEqual(expectedSymbols, unbound.symbols);
+            assert.deepEqual(unbound.symbols, expectedSymbols);
           }
           if (expectedLiterals) {
-            assert.deepEqual(expectedLiterals, unbound.literals);
+            assert.deepEqual(unbound.literals, expectedLiterals);
           }
         }
 
@@ -237,3 +237,8 @@ transforms("secret-spread-unwrapped")
   .from(`![...x.$value as secret]`)
   .to(`$itemOrArray(x.$value.$secret)`)
   .symbols("$itemOrArray", "x");
+
+transforms("reference-binding-in-encodings")
+  .from('base64(json(content) = j) = "eyAieCI6IDcgfQ=="')
+  .to('$merged($base64($merged($json(content), j)), "eyAieCI6IDcgfQ==")')
+  .symbols("$base64", "$json", "content", "$merged", "j");

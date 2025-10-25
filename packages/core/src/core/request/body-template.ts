@@ -43,30 +43,29 @@ import {
   makeKeyed,
   matchTemplate,
   mvKeyedTuples,
-  blendEncoding,
   namespaceTemplate,
 } from "../schema/scheming.js";
 import { evalTemplate } from "./eval-template.js";
 
 export const encodings = {
   $json(value: unknown | Template<unknown>) {
-    return blendEncoding(value, jsonEncoding);
+    return jsonEncoding(value);
   },
   $form(value?: string | Record<string, string> | [string, string][]) {
-    return blendEncoding(value, (value) =>
-      encodingTemplate(formEncodingType, mvKeyedTuples, parseForm(value)),
-    ) as Template<string>;
+    return encodingTemplate(
+      formEncodingType,
+      mvKeyedTuples,
+      parseForm(value),
+    ) as Schematic<string>;
   },
   $base64(value: string | Template<string>) {
-    return blendEncoding(value, base64Encoding);
+    return base64Encoding(value);
   },
   $text(value: string) {
-    return blendEncoding(value, textTemplate);
+    return textTemplate(value);
   },
   $raw(value: string) {
-    return blendEncoding(value, (value) =>
-      textTemplate(datums.antipattern<string>(value)),
-    );
+    return textTemplate(datums.antipattern<string>(value));
   },
   $template(value: string, encoding?: string /* EncodingTypes */) {
     if (
@@ -80,32 +79,30 @@ export const encodings = {
     try {
       const template = evalBodyTemplate(value) as Template<string>;
 
-      return blendEncoding(template, (template) => {
-        if (isSchematic<string>(template)) {
-          if (
-            exposeSchematic<EncodingSchematicOps<string, unknown>>(
-              template,
-            )?.encoding?.().as === "string"
-          ) {
-            return template as Schematic<string>;
-          }
-
-          // don't accept top-level body aliases, assume it might be templated though.
-          if (
-            encoding === "text" ||
-            exposeSchematic<ReferenceSchematicOps<string>>(template).reference
-          ) {
-            return value;
-          }
+      if (isSchematic<string>(template)) {
+        if (
+          exposeSchematic<EncodingSchematicOps<string, unknown>>(
+            template,
+          )?.encoding?.().as === "string"
+        ) {
+          return template as Schematic<string>;
         }
 
-        if (encoding && encoding !== "json") {
-          throw new PardonError(
-            `encoding specified as ${encoding} but falling back to json`,
-          );
+        // don't accept top-level body aliases, assume it might be templated though.
+        if (
+          encoding === "text" ||
+          exposeSchematic<ReferenceSchematicOps<string>>(template).reference
+        ) {
+          return value;
         }
-        return jsonEncoding(template);
-      });
+      }
+
+      if (encoding && encoding !== "json") {
+        throw new PardonError(
+          `encoding specified as ${encoding} but falling back to json`,
+        );
+      }
+      return jsonEncoding(template);
     } catch (error) {
       void error;
       return textTemplate(value);

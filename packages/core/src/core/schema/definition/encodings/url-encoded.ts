@@ -11,6 +11,8 @@ governing permissions and limitations under the License.
 */
 import type { EncodingType } from "./encoding.js";
 import { intoSearchParams } from "../../../request/search-object.js";
+import { isSchematic } from "../../core/schema-ops.js";
+import { diagnostic } from "../../core/context-util.js";
 
 export const queryEncodingType: EncodingType<
   URLSearchParams,
@@ -50,7 +52,15 @@ export const formEncodingType: EncodingType<
 > = {
   as: "string",
   format: "form",
-  decode({ template }) {
+  decode(context) {
+    const { template } = context;
+    if (isSchematic(template)) {
+      throw diagnostic(
+        context,
+        "form encodings cannot parse schematic template values",
+      );
+    }
+
     return template
       ? parseForm(
           template as string | Record<string, string> | [string, string][],
