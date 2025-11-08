@@ -39,7 +39,7 @@ starlight-tabs {
     & > starlight-tabs {
       @apply -mx-3 -mb-3;
       & > * > * > * > * {
-        @apply !rounded-t-none;
+        @apply rounded-t-none!;
       }
     }
   }
@@ -49,11 +49,11 @@ starlight-tabs {
   }
 
   & > .tablist-wrapper > ul {
-    @apply my-0! gap-0 !border-none;
+    @apply my-0! gap-0 border-none!;
   }
 
   & > .tablist-wrapper > ul > * {
-    @apply my-0! !flex-auto;
+    @apply my-0! flex-auto!;
 
     &:first-child > * {
       @apply rounded-ss-md;
@@ -64,13 +64,13 @@ starlight-tabs {
     }
 
     & > * {
-      @apply !py-1;
+      @apply py-1!;
       @apply light:shadow-neutral-500 dark:shadow-stone-600;
       @apply place-content-center whitespace-nowrap;
-      @apply !border-none;
+      @apply border-none!;
 
       &:not([aria-selected="true"]) {
-        @apply place-content-center bg-stone-200 whitespace-nowrap dark:bg-stone-700 dark:!text-stone-300;
+        @apply place-content-center bg-stone-200 whitespace-nowrap dark:bg-stone-700 dark:text-stone-300!;
       }
 
       &[aria-selected="true"] {
@@ -110,7 +110,7 @@ starlight-tabs {
 
 .expressive-code {
   &:has(figure > pre.\!hidden) {
-    @apply !hidden;
+    @apply hidden!;
   }
 }
 
