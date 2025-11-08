@@ -1,0 +1,1 @@
+/*! tailwindcss v4.1.17 | MIT License | https://tailwindcss.com */.pulse{--pulse-face-color:light-dark(#000,#fff);--pulse-color:light-dark(#000,#fff);border-radius:50%;animation:1s linear infinite pulse-animation,ease-in box-shadow,rotate}@keyframes pulse-animation{0%{color:gray;transform:rotate(12)}to{transform:rotate(12);box-shadow:0 0 10px 10px #0000}}
