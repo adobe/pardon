@@ -10,7 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import os from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { PardonError } from "../core/error.js";
 
 export function homely(path: string, relative?: string): string {
@@ -25,5 +25,5 @@ export function homely(path: string, relative?: string): string {
     );
   }
 
-  return resolve(relative ? dirname(relative) : ".", path);
+  return resolve(relative ?? ".", path);
 }

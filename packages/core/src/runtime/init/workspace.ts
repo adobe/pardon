@@ -190,7 +190,7 @@ function normalizePaths(paths: string | string[], configdir: string) {
   return [paths]
     .filter(Boolean)
     .flat(1)
-    .map((dir) => resolve(configdir, homely(dir)));
+    .map((dir) => homely(dir, configdir));
 }
 
 export async function loadPardonRuntime(options?: PardonAppContextOptions) {
