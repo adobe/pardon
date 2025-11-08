@@ -42,13 +42,13 @@ const polyfills = {
 };
 
 export function createRequire(_basePath: string) {
-  return (path: string) => {
-    path = path.replace(/^node:/, "");
+  return (specifier: string) => {
+    specifier = specifier.replace(/^node:/, "");
 
-    if (path in polyfills) {
-      return polyfills[path as keyof typeof polyfills];
+    if (specifier in polyfills) {
+      return polyfills[specifier as keyof typeof polyfills];
     }
 
-    throw new Error("could not require: " + path);
+    throw new Error("could not require: " + specifier);
   };
 }
