@@ -128,5 +128,9 @@ starlight-tabs {
 @layer starlight.core {
   .hero {
     padding-block: 1rem !important;
+    & > img {
+      padding: 10px;
+      margin: auto !important;
+    }
   }
 }
