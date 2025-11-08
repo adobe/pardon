@@ -130,6 +130,8 @@ export default defineConfig({
         "node:string_decoder": "./src/polyfill/string_decoder.ts",
         stream: "node_modules/stream-browserify",
         "node:stream": "node_modules/stream-browserify",
+        module: "./src/polyfill/module.ts",
+        "node:module": "./src/polyfill/module.ts",
         net: "./src/polyfill/net",
         "node:net": "./src/polyfill/net",
         "source-map-support": "./src/polyfill/empty.ts",

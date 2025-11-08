@@ -38,7 +38,7 @@
     "@codemirror/lang-javascript": "^6.2.2",
     "@corvu/accordion": "^0.2.5",
     "@iconify-json/tabler": "^1.2.20",
-    "@rollup/plugin-alias": "^5.1.0",
+    "@rollup/plugin-alias": "^6.0.0",
     "@tailwindcss/typography": "^0.5.13",
     "@typescript-eslint/eslint-plugin": "^8.4.0",
     "acorn-walk": "^8.3.4",
@@ -49,7 +49,7 @@
     "eslint-plugin-prettier": "^5.2.1",
     "import-meta-resolve": "^4.1.0",
     "prettier-plugin-astro": "^0.14.0",
-    "prettier-plugin-tailwindcss": "^0.6.11",
+    "prettier-plugin-tailwindcss": "^0.7.1",
     "tailwind-merge": "^3.3.0",
     "unplugin-auto-import": "^20.0.0",
     "unplugin-icons": "^22.2.0"
