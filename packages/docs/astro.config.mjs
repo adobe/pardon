@@ -135,6 +135,7 @@ export default defineConfig({
         net: "./src/polyfill/net",
         "node:net": "./src/polyfill/net",
         "source-map-support": "./src/polyfill/empty.ts",
+        "better-sqlite3": "./src/polyfill/empty.ts",
       }).map(([find, replacement]) => ({
         find,
         replacement: resolve(replacement),
