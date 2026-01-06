@@ -42,12 +42,12 @@ export const makeTodoServiceRouter = ({
       });
 
       return json({
-        id,
         ...todo,
+        id,
       });
     },
     "POST /users"({ req }) {
-      const { username, password } = parseBodyJson(req);
+      const { username, password, ...other } = parseBodyJson(req);
       const { username: authority } = validateAuth(req) ?? {};
 
       setUsers(({ [username]: current, ...users }) => {
@@ -80,8 +80,8 @@ export const makeTodoServiceRouter = ({
       });
 
       return json({
-        id,
         ...todo,
+        id,
       });
     },
     "GET /todos/:todo"({ req, slug: { todo: id } }) {
@@ -145,7 +145,7 @@ export const makeTodoServiceRouter = ({
         };
       });
 
-      return json({ id, ...todo });
+      return new Response(null, { status: 204 });
     },
   });
 
@@ -161,7 +161,9 @@ function parseBodyJson(req) {
 /** @param {import("../../lib/mini-router.js").MiniRequest} req */
 function validateAuth(req) {
   const token = req.headers.get("authorization");
-  if (!token) return;
+  if (!token) {
+    return;
+  }
   const [header, payload] = token.split(".");
   if (!/^User\s+jwt/i.test(header.trimStart())) {
     throw new Error("invalid auth");
