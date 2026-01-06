@@ -549,9 +549,13 @@ describe("async", () => {
       assert.equal(awaited().length, 0);
       assert.equal(result, "hi");
 
-      global.gc!();
+      if (!global.gc) {
+        return;
+      }
+
+      global.gc();
       await delay(10);
-      global.gc!();
+      global.gc();
       await delay(10);
 
       assert.equal(gclog.join("\n"), "held");
@@ -611,15 +615,17 @@ describe("async", () => {
           // garbage collected nothing;
           assert.equal(count, 0);
 
-          await delay(100);
-          global.gc!();
-          await delay(100);
-          global.gc!();
-          await delay(100);
+          if (global.gc) {
+            await delay(100);
+            global.gc();
+            await delay(100);
+            global.gc();
+            await delay(100);
 
-          // garbage collected the tracked value in the other branch.
-          assert.equal(count, 1);
-          await delay(100);
+            // garbage collected the tracked value in the other branch.
+            assert.equal(count, 1);
+            await delay(100);
+          }
 
           return "world";
         }),
@@ -683,9 +689,13 @@ describe("async", () => {
       assert.equal(awaited().length, 0);
       assert.deepEqual(result, ["hello", "world"]);
 
-      global.gc!();
+      if (!global.gc) {
+        return;
+      }
+
+      global.gc();
       await delay(10);
-      global.gc!();
+      global.gc();
       await delay(10);
 
       assert.equal(count, 2);
@@ -730,14 +740,16 @@ describe("async", () => {
           // garbage collected nothing;
           assert.equal(count, 0);
 
-          await delay(100);
-          global.gc!();
-          await delay(100);
-          global.gc!();
-          await delay(100);
-          // garbage collected the tracked value in the other branch.
-          assert.equal(count, 1);
-          await delay(100);
+          if (global.gc) {
+            await delay(100);
+            global.gc();
+            await delay(100);
+            global.gc();
+            await delay(100);
+            // garbage collected the tracked value in the other branch.
+            assert.equal(count, 1);
+            await delay(100);
+          }
 
           return "world";
         }),
@@ -748,12 +760,14 @@ describe("async", () => {
       assert.equal(awaited().length, 0);
       assert.deepEqual(result, ["hello", "world"]);
 
-      global.gc!();
-      await delay(10);
-      global.gc!();
-      await delay(10);
+      if (global.gc) {
+        global.gc!();
+        await delay(10);
+        global.gc!();
+        await delay(10);
 
-      assert.equal(count, 2);
+        assert.equal(count, 2);
+      }
     },
     "",
   );
