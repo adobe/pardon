@@ -104,8 +104,11 @@ export default [
             path.join(__dirname, "../../.license-header"),
             "utf-8",
           ).trim(),
-          variables: {
-            year: `${new Date().getFullYear()}`,
+          patterns: {
+            year: {
+              pattern: /[0-9]{4}/.source,
+              defaultValue: `${new Date().getFullYear()}`,
+            },
           },
         },
       ],
