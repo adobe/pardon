@@ -140,29 +140,42 @@ export class ConfigSpace {
         ({ pattern }) => !other.some((other) => patternsMatch(pattern, other)),
       );
 
+    const retained: Pattern[] = [];
     const rewritten = other
       .flatMap((pattern) =>
         naturally.flatMap(({ pattern: from }) =>
-          selected.flatMap(({ pattern: to }) => {
+          selected.map(({ pattern: to }) => {
             const rewritten = pattern.rewrite(from, to);
+            if (!rewritten) {
+              if (!retained.some((p) => patternsMatch(p, pattern))) {
+                retained.push(pattern);
+              }
+            }
             return rewritten;
           }),
         ),
       )
       .filter(Boolean)
-      .filter(
-        (rewrittenPattern) =>
-          !other.some((otherPattern) =>
-            patternsMatch(otherPattern, rewrittenPattern),
-          ),
-      );
+      .filter((rewrittenPattern) => {
+        const otherPattern = other.find((otherPattern) =>
+          patternsMatch(otherPattern, rewrittenPattern),
+        );
+
+        if (!otherPattern) {
+          return true;
+        }
+        if (!retained.some((p) => patternsMatch(p, otherPattern))) {
+          retained.push(otherPattern);
+        }
+        return false;
+      });
 
     const selectedOrRewrittenPatterns = [
       ...selected.map(({ pattern }) => pattern),
       ...rewritten,
     ];
 
-    patterns = [...selectedOrRewrittenPatterns, ...other].reduce(
+    patterns = [...selectedOrRewrittenPatterns, ...retained].reduce(
       ...uniqReducer<Pattern>((p) => p.source),
     );
 
