@@ -33,6 +33,7 @@ import { initTrackingEnvironment } from "../../../runtime/environment.js";
 import { JSON } from "../../../core/raw-json.js";
 import { parseSmokeConfig } from "../smoke-config.js";
 import contentEncodings from "../../../features/content-encodings.js";
+import undici from "../../../features/undici.js";
 import { createFlowContext } from "../../../core/execution/flow/flow-context.js";
 
 // execute tests
@@ -104,10 +105,10 @@ async function main() {
         return createFlowContext(this, { ...environment });
       },
     },
-    [ff && failfast, contentEncodings, trace, persist],
+    [ff && failfast, undici, contentEncodings, trace, persist],
   );
 
-  const testfile = positionals[0].endsWith(".test.ts")
+  const testfile = positionals[0]?.endsWith(".test.ts")
     ? positionals.shift()!
     : "pardon.test.ts";
 

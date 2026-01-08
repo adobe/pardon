@@ -272,11 +272,11 @@ function importFromConfiguration(
 
 export async function resolveImport(
   name: string,
-  configuration: Pick<Configuration, "import">,
+  configuration: Pick<Configuration, "import"> | undefined,
   compiler: PardonCompiler,
   parentSpecifier: string,
 ) {
-  const importRef = findImport(name, configuration);
+  const importRef = findImport(name, configuration ?? {});
 
   if (importRef) {
     const module = await compiler.import(importRef.specifier, parentSpecifier);

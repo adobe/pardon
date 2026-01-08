@@ -120,7 +120,13 @@ export const load: LoadHook = async (url, context, nextLoad) => {
     !url.endsWith(".https") &&
     !url.endsWith(".yaml")
   ) {
-    return nextLoad(url, context);
+    const { parent, ...importAttributesWtihoutParent } =
+      context.importAttributes;
+
+    return nextLoad(url, {
+      ...context,
+      importAttributes: importAttributesWtihoutParent,
+    });
   }
 
   const compiled = (await host().send("compile", url, context)) as string;
