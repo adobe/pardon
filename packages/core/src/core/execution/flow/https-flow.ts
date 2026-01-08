@@ -29,6 +29,7 @@ import {
 } from "../../request/https-template.js";
 import { ScriptEnvironment } from "../../schema/core/script-environment.js";
 import {
+  arrayIntoObjectAsync,
   definedObject,
   mapObject,
   mapObjectAsync,
@@ -68,6 +69,7 @@ import { evaluateIdentifierWithExpression } from "../../schema/core/evaluate.js"
 import { readFile } from "node:fs/promises";
 import { reducedValues } from "../../pardon/pardon.js";
 import { dirname, resolve } from "node:path";
+import { resolveImport } from "../../endpoint-environment.js";
 
 export type SequenceReport = {
   type: "unit" | "flow";
@@ -291,7 +293,7 @@ async function executeHttpsFlowSequence(
         context: contextValues,
         flow: flowValues,
         target,
-      } = await runFlowScript(next, flowContext);
+      } = await runFlowScript(next, flowContext, sequence);
 
       flowContext.mergeEnvironment(contextValues, flowValues);
       index++;
@@ -899,6 +901,7 @@ class Goto extends Error {
 async function runFlowScript(
   next: HttpScriptInterraction,
   flowContext: FlowContext,
+  sequence: CompiledHttpsSequence,
 ): Promise<{
   context: Record<string, any>;
   flow: Record<string, any>;
@@ -910,6 +913,20 @@ async function runFlowScript(
   const script = `(() => { ${next.script.script} ;;; })()`;
 
   const { unbound } = applyTsMorph(script);
+
+  const relativePath = resolve(dirname(sequence.path));
+
+  const imports = await arrayIntoObjectAsync(
+    [...unbound.symbols],
+    async (symbol) => ({
+      [symbol]: await resolveImport(
+        symbol,
+        sequence.scheme.configuration,
+        flowContext.runtime.compiler,
+        relativePath,
+      ),
+    }),
+  );
 
   try {
     await evaluation(
@@ -933,8 +950,12 @@ async function runFlowScript(
               throw new Goto(next);
             };
           }
+
           return (
-            flowValues[key] ?? flowContext.flow[key] ?? flowContext.context[key]
+            flowValues[key] ??
+            flowContext.flow[key] ??
+            flowContext.context[key] ??
+            imports[key]
           );
         },
       },
