@@ -484,7 +484,6 @@ function parseHttpsSequenceScheme({
         }
       }
 
-      current = null;
       continue;
     }
 
