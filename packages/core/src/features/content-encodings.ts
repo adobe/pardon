@@ -38,10 +38,14 @@ export default function contentEncodings(
                 response.rawBody = zlib.brotliDecompressSync(response.rawBody);
                 break;
               case "gzip":
-                response.rawBody = zlib.gunzipSync(response.rawBody);
+                if (!response.meta?.nativeFetch) {
+                  response.rawBody = zlib.gunzipSync(response.rawBody);
+                }
                 break;
               case "deflate":
-                response.rawBody = zlib.inflateSync(response.rawBody);
+                if (!response.meta?.nativeFetch) {
+                  response.rawBody = zlib.inflateSync(response.rawBody);
+                }
                 break;
               case "zstd":
                 response.rawBody = zlib.zstdDecompressSync(response.rawBody);

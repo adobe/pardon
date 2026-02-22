@@ -33,7 +33,12 @@ export default function undici(
   return hookExecution<PardonExecutionContext, typeof PardonFetchExecution>(
     execution,
     {
-      async fetch({ context: { timestamps }, egress: { request, redacted } }) {
+      fetch({ context: { timestamps }, egress: { request, redacted } }) {
+        if (!request.meta?.insecure && !request.meta?.resolve) {
+          // defer to next fetch mechanism.
+          return undefined!;
+        }
+
         timestamps.request = Date.now();
 
         const [url, init] = intoFetchParams(request);
@@ -42,7 +47,7 @@ export default function undici(
         (init.headers as Headers).append("Connection", "close");
 
         try {
-          return await fetchSNI(url, init);
+          return fetchSNI(url, init);
         } catch (error) {
           console.error("fetch failure", error);
           const [url, init] = intoFetchParams(redacted);

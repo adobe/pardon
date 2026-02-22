@@ -58,7 +58,12 @@ export async function recall(
     : undefined;
 
   for (const [http, scope] of Object.entries(related)) {
-    const { req, res, ask, created_at } = getHttpEntity({ http });
+    const entity = getHttpEntity({ http });
+    if (!entity) {
+      continue;
+    }
+
+    const { req, res, ask, created_at } = entity;
 
     if (!(await acceptResult({ req, res }, values, filterexecution))) {
       continue;

@@ -19,7 +19,7 @@ export type RequestMeta = Record<string, string> & {
   insecure?: "true" | "false";
 };
 
-export type ResponseMeta = Record<string, string> & {
+export type ResponseMeta = Record<string, string | boolean> & {
   body?: EncodingTypes;
 };
 
@@ -104,6 +104,7 @@ export async function intoResponseObject(
     statusText,
     headers,
     rawBody,
+    meta: { nativeFetch: true },
     body: await response.text(),
   };
 }
