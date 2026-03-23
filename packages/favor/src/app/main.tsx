@@ -696,9 +696,9 @@ export default function Main(
             <Resizable orientation="vertical">
               <Resizable.Panel
                 class="flex flex-col bg-neutral-200 dark:bg-neutral-600"
-                minSize={0.3}
+                minSize={0.1}
                 initialSize={0.35}
-                collapsedSize={0.25}
+                collapsedSize={0.1}
                 collapsible
               >
                 <Resizable>
