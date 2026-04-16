@@ -19,7 +19,7 @@ import tsParser from "@typescript-eslint/parser";
 import js from "@eslint/js";
 import { FlatCompat } from "@eslint/eslintrc";
 import typescriptEslint from "@typescript-eslint/eslint-plugin";
-import headersEslint from "eslint-plugin-headers";
+import headers from "eslint-plugin-headers";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,7 +74,7 @@ export default [
 
     plugins: {
       "@typescript-eslint": typescriptEslint,
-      headers: headersEslint,
+      headers,
     },
 
     languageOptions: {

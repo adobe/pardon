@@ -28,6 +28,7 @@ export default function PardonApplicationEditor(
     selected?: string;
   }>,
 ) {
+  // eslint-disable-next-line
   let selectElement!: HTMLSelectElement;
   const configKeys = createMemo(() => Object.keys(props.config()));
   const [selectedKey, setSelectedKey] = createSignal(

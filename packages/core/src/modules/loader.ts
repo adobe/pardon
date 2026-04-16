@@ -18,14 +18,12 @@ import type {
 } from "node:module";
 import { ts } from "ts-morph";
 import { createIpcSender } from "../runtime/loader/modern/ipc.js";
-import { createRpcSender } from "../runtime/loader/legacy/rpc-register.js";
 import { PardonError } from "../core/error.js";
 
 let ipc: ReturnType<typeof createIpcSender>;
-let rpc: ReturnType<typeof createRpcSender>;
 
 function host() {
-  return ipc ?? (rpc ??= createRpcSender());
+  return ipc;
 }
 
 export const initialize: InitializeHook = async ({ port }) => {

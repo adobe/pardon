@@ -14,11 +14,6 @@ import {
   type PardonAppContextOptions,
   loadPardonRuntime,
 } from "./workspace.js";
-import {
-  awaitChildProcess,
-  hostRpcChild,
-} from "../loader/legacy/rpc-register.js";
-import createCompiler from "../compiler.js";
 import { PardonError } from "../../core/error.js";
 import { registerPardonLoader } from "../loader/modern/register.js";
 
@@ -34,42 +29,16 @@ import { registerPardonLoader } from "../loader/modern/register.js";
 export async function establishPardonRuntime(
   options?: PardonAppContextOptions,
 ) {
-  const [major, minor] = process.version
-    .split(".")
-    .map((v) => Number(v.replace(/[^\d]/g, "")));
-
   const runtime = await loadPardonRuntime(options);
+  await registerModernLoader(runtime);
 
-  // if node:module supports register(), we can add the pardon script compiler
-  // in the current process.
-  if (major > 20 || (major == 20 && minor >= 6)) {
-    await registerModernLoader(runtime);
-    return runtime;
-  }
-
-  // otherwise we're here the first time as the host or the second time
-  // as the spawned child process.
-  if (process.send) {
-    // if process.send is present: we are the child process.
-    //
-    // we could, (as an optimization), have for the host process send
-    // the context here rather than re-doing the loading work.
-    return runtime;
-  }
-
-  // no process.send, we're in the host process:
-  // we create a compiler with the current context and
-  // pass that to the child.
-  const child = hostRpcChild(createCompiler(runtime));
-
-  // wait for it
-  process.exit(await awaitChildProcess(child));
+  return runtime;
 }
 
 async function registerModernLoader(runtime: PardonRuntime<"loading">) {
   try {
     await registerPardonLoader(runtime);
-  } catch (error) {
+  } catch (error: any) {
     console.error("failed to load pardon", error);
     throw new PardonError("error registering pardon loaders", error);
   }

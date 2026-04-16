@@ -19,7 +19,6 @@ import hashbang from "rollup-plugin-hashbang";
 const executables = {
   main: "src/entry/main/cli/index.ts",
   runner: "src/entry/testing/cli/index.ts",
-  server: "src/entry/proxy/cli.ts",
 };
 
 const input = {

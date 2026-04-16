@@ -5,11 +5,10 @@
   "license": "internal",
   "bin": {
     "pardon": "./dist/main.mjs",
-    "pardon-runner": "./dist/runner.mjs",
-    "pardon-server": "./dist/server.mjs"
+    "pardon-runner": "./dist/runner.mjs"
   },
   "engines": {
-    "node": ">= 16"
+    "node": ">= 22"
   },
   "files": [
     "package.json",
@@ -94,7 +93,6 @@
     "@rollup/plugin-node-resolve": "^16.0.0",
     "@rollup/plugin-typescript": "^12.1.0",
     "@types/better-sqlite3": "^7.6.5",
-    "@types/http-proxy": "^1.17.14",
     "@types/node": "^24.1.0",
     "@types/split": "^1.0.5",
     "@types/whatwg-mimetype": "^3.0.2",
@@ -107,7 +105,6 @@
     "eslint-plugin-prettier": "^5.0.1",
     "glob": "^11.0.0",
     "globals": "^16.0.0",
-    "http-proxy": "^1.18.1",
     "node-fetch": "^3.3.2",
     "patch-package": "^8.0.0",
     "prettier": "^3.2.5",
