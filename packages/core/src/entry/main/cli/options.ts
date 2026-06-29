@@ -113,6 +113,10 @@ export function opts() {
         short: "h",
         type: "boolean",
       },
+      version: {
+        short: "V",
+        type: "boolean",
+      },
     },
   });
 }

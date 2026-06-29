@@ -168,7 +168,7 @@ async function acceptResult(
               },
               FILE,
             }[key] ??
-            globalThis[key]
+            (globalThis as any)[key]
           );
         },
       });

@@ -11,6 +11,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import * as YAML from "yaml";
+import packageJson from "../../../../../../package.json" with { type: "json" };
 
 import { opts, processOptions } from "./options.js";
 import { initializePardon } from "../../../runtime/initialize.js";
@@ -60,6 +61,20 @@ function scalars(values: Record<string, unknown>): Record<string, string> {
 
 async function main() {
   const { positionals: args = [], values: options } = opts();
+  if (options.version) {
+    console.info(
+      `
+pardon: version ${packageJson.version}
+node: ${process.version}
+platform: ${process.platform}
+${Object.entries(process.versions)
+  .map(([k, v]) => `${k}: ${v}\n`)
+  .join("")}
+`.trim(),
+    );
+    process.exit(0);
+  }
+
   if (options.help) {
     console.info(
       `

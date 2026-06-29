@@ -35,19 +35,20 @@ export type CreateExtensionFn = ReturnType<
   typeof createCodeMirror
 >["createExtension"];
 
-export type CodeMirrorProps = CreateCodeMirrorProps & {
-  readonly?: boolean;
-  readwrite?: boolean;
-  tabbing?: boolean | number | `${number}`;
-  editorViewRef?: (view: EditorView) => void;
-  setup?: (props: {
-    createExtension: CreateExtensionFn;
-    editorView: Accessor<EditorView>;
-  }) => void;
-  text?: string;
-  nowrap?: boolean;
-  disabled?: boolean;
-} & ComponentProps<"div">;
+export type CodeMirrorProps = ComponentProps<"div"> &
+  CreateCodeMirrorProps & {
+    readonly?: boolean;
+    readwrite?: boolean;
+    tabbing?: boolean | number | `${number}`;
+    editorViewRef?: (view: EditorView) => void;
+    setup?: (props: {
+      createExtension: CreateExtensionFn;
+      editorView: Accessor<EditorView>;
+    }) => void;
+    text?: string;
+    nowrap?: boolean;
+    disabled?: boolean;
+  };
 
 const EnterNewlines = keymap.of([
   {
@@ -87,7 +88,17 @@ export default function CodeMirror(props: CodeMirrorProps) {
   const [codemirrorProps, , restprops] = splitProps(
     props,
     ["value", "onModelViewUpdate", "onTransactionDispatched", "onValueChange"],
-    ["editorViewRef", "setup", "readonly", "children", "disabled"],
+    [
+      "editorViewRef",
+      "setup",
+      "readonly",
+      "readwrite",
+      "tabbing",
+      "text",
+      "nowrap",
+      "children",
+      "disabled",
+    ],
   );
 
   const { editorView, ref, createExtension } =
@@ -108,7 +119,9 @@ export default function CodeMirror(props: CodeMirrorProps) {
   );
 
   createExtension(
-    createMemo(() => !props.readonly && Prec.high(EnterNewlines)),
+    createMemo(
+      () => (!props.readonly && Prec.high(EnterNewlines)) || undefined,
+    ),
   );
 
   createExtension([history(), keymap.of(historyKeymap)]);
@@ -148,7 +161,7 @@ export default function CodeMirror(props: CodeMirrorProps) {
   );
 
   createExtension(() =>
-    EditorState.readOnly.of(props.readonly || props.disabled),
+    EditorState.readOnly.of(Boolean(props.readonly || props.disabled)),
   );
 
   createEffect(() => {
@@ -160,7 +173,7 @@ export default function CodeMirror(props: CodeMirrorProps) {
   return (
     <div
       ref={ref}
-      {...restprops}
+      {...(restprops as any)}
       class={twMerge("overflow-hidden [&_.cm-editor]:size-full", props.class)}
     >
       {props.children}

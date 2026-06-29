@@ -151,9 +151,11 @@ ipcRenderer.addListener("trace:error", (_event, data) => {
 
 ipcRenderer.on("pardon:zen-mode", (_event, checked) => {
   if (checked) {
-    document.getElementById("zen-mode-style").removeAttribute("media");
+    document.getElementById("zen-mode-style")!.removeAttribute("media");
   } else {
-    document.getElementById("zen-mode-style").setAttribute("media", "disabled");
+    document
+      .getElementById("zen-mode-style")!
+      .setAttribute("media", "disabled");
   }
 });
 

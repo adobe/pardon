@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
 import { Worker } from "node:worker_threads";
 import { preferences, savePreferences } from "./preferences";
 
-function resolveRelative(path) {
+function resolveRelative(path: string) {
   return new URL(import.meta.resolve(path)).pathname.replace(
     // be friendlier to windows /C:/xyz/... paths.
     /[/\\]([A-Z]):([/\\])/,
@@ -38,7 +38,7 @@ export async function recreatePardonWorker(
 
 async function createPardonWorker(webContents: WebContents, cwd?: string) {
   const previousWorker = currentPardonWorker;
-  currentPardonWorker = undefined;
+  currentPardonWorker = undefined!;
 
   for (const abandon of Object.values(inflight)) {
     abandon({ status: "rejected", reason: "reset" });
