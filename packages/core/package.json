@@ -73,8 +73,7 @@
     "./templates": {
       "import": "./dist/templates.js",
       "types": "./dist/types/templates.d.ts"
-    },
-    "./loader": "./dist/loader.js"
+    }
   },
   "scripts": {
     "build": "rollup --config",

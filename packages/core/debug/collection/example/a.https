@@ -1,0 +1,7 @@
+import:
+  pardon:example:
+    - dep
+  process: process
+>>>
+GET https://example.com/{{arg}}
+Dep: {{ = dep(arg)  }}

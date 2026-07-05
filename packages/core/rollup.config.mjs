@@ -29,8 +29,6 @@ const input = {
   runtime: "src/modules/runtime.ts",
   database: "src/modules/database.ts",
   playground: "src/modules/playground.ts",
-  // runtime/puntime loader
-  loader: "src/modules/loader.ts",
   // testing - defining
   testing: "src/modules/testing.ts",
   // testing - running

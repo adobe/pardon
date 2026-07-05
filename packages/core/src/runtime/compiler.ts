@@ -296,27 +296,28 @@ export default function createCompiler({
 
 export function resolvePardonRelativeImport(
   moduleSpecifier: string,
-  parentSpecifier: string,
+  parentSpecifier?: string,
 ) {
   return resolvePardonOrExternalModule(moduleSpecifier, parentSpecifier);
 }
 
 function resolvePardonOrExternalModule(
   moduleSpecifier: string,
-  parentSpecifier: string,
+  parentSpecifier?: string,
 ) {
   if (!ts.isExternalModuleNameRelative(moduleSpecifier)) {
     return normalize(moduleSpecifier);
   }
 
-  if (!parentSpecifier.startsWith("pardon:")) {
-    return join(parentSpecifier, moduleSpecifier);
+  if (!parentSpecifier?.startsWith("pardon:")) {
+    return parentSpecifier
+      ? join(parentSpecifier, moduleSpecifier)
+      : moduleSpecifier;
   }
 
-  const resolved = join(
-    parentSpecifier.replace("pardon:", "__pardon__/"),
-    moduleSpecifier,
-  );
+  const resolved = parentSpecifier
+    ? join(parentSpecifier.replace("pardon:", "__pardon__/"), moduleSpecifier)
+    : moduleSpecifier;
 
   if (
     ts.isExternalModuleNameRelative(resolved) &&

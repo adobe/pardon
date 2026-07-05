@@ -1,0 +1,4 @@
+config:
+  origin: http://example.com
+
+export: ./helper.ts

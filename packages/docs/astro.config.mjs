@@ -85,6 +85,17 @@ export default defineConfig({
       },
     }),
     solid({}),
+    {
+      name: "polyfill",
+      hooks: {
+        "astro:config:setup": ({ injectScript }) => {
+          injectScript(
+            "page",
+            'window.process = window.process || {}; window.process.cwd = () => "/";',
+          );
+        },
+      },
+    },
   ],
   vite: {
     build: {

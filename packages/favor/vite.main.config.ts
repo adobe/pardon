@@ -29,7 +29,6 @@ export default extendMainConfig({
         // but the package exports that as 'pardon'
         // map the "pardon" import back to api to simulate the runtime.
         api: "pardon",
-        loader: "pardon/loader",
         runtime: "pardon/runtime",
         running: "pardon/running",
         testing: "pardon/testing",
