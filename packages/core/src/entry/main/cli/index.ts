@@ -231,8 +231,12 @@ ${YAML.stringify({
       console.info(
         HTTP.stringify({
           ...rendered,
-          ...{ meta: undefined },
-          ...(!options.values && { values: undefined }),
+          computations: init?.computations,
+          meta: undefined,
+          ...(!options.values && {
+            values: undefined,
+            computations: undefined,
+          }),
         }),
       );
     }

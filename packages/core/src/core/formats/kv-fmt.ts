@@ -998,6 +998,8 @@ function wrappedStringify(
     options: KeyValueStringifyOptions | undefined,
   ) {
     switch (true) {
+      case isExprValue(value):
+        return loadExprValue(value);
       case typeof value !== "object" || isJsonUnit(value):
         return encoding.value(value, options);
       case Array.isArray(value):

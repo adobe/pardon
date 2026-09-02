@@ -280,7 +280,7 @@ async function executeHttpsFlowSequence(
     flowContext.checkAborted();
 
     if (retries[index] !== undefined) {
-      console.log(`step ${index + 1}: retries remaining: ${retries[index]}`);
+      console.info(`step ${index + 1}: retries remaining: ${retries[index]}`);
       if (--retries[index] < 0) {
         throw new Error(
           `ran out of retries for step ${index + 1} of ${sequence.name}`,
@@ -630,7 +630,7 @@ async function executeHttpsSequenceStep({
     ...flowContext.context,
     ...preRenderedValues,
   };
-  console.log(`
+  console.info(`
 >>>
 ${KV.stringify(executionValues, { trailer: "\n" })}${preRenderedRequestTemplate ?? requestTemplate.source}`);
 
@@ -654,7 +654,7 @@ error = ${error?.stack ?? error}
 
   const { egress, ingress, output } = await execution.result;
 
-  console.log(`
+  console.info(`
 <<<
 ${HTTP.responseObject.stringify(ingress.redacted)}`);
 
@@ -980,7 +980,7 @@ async function loadFlowFile(context: FlowContext, path: FlowFileName) {
   }
 
   const flowFilePath = context.runtime.compiler.resolve(path, "");
-  console.log(`flowFilePath: ${flowFilePath}: ${resolve(flowFilePath)}`);
+  console.info(`flowFilePath: ${flowFilePath}: ${resolve(flowFilePath)}`);
   try {
     const content = await readFile(flowFilePath, "utf-8");
     const scheme = HTTPS.parse(content, "flow") as HttpsFlowScheme;

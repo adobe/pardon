@@ -115,7 +115,7 @@ function formatUrl(
 }
 
 function requestObjectStringify(
-  { values, ...request }: Partial<RequestObject>,
+  { values, computations, ...request }: Partial<RequestObject>,
   options?: HttpFormatOptions,
 ) {
   const { origin, pathname, searchParams } = intoURL(request);
@@ -128,6 +128,16 @@ function requestObjectStringify(
       trailer: "\n",
     },
   );
+
+  const formattedComputations = Object.entries(computations ?? {})
+    .map(
+      ([k, v]) =>
+        `${k} := ${JSON.parse(
+          `"${v.replace(/^.*?"/, "").replace(/"[^"]*$/, "")}"`,
+        )}\n`,
+    )
+    .join("");
+
   const formattedBase = `${origin?.trim() ? `${request.method ?? "GET"} ` : ""}${origin ?? ""}`;
   const formattedUrl = formatUrl(
     formattedBase,
@@ -136,7 +146,7 @@ function requestObjectStringify(
     options,
   );
 
-  return `${formattedValues}${formattedUrl}${[
+  return `${formattedValues}${formattedComputations}${formattedUrl}${[
     ...Object.entries(request.meta ?? {}),
   ]
     .map(([k, v]) => `\n[${k}]: ${v}`)

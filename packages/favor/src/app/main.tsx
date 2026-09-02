@@ -488,7 +488,6 @@ export default function Main(
       ...(includeHeaders() ? {} : { headers: new Headers() }),
     });
 
-    console.log({ http, values });
     return { http, values };
   });
 
@@ -1029,7 +1028,9 @@ export default function Main(
                               },
                             );
 
-                            const requestInfo = createMemo(
+                            const requestInfo = createMemo<
+                              { method?: string; url?: string } | undefined
+                            >(
                               (previousRequestInfo?: {
                                 method: string;
                                 url: string;

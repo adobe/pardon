@@ -151,7 +151,9 @@ export async function processOptions(
   if (!args.length) {
     return {
       values,
-      init: { method: (method ?? values.method) as string },
+      init: {
+        method: (method ?? values.method) as string,
+      } as Partial<RequestObject>,
     };
   }
 

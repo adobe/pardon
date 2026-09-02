@@ -110,7 +110,6 @@ export function createExecutionMemo({
         );
       }
 
-      console.log(ctx.server, resolved);
       // hack for intro
       if (
         ctx.server === "todo" &&

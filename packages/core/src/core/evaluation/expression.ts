@@ -208,12 +208,7 @@ export function syncEvaluation(
     },
   });
 
-  try {
-    return fn($, ...args);
-  } catch (error) {
-    console.warn(`error evaluating script: ${expression} as ${morphed}`, error);
-    throw error;
-  }
+  return fn($, ...args);
 }
 
 export async function evaluation(

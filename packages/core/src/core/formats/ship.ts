@@ -12,9 +12,15 @@ governing permissions and limitations under the License.
 
 import { mapObject } from "../../util/mapping.js";
 import { createNumber } from "../raw-json.js";
+import { KV } from "./kv-fmt.js";
 
 export function ship<T>(value: T): T {
   switch (true) {
+    case KV.isExprValue(value):
+      return {
+        $$$type: "expr",
+        source: KV.loadExprValue(value),
+      } as T;
     case typeof value === "function":
       return undefined!;
     case !value || typeof value !== "object": {
@@ -44,6 +50,9 @@ export function recv<T>(value: T): T {
       return value;
     case Array.isArray(value):
       return value.map(recv) as T;
+    case value?.["$$$type"] === "expr": {
+      return KV.makeExprValue(value["source"] as string) as T;
+    }
     case value?.["$$$type"] === "number": {
       return createNumber(value["source"] as string) as T;
     }

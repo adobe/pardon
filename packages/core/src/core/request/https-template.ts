@@ -19,7 +19,7 @@ import { headersTemplate } from "../schema/definition/encodings/headers-encoding
 import { datums } from "../schema/definition/datum.js";
 import { mvKeyedTuples, scopedFields } from "../schema/scheming.js";
 import { hiddenTemplate } from "../schema/definition/structures/hidden.js";
-import { diagnostic } from "../schema/core/context-util.js";
+import { diagnostic, loc } from "../schema/core/context-util.js";
 import { stubSchema } from "../schema/definition/structures/stub.js";
 import type {
   Schema,
@@ -155,6 +155,7 @@ export function bodySchema(schema?: Schema<string>): Schema<string> {
           }
         }
       } catch (error) {
+        console.warn(`${loc(context)}:`, error);
         void error;
       }
 

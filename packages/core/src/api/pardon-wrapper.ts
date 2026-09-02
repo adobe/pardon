@@ -10,6 +10,7 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 import { HTTP } from "../core/formats/http-fmt.js";
+import { KV } from "../core/formats/kv-fmt.js";
 
 import type {
   PardonExecutionContext,
@@ -67,18 +68,41 @@ export function pardonExecutionHandle({
 }) {
   const http = (template: TemplateStringsArray, ...args: unknown[]) => {
     const http = String.raw(template, ...args);
-    const { values, ...request } = HTTP.parse(http, {
+    const {
+      values,
+      computations = {},
+      ...request
+    } = HTTP.parse(http, {
       acceptcurl: context.options?.parsecurl,
     });
 
     function initiate() {
+      const contextData: {
+        values: Record<string, unknown>;
+        computations: Record<string, string>;
+      } = { values: {}, computations: {} };
+
+      for (const [key, value] of Object.entries(context.values)) {
+        if (KV.isExprValue(value)) {
+          contextData.computations[key] =
+            `{{ -${key} = $$expr(${JSON.stringify(KV.loadExprValue(value))}) }}`;
+        } else {
+          contextData.values[key] = value;
+        }
+      }
+
       return execution.init({
         ...context,
         url: intoURL(request),
         init: {
           ...request,
+          computations: Object.assign(
+            {},
+            computations,
+            contextData.computations,
+          ),
         },
-        values: Object.assign({}, values, context.values ?? {}),
+        values: Object.assign({}, values, contextData.values),
       });
     }
 

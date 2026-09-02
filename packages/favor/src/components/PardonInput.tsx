@@ -86,7 +86,7 @@ export default function PardonInput(
       ) {
         setValues(data.values);
         setDoc(data.doc);
-        props?.onDataChange(data);
+        props?.onDataChange?.(data);
         return true;
       }
     });
@@ -118,6 +118,7 @@ export default function PardonInput(
         const { [KV.unparsed]: unparsed = "", ...values } = KV.parse(
           text ?? "",
           "stream",
+          { allowExpressions: true },
         );
 
         updateData({ values, doc: unparsed });

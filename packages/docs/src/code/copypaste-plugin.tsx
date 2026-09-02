@@ -43,8 +43,6 @@ export function copypastePlugin() {
           const { target } = event;
           let element = target as HTMLElement;
 
-          console.log("click");
-
           element = element.closest?.("[data-pardon-paste-target]");
 
           if (element?.hasAttribute?.("data-pardon-paste-target")) {
