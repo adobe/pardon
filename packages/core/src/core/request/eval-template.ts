@@ -139,6 +139,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
     ts.isPrefixUnaryExpression(currentNode) &&
     currentNode.operator === SyntaxKind.ExclamationToken &&
     ts.isArrayLiteralExpression(currentNode.operand) &&
+    currentNode.operand.elements.length &&
     ts.isSpreadElement(currentNode.operand.elements[0])
   ) {
     return factory.createCallExpression(
@@ -151,6 +152,7 @@ export const jsonSchemaTransform: TsMorphTransform = ({
   // handles `[...x.y.z]` as `$elements([x.y.z.$value])`
   if (
     ts.isArrayLiteralExpression(currentNode) &&
+    currentNode.elements.length &&
     ts.isSpreadElement(currentNode.elements[0])
   ) {
     if (

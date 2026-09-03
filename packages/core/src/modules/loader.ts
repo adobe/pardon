@@ -122,7 +122,7 @@ function createSyncHooks(compiler: PardonCompiler): {
         !url.endsWith(".yaml")
       ) {
         const { parent, ...importAttributesWtihoutParent } =
-          context.importAttributes;
+          context.importAttributes ?? {};
 
         return nextLoad(url, {
           ...context,
