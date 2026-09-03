@@ -4,8 +4,8 @@
   "type": "module",
   "license": "internal",
   "bin": {
-    "pardon": "./dist/main.mjs",
-    "pardon-runner": "./dist/runner.mjs"
+    "pardon": "dist/main.mjs",
+    "pardon-runner": "dist/runner.mjs"
   },
   "engines": {
     "node": ">= 22"
