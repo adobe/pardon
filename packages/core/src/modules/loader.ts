@@ -42,8 +42,11 @@ function createSyncHooks(compiler: PardonCompiler): {
         });
       }
 
-      if (specifier === "pardon/testing") {
-        return nextResolve("./testing.js", {
+      // map any subpath export (pardon/testing, pardon/testing/allure,
+      // pardon/features/trace, ...) to its built module relative to the loader,
+      // so projects without a local `node_modules/pardon` still resolve.
+      if (specifier.startsWith("pardon/")) {
+        return nextResolve(`./${specifier.slice("pardon/".length)}.js`, {
           ...context,
           parentURL: import.meta.url,
         });
@@ -114,13 +117,14 @@ function createSyncHooks(compiler: PardonCompiler): {
     },
 
     load(url, context, nextLoad) {
-      if (
-        !url.startsWith("pardon:") &&
-        !url.endsWith(".ts") &&
-        !url.endsWith(".http") &&
-        !url.endsWith(".https") &&
-        !url.endsWith(".yaml")
-      ) {
+      const compilable =
+        url.startsWith("pardon:") ||
+        url.endsWith(".ts") ||
+        url.endsWith(".http") ||
+        url.endsWith(".https") ||
+        url.endsWith(".yaml");
+
+      if (!compilable && !context.importAttributes?.parent) {
         const { parent, ...importAttributesWtihoutParent } =
           context.importAttributes ?? {};
 

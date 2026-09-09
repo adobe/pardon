@@ -144,6 +144,7 @@ export async function executeSelectedTests(
             let errors: unknown[] = [];
             let env: Record<string, any> = testenv;
             const init = { ...env };
+            const start = Date.now();
             try {
               ({ errors, environment: env } = await executeTest(
                 test,
@@ -154,17 +155,35 @@ export async function executeSelectedTests(
                 notifyFastFailed(errors[0]);
               }
 
-              return { testcase, errors, environment: env };
+              return {
+                testcase,
+                errors,
+                environment: env,
+                trace: makeTestExecutionResult(testcase, errors, init, {
+                  start,
+                  stop: Date.now(),
+                }),
+              };
             } catch (error) {
               if (ff) {
                 notifyFastFailed(error ?? new Error("undefined error"));
               }
               errors.push(error);
 
-              return { testcase, errors, environment };
+              env = environment;
+
+              return {
+                testcase,
+                errors,
+                environment,
+                trace: makeTestExecutionResult(testcase, errors, init, {
+                  start,
+                  stop: Date.now(),
+                }),
+              };
             } finally {
               try {
-                await writeTestExecutionResult(
+                await writeTestReportFiles(
                   report,
                   testcase,
                   errors,
@@ -194,7 +213,135 @@ type RequestTraceInfo = {
   deps: number[];
 };
 
-export async function writeTestExecutionResult(
+/**
+ * A format-neutral, machine-readable summary of a single test execution: its
+ * pass/fail status, timing, and the request dependency graph with redacted
+ * request/response payloads. This is handed (in-memory) to a configured
+ * `report()` hook, so downstream reporters (e.g. an Allure generator) can
+ * reconstruct the dataflow without re-parsing the `.log.https` text files.
+ */
+export type TestTraceReport = {
+  testcase: string;
+  status: "passed" | "failed";
+  start?: number;
+  stop?: number;
+  errors: { message: string; stack: string }[];
+  parameters: Record<string, unknown>;
+  operations: TestTraceOperation[];
+};
+
+export type TestTraceOperation = {
+  /** trace id of this request */
+  trace: number;
+  /** trace ids of the (minimized) requests this one depended on */
+  deps: number[];
+  /** the endpoint configuration path that served this request */
+  endpoint: string;
+  outcome?: string;
+  timestamps: TracedResult["context"]["timestamps"];
+  durations: TracedResult["context"]["durations"];
+  request: {
+    method?: string;
+    origin?: string;
+    pathname?: string;
+    query: { name: string; value: string }[];
+    headers: { name: string; value: string }[];
+    body?: string;
+  };
+  response: {
+    status: number | string;
+    statusText?: string;
+    headers: { name: string; value: string }[];
+    body?: string;
+  } | null;
+  error: { message: string; stack: string } | null;
+};
+
+function headersToPairs(headers: Headers | undefined) {
+  if (!headers) return [];
+  const pairs: { name: string; value: string }[] = [];
+  headers.forEach((value, name) => pairs.push({ name, value }));
+  return pairs;
+}
+
+/**
+ * Synchronously builds the in-memory {@link TestTraceReport} from the current
+ * (per-test) trace graph. No I/O.
+ */
+export function makeTestExecutionResult(
+  testcase: string,
+  errors: unknown[],
+  init: Record<string, unknown>,
+  timing?: { start: number; stop: number },
+): TestTraceReport {
+  const { graph: requestGraph, list: requests } = graph();
+
+  const operations = requests.map<TestTraceOperation>((trace) => {
+    const { operation, deps } = requestGraph[trace];
+    const { method, origin, pathname, searchParams, headers, body } =
+      operation.egress.redacted;
+
+    const query = searchParams
+      ? [...searchParams.entries()].map(([name, value]) => ({ name, value }))
+      : [];
+
+    return {
+      trace,
+      deps,
+      endpoint: operation.endpoint.configuration.path,
+      outcome: operation.ingress?.outcome,
+      timestamps: operation.context.timestamps,
+      durations: operation.context.durations,
+      request: {
+        method,
+        origin,
+        pathname,
+        query,
+        headers: headersToPairs(headers),
+        ...(body != null && body !== "" ? { body } : {}),
+      },
+      response: operation.ingress
+        ? {
+            status: operation.ingress.redacted.status,
+            statusText: operation.ingress.redacted.statusText,
+            headers: headersToPairs(operation.ingress.redacted.headers),
+            ...(operation.ingress.redacted.body
+              ? { body: operation.ingress.redacted.body }
+              : {}),
+          }
+        : null,
+      error: operation.error
+        ? {
+            message: String(
+              rootcause(operation.error)?.message ?? operation.error,
+            ),
+            stack: String(rootcause(operation.error)?.stack ?? ""),
+          }
+        : null,
+    };
+  });
+
+  return {
+    testcase,
+    status: errors.length ? "failed" : "passed",
+    start: timing?.start,
+    stop: timing?.stop,
+    errors: errors.map((error) => ({
+      message: String(
+        (error as any)?.formatted ?? (error as any)?.message ?? error,
+      ),
+      stack: String((error as any)?.stack ?? ""),
+    })),
+    parameters: cleanObject({ ...init }) ?? {},
+    operations,
+  };
+}
+
+/**
+ * Writes the human-readable report files (`requests.log` and per-request
+ * `.log.https`) for a single test execution.
+ */
+export async function writeTestReportFiles(
   report: string,
   testcase: string,
   errors: any[],
@@ -557,6 +704,12 @@ export type PardonTestConfiguration = {
       testcase: string;
       environment: typeof environment;
       errors: any[];
+      /**
+       * in-memory trace of the test execution (status, timing, and the
+       * request dependency graph with redacted payloads), for building
+       * custom reports without re-parsing the on-disk report files.
+       */
+      trace?: TestTraceReport;
     }[],
   ): void | Promise<void>;
 };

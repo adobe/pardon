@@ -50,6 +50,10 @@
       "import": "./dist/testing.js",
       "types": "./dist/types/testing.d.ts"
     },
+    "./testing/allure": {
+      "import": "./dist/testing/allure.js",
+      "types": "./dist/types/testing/allure.d.ts"
+    },
     "./features/undici": {
       "import": "./dist/features/undici.js",
       "types": "./dist/types/features/undici.d.ts"

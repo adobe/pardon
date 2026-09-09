@@ -31,6 +31,8 @@ const input = {
   playground: "src/modules/playground.ts",
   // testing - defining
   testing: "src/modules/testing.ts",
+  // testing - optional allure report generator
+  "testing/allure": "src/modules/testing-allure.ts",
   // testing - running
   running: "src/modules/running.ts",
   // just format parsing (should be browser-compatible deps only)

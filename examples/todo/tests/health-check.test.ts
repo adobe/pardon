@@ -1,5 +1,6 @@
 import { flow } from "pardon";
 import { PardonTestConfiguration, trial } from "pardon/testing";
+import { allure } from "pardon/testing/allure";
 
 export default {
   setup({ defi, each, debug }) {
@@ -8,6 +9,7 @@ export default {
     debug("setup");
   },
   prefix: "%env",
+  report: allure(),
 } as PardonTestConfiguration;
 
 trial("health-check", async ({ env }) => {
