@@ -1,0 +1,48 @@
+# POST /todos — create a todo for the authenticated user.
+# `id` uses value-duality: matched from the live response in capture, and
+# generated here (a monotonic `T####`, held in `store`) in replay/mock. The
+# trailing post-response script records the new todo so later reads see it.
+>>>
+POST https://todo.example.com/todos
+Authorization: User {{@token}}
+Content-Type: application/json
+
+{
+  task,
+  done: done as optional | boolean
+}
+
+!!!
+username = store.tokens?.[token]
+if (!username) {
+  goto('unauthorized')
+}
+
+if (!store.users?.[username]) {
+  goto('unregistered')
+}
+
+<<<
+200 OK
+Content-Type: application/json
+
+{
+  id: id = `T${store.nextTodoId = (store.nextTodoId ?? 1000) + 1}`,
+  task,
+  done: done ?? false
+}
+
+!!!
+((store.todos ??= {})[username] ??= {})[id] = { task, done: done ?? false }
+
+<<< unauthorized
+401 Unauthorized
+Content-Type: text/plain
+
+"unauthorized"
+
+<<< unregistered
+400 Bad Request
+Content-Type: text/plain
+
+"user not registered"

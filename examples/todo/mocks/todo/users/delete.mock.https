@@ -1,0 +1,34 @@
+# DELETE /users — remove the authenticated user and all of their todos.
+# The username is recovered from the bearer token (`jwt.<base64({username})>`).
+>>>
+DELETE https://todo.example.com/users
+Authorization: User {{@token}}
+
+!!!
+username = store.tokens?.[token]
+if (!username) {
+  goto('unauthorized')
+}
+
+if (!store.users?.[username]) {
+  goto('missing')
+}
+
+delete store.users[username]
+delete store.todos?.[username]
+delete store.tokens[token]
+
+<<<
+204 No Content
+
+<<< unauthorized
+401 Unauthorized
+Content-Type: text/plain
+
+"unauthorized"
+
+<<< missing
+404 Not Found
+Content-Type: text/plain
+
+"not found"

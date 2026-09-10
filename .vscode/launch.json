@@ -150,9 +150,9 @@
         "--stack-trace-limit=100",
         "src/entry/testing/cli/index.ts",
         "--cwd=${workspaceFolder}/examples/todo",
-        "./tests/health-check.test.ts",
+        "./tests/mocking.test.ts",
         "env=local",
-        "--all"
+        "--proxy"
       ],
       "env": {
         "NODE_ENV": "development"

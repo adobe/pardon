@@ -189,6 +189,10 @@ export function createEndpointEnvironment({
       void source;
       void identifier;
 
+      if (options?.evaluate === false) {
+        return undefined as never;
+      }
+
       return evaluation();
     },
     options(key) {

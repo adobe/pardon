@@ -43,6 +43,7 @@ const input = {
   "features/undici": "src/features/undici.ts",
   "features/trace": "src/features/trace.ts",
   "features/persist": "src/features/persist.ts",
+  "features/proxy": "src/features/proxy.ts",
   "features/content-encodings": "src/features/content-encodings.ts",
 };
 

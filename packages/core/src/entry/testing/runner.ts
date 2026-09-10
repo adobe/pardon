@@ -31,6 +31,7 @@ import * as YAML from "yaml";
 import { cleanObject } from "../../util/clean-object.js";
 import { KV } from "../../core/formats/kv-fmt.js";
 import { PardonError } from "../../core/error.js";
+import type { ProxyConfig } from "../../core/proxy/forwarder.js";
 import {
   flushTrialRegistry,
   withSurveyConfiguration as withSurveyConfiguration,
@@ -687,6 +688,12 @@ export type PardonTestConfiguration = {
   concurrency?: number;
 
   prefix?: string;
+  /**
+   * reverse-proxy configuration: bind a listener that forwards
+   * `/proxy:<name>/...` to the named upstream. The chosen port is published at
+   * `environment.proxy.port`.
+   */
+  proxy?: ProxyConfig;
   /** initial environment configuration and alternation applying to all testcases */
   setup?(helpers: CaseHelpers): void;
   /**

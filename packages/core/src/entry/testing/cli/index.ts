@@ -23,8 +23,11 @@ import {
   loadTests,
   setupRunnerHooks,
   writeResultSummary,
+  type PardonTestConfiguration,
 } from "../runner.js";
 import { extractKVs } from "../../../util/kv-options.js";
+import { startProxyServer } from "../../../core/proxy/server.js";
+import { createAmbientCapture } from "../../../core/proxy/capture.js";
 import persist from "../../../features/persist.js";
 import failfast, {
   executeWithFastFail,
@@ -34,6 +37,7 @@ import { JSON } from "../../../core/raw-json.js";
 import { parseSmokeConfig } from "../smoke-config.js";
 import contentEncodings from "../../../features/content-encodings.js";
 import undici from "../../../features/undici.js";
+import proxyFeature from "../../../features/proxy.js";
 import { createFlowContext } from "../../../core/execution/flow/flow-context.js";
 
 // execute tests
@@ -57,6 +61,7 @@ async function main() {
       ff,
       smoke,
       all,
+      proxy,
     },
   } = parseArgs({
     allowPositionals: true,
@@ -84,6 +89,14 @@ async function main() {
         type: "boolean",
       },
       /**
+       * --proxy: instead of running tests, stand up the reverse proxy from the
+       * test file's `proxy` config and wait (Ctrl-C to stop). Captures each
+       * proxied exchange into the trace DB.
+       */
+      proxy: {
+        type: "boolean",
+      },
+      /**
        * --smoke=env (selects one variant of each test per testcase "env" value, default shuffle=1)
        * --smoke=env~3 (selects one test per env shuffled 3)
        * --smoke=env~0 (selects the first test per env, unshuffled)
@@ -105,7 +118,7 @@ async function main() {
         return createFlowContext(this, { ...environment });
       },
     },
-    [ff && failfast, undici, contentEncodings, trace, persist],
+    [ff && failfast, undici, proxyFeature, contentEncodings, trace, persist],
   );
 
   const testfile = positionals[0]?.endsWith(".test.ts")
@@ -119,6 +132,10 @@ async function main() {
   });
 
   await initTrackingEnvironment();
+
+  if (proxy) {
+    return await runProxyServer(configuration);
+  }
 
   const testenv = extractKVs(positionals, true);
   let showPlanOnly = plan;
@@ -204,6 +221,46 @@ or select a subset of them with selective glob pattern(s).
   if (testResults.some(({ errors }) => errors.length > 0)) {
     return 1;
   }
+
+  return 0;
+}
+
+/**
+ * `--proxy` mode: stand up the reverse proxy declared in the test file's
+ * `proxy` config, capturing each exchange, and block until interrupted.
+ */
+async function runProxyServer(
+  configuration: PardonTestConfiguration,
+): Promise<number> {
+  if (!configuration.proxy) {
+    console.error(
+      "no `proxy` configuration exported from the test file; nothing to serve.",
+    );
+    return 1;
+  }
+
+  const server = await startProxyServer(configuration.proxy, {
+    capture: createAmbientCapture(),
+  });
+
+  const base = `http://127.0.0.1:${server.port}`;
+  console.info(`proxy listening on ${base}`);
+  for (const [name, { origin }] of Object.entries(
+    configuration.proxy.upstreams,
+  )) {
+    console.info(`  ${base}/proxy:${name}/  ->  ${origin}`);
+  }
+  console.info(`  health: ${base}/runner/health`);
+  console.info("proxy running; press Ctrl-C to stop.");
+
+  await new Promise<void>((resolve) => {
+    const stop = () => resolve();
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+  });
+
+  console.info("\nproxy: shutting down.");
+  await server.close();
 
   return 0;
 }

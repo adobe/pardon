@@ -1,0 +1,35 @@
+# PUT /users — exchange username+password for a bearer token.
+# Shows value-duality on `token`: matched from live traffic in capture, and
+# *invented* from the same expression in replay/mock.
+>>>
+PUT https://todo.example.com/users
+Content-Type: application/json
+
+{
+  username: "{{username}}",
+  password: "{{@password}}"
+}
+
+!!!
+if (store.users?.[username] !== password) {
+  goto('unauthorized')
+}
+
+<<<
+200 OK
+Content-Type: application/json
+
+{
+  token: token = `jwt.${btoa(JSON.stringify({ username }))}`
+}
+
+!!!
+// record the token->username mapping so authed endpoints can treat the token
+// as opaque (captured tokens map just the same, so this works in every mode).
+(store.tokens ??= {})[token] = username
+
+<<< unauthorized
+401 Unauthorized
+Content-Type: text/plain
+
+"wrong username or password"

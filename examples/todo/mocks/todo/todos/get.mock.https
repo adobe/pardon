@@ -1,0 +1,46 @@
+# GET /todos/{todo} — read one todo.
+# The replay() showcase: normal fields come from session `store`, but the
+# special "debug" task echoes server version/runtime info the mock cannot know.
+# We replay that from real captured traffic when we have it (`replay({ task })`
+# may miss — then we just serve the plain todo without the server block).
+>>>
+GET https://todo.example.com/todos/{{todo}}
+Authorization: User {{@token}}
+
+!!!
+username = store.tokens?.[token]
+if (!username) {
+  goto('unauthorized')
+}
+
+found = store.todos?.[username]?.[todo]
+if (!found) {
+  goto('missing')
+}
+
+task = found.task
+done = found.done
+
+// the "debug" task's server block is un-synthesizable; graft it from a captured
+// exchange if one exists, otherwise fall through to the plain response.
+if (task == "debug") {
+  replay({ task });
+}
+
+<<<
+200 OK
+Content-Type: application/json
+
+{ id: todo, task, done }
+
+<<< unauthorized
+401 Unauthorized
+Content-Type: text/plain
+
+"unauthorized"
+
+<<< missing
+404 Not Found
+Content-Type: text/plain
+
+"not found"

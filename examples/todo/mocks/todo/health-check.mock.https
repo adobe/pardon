@@ -1,0 +1,10 @@
+# Static mock — the trivial end of the spectrum.
+# One request matcher, one response template, no scripts, no state.
+>>>
+GET https://todo.example.com/health-check
+
+<<<
+200 OK
+Content-Type: text/plain
+
+"ok"

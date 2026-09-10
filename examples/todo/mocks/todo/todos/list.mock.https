@@ -1,0 +1,26 @@
+# GET /todos — list the authenticated user's todos from session state.
+>>>
+GET https://todo.example.com/todos
+Authorization: User {{@token}}
+
+!!!
+username = store.tokens?.[token]
+if (!username) {
+  goto('unauthorized')
+}
+
+items = Object.entries(store.todos?.[username] ?? {}).map(
+  ([id, todo]) => ({ id, ...todo }),
+)
+
+<<<
+200 OK
+Content-Type: application/json
+
+items
+
+<<< unauthorized
+401 Unauthorized
+Content-Type: text/plain
+
+"unauthorized"

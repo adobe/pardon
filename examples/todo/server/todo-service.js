@@ -1,5 +1,7 @@
 import { createMiniRouter } from "../../lib/mini-router.js";
 
+const SERVER_VERSION = "1.0.0";
+
 export const makeTodoServiceRouter = ({
   todos,
   setTodos,
@@ -92,9 +94,25 @@ export const makeTodoServiceRouter = ({
         return new Response("not found", { status: 404 });
       }
 
+      // the special "debug" task echoes server build/runtime info in extra
+      // fields — content a mock can't synthesize, so it's a natural replay()
+      // target (see mocks/todo/todos/get.mock.https).
+      const debug =
+        todo.task === "debug"
+          ? {
+              server: {
+                version: SERVER_VERSION,
+                node: process.version,
+                pid: process.pid,
+                uptime: process.uptime(),
+              },
+            }
+          : undefined;
+
       return json({
         id,
         ...todo,
+        ...debug,
       });
     },
     "GET /todos"({ req }) {

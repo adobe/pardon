@@ -1,0 +1,28 @@
+# DELETE /todos/{todo} — remove a todo, or 404 if it isn't there.
+>>>
+DELETE https://todo.example.com/todos/{{todo}}
+Authorization: User {{@token}}
+
+!!!
+username = store.tokens?.[token]
+if (!username) {
+  goto('unauthorized')
+}
+
+if (!store.todos?.[username]?.[todo]) {
+  goto('missing')
+}
+
+delete store.todos[username][todo]
+
+<<<
+204 No Content
+
+<<< unauthorized
+401 Unauthorized
+Content-Type: text/plain
+
+"unauthorized"
+
+<<< missing
+404 Not Found

@@ -17,6 +17,7 @@ import { parseArgs } from "node:util";
 import { intoSearchParams } from "../request/search-object.js";
 import { arrayIntoObject } from "../../util/mapping.js";
 import { intoURL } from "../request/url-object.js";
+import { proxiedUrlParts } from "../request/proxy-meta.js";
 import { PardonError } from "../error.js";
 import { createHeaders } from "../request/header-object.js";
 import { isIP } from "node:net";
@@ -58,8 +59,18 @@ function stringify(
   request: FetchObject,
   { include }: { include?: boolean } = {},
 ) {
-  const { method, headers, body, meta: { resolve, insecure } = {} } = request;
-  const url = intoURL(request);
+  const {
+    method,
+    headers,
+    body,
+    meta: { resolve, insecure, proxy } = {},
+  } = request;
+  // `[proxy]` reroutes to a reverse proxy (origin swap + `/proxy:name` path
+  // prefix), so the faithful curl target is the rewritten URL — mirroring how
+  // `--resolve`/`--insecure` reflect the real transport.
+  const url = intoURL(
+    proxy ? { ...request, ...proxiedUrlParts(proxy, request.pathname ?? "/") } : request,
+  );
 
   const port = url.port || (url.protocol == "https:" ? 443 : 80);
 

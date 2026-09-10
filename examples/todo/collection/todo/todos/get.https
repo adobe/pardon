@@ -1,3 +1,18 @@
 >>>
 GET https://todo.example.com/todos/{{todo}}
 Content-Type: application/json
+
+<<<
+200 OK
+
+{
+  id: "{{todo}}",
+  task,
+  done: done as boolean,
+  server: {
+    version,
+    node,
+    pid: pid as number,
+    uptime: uptime as number
+  } as optional
+}

@@ -1,0 +1,31 @@
+# POST /users — register a user into the ephemeral session `store`.
+# Stateful mock: the store stands in for the service's in-memory user table.
+>>>
+POST https://todo.example.com/users
+Content-Type: application/json
+
+{
+  username: "{{username}}",
+  password: "{{@password}}"
+}
+
+!!!
+// re-registering an existing user is rejected (the real service only allows it
+// when the caller is authenticated as that same user; the mock keeps it simple).
+if (store.users?.[username] !== undefined) {
+  goto('conflict')
+}
+
+(store.users ??= {})[username] = password
+
+<<<
+200 OK
+Content-Type: text/plain
+
+"ok"
+
+<<< conflict
+409 Conflict
+Content-Type: text/plain
+
+"cannot update existing user"

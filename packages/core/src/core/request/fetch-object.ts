@@ -17,6 +17,8 @@ export type RequestMeta = Record<string, string> & {
   resolve?: string;
   body?: EncodingTypes;
   insecure?: "true" | "false";
+  /** reroute this request through a capture proxy, e.g. `http://host:port/proxy:name` */
+  proxy?: string;
 };
 
 export type ResponseMeta = Record<string, string | boolean> & {

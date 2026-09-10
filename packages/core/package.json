@@ -70,6 +70,10 @@
       "import": "./dist/features/trace.js",
       "types": "./dist/types/features/trace.d.ts"
     },
+    "./features/proxy": {
+      "import": "./dist/features/proxy.js",
+      "types": "./dist/types/features/proxy.d.ts"
+    },
     "./database": {
       "import": "./dist/database.js",
       "types": "./dist/types/database.d.ts"

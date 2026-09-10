@@ -1,0 +1,47 @@
+# PUT /todos/{todo} — patch a todo (partial: task and/or done).
+# Mirrors toggle/update: merge the provided fields onto the stored todo.
+>>>
+PUT https://todo.example.com/todos/{{todo}}
+Authorization: User {{@token}}
+Content-Type: application/json
+
+{
+  task: task as optional,
+  done: done as optional | boolean
+}
+
+!!!
+username = store.tokens?.[token]
+if (!username) {
+  goto('unauthorized')
+}
+
+existing = store.todos?.[username]?.[todo]
+if (!existing) {
+  goto('missing')
+}
+
+merged = {
+  ...existing,
+  ...(task !== undefined ? { task } : {}),
+  ...(done !== undefined ? { done } : {}),
+}
+store.todos[username][todo] = merged
+
+<<<
+200 OK
+Content-Type: application/json
+
+{ id: todo, task: merged.task, done: merged.done }
+
+<<< unauthorized
+401 Unauthorized
+Content-Type: text/plain
+
+"unauthorized"
+
+<<< missing
+404 Not Found
+Content-Type: text/plain
+
+"todo not found"

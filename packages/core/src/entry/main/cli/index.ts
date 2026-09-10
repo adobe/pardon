@@ -27,6 +27,7 @@ import { recall } from "./recall.js";
 import trace from "../../../features/trace.js";
 import persist from "../../../features/persist.js";
 import undici from "../../../features/undici.js";
+import proxy from "../../../features/proxy.js";
 import { inspect } from "node:util";
 import { mapObject } from "../../../util/mapping.js";
 import { KV } from "../../../core/formats/kv-fmt.js";
@@ -105,7 +106,7 @@ usage
 
   const context = await initializePardon(
     { environment: values, cwd: options.cwd },
-    [undici, contentEncodings, trace, persist],
+    [undici, proxy, contentEncodings, trace, persist],
   );
 
   if (options["show-root"]) {
