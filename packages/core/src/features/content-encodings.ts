@@ -17,6 +17,13 @@ import {
 import { hookExecution } from "../core/execution/execution-hook.js";
 import zlib from "node:zlib";
 
+const decoders: Record<string, (buffer: Buffer) => Buffer> = {
+  br: (buffer) => zlib.brotliDecompressSync(buffer),
+  gzip: (buffer) => zlib.gunzipSync(buffer),
+  deflate: (buffer) => zlib.inflateSync(buffer),
+  zstd: (buffer) => zlib.zstdDecompressSync(buffer),
+};
+
 export default function contentEncodings(
   execution: typeof PardonFetchExecution,
 ): typeof PardonFetchExecution {
@@ -26,32 +33,53 @@ export default function contentEncodings(
       async fetch(request, next) {
         const response = await next(request);
 
-        if (response.rawBody) {
-          for (const contentEncoding of (
-            response.headers.get("content-encoding") ?? ""
-          )
-            .split(/,\s+/)
-            .filter(Boolean)
-            .reverse()) {
-            switch (contentEncoding) {
-              case "br":
-                response.rawBody = zlib.brotliDecompressSync(response.rawBody);
-                break;
-              case "gzip":
-                if (!response.meta?.nativeFetch) {
-                  response.rawBody = zlib.gunzipSync(response.rawBody);
-                }
-                break;
-              case "deflate":
-                if (!response.meta?.nativeFetch) {
-                  response.rawBody = zlib.inflateSync(response.rawBody);
-                }
-                break;
-              case "zstd":
-                response.rawBody = zlib.zstdDecompressSync(response.rawBody);
-                break;
-            }
+        // a native-fetch Response exposes an immutable Headers, so rewrite a
+        // mutable copy that downstream consumers see instead.
+        response.headers = new Headers(response.headers);
+
+        // Depending on the transport (native fetch/undici vs. our SNI path),
+        // some or all content-encoding layers may already be decoded by the
+        // time we see the body, while the original headers are preserved
+        // faithfully. Rather than guess per-transport, attempt each layer and
+        // detect whether it was actually still encoded, then rewrite the
+        // headers to describe the bytes we actually hold so downstream
+        // consumers (reports, replay, devtools import) render consistently.
+        const encodings = (response.headers.get("content-encoding") ?? "")
+          .split(/,\s*/)
+          .filter(Boolean);
+
+        const unresolved: string[] = [];
+        for (const contentEncoding of [...encodings].reverse()) {
+          if (!response.rawBody) {
+            break;
           }
+
+          const decode = decoders[contentEncoding];
+          if (!decode) {
+            unresolved.unshift(contentEncoding);
+            continue;
+          }
+
+          try {
+            response.rawBody = decode(response.rawBody);
+          } catch {
+            // hopefully the transport already decoded this layer; keep the bytes and
+            // drop the (now inaccurate) label.
+          }
+        }
+
+        // headers now describe the body we hold.
+        if (unresolved.length) {
+          response.headers.set("content-encoding", unresolved.join(", "));
+        } else {
+          response.headers.delete("content-encoding");
+        }
+
+        if (response.rawBody) {
+          response.headers.set(
+            "content-length",
+            String(response.rawBody.length),
+          );
         }
 
         response.body = response.rawBody?.toString("utf-8") ?? "";
