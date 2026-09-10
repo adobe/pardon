@@ -110,6 +110,25 @@ function withoutCookies(headers: NameValue[], header: string) {
   return headers.filter(({ name }) => name.toLowerCase() !== header);
 }
 
+function bodyField(headers: NameValue[], body: string | undefined) {
+  if (body == null || body === "") {
+    return {};
+  }
+
+  const contentType = headers.find(
+    ({ name }) => name.toLowerCase() === "content-type",
+  )?.value;
+
+  return {
+    body: {
+      encoding: "utf8",
+      value: body,
+      size: Buffer.byteLength(body, "utf8"),
+      ...(contentType ? { contentType } : {}),
+    },
+  };
+}
+
 /** Build the `application/vnd.allure.http+json` payload for one operation. */
 function httpExchange(op: TestTraceOperation) {
   const exchange: Record<string, unknown> = {
@@ -122,7 +141,7 @@ function httpExchange(op: TestTraceOperation) {
       headers: withoutCookies(op.request.headers, "cookie"),
       query: op.request.query,
       cookies: cookiesFrom(op.request.headers, "cookie"),
-      ...(op.request.body != null ? { body: op.request.body } : {}),
+      ...bodyField(op.request.headers, op.request.body),
     },
   };
 
@@ -136,7 +155,7 @@ function httpExchange(op: TestTraceOperation) {
       ...(op.response.statusText ? { statusText: op.response.statusText } : {}),
       headers: withoutCookies(op.response.headers, "set-cookie"),
       cookies: cookiesFrom(op.response.headers, "set-cookie"),
-      ...(op.response.body != null ? { body: op.response.body } : {}),
+      ...bodyField(op.response.headers, op.response.body),
     };
   }
 
