@@ -27,7 +27,11 @@ import {
   tracking,
 } from "../../core/tracking.js";
 import { notifyFastFailed } from "../../core/execution/flow/failfast.js";
-import { runWithRootFlowContext } from "../../core/execution/flow/flow-core.js";
+import {
+  createRootFlowContext,
+  setAmbientFlowContextResolver,
+} from "../../core/execution/flow/flow-core.js";
+import type { FlowContext } from "../../core/execution/flow/flow-context.js";
 import * as YAML from "yaml";
 import { cleanObject } from "../../util/clean-object.js";
 import { KV } from "../../core/formats/kv-fmt.js";
@@ -61,7 +65,12 @@ const inflight = new AsyncLocalStorage<{
   testcase: string;
   scheduled: Promise<unknown>[];
   awaited: ReturnType<typeof tracking>;
+  flowRoot?: FlowContext;
 }>();
+
+// top-level `flow()` calls resolve their root from the current trial's
+// async-local store, so concurrent trials each collect into their own frame.
+setAmbientFlowContextResolver(() => inflight.getStore()?.flowRoot);
 
 export function setupRunnerHooks() {
   registerFlowHook(schedulePending);
@@ -149,10 +158,11 @@ export async function executeSelectedTests(
             const init = { ...env };
             const start = Date.now();
             try {
-              ({ errors, environment: env, flows } = await executeTest(
-                test,
-                testcase,
-              ));
+              ({
+                errors,
+                environment: env,
+                flows,
+              } = await executeTest(test, testcase));
 
               if (ff && errors.length > 0) {
                 notifyFastFailed(errors[0]);
@@ -504,7 +514,7 @@ function writeReportFile(
       flows.length && `>>>>>`,
       ...flows.flatMap(({ type, name, values, result, error, steps }) => [
         `>>> ${name}.${type}`,
-        `${KV.stringify(cleanObject(values), { indent: 2 })}`,
+        `${KV.stringify(cleanObject(values) ?? {}, { indent: 2 })}`,
         ``,
         `${steps.map((step) => `# ${formatTracedStep(step)}`).join("\n")}`,
         `${
@@ -560,55 +570,59 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
 
   console.info("starting test -- " + testcase);
 
-  let flows: FlowReport[] = [];
+  const { context: flowRoot, report } = await createRootFlowContext({
+    type: "flow",
+    name: testcase,
+    values: {},
+  });
 
-  return await inflight.run({ testcase, scheduled, awaited }, async () => {
-    try {
-      const { report, error } = await runWithRootFlowContext(
-        { type: "flow", name: testcase, values: {} },
-        () => Promise.resolve(shared(fn)),
-      );
-      flows = report.toReport().deps;
-      if (error !== undefined) {
+  return await inflight.run(
+    { testcase, scheduled, awaited, flowRoot },
+    async () => {
+      try {
+        await Promise.resolve(shared(fn));
+      } catch (error) {
         rejected.push(error);
-      }
-    } catch (error) {
-      rejected.push(error);
-    } finally {
-      const completions: PromiseSettledResult<unknown>[] = [];
+      } finally {
+        const completions: PromiseSettledResult<unknown>[] = [];
 
-      let once = true;
+        let once = true;
 
-      while (scheduled.length) {
-        const resolved = awaited.awaited();
-        const todo = scheduled
-          .splice(0, scheduled.length)
-          .filter((p) => !resolved.includes(p));
+        while (scheduled.length) {
+          const resolved = awaited.awaited();
+          const todo = scheduled
+            .splice(0, scheduled.length)
+            .filter((p) => !resolved.includes(p));
 
-        if (once && todo.length) {
-          console.warn("finalizing test -- " + testcase);
-          once = false;
+          if (once && todo.length) {
+            console.warn("finalizing test -- " + testcase);
+            once = false;
+          }
+
+          completions.push(...(await Promise.allSettled(todo)));
         }
 
-        completions.push(...(await Promise.allSettled(todo)));
-      }
+        const errors = [
+          ...completions
+            .map((result) => result.status === "rejected" && result.reason)
+            .filter(Boolean)
+            .filter((error) => !rejected.includes(error)),
+        ];
 
-      const errors = [
-        ...completions
-          .map((result) => result.status === "rejected" && result.reason)
-          .filter(Boolean)
-          .filter((error) => !rejected.includes(error)),
-      ];
+        rejected.push(...errors);
 
-      rejected.push(...errors);
-
-      console.info(`
+        console.info(`
 -----
 test complete -- ${testcase}: ${rejected.length ? `FAIL ${rejected.length} errors` : "PASS"}`);
-    }
+      }
 
-    return { errors: rejected, environment: { ...environment }, flows };
-  });
+      return {
+        errors: rejected,
+        environment: { ...environment },
+        flows: report?.toReport().deps ?? [],
+      };
+    },
+  );
 }
 
 function formatReportPath(

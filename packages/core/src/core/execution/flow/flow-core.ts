@@ -70,37 +70,41 @@ export type Flow = {
 
 const syncFlowContextStack: FlowContext[] = [];
 
+let ambientRootResolver:
+  | (() => FlowContext | undefined)
+  | (() => Promise<FlowContext>) = () => createFlowContext();
+
+export function setAmbientFlowContextResolver(
+  resolver: () => FlowContext | undefined,
+) {
+  ambientRootResolver = resolver;
+}
+
 async function createFlowContext() {
   return (await pardonRuntime()).createFlowContext();
 }
 
 export async function currentFlowContext(context?: FlowContext) {
-  return context ?? syncFlowContextStack[0] ?? createFlowContext();
+  return (
+    context ??
+    syncFlowContextStack[0] ??
+    ambientRootResolver() ??
+    createFlowContext()
+  );
 }
 
 /**
- * Run `fn` with a fresh root FlowContext pushed on the ambient stack, so every
- * `flow()` invoked within inherits it (and feeds its report frame). Returns the
- * root frame regardless of whether `fn` resolved or threw, so a caller can log
- * the flows that ran up to a failure.
+ * Build a fresh root FlowContext carrying a report frame. The caller decides how
+ * to make it ambient (the test runner stores it in per-trial async-local state
+ * so top-level `flow()` calls resolve to it via the injected resolver).
  */
-export async function runWithRootFlowContext<T>(
+export async function createRootFlowContext(
   info: FlowFrameInfo,
-  fn: () => Promise<T>,
-): Promise<{ report: FlowFrame; value?: T; error?: unknown }> {
+): Promise<{ context: FlowContext; report: FlowFrame }> {
   const runtime = await pardonRuntime();
   const report = makeFlowFrame(info);
-  const root = buildFlowContext(runtime, {}, {}, deferred(), report);
-
-  syncFlowContextStack.unshift(root);
-  try {
-    const value = await fn();
-    return { report, value };
-  } catch (error) {
-    return { report, error };
-  } finally {
-    syncFlowContextStack.shift();
-  }
+  const context = buildFlowContext(runtime, {}, {}, deferred(), report);
+  return { context, report };
 }
 
 export async function runFlow(
@@ -113,8 +117,7 @@ export async function runFlow(
     ...context.context,
   });
 
-  const type =
-    flow.source && "interactions" in flow.source ? "flow" : "unit";
+  const type = flow.source && "interactions" in flow.source ? "flow" : "unit";
   const name =
     (flow.source && "name" in flow.source && flow.source.name) || "flow";
 
