@@ -21,11 +21,13 @@ if (store.users?.[username] !== undefined) {
 <<<
 200 OK
 Content-Type: text/plain
+[body]: raw
 
-"ok"
+ok
 
 <<< conflict
 409 Conflict
 Content-Type: text/plain
+[body]: raw
 
-"cannot update existing user"
+cannot update existing user

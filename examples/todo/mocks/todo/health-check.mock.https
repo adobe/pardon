@@ -6,5 +6,6 @@ GET https://todo.example.com/health-check
 <<<
 200 OK
 Content-Type: text/plain
+[body]: raw
 
-"ok"
+ok

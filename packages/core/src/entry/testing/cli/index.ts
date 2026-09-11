@@ -118,7 +118,7 @@ async function main() {
         return createFlowContext(this, { ...environment });
       },
     },
-    [ff && failfast, undici, proxyFeature, contentEncodings, trace, persist],
+    [ff && failfast, proxyFeature, undici, contentEncodings, trace, persist],
   );
 
   const testfile = positionals[0]?.endsWith(".test.ts")
@@ -134,10 +134,11 @@ async function main() {
   await initTrackingEnvironment();
 
   if (proxy) {
-    return await runProxyServer(configuration);
+    return await runProxyServer(configuration, cwd);
   }
 
   const testenv = extractKVs(positionals, true);
+
   let showPlanOnly = plan;
   if (positionals.length === 0) {
     positionals.push("**");
@@ -151,6 +152,22 @@ async function main() {
   );
 
   const testplan = filterTestPlanning(planning);
+
+  const proxyServer = showPlanOnly
+    ? undefined
+    : configuration.proxy
+      ? await startProxyServer(configuration.proxy, {
+          capture: createAmbientCapture(),
+          cwd,
+        })
+      : undefined;
+
+  if (proxyServer) {
+    for (const plan of testplan) {
+      plan.testenv["proxy-origin"] = environment["proxy-origin"];
+      plan.testenv["proxy-port"] = environment["proxy-port"];
+    }
+  }
 
   if (!planning.patterns || showPlanOnly) {
     if (showPlanOnly) {
@@ -205,9 +222,14 @@ or select a subset of them with selective glob pattern(s).
 
   setupRunnerHooks();
 
-  const testResults = await executeWithFastFail(() =>
-    executeSelectedTests(configuration, testplan, reportOutput, ff),
-  );
+  let testResults;
+  try {
+    testResults = await executeWithFastFail(() =>
+      executeSelectedTests(configuration, testplan, reportOutput, ff),
+    );
+  } finally {
+    await proxyServer?.close();
+  }
 
   await configuration.report?.(reportOutput, testResults);
 
@@ -231,6 +253,7 @@ or select a subset of them with selective glob pattern(s).
  */
 async function runProxyServer(
   configuration: PardonTestConfiguration,
+  cwd?: string,
 ): Promise<number> {
   if (!configuration.proxy) {
     console.error(
@@ -241,6 +264,7 @@ async function runProxyServer(
 
   const server = await startProxyServer(configuration.proxy, {
     capture: createAmbientCapture(),
+    cwd,
   });
 
   const base = `http://127.0.0.1:${server.port}`;

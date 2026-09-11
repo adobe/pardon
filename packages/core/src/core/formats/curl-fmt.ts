@@ -59,17 +59,26 @@ function stringify(
   request: FetchObject,
   { include }: { include?: boolean } = {},
 ) {
-  const {
+  let {
     method,
     headers,
     body,
     meta: { resolve, insecure, proxy } = {},
   } = request;
+
+  if (proxy === "auto") {
+    console.warn("[proxy]: auto should be transformed before curl stringify");
+
+    proxy = undefined;
+  }
+
   // `[proxy]` reroutes to a reverse proxy (origin swap + `/proxy:name` path
   // prefix), so the faithful curl target is the rewritten URL — mirroring how
   // `--resolve`/`--insecure` reflect the real transport.
   const url = intoURL(
-    proxy ? { ...request, ...proxiedUrlParts(proxy, request.pathname ?? "/") } : request,
+    proxy
+      ? { ...request, ...proxiedUrlParts(proxy, request.pathname ?? "/") }
+      : request,
   );
 
   const port = url.port || (url.protocol == "https:" ? 443 : 80);

@@ -20,7 +20,7 @@ if (store.users?.[username] !== password) {
 Content-Type: application/json
 
 {
-  token: token = `jwt.${btoa(JSON.stringify({ username }))}`
+  token: token = (`jwt.${btoa(JSON.stringify({ username }))}`)
 }
 
 !!!

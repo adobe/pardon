@@ -17,13 +17,32 @@ import {
   type ResponseObject,
 } from "../request/fetch-object.js";
 
+// mock serving (`mode: "mock"` upstreams) lives in ./mock.js; re-exported here
+// so the proxy server links to the forwarder as the single routing entry point.
+export {
+  loadMocks,
+  createMockStore,
+  serveMock,
+  type LoadedMock,
+  type MockUpstream,
+} from "./mock.js";
+
 /**
  * A single reverse-proxy upstream. `origin` is the scheme://host[:port] that
- * `proxy:<name>` requests are forwarded to. Further keys (mocks, mode, ...) are
- * layered on in later chunks.
+ * `proxy:<name>` requests are forwarded to.
+ *
+ * When `mode` is `"mock"` (or `mocks` is set), matching requests are served from
+ * the `.mock.https` suite at `mocks` instead of being forwarded — no upstream
+ * call is made and nothing is captured (the exchange is synthetic).
  */
 export type UpstreamConfig = {
   origin: string;
+  mode?: "forward" | "mock";
+  /**
+   * Directory (or `dir/**` glob) of `.mock.https` files, resolved relative to
+   * the proxy's working directory. Required when `mode` is `"mock"`.
+   */
+  mocks?: string;
 };
 
 export type ProxyUpstreams = Record<string, UpstreamConfig>;

@@ -226,7 +226,7 @@ const pathnameTemplate = (base: string) =>
 export function httpsRequestSchema(): Schema<HttpsRequestObject> {
   return merging<HttpsRequestObject>({
     method: "{{method = 'GET'}}",
-    origin: originTemplate("{{-...origin}}"),
+    origin: originTemplate("{{?-...origin}}"),
     pathname: pathnameTemplate("{{-...pathname}}"),
     searchParams: searchReference(
       encodingTemplate(queryEncodingType, mvKeyedTuples),

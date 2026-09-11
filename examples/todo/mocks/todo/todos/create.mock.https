@@ -22,6 +22,11 @@ if (!store.users?.[username]) {
   goto('unregistered')
 }
 
+// default the optional `done` here (a JS expression) so the response body can
+// reference it directly — `done ?? false` in the body would fault on the
+// unvalued optional reference.
+done = done ?? false
+
 <<<
 200 OK
 Content-Type: application/json
@@ -29,7 +34,7 @@ Content-Type: application/json
 {
   id: id = `T${store.nextTodoId = (store.nextTodoId ?? 1000) + 1}`,
   task,
-  done: done ?? false
+  done
 }
 
 !!!

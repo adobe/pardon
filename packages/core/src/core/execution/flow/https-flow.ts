@@ -53,11 +53,10 @@ import { type Flow, type FlowResult, runFlow } from "./flow-core.js";
 import { KV } from "../../formats/kv-fmt.js";
 import { PardonError } from "../../error.js";
 import {
-  type TsMorphTransform,
   applyTsMorph,
   evaluation,
+  flowScriptTransform,
 } from "../../evaluation/expression.js";
-import { SyntaxKind, ts } from "ts-morph";
 import type {
   CompiledHttpsSequence,
   HttpExchangeInterraction,
@@ -223,46 +222,6 @@ export async function executeHttpsSequence(
 
   return sequenceRun();
 }
-
-const flowScriptTransform: (unbound: {
-  symbols: Set<string>;
-  literals: Set<string>;
-}) => TsMorphTransform =
-  (unbound) =>
-  ({ factory, visitChildren }) => {
-    const node = visitChildren();
-
-    if (
-      ts.isBinaryExpression(node) &&
-      node.operatorToken.kind === SyntaxKind.EqualsToken
-    ) {
-      const lhs = node.left;
-      if (ts.isIdentifier(lhs) && unbound.symbols.has(lhs.text)) {
-        return factory.createBinaryExpression(
-          factory.createPropertyAccessExpression(
-            factory.createIdentifier("environment"),
-            lhs.text,
-          ),
-          node.operatorToken,
-          node.right,
-        );
-      }
-    }
-
-    if (
-      ts.isTaggedTemplateExpression(node) &&
-      ts.isIdentifier(node.tag) &&
-      node.tag.text === "$" &&
-      ts.isNoSubstitutionTemplateLiteral(node.template)
-    ) {
-      return factory.createElementAccessExpression(
-        factory.createIdentifier("environment"),
-        factory.createStringLiteral(node.template.text),
-      );
-    }
-
-    return node;
-  };
 
 async function executeHttpsFlowSequence(
   sequence: CompiledHttpsSequence,
@@ -583,6 +542,7 @@ async function executeHttpsSequenceStep({
       flowScheme: sequenceScheme,
       flowPath: sequencePath,
       values: {
+        ...requestTemplate.values,
         ...flowContext.context,
         ...flowContext.flow,
         context: { ...flowContext.context },

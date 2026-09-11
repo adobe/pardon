@@ -17,7 +17,7 @@ items = Object.entries(store.todos?.[username] ?? {}).map(
 200 OK
 Content-Type: application/json
 
-items
+[...items]
 
 <<< unauthorized
 401 Unauthorized

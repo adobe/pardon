@@ -106,7 +106,7 @@ usage
 
   const context = await initializePardon(
     { environment: values, cwd: options.cwd },
-    [undici, proxy, contentEncodings, trace, persist],
+    [proxy, undici, contentEncodings, trace, persist],
   );
 
   if (options["show-root"]) {

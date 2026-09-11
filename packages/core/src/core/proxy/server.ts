@@ -22,12 +22,18 @@ import { createFromHttpHeaders } from "../request/header-object.js";
 import { intoSearchParams } from "../request/search-object.js";
 import type { FetchObject, ResponseObject } from "../request/fetch-object.js";
 import {
+  createMockStore,
   forwardRequest,
   hopByHopHeaders,
+  loadMocks,
+  parseProxyPath,
   rewriteForUpstream,
+  serveMock,
+  type MockUpstream,
   type ProxyConfig,
 } from "./forwarder.js";
 import { handleControlRequest, isControlPath } from "./control.js";
+import { pardonRuntime } from "../../runtime/runtime-deferred.js";
 import { HTTP } from "../formats/http-fmt.js";
 
 /**
@@ -89,6 +95,7 @@ export type CaptureHook = (
 ) => void | Promise<void>;
 
 export type ProxyServerOptions = {
+  cwd?: string;
   /** out-of-band capture of each proxied exchange (redaction/persistence). */
   capture?: CaptureHook;
 };
@@ -110,8 +117,25 @@ export async function startProxyServer(
   config: ProxyConfig,
   options: ProxyServerOptions = {},
 ): Promise<ProxyServer> {
+  // load `.mock.https` suites once at startup; each mock-backed upstream keeps a
+  // single ephemeral session `store` for the life of this process.
+  const mockUpstreams = new Map<string, MockUpstream>();
+  for (const [name, upstream] of Object.entries(config.upstreams)) {
+    if (upstream.mode === "mock" || upstream.mocks) {
+      if (!upstream.mocks) {
+        throw new PardonError(
+          `proxy: upstream ${name} is mode:mock but has no mocks path`,
+        );
+      }
+      mockUpstreams.set(name, {
+        mocks: loadMocks(upstream.mocks, options.cwd),
+        store: createMockStore(),
+      });
+    }
+  }
+
   const server = createServer((req, res) => {
-    void handleRequest(config, options, req, res);
+    void handleRequest(config, options, mockUpstreams, req, res);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -123,7 +147,8 @@ export async function startProxyServer(
   });
 
   const { port } = server.address() as AddressInfo;
-  environment.proxy = { ...environment.proxy, port };
+  environment["proxy-port"] = port;
+  environment["proxy-origin"] = `http://localhost:${port}`;
 
   return {
     port,
@@ -138,6 +163,7 @@ export async function startProxyServer(
 async function handleRequest(
   config: ProxyConfig,
   options: ProxyServerOptions,
+  mockUpstreams: Map<string, MockUpstream>,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -154,6 +180,35 @@ async function handleRequest(
 
   try {
     const inbound = await intoFetchObject(req);
+
+    // mock-backed upstream: serve synthetically from the `.mock.https` suite
+    // instead of forwarding. Nothing is captured (the exchange is invented).
+    const route = parseProxyPath(inbound.pathname);
+    if (route && mockUpstreams.has(route.name)) {
+      const headers = new Headers(inbound.headers);
+      for (const h of hopByHopHeaders) {
+        headers.delete(h);
+      }
+      const mockRequest = { ...inbound, pathname: route.pathname, headers };
+
+      const runtime = await pardonRuntime();
+      const response = await serveMock(
+        mockRequest,
+        mockUpstreams.get(route.name)!,
+        runtime,
+      );
+      writeResponseObject(res, response);
+
+      console.log(`
+---
+>>> (mock:${route.name})
+${HTTP.stringify(mockRequest)}
+
+<<<
+${HTTP.responseObject.stringify(response)}`);
+      return;
+    }
+
     const { request } = rewriteForUpstream(inbound, config.upstreams);
     const response = await forwardRequest(request);
     writeResponseObject(res, response);

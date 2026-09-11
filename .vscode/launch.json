@@ -152,7 +152,7 @@
         "--cwd=${workspaceFolder}/examples/todo",
         "./tests/mocking.test.ts",
         "env=local",
-        "--proxy"
+        "--all"
       ],
       "env": {
         "NODE_ENV": "development"

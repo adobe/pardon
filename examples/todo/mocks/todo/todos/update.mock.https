@@ -5,7 +5,7 @@ PUT https://todo.example.com/todos/{{todo}}
 Authorization: User {{@token}}
 Content-Type: application/json
 
-{
+data = {
   task: task as optional,
   done: done as optional | boolean
 }
@@ -21,18 +21,15 @@ if (!existing) {
   goto('missing')
 }
 
-merged = {
-  ...existing,
-  ...(task !== undefined ? { task } : {}),
-  ...(done !== undefined ? { done } : {}),
-}
-store.todos[username][todo] = merged
+data = store.todos[username][todo] = { ...existing, ...data }
+task = data.task;
+done = data.done;
 
 <<<
 200 OK
 Content-Type: application/json
 
-{ id: todo, task: merged.task, done: merged.done }
+{ id: todo, task: task as optional, done }
 
 <<< unauthorized
 401 Unauthorized

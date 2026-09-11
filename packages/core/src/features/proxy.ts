@@ -44,6 +44,9 @@ export default function proxy(
     execution,
     {
       fetch({ egress: { request } }) {
+        // `[proxy]: auto` is already resolved to a concrete target during
+        // render (see PardonFetchExecution.render), so meta.proxy is either a
+        // literal proxy URL or absent here.
         const target = request.meta?.proxy;
         if (!target) {
           // no [proxy] header: defer to the normal fetch mechanism.

@@ -255,6 +255,59 @@ export async function evaluation(
   return result;
 }
 
+/**
+ * Rewrites bare assignments to *unbound* identifiers so their value both
+ * persists to the ambient `environment` object and updates the local (function
+ * parameter) binding, e.g. `x = value` becomes `environment.x = x = value`.
+ *
+ * Writing through `environment.x` is what makes the assignment survive past the
+ * script; also assigning the local `x` (the inner `x = value`) is what makes a
+ * later *read* of `x` in the same script see the new value — otherwise the read
+ * would resolve to the parameter snapshotted when the script function was
+ * entered. `$`literal`` accesses are likewise routed through `environment`.
+ *
+ * Shared by `.flow.https` and `.mock.https` script execution.
+ */
+export const flowScriptTransform: (unbound: {
+  symbols: Set<string>;
+  literals: Set<string>;
+}) => TsMorphTransform =
+  (unbound) =>
+  ({ factory, visitChildren }) => {
+    const node = visitChildren();
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === SyntaxKind.EqualsToken
+    ) {
+      const lhs = node.left;
+      if (ts.isIdentifier(lhs) && unbound.symbols.has(lhs.text)) {
+        return factory.createBinaryExpression(
+          factory.createPropertyAccessExpression(
+            factory.createIdentifier("environment"),
+            lhs.text,
+          ),
+          node.operatorToken,
+          node,
+        );
+      }
+    }
+
+    if (
+      ts.isTaggedTemplateExpression(node) &&
+      ts.isIdentifier(node.tag) &&
+      node.tag.text === "$" &&
+      ts.isNoSubstitutionTemplateLiteral(node.template)
+    ) {
+      return factory.createElementAccessExpression(
+        factory.createIdentifier("environment"),
+        factory.createStringLiteral(node.template.text),
+      );
+    }
+
+    return node;
+  };
+
 // helper for recompiling x.await to (await x).
 // because: fetch().await.json().await.x
 // is easier to read than: (await (await fetch()).json()).x

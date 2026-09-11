@@ -550,6 +550,22 @@ export const PardonFetchExecution = pardonExecution({
 
     durations.render = Date.now() - renderStart;
 
+    // resolve `[proxy]: auto` after the redaction re-match (which is keyed off
+    // the un-resolved `auto` in the schema), so the *recorded* egress documents
+    // the proxy hop (`[proxy]: http://.../proxy:<service>`). The wire-only
+    // origin/pathname swap stays in the proxy fetch feature, keeping the logical
+    // request (used for matching/replay) untouched.
+    const proxyTarget =
+      rendered.output.meta?.proxy === "auto" && environment["proxy-origin"]
+        ? `${environment["proxy-origin"]}/proxy:${endpoint.service}`
+        : undefined;
+    if (proxyTarget) {
+      rendered.output.meta!.proxy = proxyTarget;
+      if (redacted.output.meta) {
+        redacted.output.meta.proxy = proxyTarget;
+      }
+    }
+
     return {
       request: {
         ...rendered.output,

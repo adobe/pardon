@@ -56,7 +56,7 @@ it("routes /proxy:<name>/... to the matching upstream and publishes the port", a
 
   try {
     assert.ok(proxy.port > 0);
-    assert.equal(environment.proxy.port, proxy.port);
+    assert.equal(environment["proxy-port"], proxy.port);
 
     const response = await fetch(
       `http://127.0.0.1:${proxy.port}/proxy:api/widgets/1?q=2`,

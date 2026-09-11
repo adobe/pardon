@@ -303,17 +303,24 @@ function defineScalar<T extends Scalar>(
         info?.template === undefined &&
         context.phase === "validate"
       ) {
-        const redact = patterns.some(
+        const optional = patterns.some(
           (pattern) =>
-            isPatternRegex(pattern) && pattern.vars.some((v) => isSecret(v)),
+            isPatternRegex(pattern) && pattern.vars.some((v) => isOptional(v)),
         );
 
-        diagnostic(
-          context,
-          `expected value: ${redact ? "<redacted>" : resolved} = ${redact ? "<redacted>" : info?.template}`,
-        );
+        if (!optional) {
+          const redact = patterns.some(
+            (pattern) =>
+              isPatternRegex(pattern) && pattern.vars.some((v) => isSecret(v)),
+          );
 
-        return undefined;
+          diagnostic(
+            context,
+            `expected value: ${redact ? "<redacted>" : resolved} = ${redact ? "<redacted>" : info?.template}`,
+          );
+
+          return undefined;
+        }
       }
 
       if (resolved !== undefined) {
@@ -541,8 +548,6 @@ async function doRenderScalar<T extends Scalar>(
 
     if (result === undefined) {
       if (
-        mode === "prerender" ||
-        mode === "postrender" ||
         patterns.every(
           (pattern) =>
             isPatternLiteral(pattern) || pattern.vars.every(isOptional),
@@ -551,11 +556,13 @@ async function doRenderScalar<T extends Scalar>(
         return undefined;
       }
 
-      throw diagnostic(context, `unevaluated: ${patterns[0]?.source}`);
+      if (mode !== "prerender" && mode !== "postrender") {
+        throw diagnostic(context, `unevaluated: ${patterns[0]?.source}`);
+      }
     }
   }
 
-  if (mode === "preview" && result === undefined) {
+  if ((mode === "preview" || mode === "prerender") && result === undefined) {
     // TODO: this unfortunately discards any known type here.
     return patterns[0]?.source as T;
   } else if (result !== undefined) {

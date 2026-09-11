@@ -28,9 +28,9 @@ export interface ProgressiveMatchData<T> {
  *
  * Both the extended schema and the schema with the object matched are returned.
  */
-export class ProgressiveMatch<T extends RequestObject | ResponseObject>
-  implements ProgressiveMatchData<T>
-{
+export class ProgressiveMatch<
+  T extends RequestObject | ResponseObject,
+> implements ProgressiveMatchData<T> {
   object: Template<T>;
   schema: Schema<T>;
   context?: SchemaMergingContext<T>;
@@ -93,8 +93,10 @@ export class ProgressiveMatch<T extends RequestObject | ResponseObject>
       };
     }
 
-    return {
-      matching: { ...extended, schema: undefined },
-    };
+    return matching
+      ? {
+          matching,
+        }
+      : { matching: { ...extended, schema: undefined } };
   }
 }

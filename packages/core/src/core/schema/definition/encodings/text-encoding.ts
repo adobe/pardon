@@ -21,11 +21,10 @@ const textEncoder: EncodingType<string, string> = {
       return template as string;
     }
 
-    // FIXME: evaluate template?
-    return template as string;
+    return template;
   },
   encode(source) {
-    return source;
+    return source?.replace(/\n$/, "");
   },
 };
 
