@@ -52,10 +52,9 @@ ok`;
 trial("auth-failures", async () => {
   // `todo` is a path variable, so it is passed as flow input rather than a `>>>`
   // KV line (KV-line path variables currently collapse the path).
-  await flow()`
+  await flow({ todo: "T404" })`
 >>>
 env=local
-todo=T404
 username=ghost
 password=nope
 PUT https://todo.example.com/users
@@ -220,9 +219,8 @@ GET https://todo.example.com/todos
 `;
 
   // partial update (toggle done).
-  await flow({ token, todo: id })`
+  await flow({ env: "local", token, todo: id })`
 >>>
-env=local
 PUT https://todo.example.com/todos/{{todo}}
 [proxy]: auto
 

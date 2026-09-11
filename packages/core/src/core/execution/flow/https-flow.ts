@@ -542,7 +542,6 @@ async function executeHttpsSequenceStep({
       flowScheme: sequenceScheme,
       flowPath: sequencePath,
       values: {
-        ...requestTemplate.values,
         ...flowContext.context,
         ...flowContext.flow,
         context: { ...flowContext.context },

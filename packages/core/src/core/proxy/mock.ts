@@ -200,29 +200,10 @@ function matchMock(
     values: {},
   });
 
-  const matcherx = new ProgressiveMatch<HttpsRequestObject>({
-    schema: httpsRequestSchema(),
-    object: inbound as HttpsRequestObject,
-    values: {},
-  });
-
-  const resultx = matcherx.extend(
-    {
-      ...request,
-      computations: mock.entrypoint.computations,
-    } as HttpsRequestObject,
-    { environment, values: mock.entrypoint.values },
-  );
-
-  if (!resultx?.matching.schema) {
-    return;
-  }
-
   const matcher = new ProgressiveMatch<HttpsRequestObject>({
     schema: httpsRequestSchema(),
     object: inbound as HttpsRequestObject,
     values: {},
-    match: true,
   });
 
   const result = matcher.extend(

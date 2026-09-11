@@ -89,21 +89,24 @@ function extractObject<M extends Record<string, unknown>>(
     const ops = exposeSchematic<ObjectSchematicOps<M>>(template);
 
     if (!ops.object) {
-      throw diagnostic(
+      diagnostic(
         context,
         `merge object with unknown schematic: ${Object.keys(ops).join("/")}`,
       );
+      return undefined;
     }
 
     return ops.object();
   }
 
   if (typeof template !== "object") {
-    throw diagnostic(context, "merging object with non-object");
+    diagnostic(context, "merging object with non-object");
+    return undefined;
   }
 
   if (Array.isArray(template)) {
-    throw diagnostic(context, "merging object with array");
+    diagnostic(context, "merging object with array");
+    return undefined;
   }
 
   return { object: template as M, scoped };
@@ -115,10 +118,8 @@ function mergeRepresentation<M extends Record<string, unknown>>(
   info?: ObjectSchematicInfo<M>,
 ): ObjectRepresentation<M> | undefined {
   if (info && rep.scoped !== info.scoped && Object.keys(rep.object).length) {
-    throw diagnostic(
-      context,
-      `cannot match a scoped and unscoped object template`,
-    );
+    diagnostic(context, `cannot match a scoped and unscoped object template`);
+    return undefined;
   }
 
   const scoped = Boolean(rep.scoped || info?.scoped);
@@ -131,7 +132,8 @@ function mergeRepresentation<M extends Record<string, unknown>>(
       template: info?.value,
     });
     if (!merged) {
-      throw diagnostic(context, `could not match archetype value`);
+      diagnostic(context, `could not match archetype value`);
+      return undefined;
     }
     value = merged;
   }
@@ -175,6 +177,11 @@ function defineObject<M extends Record<string, unknown>>(
     },
     merge(context) {
       const info = extractObject(context, self.scoped);
+
+      if (info === undefined && context.template !== undefined) {
+        return;
+      }
+
       const mergedSelf = mergeRepresentation(context, self, info);
 
       if (!mergedSelf) {

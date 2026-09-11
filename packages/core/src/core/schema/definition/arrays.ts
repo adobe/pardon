@@ -89,7 +89,8 @@ function expandInfo<T>(
     );
 
     if (!ops.array) {
-      throw diagnostic(context, "merge array with unknown schematic");
+      diagnostic(context, "merge array with unknown schematic");
+      return undefined;
     }
 
     return ops.array(context);
@@ -112,7 +113,8 @@ function expandInfo<T>(
     };
   }
 
-  throw diagnostic(context, "could not merge array with non-array");
+  diagnostic(context, "could not merge array with non-array");
+  return undefined;
 }
 
 // just merges the item template representation
@@ -126,15 +128,21 @@ function mergeRepresentation<T>(
   }
 
   if (rep.scoped !== (info.scoped ?? rep.scoped)) {
-    throw diagnostic(context, "cannot merge scoped and unscoped arrays");
+    diagnostic(context, "cannot merge scoped and unscoped arrays");
+    return undefined;
   }
 
   if (rep.multivalue !== (info.multivalue ?? rep.multivalue)) {
-    throw diagnostic(context, "cannot merge multivalue and regular arrays");
+    diagnostic(context, "cannot merge multivalue and regular arrays");
+    return undefined;
   }
 
   if (info.item !== undefined) {
-    rep = mergeArchtype(context, rep, info.item);
+    const merged = mergeArchtype(context, rep, info.item);
+    if (!merged) {
+      return undefined;
+    }
+    rep = merged;
   }
 
   if (info.item && !info.mux && !rep.multivalue && !info.single) {
@@ -158,7 +166,8 @@ function mergeArchtype<T>(
   } as SchemaMergingContext<T>);
 
   if (item === undefined) {
-    throw diagnostic(context, "could not merge archetype");
+    diagnostic(context, "could not merge archetype");
+    return undefined;
   }
 
   const elements = rep.elements?.map((element, idx) =>
@@ -169,7 +178,8 @@ function mergeArchtype<T>(
   );
 
   if (elements?.some((v) => v === undefined)) {
-    throw diagnostic(context, "could not merge archetype with elements");
+    diagnostic(context, "could not merge archetype with elements");
+    return undefined;
   }
 
   return { ...rep, item, elements: elements as Schema<T>[] | undefined };
@@ -369,11 +379,13 @@ function defineArray<T>(self: ArrayRepresentation<T>): Schema<T | T[]> {
       }
     },
     merge(context) {
-      const merged = mergeRepresentation(
-        context,
-        self,
-        expandInfo(context, self),
-      );
+      const info = expandInfo(context, self);
+
+      if (info === undefined && context.template !== undefined) {
+        return undefined;
+      }
+
+      const merged = mergeRepresentation(context, self, info);
 
       return merged && defineArray(merged);
     },
