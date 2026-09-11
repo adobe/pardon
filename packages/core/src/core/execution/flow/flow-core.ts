@@ -14,9 +14,18 @@ import {
   composeValuesDict,
   flowFunctionSignature,
 } from "./flow-params.js";
-import type { FlowContext } from "./flow-context.js";
+import {
+  type FlowContext,
+  createFlowContext as buildFlowContext,
+} from "./flow-context.js";
+import {
+  type FlowFrame,
+  type FlowFrameInfo,
+  makeFlowFrame,
+} from "./flow-report.js";
 import type { CompiledHttpsSequence } from "./https-flow-types.js";
 import { pardonRuntime } from "../../../runtime/runtime-deferred.js";
+import deferred from "../../../util/deferred.js";
 
 /**
  * - Flows -
@@ -69,6 +78,31 @@ export async function currentFlowContext(context?: FlowContext) {
   return context ?? syncFlowContextStack[0] ?? createFlowContext();
 }
 
+/**
+ * Run `fn` with a fresh root FlowContext pushed on the ambient stack, so every
+ * `flow()` invoked within inherits it (and feeds its report frame). Returns the
+ * root frame regardless of whether `fn` resolved or threw, so a caller can log
+ * the flows that ran up to a failure.
+ */
+export async function runWithRootFlowContext<T>(
+  info: FlowFrameInfo,
+  fn: () => Promise<T>,
+): Promise<{ report: FlowFrame; value?: T; error?: unknown }> {
+  const runtime = await pardonRuntime();
+  const report = makeFlowFrame(info);
+  const root = buildFlowContext(runtime, {}, {}, deferred(), report);
+
+  syncFlowContextStack.unshift(root);
+  try {
+    const value = await fn();
+    return { report, value };
+  } catch (error) {
+    return { report, error };
+  } finally {
+    syncFlowContextStack.shift();
+  }
+}
+
 export async function runFlow(
   flow: Flow,
   values: Record<string, unknown>,
@@ -79,10 +113,22 @@ export async function runFlow(
     ...context.context,
   });
 
-  return flow.action({
-    context,
-    input,
-  });
+  const type =
+    flow.source && "interactions" in flow.source ? "flow" : "unit";
+  const name =
+    (flow.source && "name" in flow.source && flow.source.name) || "flow";
+
+  context = context.enterFlow({ type, name, values: input });
+  const { report } = context;
+
+  try {
+    const result = await flow.action({ context, input });
+    report?.finish({ result: result.result });
+    return result;
+  } catch (error) {
+    report?.finish({ error });
+    throw error;
+  }
 }
 
 export function makeFlow(fn: FlowFunction): Flow {

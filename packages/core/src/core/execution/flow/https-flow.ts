@@ -270,13 +270,16 @@ async function executeHttpsFlowSequence(
       continue;
     }
 
-    const { outcome, context: stepResultContext } =
-      await executeHttpsSequenceStep({
-        sequenceInteraction: next,
-        sequenceScheme: sequence.scheme,
-        sequencePath: sequence.path,
-        context: flowContext,
-      });
+    const stepReport = await executeHttpsSequenceStep({
+      sequenceInteraction: next,
+      sequenceScheme: sequence.scheme,
+      sequencePath: sequence.path,
+      context: flowContext,
+    });
+
+    const { outcome, context: stepResultContext } = stepReport;
+
+    flowContext.report?.step(stepReport);
 
     flowContext = stepResultContext;
 

@@ -27,6 +27,7 @@ import {
   tracking,
 } from "../../core/tracking.js";
 import { notifyFastFailed } from "../../core/execution/flow/failfast.js";
+import { runWithRootFlowContext } from "../../core/execution/flow/flow-core.js";
 import * as YAML from "yaml";
 import { cleanObject } from "../../util/clean-object.js";
 import { KV } from "../../core/formats/kv-fmt.js";
@@ -144,10 +145,11 @@ export async function executeSelectedTests(
           disconnected(async () => {
             let errors: unknown[] = [];
             let env: Record<string, any> = testenv;
+            let flows: FlowReport[] = [];
             const init = { ...env };
             const start = Date.now();
             try {
-              ({ errors, environment: env } = await executeTest(
+              ({ errors, environment: env, flows } = await executeTest(
                 test,
                 testcase,
               ));
@@ -190,7 +192,7 @@ export async function executeSelectedTests(
                   errors,
                   init,
                   env!,
-                  [],
+                  flows,
                 );
               } catch (error) {
                 console.error(
@@ -558,9 +560,18 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
 
   console.info("starting test -- " + testcase);
 
+  let flows: FlowReport[] = [];
+
   return await inflight.run({ testcase, scheduled, awaited }, async () => {
     try {
-      await Promise.resolve(shared(fn));
+      const { report, error } = await runWithRootFlowContext(
+        { type: "flow", name: testcase, values: {} },
+        () => Promise.resolve(shared(fn)),
+      );
+      flows = report.toReport().deps;
+      if (error !== undefined) {
+        rejected.push(error);
+      }
     } catch (error) {
       rejected.push(error);
     } finally {
@@ -596,7 +607,7 @@ export async function executeTest(fn: () => Promise<void>, testcase: string) {
 test complete -- ${testcase}: ${rejected.length ? `FAIL ${rejected.length} errors` : "PASS"}`);
     }
 
-    return { errors: rejected, environment: { ...environment } };
+    return { errors: rejected, environment: { ...environment }, flows };
   });
 }
 

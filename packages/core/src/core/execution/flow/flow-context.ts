@@ -12,6 +12,7 @@ governing permissions and limitations under the License.
 
 import deferred, { type Deferred } from "../../../util/deferred.js";
 import type { PardonRuntime } from "../../pardon/types.js";
+import { type FlowFrame, type FlowFrameInfo, makeFlowFrame } from "./flow-report.js";
 
 export interface FlowContext {
   runtime: PardonRuntime;
@@ -27,6 +28,10 @@ export interface FlowContext {
   ): FlowContext;
   readonly context: Record<string, unknown>;
   readonly flow: Record<string, unknown>;
+  /** report frame for the currently-executing flow (undefined = not collecting) */
+  readonly report?: FlowFrame;
+  /** derive a context whose report frame is a new child flow (or a fresh root) */
+  enterFlow(info: FlowFrameInfo): FlowContext;
   /** abort in this context */
   abort(reason: unknown): void;
   /** never resolves, rejects if aborted */
@@ -41,15 +46,18 @@ export function createFlowContext(
   context: Record<string, unknown> = {},
   flow: Record<string, unknown> = {},
   aborted: Deferred<unknown> & { reason?: unknown } = deferred(),
+  report?: FlowFrame,
 ): FlowContext {
   return {
     runtime,
+    report,
     mergeWithContext(other) {
       return createFlowContext(
         runtime,
         { ...context, ...other.context },
         { ...flow, ...other.flow },
         aborted,
+        report,
       );
     },
     mergeEnvironment(newcontext, newflow) {
@@ -58,10 +66,27 @@ export function createFlowContext(
         { ...context, ...newcontext },
         { ...flow, ...newflow },
         aborted,
+        report,
       );
     },
     overrideEnvironment(context, stream) {
-      return createFlowContext(runtime, { ...context }, { ...stream }, aborted);
+      return createFlowContext(
+        runtime,
+        { ...context },
+        { ...stream },
+        aborted,
+        report,
+      );
+    },
+    enterFlow(info) {
+      const frame = report ? report.child(info) : makeFlowFrame(info);
+      return createFlowContext(
+        runtime,
+        { ...context },
+        { ...flow },
+        aborted,
+        frame,
+      );
     },
     get context() {
       return context;

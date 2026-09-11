@@ -204,6 +204,7 @@ function matchMock(
     schema: httpsRequestSchema(),
     object: inbound as HttpsRequestObject,
     values: {},
+    match: true,
   });
 
   const result = matcher.extend(

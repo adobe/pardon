@@ -198,8 +198,9 @@ POST https://todo.example.com/todos
 
   // read it back, and confirm it shows up in the list (`todo` is a path
   // variable, so it is passed as input rather than a KV line).
-  await flow({ env: "local", token, todo: id })`
+  await flow({ token, todo: id })`
 >>>
+env=local
 GET https://todo.example.com/todos/{{todo}}
 [proxy]: auto
 
@@ -219,8 +220,9 @@ GET https://todo.example.com/todos
 `;
 
   // partial update (toggle done).
-  await flow({ env: "local", token, todo: id })`
+  await flow({ token, todo: id })`
 >>>
+env=local
 PUT https://todo.example.com/todos/{{todo}}
 [proxy]: auto
 

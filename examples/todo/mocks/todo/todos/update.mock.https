@@ -21,9 +21,7 @@ if (!existing) {
   goto('missing')
 }
 
-console.log('before', data, Object.keys(data ?? {}))
 data = store.todos[username][todo] = { ...existing, ...data }
-console.log('after', data, Object.keys(data ?? {}))
 task = data.task;
 done = data.done;
 
