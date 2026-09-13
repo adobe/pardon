@@ -638,13 +638,15 @@ ${HTTP.responseObject.stringify(ingress.redacted)}`);
 
   if (matching.result === "unmatched") {
     console.info("=!= unmatched response");
+    console.info(`--- actual`);
+    console.info(HTTP.responseObject.stringify(ingress.redacted));
     for (const { outcome, preview, diagnostics } of matching.templates) {
-      console.info(`---`);
+      console.info(`--- expected`);
       if (diagnostics.length == 0) {
         console.info(`# oops, no diagnostics produced about the mismatch`);
       } else {
-        for (const loc of diagnostics) {
-          console.info(`# mismatched at ${loc}`);
+        for (const { loc, message } of diagnostics) {
+          console.info(`# mismatched at ${loc}${message ? `: ${message}` : ""}`);
         }
       }
 
@@ -696,9 +698,28 @@ type UnmatchedResponseOutcome = {
   templates: {
     outcome?: string;
     preview: ResponseObject;
-    diagnostics: string[];
+    diagnostics: { loc: string; message: string }[];
   }[];
 };
+
+/**
+ * Reduce a raw schema diagnostic to a `{ loc, message }` pair for reporting.
+ * The `err` text is normally prefixed with `loc`; strip that so the two aren't
+ * printed redundantly.
+ */
+function diagnosticDetail({
+  loc,
+  err,
+}: {
+  loc: string;
+  err: string | Error;
+}): { loc: string; message: string } {
+  const text = typeof err === "string" ? err : (err?.message ?? String(err));
+  const message = text.startsWith(loc)
+    ? text.slice(loc.length).replace(/^:\s*/, "")
+    : text;
+  return { loc, message };
+}
 
 type ResponseOutcome = MatchedResponseOutcome | UnmatchedResponseOutcome;
 
@@ -758,7 +779,7 @@ async function matchResponseToOutcome(
       templates.push({
         outcome,
         preview: preview.output,
-        diagnostics: merged.context!.diagnostics.map(({ loc }) => loc),
+        diagnostics: merged.context!.diagnostics.map(diagnosticDetail),
       });
     }
 
@@ -791,7 +812,7 @@ async function matchResponseToOutcome(
       templates
         .slice(-1)[0]
         .diagnostics.push(
-          ...(match?.context!.diagnostics.map(({ loc }) => loc) || []),
+          ...(match?.context!.diagnostics.map(diagnosticDetail) || []),
         );
     }
   }

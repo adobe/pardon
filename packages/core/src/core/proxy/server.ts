@@ -16,6 +16,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
+import { join, resolve } from "node:path";
 
 import { PardonError } from "../error.js";
 import { createFromHttpHeaders } from "../request/header-object.js";
@@ -31,8 +32,11 @@ import {
   serveMock,
   type MockUpstream,
   type ProxyConfig,
+  type ProxyMode,
 } from "./forwarder.js";
 import { handleControlRequest, isControlPath } from "./control.js";
+import { createHttpsLogRecorder, recordingSlug } from "./record.js";
+import { loadRecordings } from "./replay.js";
 import { pardonRuntime } from "../../runtime/runtime-deferred.js";
 import { HTTP } from "../formats/http-fmt.js";
 
@@ -104,6 +108,13 @@ export type ProxyServerOptions = {
 export type ProxyServer = {
   port: number;
   server: Server;
+  /**
+   * Point the record/replay upstreams at the recording for `name` (a testcase),
+   * chosen automatically as `<recordings>/<slug>.log.https`. In `record` mode
+   * this opens (and truncates) a fresh log to append to; in `replay` mode it
+   * loads that log and resets its cursor. A no-op in `mock`/forward modes.
+   */
+  useRecording(name: string): void;
   close(): Promise<void>;
 };
 
@@ -114,19 +125,36 @@ export type ProxyServer = {
  * `environment.proxy.port`.
  */
 export async function startProxyServer(
+  mode: ProxyMode,
   config: ProxyConfig,
   options: ProxyServerOptions = {},
 ): Promise<ProxyServer> {
   // load `.mock.https` suites once at startup; each mock-backed upstream keeps a
-  // single ephemeral session `store` for the life of this process.
+  // single ephemeral session `store` for the life of this process. Record/replay
+  // binding is deferred: the durable log is chosen per testcase when the runner
+  // calls `useRecording` (see below), not fixed at startup.
+  const cwd = options.cwd ?? process.cwd();
+
+  if ((mode === "record" || mode === "replay") && !config.recordings) {
+    throw new PardonError(
+      `proxy: mode:${mode} requires a recordings directory`,
+    );
+  }
+
   const mockUpstreams = new Map<string, MockUpstream>();
   for (const [name, upstream] of Object.entries(config.upstreams)) {
-    if (upstream.mode === "mock" || upstream.mocks) {
+    if (
+      mode === "mock" ||
+      mode === "record" ||
+      mode == "replay" ||
+      upstream.mocks
+    ) {
       if (!upstream.mocks) {
         throw new PardonError(
-          `proxy: upstream ${name} is mode:mock but has no mocks path`,
+          `proxy: upstream ${name} is mode:${mode} but has no mocks path`,
         );
       }
+
       mockUpstreams.set(name, {
         mocks: loadMocks(upstream.mocks, options.cwd),
         store: createMockStore(),
@@ -134,8 +162,42 @@ export async function startProxyServer(
     }
   }
 
+  // Bind every record/replay upstream to the single log for testcase `name`
+  // (`<recordings>/<slug>.log.https`). One log per testcase (not per upstream):
+  // a single recorder/replay cursor is shared across upstreams so the log keeps
+  // the global order the service issued its downstream calls in. Only `origin`
+  // stays per-upstream (the forward target). Called before each test so a single
+  // long-lived proxy serves a whole suite, one recording at a time.
+  const useRecording = (name: string) => {
+    if (mode !== "record" && mode !== "replay") {
+      return;
+    }
+
+    const log = join(
+      resolve(cwd, config.recordings!),
+      `${recordingSlug(name)}.log.https`,
+    );
+
+    const recorder =
+      mode === "record" ? createHttpsLogRecorder(log) : undefined;
+    const replaySource =
+      mode === "replay" ? loadRecordings(log, cwd) : undefined;
+
+    for (const [upstreamName, upstream] of Object.entries(config.upstreams)) {
+      const mock = mockUpstreams.get(upstreamName);
+      if (!mock) {
+        continue;
+      }
+
+      mock.record = recorder
+        ? { origin: upstream.origin, recorder }
+        : undefined;
+      mock.replaySource = replaySource;
+    }
+  };
+
   const server = createServer((req, res) => {
-    void handleRequest(config, options, mockUpstreams, req, res);
+    void handleRequest(config, options, mockUpstreams, useRecording, req, res);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -153,6 +215,7 @@ export async function startProxyServer(
   return {
     port,
     server,
+    useRecording,
     close: () =>
       new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve())),
@@ -164,17 +227,16 @@ async function handleRequest(
   config: ProxyConfig,
   options: ProxyServerOptions,
   mockUpstreams: Map<string, MockUpstream>,
+  useRecording: (name: string) => void,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  const target = req.url ?? "/";
-  const q = target.indexOf("?");
-  const pathname = q === -1 ? target : target.slice(0, q);
+  const { pathname } = new URL(`req:${req.url ?? "/"}`);
 
   // control plane (`/runner/…`) is dispatched before the forwarder ever sees
   // the request, so it is never proxied or captured.
   if (isControlPath(pathname)) {
-    await handleControlRequest(req, res);
+    await handleControlRequest(req, res, { useRecording });
     return;
   }
 

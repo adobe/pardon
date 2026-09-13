@@ -29,13 +29,19 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 import { PardonError } from "../error.js";
-import type { FetchObject, ResponseObject } from "../request/fetch-object.js";
+import {
+  intoFetchParams,
+  intoResponseObject,
+  type FetchObject,
+  type ResponseObject,
+} from "../request/fetch-object.js";
+import { computeRecordKey, type Recorder } from "./record.js";
+import type { Recordings } from "./replay.js";
 import {
   HTTPS,
   isHttpRequestStep,
   isHttpResponseStep,
   isHttpScriptStep,
-  type HttpsRequestStep,
   type HttpsResponseStep,
   type HttpsScriptStep,
   type HttpsStep,
@@ -70,16 +76,24 @@ export type LoadedMock = {
   name: string;
   path: string;
   endpoint: LayeredEndpoint;
-  /** the first `>>>` step — the request matcher. */
-  entrypoint: HttpsRequestStep;
-  /** steps following the entrypoint, in file order (scripts + responses). */
-  rest: HttpsStep[];
+  entrypoint: number;
+  steps: HttpsStep[];
 };
 
 /** A mock-backed upstream: its parsed suite plus its live session `store`. */
 export type MockUpstream = {
   mocks: LoadedMock[];
   store: Record<string, unknown>;
+  record?: {
+    origin: string;
+    recorder: Recorder;
+  };
+  /**
+   * Present for `mode: "replay"` upstreams. A `replay({ ...index })` call
+   * resolves against the loaded recording log by `hash(index, mock context)`
+   * instead of forwarding.
+   */
+  replaySource?: Recordings;
 };
 
 /** Globals mock scripts and response templates may reference by bare name. */
@@ -108,11 +122,6 @@ function loadMockFile(path: string, base: string): LoadedMock {
   const scheme = HTTPS.parse(readFileSync(path, "utf-8"));
   const { steps } = scheme;
 
-  const entrypointIndex = steps.findIndex(isHttpRequestStep);
-  if (entrypointIndex === -1) {
-    throw new PardonError(`proxy: mock ${path} has no >>> request matcher`);
-  }
-
   const rel = relative(base, path).replace(/\.mock\.https$/, "");
   const name = rel || path;
   const segments = rel.split("/");
@@ -129,13 +138,7 @@ function loadMockFile(path: string, base: string): LoadedMock {
     layers: [{ path, steps }],
   };
 
-  return {
-    name,
-    path,
-    endpoint,
-    entrypoint: steps[entrypointIndex] as HttpsRequestStep,
-    rest: steps.slice(entrypointIndex + 1),
-  };
+  return { name, path, endpoint, steps, entrypoint: 0 };
 }
 
 /**
@@ -184,42 +187,53 @@ function matchMock(
   mock: LoadedMock,
   inbound: FetchObject,
   runtime: PardonRuntime,
-): Record<string, unknown> | undefined {
-  const { request } = mock.entrypoint;
-  if (
-    inbound.method !== undefined &&
-    request.method !== undefined &&
-    inbound.method !== request.method
-  ) {
-    return undefined;
+): { mock: LoadedMock; values: Record<string, unknown> } | undefined {
+  const steps = [...mock.steps];
+  let entrypoint = 0;
+
+  while (steps.length) {
+    entrypoint++;
+
+    if (!isHttpRequestStep(steps[0])) {
+      steps.shift();
+      continue;
+    }
+
+    const requestStep = steps[0];
+    steps.shift();
+
+    const environment = createEndpointEnvironment({
+      app: runtime,
+      endpoint: mock.endpoint,
+      values: {},
+    });
+
+    const matcher = new ProgressiveMatch<HttpsRequestObject>({
+      schema: httpsRequestSchema(),
+      object: inbound as HttpsRequestObject,
+      values: {},
+      match: true,
+    });
+
+    const result = matcher.extend(
+      {
+        ...requestStep.request,
+        computations: requestStep.computations,
+      } as HttpsRequestObject,
+      { environment, values: requestStep.values },
+    );
+
+    if (!result?.matching.schema || !result.matching.context) {
+      continue;
+    }
+
+    return {
+      mock: { ...mock, steps, entrypoint },
+      values: getContextualValues(result.matching.context, { secrets: true }),
+    };
   }
 
-  const environment = createEndpointEnvironment({
-    app: runtime,
-    endpoint: mock.endpoint,
-    values: {},
-  });
-
-  const matcher = new ProgressiveMatch<HttpsRequestObject>({
-    schema: httpsRequestSchema(),
-    object: inbound as HttpsRequestObject,
-    values: {},
-    match: true,
-  });
-
-  const result = matcher.extend(
-    {
-      ...request,
-      computations: mock.entrypoint.computations,
-    } as HttpsRequestObject,
-    { environment, values: mock.entrypoint.values },
-  );
-
-  if (!result?.matching.schema || !result.matching.context) {
-    return undefined;
-  }
-
-  return getContextualValues(result.matching.context, { secrets: true });
+  return undefined;
 }
 
 /**
@@ -231,7 +245,13 @@ function matchMock(
 async function runMockScript(
   script: string,
   env: Record<string, unknown>,
-  { store, replay }: { store: Record<string, unknown>; replay: () => unknown },
+  {
+    store,
+    replay,
+  }: {
+    store: Record<string, unknown>;
+    replay: (index?: unknown) => unknown;
+  },
 ): Promise<{ target?: string }> {
   const wrapped = `(() => {\n${script}\n;;;\n})()`;
   const { unbound } = applyTsMorph(wrapped);
@@ -281,7 +301,7 @@ async function renderMockResponse(
   step: HttpsResponseStep,
   env: Record<string, unknown>,
   store: Record<string, unknown>,
-  replay: () => unknown,
+  replay: (index?: unknown) => unknown,
   runtime: PardonRuntime,
 ): Promise<{ response: ResponseObject; values: Record<string, unknown> }> {
   const environment = createEndpointEnvironment({
@@ -328,15 +348,12 @@ async function renderMockResponse(
  */
 export async function serveMock(
   inbound: FetchObject,
-  { mocks, store }: MockUpstream,
+  { mocks, store, record, replaySource }: MockUpstream,
   runtime: PardonRuntime,
 ): Promise<ResponseObject> {
   const matches = mocks
-    .map((mock) => ({ mock, values: matchMock(mock, inbound, runtime) }))
-    .filter(
-      (m): m is { mock: LoadedMock; values: Record<string, unknown> } =>
-        m.values !== undefined,
-    );
+    .map((mock) => matchMock(mock, inbound, runtime))
+    .filter(Boolean);
 
   if (matches.length === 0) {
     return mockResponse(
@@ -358,13 +375,67 @@ export async function serveMock(
 
   const { mock, values } = matches[0];
   const env: Record<string, unknown> = { ...values };
-  const replay = () => undefined;
+
+  let recordedResponse: ResponseObject | undefined;
+  const pending: Promise<unknown>[] = [];
+  function replay(index?: unknown): unknown {
+    const context = {
+      mock: mock.name,
+      endpoint: [mock.endpoint.service, mock.endpoint.action].join("/"),
+      entrypoint: mock.entrypoint,
+    };
+
+    // record and replay derive the same key from the same context, so a
+    // recording written here resolves back here on replay.
+    const key = computeRecordKey(index, context);
+
+    if (record) {
+      const forwarded: FetchObject = { ...inbound, origin: record.origin };
+
+      const forward = (async () => {
+        const [url, init] = intoFetchParams(forwarded);
+        const response = await intoResponseObject(await fetch(url, init));
+        recordedResponse = response;
+        await record.recorder.append({
+          key,
+          index,
+          request: forwarded,
+          response,
+        });
+        return response;
+      })();
+
+      pending.push(forward);
+      return forward;
+    }
+
+    if (replaySource) {
+      const response = replaySource.resolve(key);
+      if (response) {
+        recordedResponse = response;
+      } else {
+        console.warn(
+          `proxy: replay miss for ${mock.name} (key ${key.slice(0, 12)}…); ` +
+            `falling through to the mock template`,
+        );
+      }
+      return response;
+    }
+  }
+
+  const settleRecording = async (): Promise<ResponseObject | undefined> => {
+    if (!record && !replaySource) {
+      return undefined;
+    }
+    await Promise.all(pending);
+    return recordedResponse;
+  };
 
   // post-request scripts: the `!!!` steps bound to the entrypoint, run in order
   // until one selects a response via goto().
   let target: string | undefined;
-  for (let cursor = 0; cursor < mock.rest.length; cursor++) {
-    const step = mock.rest[cursor];
+  for (let cursor = 0; cursor < mock.steps.length; cursor++) {
+    const step = mock.steps[cursor];
     if (!isHttpScriptStep(step)) {
       break;
     }
@@ -374,7 +445,16 @@ export async function serveMock(
     }
   }
 
-  const responses = mock.rest.filter(isHttpResponseStep);
+  // if a pre-response replay already forwarded, serve the captured real response
+  // (a recording mock may be just `>>>` + `!!!`, with no `<<<` template).
+  {
+    const captured = await settleRecording();
+    if (captured) {
+      return captured;
+    }
+  }
+
+  const responses = mock.steps.filter(isHttpResponseStep);
   const selected =
     target !== undefined
       ? responses.find((step) => step.outcome === target)
@@ -402,17 +482,19 @@ export async function serveMock(
 
   // post-response scripts: the `!!!` steps immediately following the selected
   // response, run for side effects (e.g. recording the invented id into store).
-  const selectedIndex = mock.rest.indexOf(selected);
+  const selectedIndex = mock.steps.indexOf(selected);
   for (
     let j = selectedIndex + 1;
-    j < mock.rest.length && isHttpScriptStep(mock.rest[j]);
+    j < mock.steps.length && isHttpScriptStep(mock.steps[j]);
     j++
   ) {
-    await runMockScript((mock.rest[j] as HttpsScriptStep).script, env, {
+    await runMockScript((mock.steps[j] as HttpsScriptStep).script, env, {
       store,
       replay,
     });
   }
 
-  return response;
+  // a post-response replay (e.g. `store.x = replay({ ...index }).body`) may have
+  // forwarded; serve the captured real response over the rendered template.
+  return (await settleRecording()) ?? response;
 }

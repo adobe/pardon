@@ -34,13 +34,20 @@ export {
  * When `mode` is `"mock"` (or `mocks` is set), matching requests are served from
  * the `.mock.https` suite at `mocks` instead of being forwarded — no upstream
  * call is made and nothing is captured (the exchange is synthetic).
+ *
+ * When `mode` is `"record"` the suite is still served, but a `replay()` call in
+ * a mock forwards to the real `origin` and appends the captured exchange to the
+ * `.https` log at `recordings` (see ./record.ts).
+ *
+ * When `mode` is `"replay"` the suite is served and a `replay()` call resolves
+ * against that same `recordings` log instead of forwarding (see ./replay.ts).
  */
 export type UpstreamConfig = {
   origin: string;
-  mode?: "forward" | "mock";
   /**
    * Directory (or `dir/**` glob) of `.mock.https` files, resolved relative to
-   * the proxy's working directory. Required when `mode` is `"mock"`.
+   * the proxy's working directory. Required when `mode` is `"mock"`,
+   * `"record"`, or `"replay"`.
    */
   mocks?: string;
 };
@@ -55,7 +62,30 @@ export type ProxyUpstreams = Record<string, UpstreamConfig>;
 export type ProxyConfig = {
   port?: number;
   upstreams: ProxyUpstreams;
+  /**
+   * Directory holding the durable `.https` recording logs, resolved relative to
+   * the proxy's working directory. One log file per test case is chosen
+   * automatically (`<recordings>/<testcase>.log.https`) when the runner signals
+   * the current recording (see `ProxyServer.useRecording`); every upstream
+   * shares that single log, preserving the global order the service issued its
+   * downstream calls in. Written when `mode` is `"record"`, read when `mode` is
+   * `"replay"`. Required for both.
+   */
+  recordings?: string;
 };
+
+export type ProxyMode =
+  | "replay"
+  | "mock"
+  | "record"
+  | "passthrough"
+  | "compare";
+
+export function isProxyMode(mode: string): mode is ProxyMode {
+  return (
+    ["replay", "mock", "record", "passthrough", "compare"] satisfies ProxyMode[]
+  ).includes(mode as ProxyMode);
+}
 
 /**
  * Connection-scoped headers a proxy must not forward. Filtering these keeps
@@ -115,6 +145,8 @@ export function rewriteForUpstream(
     );
   }
 
+  // TODO(simplify): replace with automatic origin configuration based on env, route.name -> service
+  // no need for explicit upstreams.
   const upstream = upstreams[route.name];
   if (!upstream) {
     throw new PardonError(`proxy: no upstream configured named ${route.name}`);

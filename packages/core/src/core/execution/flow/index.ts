@@ -90,8 +90,8 @@ function buildFlowFunction(relative?: string) {
       scheme.configuration.context ??= Object.keys(nameOrInput ?? {});
 
       const flow = compileHttpsFlow(scheme, {
-        path: "inline",
-        name: "inline.flow",
+        path: "script-inline",
+        name: "inline",
       });
 
       return disarm(

@@ -126,6 +126,13 @@ export async function executeSelectedTests(
   selectedTests: TestSetup[],
   report: string,
   ff: boolean | undefined,
+  /**
+   * Called with each testcase name just before it runs — used by record/replay
+   * to bind the proxy to that testcase's recording. Runs inside the test's
+   * concurrency slot, so with concurrency 1 (record/replay) the binding is
+   * serial and never races another test.
+   */
+  beforeTest?: (testcase: string) => void | Promise<void>,
 ) {
   // run at most N tests at once concurrently.
   const concurrently = configuration.concurrency
@@ -158,6 +165,8 @@ export async function executeSelectedTests(
             const init = { ...env };
             const start = Date.now();
             try {
+              await beforeTest?.(testcase);
+
               ({
                 errors,
                 environment: env,
@@ -511,7 +520,6 @@ function writeReportFile(
           .filter((line) => line.trim())
           .map((line) => `# ${line}`),
       ),
-      flows.length && `>>>>>`,
       ...flows.flatMap(({ type, name, values, result, error, steps }) => [
         `>>> ${name}.${type}`,
         `${KV.stringify(cleanObject(values) ?? {}, { indent: 2 })}`,
@@ -523,10 +531,9 @@ function writeReportFile(
             : `  <<< error: ${error}\n${String(error?.["stack"] ?? error)
                 .split("\n")
                 .map((s) => `  # ${s}`)
-                .join(`\n`)}\n`
+                .join(`\n`)}`
         }`,
       ]),
-      flows.length && "<<<<<",
       KV.stringify(resultEnv(env, init) ?? {}, { indent: 2 }),
     ]
       .filter((line) => line != null && (line as unknown as number) !== 0)

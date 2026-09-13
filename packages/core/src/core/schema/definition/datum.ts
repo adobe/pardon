@@ -172,7 +172,7 @@ function mergeRepresentation<T extends Scalar>(
       if (!match) {
         diagnostic(
           context,
-          `conflict: incompatible or configuration: ${template} with ${patterns.map(({ source }) => source).join(" | ")}`,
+          `conflict: incompatible or configuration: "${template}" with "${patterns.map(({ source }) => source).join(" | ")}"`,
         );
         return;
       }

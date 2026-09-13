@@ -313,7 +313,7 @@ function scanResponse(lines: string[], first: string): HttpsResponseStep {
 
   const { headers } = scanHeaders(lines);
 
-  const schemaSource = scanSchema(lines);
+  const schemaSource = scanSchema(lines).trimEnd();
 
   return {
     type: "response",

@@ -39,6 +39,7 @@ import contentEncodings from "../../../features/content-encodings.js";
 import undici from "../../../features/undici.js";
 import proxyFeature from "../../../features/proxy.js";
 import { createFlowContext } from "../../../core/execution/flow/flow-context.js";
+import { isProxyMode, type ProxyMode } from "../../../core/proxy/forwarder.js";
 
 // execute tests
 main().then(
@@ -50,7 +51,7 @@ main().then(
 );
 
 async function main() {
-  const {
+  let {
     positionals,
     values: {
       report: reportFormat = "reports/report-%date--%num",
@@ -62,6 +63,7 @@ async function main() {
       smoke,
       all,
       proxy,
+      mode,
     },
   } = parseArgs({
     allowPositionals: true,
@@ -88,13 +90,16 @@ async function main() {
       all: {
         type: "boolean",
       },
+      mode: {
+        type: "string",
+      },
       /**
        * --proxy: instead of running tests, stand up the reverse proxy from the
        * test file's `proxy` config and wait (Ctrl-C to stop). Captures each
        * proxied exchange into the trace DB.
        */
       proxy: {
-        type: "boolean",
+        type: "string",
       },
       /**
        * --smoke=env (selects one variant of each test per testcase "env" value, default shuffle=1)
@@ -110,6 +115,12 @@ async function main() {
       },
     },
   });
+
+  mode ??= "mock";
+
+  if (!isProxyMode(mode)) {
+    throw new Error("unknown proxy mode: " + mode);
+  }
 
   await initializePardon(
     {
@@ -134,7 +145,7 @@ async function main() {
   await initTrackingEnvironment();
 
   if (proxy) {
-    return await runProxyServer(configuration, cwd);
+    return await runProxyServer(mode ?? "mock", configuration, cwd);
   }
 
   const testenv = extractKVs(positionals, true);
@@ -156,7 +167,7 @@ async function main() {
   const proxyServer = showPlanOnly
     ? undefined
     : configuration.proxy
-      ? await startProxyServer(configuration.proxy, {
+      ? await startProxyServer(mode ?? "mock", configuration.proxy, {
           capture: createAmbientCapture(),
           cwd,
         })
@@ -225,7 +236,13 @@ or select a subset of them with selective glob pattern(s).
   let testResults;
   try {
     testResults = await executeWithFastFail(() =>
-      executeSelectedTests(configuration, testplan, reportOutput, ff),
+      executeSelectedTests(
+        configuration,
+        testplan,
+        reportOutput,
+        ff,
+        proxyServer && ((testcase) => proxyServer.useRecording(testcase)),
+      ),
     );
   } finally {
     await proxyServer?.close();
@@ -252,6 +269,7 @@ or select a subset of them with selective glob pattern(s).
  * `proxy` config, capturing each exchange, and block until interrupted.
  */
 async function runProxyServer(
+  mode: ProxyMode,
   configuration: PardonTestConfiguration,
   cwd?: string,
 ): Promise<number> {
@@ -262,7 +280,7 @@ async function runProxyServer(
     return 1;
   }
 
-  const server = await startProxyServer(configuration.proxy, {
+  const server = await startProxyServer(mode, configuration.proxy, {
     capture: createAmbientCapture(),
     cwd,
   });

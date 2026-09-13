@@ -22,21 +22,61 @@ export function isControlPath(pathname: string): boolean {
   return pathname === "/runner" || pathname.startsWith("/runner/");
 }
 
+/** Control-plane hooks the server wires into request handling. */
+export type ControlPlane = {
+  /**
+   * Point the record/replay upstreams at the recording for a testcase (see
+   * `ProxyServer.useRecording`). Lets a remote/containerized proxy be told which
+   * recording to serve, the same way the in-process runner calls it directly.
+   */
+  useRecording(name: string): void;
+};
+
+async function readBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
+
 /**
- * Handle a control-plane request. Today only `/runner/health` exists (the
- * TestContainers readiness probe); plan/run/traces endpoints grow in here.
+ * Handle a control-plane request: `/runner/health` (TestContainers readiness)
+ * and `POST /runner/recording` (select the current recording by testcase name);
+ * plan/run/traces endpoints grow in here.
  */
 export async function handleControlRequest(
   req: IncomingMessage,
   res: ServerResponse,
+  control: ControlPlane,
 ): Promise<void> {
-  const target = req.url ?? "/";
-  const q = target.indexOf("?");
-  const pathname = q === -1 ? target : target.slice(0, q);
+  const { pathname } = new URL(`req:${req.url ?? "/"}`);
 
   if (req.method === "GET" && pathname === "/runner/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/runner/recording") {
+    let name: unknown;
+    try {
+      ({ name } = JSON.parse((await readBody(req)) || "{}"));
+    } catch {
+      res.writeHead(400, { "content-type": "text/plain" });
+      res.end(`proxy: /runner/recording expects a JSON body { name }\n`);
+      return;
+    }
+
+    if (typeof name !== "string" || !name) {
+      res.writeHead(400, { "content-type": "text/plain" });
+      res.end(`proxy: /runner/recording requires a non-empty "name"\n`);
+      return;
+    }
+
+    control.useRecording(name);
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", recording: name }));
     return;
   }
 
