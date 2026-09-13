@@ -17,6 +17,7 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { PardonError } from "../error.js";
 import { createFromHttpHeaders } from "../request/header-object.js";
@@ -104,6 +105,22 @@ export type ProxyServerOptions = {
   capture?: CaptureHook;
 };
 
+/**
+ * A per-testcase recording binding, returned by `useRecording` and owned by the
+ * test that started it (not the server) — so distinct tests can hold distinct
+ * sessions without interfering, in support of replaying several at once.
+ */
+export type RecordingSession = {
+  /**
+   * Finalize this test's recording after its function has returned and its flows
+   * have settled. Waits the configured `grace` period so async work in the
+   * backend can issue its remaining downstream calls; in `replay` mode it then
+   * requires this session's log to have been fully consumed (a leftover exchange
+   * means the service made fewer calls than were recorded).
+   */
+  finish(): Promise<void>;
+};
+
 /** A running proxy listener handle. */
 export type ProxyServer = {
   port: number;
@@ -112,9 +129,10 @@ export type ProxyServer = {
    * Point the record/replay upstreams at the recording for `name` (a testcase),
    * chosen automatically as `<recordings>/<slug>.log.https`. In `record` mode
    * this opens (and truncates) a fresh log to append to; in `replay` mode it
-   * loads that log and resets its cursor. A no-op in `mock`/forward modes.
+   * loads that log and resets its cursor. Returns a session the caller finishes
+   * once the test is done. A no-op session in `mock`/forward modes.
    */
-  useRecording(name: string): void;
+  useRecording(name: string): RecordingSession;
   close(): Promise<void>;
 };
 
@@ -168,9 +186,12 @@ export async function startProxyServer(
   // the global order the service issued its downstream calls in. Only `origin`
   // stays per-upstream (the forward target). Called before each test so a single
   // long-lived proxy serves a whole suite, one recording at a time.
-  const useRecording = (name: string) => {
+  const grace = config.grace ?? 0;
+  const noopSession: RecordingSession = { async finish() {} };
+
+  const useRecording = (name: string): RecordingSession => {
     if (mode !== "record" && mode !== "replay") {
-      return;
+      return noopSession;
     }
 
     const log = join(
@@ -194,6 +215,36 @@ export async function startProxyServer(
         : undefined;
       mock.replaySource = replaySource;
     }
+
+    // the session owns this test's log, so completeness is checked against the
+    // recording this very test bound — not whatever the server last saw.
+    return {
+      async finish() {
+        if (mode === "record") {
+          // let the backend issue any late downstream calls (still captured by
+          // the recorder above) before the next test rebinds it.
+          if (grace > 0) {
+            await delay(grace);
+          }
+          return;
+        }
+
+        // replay: wait (up to grace) for the service to consume the whole log,
+        // then require it — a leftover means fewer calls were made than recorded.
+        const deadline = Date.now() + grace;
+        while (replaySource!.remaining() > 0 && Date.now() < deadline) {
+          await delay(Math.min(25, deadline - Date.now()));
+        }
+
+        const remaining = replaySource!.remaining();
+        if (remaining > 0) {
+          throw new PardonError(
+            `replay: ${remaining} recorded exchange(s) for ${name} were never ` +
+              `replayed — the service made fewer downstream calls than recorded`,
+          );
+        }
+      },
+    };
   };
 
   const server = createServer((req, res) => {

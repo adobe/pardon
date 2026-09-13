@@ -1,0 +1,40 @@
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:3000/users
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"test","password":"test"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 2
+content-type: text/plain;charset=UTF-8
+date: Sun, 13 Sep 2026 00:52:04 GMT
+keep-alive: timeout=5
+
+ok
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+PUT http://localhost:3000/users
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"test","password":"test"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 44
+content-type: application/json
+date: Sun, 13 Sep 2026 00:52:04 GMT
+keep-alive: timeout=5
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InRlc3QifQ=="}
+

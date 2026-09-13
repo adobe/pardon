@@ -72,6 +72,15 @@ export type ProxyConfig = {
    * `"replay"`. Required for both.
    */
   recordings?: string;
+  /**
+   * Grace period in milliseconds to wait after a test's function returns (and
+   * its flows have settled) before finalizing the recording, letting async work
+   * in the backend issue its remaining downstream calls. In `record` mode these
+   * late calls are still captured; in `replay` mode the finalizer waits up to
+   * this long for the log to be fully consumed before checking completeness.
+   * Defaults to 0 (finalize immediately — synchronous downstream calls only).
+   */
+  grace?: number;
 };
 
 export type ProxyMode =

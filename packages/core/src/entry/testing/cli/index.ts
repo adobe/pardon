@@ -231,6 +231,14 @@ or select a subset of them with selective glob pattern(s).
     configuration.concurrency = parseInt(concurrency);
   }
 
+  if (mode === "record" || mode === "replay") {
+    // record/replay bind the proxy's mock upstreams to one recording at a time
+    // (shared per-upstream state), so tests must run serially — otherwise one
+    // test's `useRecording` clobbers another's and every exchange lands in the
+    // last-bound log. Per-request routing (parallel replay) is future work.
+    configuration.concurrency = 1;
+  }
+
   setupRunnerHooks();
 
   let testResults;
@@ -241,7 +249,11 @@ or select a subset of them with selective glob pattern(s).
         testplan,
         reportOutput,
         ff,
-        proxyServer && ((testcase) => proxyServer.useRecording(testcase)),
+        proxyServer &&
+          ((testcase) => {
+            const session = proxyServer.useRecording(testcase);
+            return () => session.finish();
+          }),
       ),
     );
   } finally {

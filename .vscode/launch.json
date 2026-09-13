@@ -168,6 +168,64 @@
       ]
     },
     {
+      "name": "pardon - record",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/packages/core",
+      "runtimeArgs": [
+        "--import",
+        "tsx/esm",
+        "--stack-trace-limit=100",
+        "src/entry/testing/cli/index.ts",
+        "--cwd=${workspaceFolder}/examples/todo",
+        "./tests/contract.test.ts",
+        "--mode=record",
+        "env=local",
+        "--all"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      // Files to exclude from debugger (e.g. call stack)
+      "skipFiles": [
+        // Node.js internal core modules
+        "<node_internals>/**",
+        // Ignore all dependencies (optional)
+        "${workspaceFolder}/packages/core/node_modules/**"
+      ]
+    },
+    {
+      "name": "pardon - replay",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/packages/core",
+      "runtimeArgs": [
+        "--import",
+        "tsx/esm",
+        "--stack-trace-limit=100",
+        "src/entry/testing/cli/index.ts",
+        "--cwd=${workspaceFolder}/examples/todo",
+        "./tests/contract.test.ts",
+        "--mode=replay",
+        "env=local",
+        "--all"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      // Files to exclude from debugger (e.g. call stack)
+      "skipFiles": [
+        // Node.js internal core modules
+        "<node_internals>/**",
+        // Ignore all dependencies (optional)
+        "${workspaceFolder}/packages/core/node_modules/**"
+      ]
+    },
+    {
       "name": "dist/main",
       "type": "node",
       "request": "launch",

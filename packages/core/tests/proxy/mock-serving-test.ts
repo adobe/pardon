@@ -20,9 +20,6 @@ import { initializePardon } from "../../src/runtime/initialize.js";
 import undici from "../../src/features/undici.js";
 import { startProxyServer } from "../../src/core/proxy/server.js";
 import type { ProxyServer } from "../../src/core/proxy/server.js";
-import { semaphore } from "../../src/core/tracking.js";
-
-const mutex = semaphore(1);
 
 let workspace: string;
 let mocksDir: string;
@@ -175,10 +172,10 @@ before(async () => {
 
   await initializePardon({ cwd: workspace }, [undici]);
 
-  proxy = await startProxyServer({
+  proxy = await startProxyServer("mock", {
     upstreams: {
       // absolute mocks path so it resolves regardless of process cwd.
-      svc: { origin: "https://svc.example", mode: "mock", mocks: mocksDir },
+      svc: { origin: "https://svc.example", mocks: mocksDir },
     },
   });
 });
@@ -194,36 +191,34 @@ it("serves a static mock", async () => {
   assert.equal(body, "pong");
 });
 
-it("serves stateful CRUD with goto, value-duality, and a shared store", () =>
-  mutex(async () => {
-    // register — invents an opaque token via btoa and records it.
-    const registered = await post("/users", { name: "ada" });
-    assert.equal(registered.status, 200);
-    const { token } = JSON.parse(registered.body) as { token: string };
-    assert.match(token, /^tok\./, "token invented from the duality expression");
+it("serves stateful CRUD with goto, value-duality, and a shared store", async () => {
+  // register — invents an opaque token via btoa and records it.
+  const registered = await post("/users", { name: "ada" });
+  assert.equal(registered.status, 200);
+  const { token } = JSON.parse(registered.body) as { token: string };
+  assert.match(token, /^tok\./, "token invented from the duality expression");
 
-    // re-register — the store persists across requests, so goto('conflict').
-    const conflict = await post("/users", { name: "ada" });
-    assert.equal(conflict.status, 409);
-    assert.equal(conflict.body, "exists");
+  // re-register — the store persists across requests, so goto('conflict').
+  const conflict = await post("/users", { name: "ada" });
+  assert.equal(conflict.status, 409);
+  assert.equal(conflict.body, "exists");
 
-    // whoami with the opaque token — read-after-assign of `name` resolves it.
-    const whoami = await get("/whoami", { authorization: `Bearer ${token}` });
-    assert.equal(whoami.status, 200);
-    assert.deepEqual(JSON.parse(whoami.body), { name: "ada" });
+  // whoami with the opaque token — read-after-assign of `name` resolves it.
+  const whoami = await get("/whoami", { authorization: `Bearer ${token}` });
+  assert.equal(whoami.status, 200);
+  assert.deepEqual(JSON.parse(whoami.body), { name: "ada" });
 
-    // whoami with a bogus token — goto('unauthorized').
-    const denied = await get("/whoami", { authorization: "Bearer nope" });
-    assert.equal(denied.status, 401);
-    assert.equal(denied.body, "unauthorized");
-  }));
+  // whoami with a bogus token — goto('unauthorized').
+  const denied = await get("/whoami", { authorization: "Bearer nope" });
+  assert.equal(denied.status, 401);
+  assert.equal(denied.body, "unauthorized");
+});
 
-it("invents monotonic ids from a store counter", () =>
-  mutex(async () => {
-    const first = await post("/items", { label: "one" });
-    assert.equal(first.status, 200);
-    assert.deepEqual(JSON.parse(first.body), { id: "I101", label: "one" });
+it("invents monotonic ids from a store counter", async () => {
+  const first = await post("/items", { label: "one" });
+  assert.equal(first.status, 200);
+  assert.deepEqual(JSON.parse(first.body), { id: "I101", label: "one" });
 
-    const second = await post("/items", { label: "two" });
-    assert.deepEqual(JSON.parse(second.body), { id: "I102", label: "two" });
-  }));
+  const second = await post("/items", { label: "two" });
+  assert.deepEqual(JSON.parse(second.body), { id: "I102", label: "two" });
+});

@@ -46,6 +46,12 @@ export type Recordings = {
    * fallback.
    */
   resolve(key: string): ResponseObject | undefined;
+  /**
+   * Recorded exchanges not yet served (cursor to end). A test isn't complete
+   * until this reaches 0 — a positive value means the service made fewer
+   * downstream calls than were recorded.
+   */
+  remaining(): number;
 };
 
 /** Load and parse a recording log into an ordered `(key, response)` sequence. */
@@ -88,6 +94,9 @@ export function loadRecordings(path: string, cwd = process.cwd()): Recordings {
         return sequence[cursor++].response;
       }
       return undefined;
+    },
+    remaining() {
+      return sequence.length - cursor;
     },
   };
 }

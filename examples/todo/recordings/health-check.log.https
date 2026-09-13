@@ -1,0 +1,17 @@
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+GET http://localhost:3000/health-check
+accept: */*
+accept-language: *
+sec-fetch-mode: cors
+user-agent: node
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 2
+content-type: text/plain;charset=UTF-8
+date: Sun, 13 Sep 2026 00:52:04 GMT
+keep-alive: timeout=5
+
+ok
+

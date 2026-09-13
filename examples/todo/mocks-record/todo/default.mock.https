@@ -1,0 +1,6 @@
+# record-mode mock everything with replay
+>>>
+ANY //
+
+!!!
+replay()

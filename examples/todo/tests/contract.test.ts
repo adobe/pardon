@@ -33,3 +33,25 @@ GET https://todo.example.com/health-check
 
 ok`;
 });
+
+trial("user-flow", async () => {
+  await flow()`
+>>>
+username=test
+password=test
+POST https://todo.example.com/users
+[proxy]: auto
+
+<<<
+200
+
+>>>
+username=test
+password=test
+PUT https://todo.example.com/users
+[proxy]: auto
+
+<<<
+200
+`;
+});

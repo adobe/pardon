@@ -35,8 +35,9 @@ before(async () => {
   workspace = await mkdtemp(join(tmpdir(), "pardon-proxy-"));
   await writeFile(join(workspace, "pardonrc.yaml"), "collections: []\n");
 
-  runtime = (await initializePardon({ cwd: workspace }, [undici])) as
-    unknown as PardonRuntime;
+  runtime = (await initializePardon({ cwd: workspace }, [
+    undici,
+  ])) as unknown as PardonRuntime;
 });
 
 after(async () => {
@@ -83,6 +84,7 @@ it("captures a forwarded exchange into the trace DB (redacted, no 2nd fetch)", a
 
   const upstream = await startUpstream();
   const proxy = await startProxyServer(
+    "passthrough",
     { upstreams: { api: { origin: upstream.origin } } },
     {
       capture: async (req, res) => {

@@ -129,10 +129,17 @@ export async function executeSelectedTests(
   /**
    * Called with each testcase name just before it runs — used by record/replay
    * to bind the proxy to that testcase's recording. Runs inside the test's
-   * concurrency slot, so with concurrency 1 (record/replay) the binding is
-   * serial and never races another test.
+   * concurrency slot. It may return a finalizer, run after the test function and
+   * its flows settle (and its errors folded into the test's), which record/replay
+   * uses to apply the grace period and require the log was fully consumed. The
+   * finalizer is owned per-test, so distinct tests don't share this state.
    */
-  beforeTest?: (testcase: string) => void | Promise<void>,
+  beforeTest?: (
+    testcase: string,
+  ) =>
+    | void
+    | (() => void | Promise<void>)
+    | Promise<void | (() => void | Promise<void>)>,
 ) {
   // run at most N tests at once concurrently.
   const concurrently = configuration.concurrency
@@ -165,13 +172,21 @@ export async function executeSelectedTests(
             const init = { ...env };
             const start = Date.now();
             try {
-              await beforeTest?.(testcase);
+              const finishTest = await beforeTest?.(testcase);
 
               ({
                 errors,
                 environment: env,
                 flows,
               } = await executeTest(test, testcase));
+
+              // finalize the recording (grace period + replay-log completeness)
+              // once the test's flows have settled; fold any failure into errors.
+              try {
+                await finishTest?.();
+              } catch (finishError) {
+                errors = [...errors, finishError];
+              }
 
               if (ff && errors.length > 0) {
                 notifyFastFailed(errors[0]);

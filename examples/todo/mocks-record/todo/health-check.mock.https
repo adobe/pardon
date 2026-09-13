@@ -1,6 +1,0 @@
-# record-mode mock: forward GET /health-check to the real origin and record it.
->>>
-GET https://todo.example.com/health-check
-
-!!!
-replay()

@@ -1,5 +1,5 @@
 /*
-Copyright 2025 Adobe. All rights reserved.
+Copyright 2026 Adobe. All rights reserved.
 This file is licensed to you under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License. You may obtain a copy
 of the License at http://www.apache.org/licenses/LICENSE-2.0
@@ -50,7 +50,7 @@ async function startUpstream(): Promise<{
 
 it("routes /proxy:<name>/... to the matching upstream and publishes the port", async () => {
   const upstream = await startUpstream();
-  const proxy = await startProxyServer({
+  const proxy = await startProxyServer("passthrough", {
     upstreams: { api: { origin: upstream.origin } },
   });
 
@@ -73,7 +73,7 @@ it("routes /proxy:<name>/... to the matching upstream and publishes the port", a
 });
 
 it("returns 404 for an unknown upstream", async () => {
-  const proxy = await startProxyServer({ upstreams: {} });
+  const proxy = await startProxyServer("passthrough", { upstreams: {} });
   try {
     const response = await fetch(
       `http://127.0.0.1:${proxy.port}/proxy:missing/x`,
@@ -85,7 +85,7 @@ it("returns 404 for an unknown upstream", async () => {
 });
 
 it("returns 404 for a path without a proxy prefix", async () => {
-  const proxy = await startProxyServer({ upstreams: {} });
+  const proxy = await startProxyServer("passthrough", { upstreams: {} });
   try {
     const response = await fetch(`http://127.0.0.1:${proxy.port}/nope`);
     assert.equal(response.status, 404);
@@ -95,7 +95,7 @@ it("returns 404 for a path without a proxy prefix", async () => {
 });
 
 it("serves the control-plane health probe on /runner/health", async () => {
-  const proxy = await startProxyServer({ upstreams: {} });
+  const proxy = await startProxyServer("passthrough", { upstreams: {} });
   try {
     const response = await fetch(
       `http://127.0.0.1:${proxy.port}/runner/health`,
@@ -110,7 +110,7 @@ it("serves the control-plane health probe on /runner/health", async () => {
 
 it("404s unknown control endpoints without proxying them", async () => {
   const upstream = await startUpstream();
-  const proxy = await startProxyServer({
+  const proxy = await startProxyServer("passthrough", {
     upstreams: { runner: { origin: upstream.origin } },
   });
   try {
