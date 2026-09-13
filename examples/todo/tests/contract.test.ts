@@ -15,7 +15,7 @@ export default {
     upstreams: {
       todo: {
         origin: "http://localhost:3000",
-        mocks: "./mocks-record/todo/**",
+        mocks: "./record/todo/**",
       },
     },
   },

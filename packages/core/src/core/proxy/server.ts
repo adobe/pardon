@@ -312,7 +312,7 @@ async function handleRequest(
       );
       writeResponseObject(res, response);
 
-      console.log(`
+      console.info(`
 ---
 >>> (mock:${route.name})
 ${HTTP.stringify(mockRequest)}
@@ -326,7 +326,7 @@ ${HTTP.responseObject.stringify(response)}`);
     const response = await forwardRequest(request);
     writeResponseObject(res, response);
 
-    console.log(`
+    console.info(`
 ---
 >>>
 ${HTTP.stringify(request)}

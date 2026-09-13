@@ -1,0 +1,24 @@
+defaults:
+  auth-type: none
+# Registration goes through the recording proxy ([proxy]: auto → the `identity`
+# upstream). The password is vaulted so authorizeUser's later login can read it
+# from secrets without re-supplying it.
+>>>
+POST https://identity.example.com/users
+[proxy]: auto
+Content-Type: application/json
+
+{
+  username,
+  password: "{{@password}}"
+}
+
+<<<
+200
+
+{
+  username
+}
+
+!!!
+secrets({ service, env, username }).password = password

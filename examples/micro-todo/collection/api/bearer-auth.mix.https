@@ -1,0 +1,16 @@
+config:
+  auth-type: user
+import:
+  ./authorization.ts:
+    - authorizeUser
+defaults:
+  auth-origin: http://localhost:{{identityPort=4001}}
+
+# Every api endpoint (except those that opt out with `auth-type: none`) carries a
+# bearer token acquired by a script: authorizeUser logs into the identity service
+# (through the recording proxy) and returns the minted token, vaulted as the
+# secret `{{@token}}`. Script-based acquisition keeps the token on the secure path
+# rather than threading it as a plain flow value.
+>>>
+ANY //
+Authorization: Bearer {{ @token = authorizeUser({ username, origin: $`auth-origin` }) }}

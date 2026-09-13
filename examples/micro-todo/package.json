@@ -1,0 +1,14 @@
+{
+  "type": "module",
+  "scripts": {
+    "start:identity": "node ./identity/server",
+    "start:task": "node ./task/server",
+    "start:api": "node ./api/server"
+  },
+  "pardon": {
+    "collections": "./collection"
+  },
+  "devDependencies": {
+    "pardon": "file:../../packages/core"
+  }
+}

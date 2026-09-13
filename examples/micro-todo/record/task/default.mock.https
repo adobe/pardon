@@ -1,0 +1,7 @@
+# record-mode mock: match any forwarded request and replay() it — forward-and-record
+# in `--mode record`, resolve-by-cursor in `--mode replay`.
+>>>
+ANY //
+
+!!!
+replay()

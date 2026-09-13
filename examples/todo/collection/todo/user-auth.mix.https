@@ -5,4 +5,4 @@ import:
     - authorizeUser
 >>>
 ANY //
-Authorization: User {{@token = authorizeUser({ username, origin })}}
+Authorization: User {{ @token = authorizeUser({ username, origin }) }}

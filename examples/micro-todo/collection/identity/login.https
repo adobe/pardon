@@ -1,0 +1,22 @@
+defaults:
+  auth-type: none
+# Login (token acquisition) goes through the recording proxy ([proxy]: auto → the
+# `identity` upstream). Invoked by authorizeUser (../api/authorization.ts) via the
+# api bearer-auth mixin; the password is read from the vault (cached at register)
+# and the minted token is vaulted as the secret `{{@token}}`.
+>>>
+POST https://identity.example.com/tokens
+[proxy]: auto
+Content-Type: application/json
+
+{
+  username,
+  password: "{{@password = secrets.password}}"
+}
+
+<<<
+200 OK
+
+{
+  "token": "{{@token}}"
+}

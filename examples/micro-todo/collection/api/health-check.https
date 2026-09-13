@@ -1,0 +1,9 @@
+defaults:
+  auth-type: none
+>>>
+GET https://api.example.com/health-check
+
+<<<
+200
+
+ok

@@ -11,8 +11,7 @@ governing permissions and limitations under the License.
 */
 import { templateSchematic } from "./template.js";
 import * as KeyedList from "./definition/structures/keyed-list.js";
-import { createMergingContext } from "./core/context.js";
-import { isLookupValue } from "./core/scope.js";
+import { createMergingContext, createRenderContext } from "./core/context.js";
 import { objects } from "./definition/objects.js";
 import { type ArraySchematicOps, arrays } from "./definition/arrays.js";
 import { patternize } from "./core/pattern.js";
@@ -179,6 +178,7 @@ function parseKeyedArrayTemplate<T>(
           "multivalue array cannot merge archetype-with-values schematic",
         );
       }
+
       return { values: {}, archetype: item as Template<T> };
     }
 
@@ -193,7 +193,7 @@ function parseKeyedArrayTemplate<T>(
 
   return (valueTemplate as Template<T>[]).reduce<{
     values: Record<string, Template<T>>;
-    archetype?: Template<T>;
+    archetype?: Schematic<T>;
   }>(
     (parsed, item) => {
       const { mode, phase, meta } = context;
@@ -201,10 +201,18 @@ function parseKeyedArrayTemplate<T>(
         { mode, phase, ...meta },
         keySchema,
         item as T,
+        context.environment,
       );
-      merge(keySchema, keyCtx);
-      const lookup = keyCtx.evaluationScope.lookup("key");
-      const field = isLookupValue(lookup) ? String(lookup.value) : undefined;
+
+      const merged = merge(keySchema, keyCtx);
+      if (!merged) {
+        throw diagnostic(context, "could not merge keycontext and item schema");
+      }
+
+      // need to recreate the context to alias key and other
+      const mergedCtx = createRenderContext(merged, keyCtx.environment);
+      const field = mergedCtx.evaluationScope.resolve(mergedCtx, "key")
+        ?.value as string;
 
       if (field === undefined) {
         throw new PardonError(

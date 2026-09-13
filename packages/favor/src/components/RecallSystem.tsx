@@ -134,8 +134,6 @@ export default function RecallSystem(props: {
                 ? selectedValues
                 : Object.entries(output);
 
-              console.log({ sortedValues, output });
-
               const trace = -http;
               const durations = {};
               const timestamps = {};

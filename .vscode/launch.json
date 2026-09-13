@@ -149,7 +149,7 @@
         "tsx/esm",
         "--stack-trace-limit=100",
         "src/entry/testing/cli/index.ts",
-        "--cwd=${workspaceFolder}/examples/todo",
+        "--cwd=${workspaceFolder}/examples/micro-todo",
         "./tests/mocking.test.ts",
         "env=local",
         "--all"
@@ -177,7 +177,7 @@
         "tsx/esm",
         "--stack-trace-limit=100",
         "src/entry/testing/cli/index.ts",
-        "--cwd=${workspaceFolder}/examples/todo",
+        "--cwd=${workspaceFolder}/examples/micro-todo",
         "./tests/contract.test.ts",
         "--mode=record",
         "env=local",

@@ -1,0 +1,11 @@
+>>>
+GET https://api.example.com/todos/{{todo}}
+
+<<<
+200 OK
+
+{
+  id: "{{todo}}",
+  task,
+  done: done as boolean
+}

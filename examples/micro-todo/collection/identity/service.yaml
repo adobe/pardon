@@ -1,0 +1,5 @@
+config:
+  origin:
+    env:
+      prod: https://identity.example.com
+      local: http://localhost:{{identityPort=4001}}

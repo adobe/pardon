@@ -1,0 +1,17 @@
+>>>
+PUT https://api.example.com/todos/{{todo}}
+Content-Type: application/json
+
+{
+  task: task as optional,
+  done: done as optional | boolean
+}
+
+<<<
+200 OK
+
+{
+  id: "{{todo}}",
+  task,
+  done: done as boolean
+}

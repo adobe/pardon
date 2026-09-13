@@ -590,6 +590,7 @@ async function executeHttpsSequenceStep({
 
   const executionValues = {
     ...flowContext.context,
+    ...flowContext.flow,
     ...preRenderedValues,
   };
   console.info(`
@@ -646,7 +647,9 @@ ${HTTP.responseObject.stringify(ingress.redacted)}`);
         console.info(`# oops, no diagnostics produced about the mismatch`);
       } else {
         for (const { loc, message } of diagnostics) {
-          console.info(`# mismatched at ${loc}${message ? `: ${message}` : ""}`);
+          console.info(
+            `# mismatched at ${loc}${message ? `: ${message}` : ""}`,
+          );
         }
       }
 
@@ -707,13 +710,10 @@ type UnmatchedResponseOutcome = {
  * The `err` text is normally prefixed with `loc`; strip that so the two aren't
  * printed redundantly.
  */
-function diagnosticDetail({
-  loc,
-  err,
-}: {
+function diagnosticDetail({ loc, err }: { loc: string; err: string | Error }): {
   loc: string;
-  err: string | Error;
-}): { loc: string; message: string } {
+  message: string;
+} {
   const text = typeof err === "string" ? err : (err?.message ?? String(err));
   const message = text.startsWith(loc)
     ? text.slice(loc.length).replace(/^:\s*/, "")
@@ -753,7 +753,7 @@ async function matchResponseToOutcome(
         headers,
         ...(body && { body }),
       } satisfies ResponseObject,
-      new ScriptEnvironment(),
+      new ScriptEnvironment({ input: values }),
     );
 
     if (merged.schema) {

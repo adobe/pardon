@@ -1,0 +1,59 @@
+# Standalone composition of the three mini services. The api service reaches the
+# identity and task services by their compose DNS names — this is the seam that
+# a test composition swaps to point at the pardon recording proxy instead (e.g.
+# IDENTITY_ORIGIN=http://pardon:8000/proxy:identity).
+#
+#   docker compose up --build        # run from examples/micro-todo/
+#
+# The build context is the parent (examples/) so the shared lib/ is included;
+# see Dockerfile.
+
+services:
+  identity:
+    build:
+      context: ..
+      dockerfile: micro-todo/Dockerfile
+    command: node identity/server
+    environment:
+      PORT: "4001"
+    ports:
+      - "4001:4001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4001/health-check"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  task:
+    build:
+      context: ..
+      dockerfile: micro-todo/Dockerfile
+    command: node task/server
+    environment:
+      PORT: "4002"
+    ports:
+      - "4002:4002"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4002/health-check"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: micro-todo/Dockerfile
+    command: node api/server
+    environment:
+      PORT: "4000"
+      # environment-configurable connectors: swap these to the pardon proxy in a
+      # test composition (see ./connectors.js).
+      IDENTITY_ORIGIN: "http://identity:4001"
+      TASK_ORIGIN: "http://task:4002"
+    ports:
+      - "4000:4000"
+    depends_on:
+      identity:
+        condition: service_healthy
+      task:
+        condition: service_healthy

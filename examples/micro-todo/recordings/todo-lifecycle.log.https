@@ -1,0 +1,120 @@
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/users
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"poc","password":"poc"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 18
+content-type: application/json
+date: Sun, 13 Sep 2026 16:56:17 GMT
+keep-alive: timeout=5
+
+{"username":"poc"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/tokens
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"poc","password":"poc"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 40
+content-type: application/json
+date: Sun, 13 Sep 2026 16:56:17 GMT
+keep-alive: timeout=5
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/tokens
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"poc","password":"poc"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 40
+content-type: application/json
+date: Sun, 13 Sep 2026 16:56:17 GMT
+keep-alive: timeout=5
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/tokens
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"poc","password":"poc"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 40
+content-type: application/json
+date: Sun, 13 Sep 2026 16:56:26 GMT
+keep-alive: timeout=5
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/tokens
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"poc","password":"poc"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 40
+content-type: application/json
+date: Sun, 13 Sep 2026 16:56:26 GMT
+keep-alive: timeout=5
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/tokens
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"username":"poc","password":"poc"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 40
+content-type: application/json
+date: Sun, 13 Sep 2026 16:56:26 GMT
+keep-alive: timeout=5
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
