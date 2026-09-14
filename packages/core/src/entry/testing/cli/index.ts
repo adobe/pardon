@@ -63,6 +63,7 @@ async function main() {
       smoke,
       all,
       proxy,
+      "proxy-port": proxyPort,
       mode,
     },
   } = parseArgs({
@@ -101,6 +102,9 @@ async function main() {
       proxy: {
         type: "string",
       },
+      "proxy-port": {
+        type: "string",
+      },
       /**
        * --smoke=env (selects one variant of each test per testcase "env" value, default shuffle=1)
        * --smoke=env~3 (selects one test per env shuffled 3)
@@ -116,7 +120,7 @@ async function main() {
     },
   });
 
-  mode ??= "mock";
+  mode ??= "vcr";
 
   if (!isProxyMode(mode)) {
     throw new Error("unknown proxy mode: " + mode);
@@ -145,7 +149,19 @@ async function main() {
   await initTrackingEnvironment();
 
   if (proxy) {
-    return await runProxyServer(mode ?? "mock", configuration, cwd);
+    return await runProxyServer(
+      mode,
+      {
+        ...configuration,
+        ...(configuration.proxy && {
+          proxy: {
+            ...configuration.proxy,
+            ...(proxyPort && { port: +proxyPort }),
+          },
+        }),
+      },
+      cwd,
+    );
   }
 
   const testenv = extractKVs(positionals, true);
@@ -167,10 +183,14 @@ async function main() {
   const proxyServer = showPlanOnly
     ? undefined
     : configuration.proxy
-      ? await startProxyServer(mode ?? "mock", configuration.proxy, {
-          capture: createAmbientCapture(),
-          cwd,
-        })
+      ? await startProxyServer(
+          mode,
+          { ...configuration.proxy, ...(proxyPort && { port: +proxyPort }) },
+          {
+            capture: createAmbientCapture(),
+            cwd,
+          },
+        )
       : undefined;
 
   if (proxyServer) {
@@ -231,7 +251,7 @@ or select a subset of them with selective glob pattern(s).
     configuration.concurrency = parseInt(concurrency);
   }
 
-  if (mode === "record" || mode === "replay") {
+  if (mode === "vcr" || mode === "replay") {
     // record/replay bind the proxy's mock upstreams to one recording at a time
     // (shared per-upstream state), so tests must run serially — otherwise one
     // test's `useRecording` clobbers another's and every exchange lands in the
@@ -305,9 +325,11 @@ async function runProxyServer(
     console.info(`  ${base}/proxy:${name}/  ->  ${origin}`);
   }
   console.info(`  health: GET  ${base}/runner/health`);
-  if (mode === "record" || mode === "replay") {
-    console.info(`  start:  POST ${base}/runner/recording/{slug}   (mode:${mode})`);
-    console.info(`  finish: PUT  ${base}/runner/recording/{slug}`);
+  if (mode === "vcr" || mode === "replay") {
+    console.info(
+      `  start:  POST ${base}/runner/recording/{name}   (mode:${mode})`,
+    );
+    console.info(`  finish: PUT  ${base}/runner/recording/{name}`);
   }
   console.info("proxy running; press Ctrl-C to stop.");
 

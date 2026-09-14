@@ -53,11 +53,13 @@ const RECORDING_PREFIX = "/runner/recording/";
 /**
  * Handle a control-plane request:
  *  - `GET  /runner/health`            — readiness (Testcontainers wait strategy)
- *  - `POST /runner/recording/{slug}`  — start recording `{slug}`
- *  - `PUT  /runner/recording/{slug}`  — finish recording `{slug}`
+ *  - `POST /runner/recording/{name}`  — start recording `{name}`
+ *  - `PUT  /runner/recording/{name}`  — finish recording `{name}`
  *
- * The `{slug}` names the per-testcase log (`<recordings>/{slug}.log.https`); an
- * external driver passes a distinct slug per (possibly parameterized) test.
+ * The `{name}` names the per-testcase log (`<recordings>/{name}.log.https`); an
+ * external driver passes a distinct name per (possibly parameterized) test. Test
+ * names are hierarchical, so `{name}` may itself contain `/` (mapped to nested
+ * recording directories); the server sanitizes it (see `recordingSlug`).
  */
 export async function handleControlRequest(
   req: IncomingMessage,
@@ -74,14 +76,19 @@ export async function handleControlRequest(
     (req.method === "POST" || req.method === "PUT") &&
     pathname.startsWith(RECORDING_PREFIX)
   ) {
-    const slug = decodeURIComponent(pathname.slice(RECORDING_PREFIX.length));
+    // the name is the whole (possibly multi-segment) path after the prefix;
+    // decode each segment so an encoded `%2F` inside a segment stays literal.
+    const name = pathname
+      .slice(RECORDING_PREFIX.length)
+      .split("/")
+      .map(decodeURIComponent)
+      .join("/");
 
-    // a single path segment: no empty slug, no nested path.
-    if (!slug || slug.includes("/")) {
+    if (!name) {
       return send(res, {
         ok: false,
         status: 400,
-        error: `proxy: expected /runner/recording/{slug}, got ${pathname}`,
+        error: `proxy: expected /runner/recording/{name}, got ${pathname}`,
       });
     }
 
@@ -93,8 +100,8 @@ export async function handleControlRequest(
     return send(
       res,
       req.method === "POST"
-        ? control.startRecording(slug)
-        : await control.finishRecording(slug),
+        ? control.startRecording(name)
+        : await control.finishRecording(name),
     );
   }
 

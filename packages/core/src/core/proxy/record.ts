@@ -13,7 +13,7 @@ governing permissions and limitations under the License.
 // ---------------------------------------------------------------------------
 // Recording
 //
-// A `mode: "record"` upstream serves through the `.mock.https` suite, but a
+// A `mode: "vcr"` upstream serves through the `.mock.https` suite, but a
 // `replay({ ...index })` call inside a mock forwards to the real `origin` and
 // appends the captured exchange to a durable `.https` log. The log is a flat,
 // append-only sequence of `>>>` request / `<<<` response blocks; each block's
@@ -57,15 +57,23 @@ export function computeRecordKey(index: unknown, context: unknown): string {
 }
 
 /**
- * Turn a testcase name into a safe recording file stem, so the recording path
- * can be derived automatically from the case being run (`<dir>/<slug>.log.https`)
- * rather than configured by hand. Path separators and other unsafe characters
- * collapse to `-`.
+ * Turn a testcase name into a safe recording path, so the recording file can be
+ * derived automatically from the case being run (`<dir>/<slug>.log.https`) rather
+ * than configured by hand. A testcase name may itself contain `/` (pardon test
+ * names are hierarchical), so slashes are preserved as nested directories: each
+ * segment is sanitized independently (unsafe characters collapse to `-`) and
+ * empty/`.`/`..` segments are dropped, keeping the result inside `<dir>` (no
+ * traversal). `a/b c` → `a/b-c`; `../x` → `x`.
  */
 export function recordingSlug(testcase: string): string {
   return (
-    testcase.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") ||
-    "recording"
+    testcase
+      .split("/")
+      .map((segment) =>
+        segment.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, ""),
+      )
+      .filter((segment) => segment && segment !== "." && segment !== "..")
+      .join("/") || "recording"
   );
 }
 

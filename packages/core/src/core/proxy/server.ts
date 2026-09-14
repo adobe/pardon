@@ -16,6 +16,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -116,9 +117,16 @@ export type ProxyServerOptions = {
  */
 export type RecordingSession = {
   /**
+   * What this recording resolved to: `record` (writing a fresh log) or `replay`
+   * (serving an existing one). Fixed by the server `mode`, except in `auto` where
+   * it is decided per recording by whether the log already exists. `noop` in
+   * `mock`/forward modes, which have no recording lifecycle.
+   */
+  readonly mode: Extract<ProxyMode, "vcr" | "replay" | "compare"> | "noop";
+  /**
    * Finalize this test's recording after its function has returned and its flows
    * have settled. Waits the configured `grace` period so async work in the
-   * backend can issue its remaining downstream calls; in `replay` mode it then
+   * backend can issue its remaining downstream calls; when replaying it then
    * requires this session's log to have been fully consumed (a leftover exchange
    * means the service made fewer calls than were recorded).
    */
@@ -131,10 +139,12 @@ export type ProxyServer = {
   server: Server;
   /**
    * Point the record/replay upstreams at the recording for `name` (a testcase),
-   * chosen automatically as `<recordings>/<slug>.log.https`. In `record` mode
-   * this opens (and truncates) a fresh log to append to; in `replay` mode it
-   * loads that log and resets its cursor. Returns a session the caller finishes
-   * once the test is done. A no-op session in `mock`/forward modes.
+   * chosen automatically as `<recordings>/<slug>.log.https`. When recording this
+   * opens (and truncates) a fresh log to append to; when replaying it loads that
+   * log and resets its cursor. In `auto` mode the choice is per recording: an
+   * existing log is replayed, a missing one is recorded (delete a log to
+   * regenerate it). Returns a session the caller finishes once the test is done;
+   * a no-op session in `mock`/forward modes.
    */
   useRecording(name: string): RecordingSession;
   close(): Promise<void>;
@@ -157,7 +167,9 @@ export async function startProxyServer(
   // calls `useRecording` (see below), not fixed at startup.
   const cwd = options.cwd ?? process.cwd();
 
-  if ((mode === "record" || mode === "replay") && !config.recordings) {
+  const usesRecordings = mode === "vcr" || mode === "replay";
+
+  if (usesRecordings && !config.recordings) {
     throw new PardonError(
       `proxy: mode:${mode} requires a recordings directory`,
     );
@@ -165,12 +177,7 @@ export async function startProxyServer(
 
   const mockUpstreams = new Map<string, MockUpstream>();
   for (const [name, upstream] of Object.entries(config.upstreams)) {
-    if (
-      mode === "mock" ||
-      mode === "record" ||
-      mode == "replay" ||
-      upstream.mocks
-    ) {
+    if (mode === "mock" || usesRecordings || upstream.mocks) {
       if (!upstream.mocks) {
         throw new PardonError(
           `proxy: upstream ${name} is mode:${mode} but has no mocks path`,
@@ -191,10 +198,10 @@ export async function startProxyServer(
   // stays per-upstream (the forward target). Called before each test so a single
   // long-lived proxy serves a whole suite, one recording at a time.
   const grace = config.grace ?? 0;
-  const noopSession: RecordingSession = { async finish() {} };
+  const noopSession: RecordingSession = { mode: "noop", async finish() {} };
 
   const useRecording = (name: string): RecordingSession => {
-    if (mode !== "record" && mode !== "replay") {
+    if (!usesRecordings) {
       return noopSession;
     }
 
@@ -203,10 +210,14 @@ export async function startProxyServer(
       `${recordingSlug(name)}.log.https`,
     );
 
-    const recorder =
-      mode === "record" ? createHttpsLogRecorder(log) : undefined;
-    const replaySource =
-      mode === "replay" ? loadRecordings(log, cwd) : undefined;
+    // per-recording resolution: `replay` always replays (strict — the CI guard;
+    // loadRecordings throws if the log is absent), `record` always (re)records,
+    // and `auto` replays an existing log but records a missing one — so deleting
+    // a log regenerates it on the next run.
+    const replaying = mode === "replay" || (mode === "vcr" && existsSync(log));
+
+    const recorder = replaying ? undefined : createHttpsLogRecorder(log);
+    const replaySource = replaying ? loadRecordings(log, cwd) : undefined;
 
     for (const [upstreamName, upstream] of Object.entries(config.upstreams)) {
       const mock = mockUpstreams.get(upstreamName);
@@ -223,8 +234,9 @@ export async function startProxyServer(
     // the session owns this test's log, so completeness is checked against the
     // recording this very test bound — not whatever the server last saw.
     return {
+      mode: replaying ? "replay" : "vcr",
       async finish() {
-        if (mode === "record") {
+        if (!replaying) {
           // let the backend issue any late downstream calls (still captured by
           // the recorder above) before the next test rebinds it.
           if (grace > 0) {
@@ -242,9 +254,21 @@ export async function startProxyServer(
 
         const remaining = replaySource!.remaining();
         if (remaining > 0) {
+          // free any requests still parked on the ordering barrier so their
+          // proxied connections don't hang, then fail.
+          replaySource!.release();
           throw new PardonError(
             `replay: ${remaining} recorded exchange(s) for ${name} were never ` +
               `replayed — the service made fewer downstream calls than recorded`,
+          );
+        }
+
+        // the log was fully consumed, but an unexpected/extra call may have been
+        // served an error the service swallowed — that still invalidates replay.
+        if (!replaySource!.valid()) {
+          throw new PardonError(
+            `replay: ${name} made a downstream call not present in the recording ` +
+              `(an unknown or extra-repeat call) — replay is invalid`,
           );
         }
       },
@@ -259,7 +283,7 @@ export async function startProxyServer(
 
   const control: ControlPlane = {
     startRecording(name) {
-      if (mode !== "record" && mode !== "replay") {
+      if (!usesRecordings) {
         return {
           ok: false,
           status: 409,
@@ -276,8 +300,19 @@ export async function startProxyServer(
         };
       }
 
-      open = { slug, session: useRecording(name) };
-      return { ok: true, body: { recording: slug, mode } };
+      let session: RecordingSession;
+      try {
+        session = useRecording(name);
+      } catch (error) {
+        // strict replay (or a missing log in a mode that requires one) —
+        // loadRecordings threw; surface it as a client-visible start failure.
+        return { ok: false, status: 422, error: (error as Error).message };
+      }
+
+      open = { slug, session };
+      // report what the recording resolved to — in `auto` this tells the driver
+      // whether the call recorded a fresh log or replayed an existing one.
+      return { ok: true, body: { recording: slug, mode: session.mode } };
     },
 
     async finishRecording(name) {

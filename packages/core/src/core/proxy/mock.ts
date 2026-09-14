@@ -410,16 +410,17 @@ export async function serveMock(
     }
 
     if (replaySource) {
-      const response = replaySource.resolve(key);
-      if (response) {
+      // resolve may park (out-of-order arrival) until this key reaches the head
+      // of the recorded sequence, so mirror the record path: return the promise
+      // and capture the response once it settles.
+      const forward = (async () => {
+        const response = await replaySource.resolve(key);
         recordedResponse = response;
-      } else {
-        console.warn(
-          `proxy: replay miss for ${mock.name} (key ${key.slice(0, 12)}…); ` +
-            `falling through to the mock template`,
-        );
-      }
-      return response;
+        return response;
+      })();
+
+      pending.push(forward);
+      return forward;
     }
   }
 

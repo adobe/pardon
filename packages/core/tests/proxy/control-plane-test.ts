@@ -24,7 +24,10 @@ import {
   startProxyServer,
   type ProxyServer,
 } from "../../src/core/proxy/server.js";
-import { createHttpsLogRecorder } from "../../src/core/proxy/record.js";
+import {
+  createHttpsLogRecorder,
+  recordingSlug,
+} from "../../src/core/proxy/record.js";
 import type { ProxyMode } from "../../src/core/proxy/forwarder.js";
 
 // The control plane drives record/replay on behalf of an external test
@@ -113,7 +116,7 @@ after(async () => {
 
 it("records a forwarded exchange between start and finish", async () => {
   const upstream = await startUpstream();
-  const proxy = await proxyFor("record", upstream.origin);
+  const proxy = await proxyFor("vcr", upstream.origin);
   try {
     assert.equal((await control(proxy, "POST", "trip")).status, 200);
 
@@ -194,7 +197,7 @@ it("fails finish with 422 when the recorded log is not fully replayed", async ()
 
 it("enforces one open recording at a time and matching finish", async () => {
   const upstream = await startUpstream();
-  const proxy = await proxyFor("record", upstream.origin);
+  const proxy = await proxyFor("vcr", upstream.origin);
   try {
     assert.equal((await control(proxy, "POST", "a")).status, 200);
 
@@ -213,24 +216,124 @@ it("enforces one open recording at a time and matching finish", async () => {
   }
 });
 
-it("rejects malformed recording paths", async () => {
+it("rejects an empty recording name", async () => {
   const upstream = await startUpstream();
-  const proxy = await proxyFor("record", upstream.origin);
+  const proxy = await proxyFor("vcr", upstream.origin);
   try {
     const empty = await fetch(
       `http://127.0.0.1:${proxy.port}/runner/recording/`,
       { method: "POST" },
     );
     assert.equal(empty.status, 400);
-
-    const nested = await fetch(
-      `http://127.0.0.1:${proxy.port}/runner/recording/a/b`,
-      { method: "POST" },
-    );
-    assert.equal(nested.status, 400);
   } finally {
     await proxy.close();
     await upstream.close();
+  }
+});
+
+it("accepts a hierarchical (slashed) test name as a nested recording", async () => {
+  // pardon test names can contain `/`; the name maps to a nested log path.
+  const upstream = await startUpstream();
+  const proxy = await proxyFor("vcr", upstream.origin);
+  try {
+    assert.equal(
+      (await control(proxy, "POST", "suite/case/lifecycle")).status,
+      200,
+    );
+    await fetch(`http://127.0.0.1:${proxy.port}/proxy:svc/thing`);
+    assert.equal(
+      (await control(proxy, "PUT", "suite/case/lifecycle")).status,
+      200,
+      "finish matches the same hierarchical name",
+    );
+
+    const log = await readFile(
+      join(recordingsDir, "suite", "case", "lifecycle.log.https"),
+      "utf-8",
+    );
+    assert.match(log, /\/thing/);
+  } finally {
+    await proxy.close();
+    await upstream.close();
+  }
+});
+
+it("derives a safe, traversal-free recording path from a test name", () => {
+  // a normalizing HTTP client already collapses `..` path segments before they
+  // reach the server, but recordingSlug is the last-line guard for any caller:
+  // slashes are preserved as nesting, each segment is sanitized, and empty /
+  // `.` / `..` segments are dropped so the log can never escape <recordings>.
+  assert.equal(recordingSlug("suite/case/lifecycle"), "suite/case/lifecycle");
+  assert.equal(
+    recordingSlug("todos › create [env=local]"),
+    "todos-create-env-local",
+  );
+  assert.equal(recordingSlug("x/../../y"), "x/y");
+  assert.equal(recordingSlug("/a//b/"), "a/b");
+  assert.equal(recordingSlug("../.."), "recording");
+});
+
+it("auto mode records a missing log, then replays it once present", async () => {
+  const upstream = await startUpstream();
+  try {
+    // first run: the log is absent → auto records (forwarding to the upstream).
+    {
+      const proxy = await proxyFor("vcr", upstream.origin);
+      try {
+        const start = await control(proxy, "POST", "auto-trip");
+        assert.equal(start.status, 200);
+        assert.equal(
+          ((await start.json()) as { mode: string }).mode,
+          "vcr",
+          "a missing log resolves to record",
+        );
+        await fetch(`http://127.0.0.1:${proxy.port}/proxy:svc/thing`);
+        assert.equal(upstream.hits, 1);
+        assert.equal((await control(proxy, "PUT", "auto-trip")).status, 200);
+      } finally {
+        await proxy.close();
+      }
+    }
+
+    // second run: the log now exists → auto replays (upstream unreachable, and
+    // must not be touched).
+    {
+      const proxy = await proxyFor("vcr", "http://127.0.0.1:1");
+      try {
+        const start = await control(proxy, "POST", "auto-trip");
+        assert.equal(start.status, 200);
+        assert.equal(
+          ((await start.json()) as { mode: string }).mode,
+          "replay",
+          "an existing log resolves to replay",
+        );
+        const served = await fetch(
+          `http://127.0.0.1:${proxy.port}/proxy:svc/thing`,
+        );
+        assert.equal(served.status, 200, "served from the recorded log");
+        assert.equal(upstream.hits, 1, "replay never touches the upstream");
+        assert.equal((await control(proxy, "PUT", "auto-trip")).status, 200);
+      } finally {
+        await proxy.close();
+      }
+    }
+  } finally {
+    await upstream.close();
+  }
+});
+
+it("strict replay refuses to start when the log is absent (the CI guard)", async () => {
+  // `--mode replay` never records: a missing log is an error at start, not a
+  // silent recording (the `npm ci` vs `npm install` distinction).
+  const proxy = await proxyFor("replay", "http://127.0.0.1:1");
+  try {
+    const start = await control(proxy, "POST", "never-recorded");
+    assert.equal(start.status, 422);
+    const body = (await start.json()) as { status: string; error: string };
+    assert.equal(body.status, "error");
+    assert.match(body.error, /not found/);
+  } finally {
+    await proxy.close();
   }
 });
 

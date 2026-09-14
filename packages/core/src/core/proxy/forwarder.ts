@@ -35,7 +35,7 @@ export {
  * the `.mock.https` suite at `mocks` instead of being forwarded — no upstream
  * call is made and nothing is captured (the exchange is synthetic).
  *
- * When `mode` is `"record"` the suite is still served, but a `replay()` call in
+ * When `mode` is `"vcr"` the suite is still served, but a `replay()` call in
  * a mock forwards to the real `origin` and appends the captured exchange to the
  * `.https` log at `recordings` (see ./record.ts).
  *
@@ -47,7 +47,7 @@ export type UpstreamConfig = {
   /**
    * Directory (or `dir/**` glob) of `.mock.https` files, resolved relative to
    * the proxy's working directory. Required when `mode` is `"mock"`,
-   * `"record"`, or `"replay"`.
+   * `"vcr"`, or `"replay"`.
    */
   mocks?: string;
 };
@@ -68,8 +68,9 @@ export type ProxyConfig = {
    * automatically (`<recordings>/<testcase>.log.https`) when the runner signals
    * the current recording (see `ProxyServer.useRecording`); every upstream
    * shares that single log, preserving the global order the service issued its
-   * downstream calls in. Written when `mode` is `"record"`, read when `mode` is
-   * `"replay"`. Required for both.
+   * downstream calls in. Written when `mode` is `"vcr"`, read when `mode` is
+   * `"replay"`; in `"vcr"` each recording is read if its log exists and written
+   * otherwise. Required for `vcr`/`replay`.
    */
   recordings?: string;
   /**
@@ -83,16 +84,11 @@ export type ProxyConfig = {
   grace?: number;
 };
 
-export type ProxyMode =
-  | "replay"
-  | "mock"
-  | "record"
-  | "passthrough"
-  | "compare";
+export type ProxyMode = "replay" | "mock" | "vcr" | "passthrough" | "compare";
 
 export function isProxyMode(mode: string): mode is ProxyMode {
   return (
-    ["replay", "mock", "record", "passthrough", "compare"] satisfies ProxyMode[]
+    ["replay", "mock", "vcr", "passthrough", "compare"] satisfies ProxyMode[]
   ).includes(mode as ProxyMode);
 }
 

@@ -13,7 +13,7 @@ user-agent: node
 connection: keep-alive
 content-length: 18
 content-type: application/json
-date: Sun, 13 Sep 2026 16:56:17 GMT
+date: Tue, 15 Sep 2026 18:58:28 GMT
 keep-alive: timeout=5
 
 {"username":"poc"}
@@ -33,10 +33,51 @@ user-agent: node
 connection: keep-alive
 content-length: 40
 content-type: application/json
-date: Sun, 13 Sep 2026 16:56:17 GMT
+date: Tue, 15 Sep 2026 18:58:28 GMT
 keep-alive: timeout=5
 
 {"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/validate
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 18
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:28 GMT
+keep-alive: timeout=5
+
+{"username":"poc"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4002/tasks
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+x-owner: poc
+
+{"task":"buy milk"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 45
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:28 GMT
+keep-alive: timeout=5
+
+{"id":"K2002","task":"buy milk","done":false}
 
 >>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
 POST http://localhost:4001/tokens
@@ -53,10 +94,48 @@ user-agent: node
 connection: keep-alive
 content-length: 40
 content-type: application/json
-date: Sun, 13 Sep 2026 16:56:17 GMT
+date: Tue, 15 Sep 2026 18:58:28 GMT
 keep-alive: timeout=5
 
 {"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/validate
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 18
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:28 GMT
+keep-alive: timeout=5
+
+{"username":"poc"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+GET http://localhost:4002/tasks
+accept: */*
+accept-language: *
+sec-fetch-mode: cors
+user-agent: node
+x-owner: poc
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 47
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:28 GMT
+keep-alive: timeout=5
+
+[{"id":"K2002","task":"buy milk","done":false}]
 
 >>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
 POST http://localhost:4001/tokens
@@ -73,10 +152,51 @@ user-agent: node
 connection: keep-alive
 content-length: 40
 content-type: application/json
-date: Sun, 13 Sep 2026 16:56:26 GMT
+date: Tue, 15 Sep 2026 18:58:29 GMT
 keep-alive: timeout=5
 
 {"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/validate
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 18
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:29 GMT
+keep-alive: timeout=5
+
+{"username":"poc"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+PUT http://localhost:4002/tasks/K2002
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+x-owner: poc
+
+{"done":true}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 44
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:29 GMT
+keep-alive: timeout=5
+
+{"id":"K2002","task":"buy milk","done":true}
 
 >>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
 POST http://localhost:4001/tokens
@@ -93,10 +213,48 @@ user-agent: node
 connection: keep-alive
 content-length: 40
 content-type: application/json
-date: Sun, 13 Sep 2026 16:56:26 GMT
+date: Tue, 15 Sep 2026 18:58:29 GMT
 keep-alive: timeout=5
 
 {"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/validate
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 18
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:29 GMT
+keep-alive: timeout=5
+
+{"username":"poc"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+GET http://localhost:4002/tasks/K2002
+accept: */*
+accept-language: *
+sec-fetch-mode: cors
+user-agent: node
+x-owner: poc
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 44
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:29 GMT
+keep-alive: timeout=5
+
+{"id":"K2002","task":"buy milk","done":true}
 
 >>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
 POST http://localhost:4001/tokens
@@ -113,8 +271,42 @@ user-agent: node
 connection: keep-alive
 content-length: 40
 content-type: application/json
-date: Sun, 13 Sep 2026 16:56:26 GMT
+date: Tue, 15 Sep 2026 18:58:29 GMT
 keep-alive: timeout=5
 
 {"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+POST http://localhost:4001/validate
+accept: */*
+accept-language: *
+content-type: application/json
+sec-fetch-mode: cors
+user-agent: node
+
+{"token":"jwt.eyJ1c2VybmFtZSI6InBvYyJ9"}
+
+<<<
+200 OK
+connection: keep-alive
+content-length: 18
+content-type: application/json
+date: Tue, 15 Sep 2026 18:58:29 GMT
+keep-alive: timeout=5
+
+{"username":"poc"}
+
+>>> 95359e09ffb8783948c4ef500fcccb27e5000bb8a5119797094a54367c497b7f
+DELETE http://localhost:4002/tasks/K2002
+accept: */*
+accept-language: *
+sec-fetch-mode: cors
+user-agent: node
+x-owner: poc
+
+<<<
+204 No Content
+connection: keep-alive
+date: Tue, 15 Sep 2026 18:58:29 GMT
+keep-alive: timeout=5
 

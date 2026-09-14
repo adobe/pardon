@@ -1,4 +1,4 @@
-import { pardon } from "pardon";
+import { cached, pardon } from "pardon";
 
 // Acquire a bearer token by logging into the identity service. The identity
 // login endpoint routes through the recording proxy ([proxy]: auto), so token
@@ -19,9 +19,10 @@ export async function authorizeUser({
       response,
       secrets: { token },
     },
-  } = await pardon({ username, origin })`
-    POST https://identity.example.com/tokens
-  `();
+  } = await pardon({
+    username,
+    origin,
+  })`POST https://identity.example.com/tokens`();
 
   if (!token) {
     throw new Error(
