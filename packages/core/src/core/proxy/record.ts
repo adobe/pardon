@@ -36,7 +36,7 @@ import { KV } from "../formats/kv-fmt.js";
 /** One captured exchange, ready to append to a recording log. */
 export type RecordedExchange = {
   key: string;
-  index: unknown;
+  index?: unknown;
   request: FetchObject;
   response: ResponseObject;
 };

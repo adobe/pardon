@@ -304,7 +304,11 @@ async function runProxyServer(
   )) {
     console.info(`  ${base}/proxy:${name}/  ->  ${origin}`);
   }
-  console.info(`  health: ${base}/runner/health`);
+  console.info(`  health: GET  ${base}/runner/health`);
+  if (mode === "record" || mode === "replay") {
+    console.info(`  start:  POST ${base}/runner/recording/{slug}   (mode:${mode})`);
+    console.info(`  finish: PUT  ${base}/runner/recording/{slug}`);
+  }
   console.info("proxy running; press Ctrl-C to stop.");
 
   await new Promise<void>((resolve) => {

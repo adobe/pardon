@@ -35,7 +35,11 @@ import {
   type ProxyConfig,
   type ProxyMode,
 } from "./forwarder.js";
-import { handleControlRequest, isControlPath } from "./control.js";
+import {
+  handleControlRequest,
+  isControlPath,
+  type ControlPlane,
+} from "./control.js";
 import { createHttpsLogRecorder, recordingSlug } from "./record.js";
 import { loadRecordings } from "./replay.js";
 import { pardonRuntime } from "../../runtime/runtime-deferred.js";
@@ -247,8 +251,67 @@ export async function startProxyServer(
     };
   };
 
+  // The HTTP control plane drives `useRecording` on behalf of an external test
+  // framework (the in-process runner calls `useRecording` directly instead). One
+  // recording is open at a time — the shared recorder/replay cursor is rebound by
+  // each `useRecording`, so a second concurrent start would clobber the first.
+  let open: { slug: string; session: RecordingSession } | undefined;
+
+  const control: ControlPlane = {
+    startRecording(name) {
+      if (mode !== "record" && mode !== "replay") {
+        return {
+          ok: false,
+          status: 409,
+          error: `proxy: mode:${mode} has no recording lifecycle`,
+        };
+      }
+
+      const slug = recordingSlug(name);
+      if (open) {
+        return {
+          ok: false,
+          status: 409,
+          error: `proxy: recording ${open.slug} is still open — PUT it to finish before starting ${slug}`,
+        };
+      }
+
+      open = { slug, session: useRecording(name) };
+      return { ok: true, body: { recording: slug, mode } };
+    },
+
+    async finishRecording(name) {
+      const slug = recordingSlug(name);
+      if (!open) {
+        return {
+          ok: false,
+          status: 409,
+          error: `proxy: no recording is open (finish ${slug})`,
+        };
+      }
+      if (open.slug !== slug) {
+        return {
+          ok: false,
+          status: 409,
+          error: `proxy: recording ${open.slug} is open, not ${slug}`,
+        };
+      }
+
+      const { session } = open;
+      // clear first so a completeness failure still frees the proxy for the next
+      // recording — the driver gets the error, the server stays usable.
+      open = undefined;
+      try {
+        await session.finish();
+      } catch (error) {
+        return { ok: false, status: 422, error: (error as Error).message };
+      }
+      return { ok: true, body: { recording: slug } };
+    },
+  };
+
   const server = createServer((req, res) => {
-    void handleRequest(config, options, mockUpstreams, useRecording, req, res);
+    void handleRequest(config, options, mockUpstreams, control, req, res);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -278,7 +341,7 @@ async function handleRequest(
   config: ProxyConfig,
   options: ProxyServerOptions,
   mockUpstreams: Map<string, MockUpstream>,
-  useRecording: (name: string) => void,
+  control: ControlPlane,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -287,7 +350,7 @@ async function handleRequest(
   // control plane (`/runner/…`) is dispatched before the forwarder ever sees
   // the request, so it is never proxied or captured.
   if (isControlPath(pathname)) {
-    await handleControlRequest(req, res, { useRecording });
+    await handleControlRequest(req, res, control);
     return;
   }
 
