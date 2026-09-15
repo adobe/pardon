@@ -9,4 +9,4 @@ forward()
 <<<
 200
 
-{ token: (`jwt.${btoa(JSON.stringify({ username }))}`) }
+{ token: (`jwt.${btoa(username)}`) }

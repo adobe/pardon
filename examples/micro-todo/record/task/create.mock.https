@@ -1,0 +1,11 @@
+>>>
+POST https://task.example.com/tasks
+x-owner: {{user}}
+
+{
+    task,
+    done: done as optional
+}
+
+!!!
+replay({ user, task, done })

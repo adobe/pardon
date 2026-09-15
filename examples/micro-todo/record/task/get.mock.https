@@ -1,0 +1,6 @@
+>>>
+GET https://task.example.com/tasks/{{id}}
+x-owner: {{user}}
+
+!!!
+replay({ user, id })

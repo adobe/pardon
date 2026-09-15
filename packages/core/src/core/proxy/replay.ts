@@ -46,6 +46,7 @@ import {
   isHttpRequestStep,
   isHttpResponseStep,
 } from "../formats/https-fmt.js";
+import { KV } from "../formats/kv-fmt.js";
 
 /** A loaded recording log, resolvable by recording key in recorded order. */
 export type Recordings = {
@@ -56,7 +57,7 @@ export type Recordings = {
    * call — resolves immediately with an error response and marks the replay
    * invalid (see `valid`).
    */
-  resolve(key: string): Promise<ResponseObject>;
+  resolve(key: string, index?: unknown): Promise<ResponseObject>;
   /**
    * Recorded exchanges not yet served (cursor to end). A test isn't complete
    * until this reaches 0 — a positive value means the service made fewer
@@ -127,7 +128,10 @@ export function loadRecordings(path: string, cwd = process.cwd()): Recordings {
   }
 
   // per-key budget (unclaimed occurrences) + FIFO of parked requests for it.
-  const byKey = new Map<string, { count: number; pending: Deferred<ResponseObject>[] }>();
+  const byKey = new Map<
+    string,
+    { count: number; pending: Deferred<ResponseObject>[] }
+  >();
   for (const { key } of sequence) {
     const bucket = byKey.get(key) ?? { count: 0, pending: [] };
     bucket.count++;
@@ -152,15 +156,15 @@ export function loadRecordings(path: string, cwd = process.cwd()): Recordings {
   }
 
   return {
-    resolve(key) {
+    resolve(key, index) {
       const bucket = byKey.get(key);
       if (!bucket || bucket.count === 0) {
         valid = false;
         return Promise.resolve(
           replayError(
             bucket
-              ? `replay: unexpected extra call for key ${key.slice(0, 12)}…`
-              : `replay: no recorded call for key ${key.slice(0, 12)}…`,
+              ? `replay: unexpected extra call for key ${key.slice(0, 12)}...${index ? `: ${KV.stringify(index)}` : ""}`
+              : `replay: no recorded call for key ${key.slice(0, 12)}...${index ? `: ${KV.stringify(index)}` : ""}`,
           ),
         );
       }
@@ -183,7 +187,9 @@ export function loadRecordings(path: string, cwd = process.cwd()): Recordings {
           valid = false;
           bucket.pending
             .shift()!
-            .resolve(replayError("replay: recording finished with calls pending"));
+            .resolve(
+              replayError("replay: recording finished with calls pending"),
+            );
         }
       }
     },

@@ -400,19 +400,28 @@ async function handleRequest(
       for (const h of hopByHopHeaders) {
         headers.delete(h);
       }
-      const mockRequest = { ...inbound, pathname: route.pathname, headers };
+
+      const mockRequest = {
+        ...inbound,
+        method: inbound?.method ?? "GET",
+        origin: inbound?.origin,
+        pathname: route.pathname,
+        headers,
+      };
 
       const runtime = await pardonRuntime();
-      const response = await serveMock(
+      const { response, mock } = await serveMock(
         mockRequest,
         mockUpstreams.get(route.name)!,
         runtime,
       );
+
+      mockRequest.origin = `mock://${route.name}`;
       writeResponseObject(res, response);
 
       console.info(`
 ---
->>> (mock:${route.name})
+>>> (mock:${mock?.id ?? "proxy"}${Number(mock?.entrypoint ?? 0) > 1 ? `+${mock!.entrypoint}` : ""})
 ${HTTP.stringify(mockRequest)}
 
 <<<
