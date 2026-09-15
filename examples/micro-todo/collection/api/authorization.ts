@@ -22,7 +22,7 @@ export async function authorizeUser({
   } = await pardon({
     username,
     origin,
-  })`POST https://identity.example.com/tokens`();
+  })`POST https://identity.example.com/login`();
 
   if (!token) {
     throw new Error(

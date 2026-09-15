@@ -1,0 +1,11 @@
+>>>
+POST http://identity.example.com/login
+
+{ username, password }
+
+<<<
+200
+
+{
+    token: (`jwt.${btoa(JSON.stringify({ username }))}`)
+}

@@ -1,0 +1,7 @@
+>>>
+POST http://identity.example.com/users
+
+{ username, password }
+
+<<<
+200

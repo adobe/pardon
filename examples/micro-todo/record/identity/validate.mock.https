@@ -1,0 +1,9 @@
+>>>
+POST http://identity.example.com/validate
+
+{ token }
+
+<<<
+200
+
+{ username: ( atob(token.split(".")[1]) ) }

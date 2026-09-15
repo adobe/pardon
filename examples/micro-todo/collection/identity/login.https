@@ -5,7 +5,7 @@ defaults:
 # api bearer-auth mixin; the password is read from the vault (cached at register)
 # and the minted token is vaulted as the secret `{{@token}}`.
 >>>
-POST https://identity.example.com/tokens
+POST https://identity.example.com/login
 [proxy]: auto
 Content-Type: application/json
 

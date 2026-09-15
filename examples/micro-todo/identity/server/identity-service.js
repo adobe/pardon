@@ -24,7 +24,7 @@ export const makeIdentityServiceRouter = ({ users, setUsers }) =>
       setUsers((current) => ({ ...current, [username]: password }));
       return json({ username });
     },
-    "POST /tokens"({ req }) {
+    "POST /login"({ req }) {
       const { username, password } = parseBodyJson(req);
       if (users()[username] !== password) {
         return new Response("wrong username or password", { status: 401 });
