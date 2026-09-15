@@ -5,7 +5,7 @@ accept-language: *
 content-type: application/json
 sec-fetch-mode: cors
 user-agent: node
-x-owner: {"username":"poc"}
+x-owner: poc
 
 {"task":"buy milk"}
 
@@ -14,7 +14,7 @@ x-owner: {"username":"poc"}
 connection: keep-alive
 content-length: 45
 content-type: application/json
-date: Tue, 15 Sep 2026 19:10:59 GMT
+date: Tue, 15 Sep 2026 19:32:44 GMT
 keep-alive: timeout=5
 
 {"id":"K2001","task":"buy milk","done":false}
@@ -25,14 +25,14 @@ accept: */*
 accept-language: *
 sec-fetch-mode: cors
 user-agent: node
-x-owner: {"username":"poc"}
+x-owner: poc
 
 <<<
 200 OK
 connection: keep-alive
 content-length: 47
 content-type: application/json
-date: Tue, 15 Sep 2026 19:10:59 GMT
+date: Tue, 15 Sep 2026 19:32:45 GMT
 keep-alive: timeout=5
 
 [{"id":"K2001","task":"buy milk","done":false}]
@@ -44,7 +44,7 @@ accept-language: *
 content-type: application/json
 sec-fetch-mode: cors
 user-agent: node
-x-owner: {"username":"poc"}
+x-owner: poc
 
 {"done":true}
 
@@ -53,7 +53,7 @@ x-owner: {"username":"poc"}
 connection: keep-alive
 content-length: 44
 content-type: application/json
-date: Tue, 15 Sep 2026 19:10:59 GMT
+date: Tue, 15 Sep 2026 19:32:45 GMT
 keep-alive: timeout=5
 
 {"id":"K2001","task":"buy milk","done":true}
@@ -64,14 +64,14 @@ accept: */*
 accept-language: *
 sec-fetch-mode: cors
 user-agent: node
-x-owner: {"username":"poc"}
+x-owner: poc
 
 <<<
 200 OK
 connection: keep-alive
 content-length: 44
 content-type: application/json
-date: Tue, 15 Sep 2026 19:10:59 GMT
+date: Tue, 15 Sep 2026 19:32:45 GMT
 keep-alive: timeout=5
 
 {"id":"K2001","task":"buy milk","done":true}
@@ -82,11 +82,11 @@ accept: */*
 accept-language: *
 sec-fetch-mode: cors
 user-agent: node
-x-owner: {"username":"poc"}
+x-owner: poc
 
 <<<
 204 No Content
 connection: keep-alive
-date: Tue, 15 Sep 2026 19:10:59 GMT
+date: Tue, 15 Sep 2026 19:32:45 GMT
 keep-alive: timeout=5
 

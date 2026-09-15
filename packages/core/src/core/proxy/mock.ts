@@ -248,9 +248,11 @@ async function runMockScript(
   {
     store,
     replay,
+    forward,
   }: {
     store: Record<string, unknown>;
     replay: (index?: unknown) => unknown;
+    forward: () => unknown;
   },
 ): Promise<{ target?: string }> {
   const wrapped = `(() => {\n${script}\n;;;\n})()`;
@@ -266,6 +268,7 @@ async function runMockScript(
             console,
             store,
             replay,
+            forward,
             compare() {},
             goto(target: string) {
               throw new MockGoto(target);
@@ -424,6 +427,24 @@ export async function serveMock(
     }
   }
 
+  function forward(): unknown {
+    if (!record) {
+      return;
+    }
+
+    const forwarded: FetchObject = { ...inbound, origin: record.origin };
+
+    const forward = (async () => {
+      const [url, init] = intoFetchParams(forwarded);
+      const response = await intoResponseObject(await fetch(url, init));
+      recordedResponse = response;
+      return response;
+    })();
+
+    pending.push(forward);
+    return forward;
+  }
+
   const settleRecording = async (): Promise<ResponseObject | undefined> => {
     if (!record && !replaySource) {
       return undefined;
@@ -440,7 +461,11 @@ export async function serveMock(
     if (!isHttpScriptStep(step)) {
       break;
     }
-    ({ target } = await runMockScript(step.script, env, { store, replay }));
+    ({ target } = await runMockScript(step.script, env, {
+      store,
+      replay,
+      forward,
+    }));
     if (target !== undefined) {
       break;
     }
@@ -492,6 +517,7 @@ export async function serveMock(
     await runMockScript((mock.steps[j] as HttpsScriptStep).script, env, {
       store,
       replay,
+      forward,
     });
   }
 

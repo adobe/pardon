@@ -3,5 +3,8 @@ POST http://identity.example.com/users
 
 { username, password }
 
+!!!
+forward()
+
 <<<
 200
