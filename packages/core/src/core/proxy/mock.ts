@@ -25,7 +25,7 @@ governing permissions and limitations under the License.
 // forwarding (byte-faithful passthrough) stays in `forwarder.ts`.
 // ---------------------------------------------------------------------------
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { Stats, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 import { PardonError } from "../error.js";
@@ -63,6 +63,7 @@ import {
 import { mergeConfigurations } from "../../config/collection.js";
 import type { LayeredEndpoint } from "../../config/collection-types.js";
 import type { PardonRuntime } from "../pardon/types.js";
+import { cleanObject } from "../../util/clean-object.js";
 
 /** goto() control-transfer, thrown from a mock script to select a response. */
 class MockGoto extends Error {
@@ -73,6 +74,7 @@ class MockGoto extends Error {
 
 /** A parsed `.mock.https` file, ready to match and serve. */
 export type LoadedMock = {
+  id: string;
   name: string;
   path: string;
   endpoint: LayeredEndpoint;
@@ -138,7 +140,14 @@ function loadMockFile(path: string, base: string): LoadedMock {
     layers: [{ path, steps }],
   };
 
-  return { name, path, endpoint, steps, entrypoint: 0 };
+  return {
+    id: `${segments.join(".")}`,
+    name,
+    path,
+    endpoint,
+    steps,
+    entrypoint: 0,
+  };
 }
 
 /**
@@ -148,7 +157,7 @@ function loadMockFile(path: string, base: string): LoadedMock {
 export function loadMocks(pattern: string, cwd = process.cwd()): LoadedMock[] {
   const base = resolve(cwd, pattern.replace(/[/]\*\*?$/, ""));
 
-  let stat;
+  let stat: Stats;
   try {
     stat = statSync(base);
   } catch {
@@ -353,17 +362,19 @@ export async function serveMock(
   inbound: FetchObject,
   { mocks, store, record, replaySource }: MockUpstream,
   runtime: PardonRuntime,
-): Promise<ResponseObject> {
+): Promise<{ response: ResponseObject; mock?: LoadedMock }> {
   const matches = mocks
     .map((mock) => matchMock(mock, inbound, runtime))
     .filter(Boolean);
 
   if (matches.length === 0) {
-    return mockResponse(
-      404,
-      "Not Found",
-      `no mock matches ${inbound.method ?? "GET"} ${inbound.pathname}\n`,
-    );
+    return {
+      response: mockResponse(
+        404,
+        "Not Found",
+        `no mock matches ${inbound.method ?? "GET"} ${inbound.pathname}\n`,
+      ),
+    };
   }
 
   if (matches.length > 1) {
@@ -382,6 +393,8 @@ export async function serveMock(
   let recordedResponse: ResponseObject | undefined;
   const pending: Promise<unknown>[] = [];
   function replay(index?: unknown): unknown {
+    index = cleanObject(index);
+
     const context = {
       mock: mock.name,
       endpoint: [mock.endpoint.service, mock.endpoint.action].join("/"),
@@ -418,7 +431,7 @@ export async function serveMock(
       // of the recorded sequence, so mirror the record path: return the promise
       // and capture the response once it settles.
       const forward = (async () => {
-        const response = await replaySource.resolve(key);
+        const response = await replaySource.resolve(key, index);
         recordedResponse = response;
         return response;
       })();
@@ -477,7 +490,7 @@ export async function serveMock(
   {
     const captured = await settleRecording();
     if (captured) {
-      return captured;
+      return { response: captured, mock };
     }
   }
 
@@ -488,13 +501,16 @@ export async function serveMock(
       : (responses.find((step) => !step.outcome) ?? responses[0]);
 
   if (!selected) {
-    return mockResponse(
-      404,
-      "Not Found",
-      `mock ${mock.name} has no response${
-        target ? ` labeled '${target}'` : ""
-      }\n`,
-    );
+    return {
+      response: mockResponse(
+        404,
+        "Not Found",
+        `mock ${mock.name} has no response${
+          target ? ` labeled '${target}'` : ""
+        }\n`,
+      ),
+      mock,
+    };
   }
 
   const { response, values: rendered } = await renderMockResponse(
@@ -524,5 +540,8 @@ export async function serveMock(
 
   // a post-response replay (e.g. `store.x = replay({ ...index }).body`) may have
   // forwarded; serve the captured real response over the rendered template.
-  return (await settleRecording()) ?? response;
+  return {
+    response: (await settleRecording()) ?? response,
+    mock,
+  };
 }

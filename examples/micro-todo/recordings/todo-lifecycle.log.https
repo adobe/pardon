@@ -1,4 +1,6 @@
->>> ef12a69049179afc5488da1c35dbcdacd14634f02d4e4c4044c4b8f5e352255e
+# user=poc
+# task='buy milk'
+>>> bc20558f885fa742260194100f65ff538a4a284999a16c640a6b3d5dfcaa73d8
 POST http://localhost:4002/tasks
 accept: */*
 accept-language: *
@@ -14,12 +16,13 @@ x-owner: poc
 connection: keep-alive
 content-length: 45
 content-type: application/json
-date: Tue, 15 Sep 2026 19:47:23 GMT
+date: Tue, 15 Sep 2026 21:00:51 GMT
 keep-alive: timeout=5
 
-{"id":"K2002","task":"buy milk","done":false}
+{"id":"K2001","task":"buy milk","done":false}
 
->>> fabfdb0b18ee55f0fcaee137b37051499cd24dbe72409ce81fd3ec5fda641e5c
+# user=poc
+>>> 9b0b2ce4c2be7a2a73f567f366a0b93568036e9f27519a688dc5fdac6145ce80
 GET http://localhost:4002/tasks
 accept: */*
 accept-language: *
@@ -32,13 +35,16 @@ x-owner: poc
 connection: keep-alive
 content-length: 47
 content-type: application/json
-date: Tue, 15 Sep 2026 19:47:23 GMT
+date: Tue, 15 Sep 2026 21:00:51 GMT
 keep-alive: timeout=5
 
-[{"id":"K2002","task":"buy milk","done":false}]
+[{"id":"K2001","task":"buy milk","done":false}]
 
->>> 48eb189c07605a120d1cdfc24e5d7c2caf4c6570814b08683eae9f7345d26444
-PUT http://localhost:4002/tasks/K2002
+# user=poc
+# id=K2001
+# done=true
+>>> 74978be8ef9aac47d627b2fd9f3860d69a2972e74a80c8853f91e1a652734531
+PUT http://localhost:4002/tasks/K2001
 accept: */*
 accept-language: *
 content-type: application/json
@@ -53,13 +59,15 @@ x-owner: poc
 connection: keep-alive
 content-length: 44
 content-type: application/json
-date: Tue, 15 Sep 2026 19:47:23 GMT
+date: Tue, 15 Sep 2026 21:00:51 GMT
 keep-alive: timeout=5
 
-{"id":"K2002","task":"buy milk","done":true}
+{"id":"K2001","task":"buy milk","done":true}
 
->>> fabfdb0b18ee55f0fcaee137b37051499cd24dbe72409ce81fd3ec5fda641e5c
-GET http://localhost:4002/tasks/K2002
+# user=poc
+# id=K2001
+>>> 9ae3f25560bc9ed0d7f45ddf673ebf5e0ce459d74d778466f48195cafd98048f
+GET http://localhost:4002/tasks/K2001
 accept: */*
 accept-language: *
 sec-fetch-mode: cors
@@ -71,13 +79,15 @@ x-owner: poc
 connection: keep-alive
 content-length: 44
 content-type: application/json
-date: Tue, 15 Sep 2026 19:47:23 GMT
+date: Tue, 15 Sep 2026 21:00:51 GMT
 keep-alive: timeout=5
 
-{"id":"K2002","task":"buy milk","done":true}
+{"id":"K2001","task":"buy milk","done":true}
 
->>> b420a2c69cc4645a0c38cce616eeaa0b14280a8e8333f98ee0f02fe1a47e61d6
-DELETE http://localhost:4002/tasks/K2002
+# user=poc
+# id=K2001
+>>> fdc55b219c43ab06c9abcdc06403c9ffcf19633c4efd66b5cd31462419e57098
+DELETE http://localhost:4002/tasks/K2001
 accept: */*
 accept-language: *
 sec-fetch-mode: cors
@@ -87,6 +97,6 @@ x-owner: poc
 <<<
 204 No Content
 connection: keep-alive
-date: Tue, 15 Sep 2026 19:47:23 GMT
+date: Tue, 15 Sep 2026 21:00:51 GMT
 keep-alive: timeout=5
 
