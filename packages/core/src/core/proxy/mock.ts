@@ -386,6 +386,7 @@ export async function serveMock(
       mock: mock.name,
       endpoint: [mock.endpoint.service, mock.endpoint.action].join("/"),
       entrypoint: mock.entrypoint,
+      method: inbound.method,
     };
 
     // record and replay derive the same key from the same context, so a
