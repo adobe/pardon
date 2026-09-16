@@ -40,13 +40,24 @@ import { readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 
 import { PardonError } from "../error.js";
-import type { ResponseObject } from "../request/fetch-object.js";
+import {
+  fetchObjectURL,
+  type ResponseObject,
+} from "../request/fetch-object.js";
 import {
   HTTPS,
   isHttpRequestStep,
   isHttpResponseStep,
 } from "../formats/https-fmt.js";
 import { KV } from "../formats/kv-fmt.js";
+
+/** A recorded exchange the service was expected to make, for diagnostics. */
+export type RecordedCall = {
+  /** the recording key (hash) that identifies this exchange in the log. */
+  key: string;
+  method: string;
+  url: string;
+};
 
 /** A loaded recording log, resolvable by recording key in recorded order. */
 export type Recordings = {
@@ -64,6 +75,13 @@ export type Recordings = {
    * downstream calls than were recorded. `0` also implies nothing is parked.
    */
   remaining(): number;
+  /**
+   * The recorded exchanges not yet served (cursor to end), in recorded order.
+   * Because the cursor only advances from the head, these are always the trailing
+   * `remaining()` entries of the log — the calls the service was expected to make
+   * next but did not. Used to name what's missing in a completeness failure.
+   */
+  unreplayed(): RecordedCall[];
   /**
    * Whether every `resolve` so far had a recorded slot to draw from. Turns false
    * on the first out-of-budget/unknown-key call — a violation the service may
@@ -107,7 +125,7 @@ export function loadRecordings(path: string, cwd = process.cwd()): Recordings {
   }
 
   const { steps } = HTTPS.parse(text);
-  const sequence: { key: string; response: ResponseObject }[] = [];
+  const sequence: (RecordedCall & { response: ResponseObject })[] = [];
 
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
@@ -124,7 +142,12 @@ export function loadRecordings(path: string, cwd = process.cwd()): Recordings {
     }
 
     const { status, statusText, headers, body } = next;
-    sequence.push({ key, response: { status, statusText, headers, body } });
+    sequence.push({
+      key,
+      method: step.request.method ?? "GET",
+      url: fetchObjectURL(step.request).toString(),
+      response: { status, statusText, headers, body },
+    });
   }
 
   // per-key budget (unclaimed occurrences) + FIFO of parked requests for it.
@@ -177,6 +200,11 @@ export function loadRecordings(path: string, cwd = process.cwd()): Recordings {
     },
     remaining() {
       return sequence.length - cursor;
+    },
+    unreplayed() {
+      return sequence
+        .slice(cursor)
+        .map(({ key, method, url }) => ({ key, method, url }));
     },
     valid() {
       return valid;

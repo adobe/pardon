@@ -27,7 +27,10 @@ import {
 } from "../runner.js";
 import { extractKVs } from "../../../util/kv-options.js";
 import { startProxyServer } from "../../../core/proxy/server.js";
-import { createAmbientCapture } from "../../../core/proxy/capture.js";
+import {
+  createAmbientCapture,
+  createAmbientRedactor,
+} from "../../../core/proxy/capture.js";
 import persist from "../../../features/persist.js";
 import failfast, {
   executeWithFastFail,
@@ -188,6 +191,7 @@ async function main() {
           { ...configuration.proxy, ...(proxyPort && { port: +proxyPort }) },
           {
             capture: createAmbientCapture(),
+            redact: createAmbientRedactor(),
             cwd,
           },
         )
@@ -314,6 +318,7 @@ async function runProxyServer(
 
   const server = await startProxyServer(mode, configuration.proxy, {
     capture: createAmbientCapture(),
+    redact: createAmbientRedactor(),
     cwd,
   });
 

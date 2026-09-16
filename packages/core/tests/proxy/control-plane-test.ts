@@ -190,6 +190,8 @@ it("fails finish with 422 when the recorded log is not fully replayed", async ()
     const body = (await finish.json()) as { status: string; error: string };
     assert.equal(body.status, "error");
     assert.match(body.error, /never replayed|fewer downstream calls/);
+    // the un-replayed exchange is named with its method + URL.
+    assert.match(body.error, /GET https:\/\/svc\.example\/never/);
   } finally {
     await proxy.close();
   }

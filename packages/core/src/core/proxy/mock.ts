@@ -25,7 +25,7 @@ governing permissions and limitations under the License.
 // forwarding (byte-faithful passthrough) stays in `forwarder.ts`.
 // ---------------------------------------------------------------------------
 
-import { Stats, readFileSync, readdirSync, statSync } from "node:fs";
+import { type Stats, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 import { PardonError } from "../error.js";

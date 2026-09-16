@@ -41,10 +41,15 @@ import {
   isControlPath,
   type ControlPlane,
 } from "./control.js";
-import { createHttpsLogRecorder, recordingSlug } from "./record.js";
+import {
+  createHttpsLogRecorder,
+  recordingSlug,
+  type Recorder,
+} from "./record.js";
 import { loadRecordings } from "./replay.js";
+import type { Redactor } from "./capture.js";
 import { pardonRuntime } from "../../runtime/runtime-deferred.js";
-import { HTTP } from "../formats/http-fmt.js";
+import { HTTP, type RequestObject } from "../formats/http-fmt.js";
 
 /**
  * Read a Node inbound request into a pardon FetchObject, faithfully — the raw
@@ -108,6 +113,13 @@ export type ProxyServerOptions = {
   cwd?: string;
   /** out-of-band capture of each proxied exchange (redaction/persistence). */
   capture?: CaptureHook;
+  /**
+   * Collection-schema-driven redaction applied to durable artifacts: the request
+   * side of each recorded exchange (response bodies stay faithful — they are
+   * replayed back verbatim) and both sides of the proxy's console output. When
+   * absent, artifacts are written raw.
+   */
+  redact?: Redactor;
 };
 
 /**
@@ -216,7 +228,13 @@ export async function startProxyServer(
     // a log regenerates it on the next run.
     const replaying = mode === "replay" || (mode === "vcr" && existsSync(log));
 
-    const recorder = replaying ? undefined : createHttpsLogRecorder(log);
+    const baseRecorder = replaying ? undefined : createHttpsLogRecorder(log);
+    // redact the request side of each recorded exchange (response stays faithful
+    // for verbatim replay); no-op when no redactor is configured.
+    const recorder =
+      baseRecorder && options.redact
+        ? redactingRecorder(baseRecorder, options.redact)
+        : baseRecorder;
     const replaySource = replaying ? loadRecordings(log, cwd) : undefined;
 
     for (const [upstreamName, upstream] of Object.entries(config.upstreams)) {
@@ -254,12 +272,23 @@ export async function startProxyServer(
 
         const remaining = replaySource!.remaining();
         if (remaining > 0) {
+          // name the exchanges the service never made (the trailing entries of
+          // the log, in recorded order) before freeing the parked requests.
+          const missing = replaySource!
+            .unreplayed()
+            .map(
+              ({ key, method, url }) =>
+                `  - ${key.slice(0, 12)} ${method} ${url}`,
+            )
+            .join("\n");
+
           // free any requests still parked on the ordering barrier so their
           // proxied connections don't hang, then fail.
           replaySource!.release();
           throw new PardonError(
             `replay: ${remaining} recorded exchange(s) for ${name} were never ` +
-              `replayed — the service made fewer downstream calls than recorded`,
+              `replayed — the service made fewer downstream calls than recorded:\n` +
+              missing,
           );
         }
 
@@ -416,16 +445,17 @@ async function handleRequest(
         runtime,
       );
 
-      mockRequest.origin = `mock://${route.name}`;
       writeResponseObject(res, response);
 
-      console.info(`
----
->>> (mock:${mock?.id ?? "proxy"}${Number(mock?.entrypoint ?? 0) > 1 ? `+${mock!.entrypoint}` : ""})
-${HTTP.stringify(mockRequest)}
-
-<<<
-${HTTP.responseObject.stringify(response)}`);
+      // redact against the real upstream origin (so classification matches the
+      // collection), but keep the `mock://` display origin in the console.
+      await logExchange(
+        options.redact,
+        `>>> (mock:${mock?.id ?? "proxy"}${Number(mock?.entrypoint ?? 0) > 1 ? `+${mock!.entrypoint}` : ""})`,
+        { ...mockRequest, origin: config.upstreams[route.name]?.origin },
+        response,
+        `mock://${route.name}`,
+      );
       return;
     }
 
@@ -433,13 +463,7 @@ ${HTTP.responseObject.stringify(response)}`);
     const response = await forwardRequest(request);
     writeResponseObject(res, response);
 
-    console.info(`
----
->>>
-${HTTP.stringify(request)}
-
-<<<
-${HTTP.responseObject.stringify(response)}`);
+    await logExchange(options.redact, `>>>`, request, response);
 
     // capture is out-of-band: the client has been served, so a redaction or
     // persistence failure must not surface as a proxy error.
@@ -457,4 +481,70 @@ ${HTTP.responseObject.stringify(response)}`);
     res.writeHead(status, { "content-type": "text/plain" });
     res.end(`${(error as Error)?.message ?? "proxy error"}\n`);
   }
+}
+
+/**
+ * A recorder that redacts the *request* side of each exchange before delegating,
+ * leaving the response faithful (it is replayed back verbatim, so must not be
+ * altered). A redaction failure logs and writes the raw request rather than
+ * dropping the exchange.
+ */
+function redactingRecorder(inner: Recorder, redact: Redactor): Recorder {
+  return {
+    async append(exchange) {
+      try {
+        const { request } = await redact(exchange.request, exchange.response);
+        return await inner.append({
+          ...exchange,
+          request: request as FetchObject,
+        });
+      } catch (error) {
+        console.warn(
+          "proxy: recording redaction failed; writing raw request",
+          error,
+        );
+        return await inner.append(exchange);
+      }
+    },
+  };
+}
+
+/**
+ * Log a proxied exchange to the console, redacting both request and response
+ * when a redactor is configured (console output is never replayed, so both sides
+ * are safe to redact). `displayOrigin` overrides the shown request origin (e.g.
+ * `mock://<name>`) after redaction, which classifies against the real origin. A
+ * redaction failure falls back to logging the raw exchange.
+ */
+async function logExchange(
+  redact: Redactor | undefined,
+  header: string,
+  request: FetchObject,
+  response: ResponseObject,
+  displayOrigin?: string,
+): Promise<void> {
+  let req: FetchObject | RequestObject = request;
+  let res = response;
+
+  if (redact) {
+    try {
+      const redacted = await redact(request, response);
+      req = redacted.request;
+      res = redacted.response;
+    } catch (error) {
+      console.warn("proxy: console redaction failed; logging raw", error);
+    }
+  }
+
+  if (displayOrigin !== undefined) {
+    req = { ...req, origin: displayOrigin };
+  }
+
+  console.info(`
+---
+${header}
+${HTTP.stringify(req)}
+
+<<<
+${HTTP.responseObject.stringify(res)}`);
 }
